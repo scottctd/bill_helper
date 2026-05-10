@@ -26,12 +26,13 @@ from backend.services.agent.attachments import (
 )
 from backend.services.agent.context_tokens import count_context_tokens
 from backend.services.agent.message_history import build_llm_messages
+from backend.services.agent.tools_for_model_request import tools_for_agent_model_request
 from backend.services.agent.runtime import (
     ensure_agent_available,
     run_existing_agent_run,
     start_agent_run,
 )
-from backend.services.agent.tool_runtime import build_openai_tool_schemas
+from backend.services.agent.work_sessions import attach_user_file_to_work_session_thread
 from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.services.user_files import resolve_user_file_path
@@ -63,9 +64,10 @@ def current_context_tokens_for_thread(
         if run.status == AgentRunStatus.RUNNING and run.context_tokens is not None:
             return run.context_tokens
 
-    for run in runs_by_newest:
-        if run.context_tokens is not None:
-            return run.context_tokens
+    if runs_by_newest:
+        newest = runs_by_newest[0]
+        if newest.context_tokens is not None:
+            return newest.context_tokens
 
     fallback_model_name = next(
         (run.model_name for run in runs_by_newest if run.model_name),
@@ -78,10 +80,11 @@ def current_context_tokens_for_thread(
         current_user_message_id=None,
         model_name=fallback_model_name,
     )
+    thread_tools = tools_for_agent_model_request(thread_title=thread.title)
     current_context_tokens = count_context_tokens(
         model_name=fallback_model_name,
         messages=current_messages,
-        tools=build_openai_tool_schemas(),
+        tools=thread_tools,
     )
     if current_context_tokens is not None:
         return current_context_tokens
@@ -130,9 +133,10 @@ async def create_user_message_and_start_run(
             detail=f"Too many attachments. Max allowed is {settings.agent_max_images_per_message}.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    if (files or requested_attachment_ids) and not attachments_use_ocr and not model_supports_vision(selected_model_name):
+    has_attachments = bool(files or requested_attachment_ids)
+    if has_attachments and not model_supports_vision(selected_model_name):
         raise AgentExecutionPolicyError(
-            detail="OCR can only be disabled when the selected model supports vision.",
+            detail="Attachments require a vision-capable model.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -140,7 +144,7 @@ async def create_user_message_and_start_run(
         thread_id=thread.id,
         role=AgentMessageRole.USER,
         content_markdown=clean_content,
-        attachments_use_ocr=attachments_use_ocr,
+        attachments_use_ocr=False if has_attachments else attachments_use_ocr,
     )
     db.add(user_message)
     db.flush()
@@ -154,7 +158,7 @@ async def create_user_message_and_start_run(
                     owner_user_id=thread.owner_user_id,
                     upload=upload,
                     settings=settings,
-                    use_ocr=attachments_use_ocr,
+                    use_ocr=False,
                 )
             except PolicyViolation as exc:
                 raise AgentExecutionPolicyError(
@@ -167,14 +171,27 @@ async def create_user_message_and_start_run(
                 message_id=user_message.id,
                 user_file=user_file,
             )
+            attach_user_file_to_work_session_thread(
+                db,
+                thread=thread,
+                user_file=user_file,
+                note=None,
+            )
 
         try:
-            attach_existing_user_files(
+            existing_user_files = attach_existing_user_files(
                 db,
                 attachment_ids=requested_attachment_ids,
                 message_id=user_message.id,
                 owner_user_id=thread.owner_user_id,
             )
+            for user_file in existing_user_files:
+                attach_user_file_to_work_session_thread(
+                    db,
+                    thread=thread,
+                    user_file=user_file,
+                    note=None,
+                )
         except PolicyViolation as exc:
             raise AgentExecutionPolicyError(
                 detail=exc.detail,

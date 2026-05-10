@@ -17,7 +17,7 @@ from .read import (
 )
 from .read_image import ReadImageArgs
 from .shared import EmptyArgs, INTERMEDIATE_UPDATE_TOOL_NAME, SendIntermediateUpdateArgs
-from .terminal import RunTerminalArgs
+from .terminal import RunBhArgs, RunTerminalArgs
 from .threads import RenameThreadArgs
 
 __all__ = [
@@ -35,6 +35,7 @@ __all__ = [
     "ProposeUpdateGroupMembershipArgs",
     "ReadImageArgs",
     "RenameThreadArgs",
+    "RunBhArgs",
     "RunTerminalArgs",
     "SendIntermediateUpdateArgs",
 ]

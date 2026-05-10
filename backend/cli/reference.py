@@ -1,7 +1,8 @@
 """Canonical `bh` command reference and prompt-friendly cheat sheet.
 
 CALLING SPEC:
-    render_bh_cheat_sheet() -> str
+    render_bh_cheat_sheet(include_source_commands=True) -> str
+    render_hosted_agent_bh_cheat_sheet() -> str
     compact_schema_for(render_key) -> str | None
 
 Inputs:
@@ -32,6 +33,39 @@ class CommandSpec:
     notes: tuple[str, ...] = ()
 
 
+_SESSION_SOURCE_COMMANDS = frozenset(
+    {
+        "bh sessions sources list [session_id]",
+        "bh sessions sources add-text",
+        "bh sessions sources add-file <path>",
+    }
+)
+
+_HOSTED_HIDDEN_SESSION_COMMANDS = frozenset(
+    {
+        "bh sessions list",
+        "bh sessions create",
+        "bh sessions use <session_id>",
+        "bh sessions get [session_id]",
+    }
+)
+
+_HOSTED_HIDDEN_COMMANDS = frozenset({"bh login", "bh instruction"}) | _HOSTED_HIDDEN_SESSION_COMMANDS
+
+_HOSTED_SESSION_UPDATE_SPEC = CommandSpec(
+    "bh sessions update",
+    "Update the current app-managed session title or summary.",
+    optional_arguments=(
+        "--title TEXT: replace the current session title.",
+        "--summary TEXT: replace the current session summary.",
+    ),
+    notes=(
+        "Hosted runs use the injected current session id. Do not provide a session id.",
+        "`--summary-file` is for external agents with local files and is not available to hosted runs.",
+    ),
+)
+
+
 _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("entries_list", "id|date|kind|amount_minor|currency|name|from|to|tags"),
     CompactSchema(
@@ -46,6 +80,10 @@ _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("groups_edges", "source|target|relation"),
     CompactSchema("entities_list", "name|category"),
     CompactSchema("tags_list", "name|type|description"),
+    CompactSchema("sessions_list", "id|title|pending|running|updated_at"),
+    CompactSchema("sessions_detail", "id|title|pending|running|updated_at"),
+    CompactSchema("sources_list", "source_id|name|mime_type|size_bytes|sha256"),
+    CompactSchema("source_detail", "source_id|name|mime_type|size_bytes|sha256"),
     CompactSchema("proposals_list", "id|status|change_type|summary"),
     CompactSchema("proposals_detail", "id|status|proposal_type|change_action|change_type|summary|applied_resource"),
 )
@@ -53,8 +91,92 @@ _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
 
 _COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec(
+        "bh login",
+        "Create a password-backed API session and save CLI auth config.",
+        required_arguments=(
+            "--username TEXT: Bill Helper username.",
+        ),
+        optional_arguments=(
+            "--api-base-url URL: Bill Helper API base URL. Defaults to local dev backend.",
+            "--password TEXT: password for non-interactive setup.",
+            "--password-stdin: read the password from stdin.",
+        ),
+    ),
+    CommandSpec(
         "bh status",
-        "Show current auth, workspace, thread, and run context.",
+        "Show current auth and CLI session context.",
+    ),
+    CommandSpec(
+        "bh instruction",
+        "Show Bill Helper domain rules and CLI reference without requiring auth.",
+    ),
+    CommandSpec(
+        "bh sessions list",
+        "List sessions.",
+    ),
+    CommandSpec(
+        "bh sessions create",
+        "Create a session.",
+        optional_arguments=(
+            "--title TEXT: short session title.",
+            "--summary TEXT: current session summary.",
+            "--use: save the created session as the current CLI session.",
+        ),
+    ),
+    CommandSpec(
+        "bh sessions use <session_id>",
+        "Save an existing session as the current CLI session.",
+        required_arguments=(
+            "<session_id>: full session id or unique short id prefix.",
+        ),
+    ),
+    CommandSpec(
+        "bh sessions get [session_id]",
+        "Get one session. Uses the current CLI session when the id is omitted.",
+        optional_arguments=(
+            "<session_id>: full session id, unique short id prefix, or current CLI session default.",
+        ),
+    ),
+    CommandSpec(
+        "bh sessions update [session_id]",
+        "Update a session title or summary. Uses the current CLI session when the id is omitted.",
+        optional_arguments=(
+            "<session_id>: full session id, unique short id prefix, or current CLI session default.",
+            "--title TEXT: replace the title.",
+            "--summary TEXT: replace the summary.",
+            "--summary-file PATH: read the replacement summary from a local file.",
+        ),
+    ),
+    CommandSpec(
+        "bh sessions sources list [session_id]",
+        "List sources attached to a session. Uses the current CLI session when the id is omitted.",
+        optional_arguments=(
+            "<session_id>: full session id, unique short id prefix, or current CLI session default.",
+        ),
+    ),
+    CommandSpec(
+        "bh sessions sources add-text",
+        "Attach text as a source to the current or specified session.",
+        required_arguments=(
+            "one of --text TEXT or --text-file PATH.",
+        ),
+        optional_arguments=(
+            "--session-id ID: full session id or unique short id prefix. Defaults to the current CLI session.",
+            "--filename NAME: stored filename for this text source.",
+            "--display-name TEXT: display name for this source.",
+            "--note TEXT: short source note.",
+        ),
+    ),
+    CommandSpec(
+        "bh sessions sources add-file <path>",
+        "Attach a local text, image, or PDF file as a source to the current or specified session.",
+        required_arguments=(
+            "<path>: local file path on the machine running the external agent.",
+        ),
+        optional_arguments=(
+            "--session-id ID: full session id or unique short id prefix. Defaults to the current CLI session.",
+            "--note TEXT: short source note.",
+        ),
     ),
     CommandSpec(
         "bh entries list",
@@ -383,40 +505,82 @@ def _render_command_spec(item: CommandSpec) -> str:
     return "\n".join(lines)
 
 
-def render_bh_cheat_sheet() -> str:
+def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
+    compact_schema_keys = {
+        "entries_list",
+        "accounts_list",
+        "snapshots_list",
+        "groups_list",
+        "entities_list",
+        "tags_list",
+        "proposals_list",
+    }
+    if include_source_commands:
+        compact_schema_keys.add("sessions_list")
+        compact_schema_keys.add("sources_list")
+    else:
+        compact_schema_keys.add("sessions_detail")
     schema_lines = "\n".join(
         f"- `{item.render_key}` -> `{item.schema}`"
         for item in _COMPACT_SCHEMAS
-        if item.render_key
-        in {
-            "entries_list",
-            "accounts_list",
-            "snapshots_list",
-            "groups_list",
-            "entities_list",
-            "tags_list",
-            "proposals_list",
-        }
+        if item.render_key in compact_schema_keys
     )
-    command_specs = "\n\n".join(_render_command_spec(item) for item in _COMMAND_SPECS)
+    visible_command_specs: list[str] = []
+    for item in _COMMAND_SPECS:
+        if not include_source_commands:
+            if item.command in _SESSION_SOURCE_COMMANDS or item.command in _HOSTED_HIDDEN_COMMANDS:
+                continue
+            if item.command == "bh sessions update [session_id]":
+                visible_command_specs.append(_render_command_spec(_HOSTED_SESSION_UPDATE_SPEC))
+                continue
+        visible_command_specs.append(_render_command_spec(item))
+    command_specs = "\n\n".join(visible_command_specs)
+    source_guidance = (
+        "- Source uploads are content-deduplicated per user. Uploading the same bytes again returns the same source id and attaching it to the same session is idempotent.\n"
+        if include_source_commands
+        else "- The app owns hosted session creation, selection, and attachment linking. Hosted runs may update only the current session with `bh sessions update`; do not use session navigation or source-management commands.\n"
+    )
+    auth_guidance = (
+        "- `bh login` stores `api_base_url` and `auth_token` for future commands; env vars (`BH_API_BASE_URL`, `BH_AUTH_TOKEN`) still override config.\n"
+        if include_source_commands
+        else "- Hosted runs receive temporary auth and the current session id automatically.\n"
+    )
+    proposal_scope_guidance = (
+        "- Mutating proposal commands require a current session (`bh sessions create --use`, `bh sessions use <session_id>`, `BH_SESSION_ID`, or an explicit session id where supported). `BH_RUN_ID` is optional and only present for the hosted internal agent.\n"
+        if include_source_commands
+        else "- Mutating proposal commands use the injected current session. `BH_RUN_ID` is present for hosted runs and should not be supplied manually.\n"
+    )
+    session_and_source_flows = (
+        "- Login for local dev: `bh login --api-base-url http://localhost:8000/api/v1 --username admin --password-stdin`\n"
+        "- Create and use a session: `bh sessions create --title \"March statements\" --use`\n"
+        "- Switch to an existing session: `bh sessions list`, then `bh sessions use <session_id>`\n"
+        "- Attach text to the current session: `bh sessions sources add-text --text \"Statement balance: 1234.56\" --filename statement.txt`\n"
+        "- Attach a local PDF to a session: `bh sessions sources add-file statement.pdf --session-id a1b2c3d4`\n"
+        if include_source_commands
+        else "- Update the current session summary: `bh sessions update --summary \"Reviewed May receipts and proposed 3 entries.\"`\n"
+    )
     return (
-        "Use `bh` for Bill Helper app reads and current-thread proposal creation and proposal mutation.\n"
+        "Use `bh` for Bill Helper app reads and current-session proposal creation and proposal mutation.\n"
         "\n"
         "- Agent calls should expect `compact` output by default; use `--format text` or `--format json` only when needed.\n"
         "- Every command also accepts `--format {compact,json,text}` as an optional global override.\n"
         "- List output uses 8-character ids when unique in the current result set; collisions fall back to full ids.\n"
         "- Compact output is line-oriented: one `schema:` line defines column order, then one escaped `|`-delimited row per record.\n"
-        "- Read commands work in the human IDE terminal. Any `create`, `update`, `remove`, `add-member`, `remove-member`, or `proposals` command requires the current agent-run env (`BH_THREAD_ID` and `BH_RUN_ID`).\n"
+        "- Text output formats monetary minor units as decimal currency amounts; compact/json preserve raw minor-unit fields.\n"
+        f"{auth_guidance}"
+        f"{proposal_scope_guidance}"
+        f"{source_guidance}"
         "- Inspect before mutating: read entries/tags/accounts/entities/groups/proposals first, then create resource-scoped proposals.\n"
-        "- `bh proposals update` and `bh proposals remove` only work for pending proposals in the current thread.\n"
+        "- `bh proposals update` and `bh proposals remove` only work for pending proposals in the current session/thread.\n"
         "\n"
         "Command specifications:\n\n"
         f"{command_specs}\n"
         "\n"
-        "Compact list schemas:\n"
+        "Compact output schemas:\n"
         f"{schema_lines}\n"
         "\n"
         "Common flows:\n"
+        f"{session_and_source_flows}"
         "- Inspect recent matching entries: `bh entries list --source \"farm boy\" --limit 10`\n"
         "- Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`\n"
         "- Create a tag proposal: `bh tags create --name grocery --type expense`\n"
@@ -427,3 +591,7 @@ def render_bh_cheat_sheet() -> str:
         "- Remove a pending proposal: `bh proposals remove a1b2c3d4`\n"
         "- Create a group-membership add proposal: `bh groups add-member --payload-json '{\"action\":\"add\",\"group_ref\":{\"group_id\":\"a971c92e\"},\"target\":{\"target_type\":\"entry\",\"entry_ref\":{\"entry_id\":\"8bf2fa83\"}}}'`\n"
     )
+
+
+def render_hosted_agent_bh_cheat_sheet() -> str:
+    return render_bh_cheat_sheet(include_source_commands=False)

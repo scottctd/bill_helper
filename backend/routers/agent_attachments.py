@@ -28,7 +28,7 @@ router = APIRouter(
 
 @router.post("/draft-attachments", response_model=AgentDraftAttachmentRead, status_code=status.HTTP_201_CREATED)
 async def create_draft_attachment(
-    use_ocr: bool = Form(default=True),
+    use_ocr: bool = Form(default=False),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),

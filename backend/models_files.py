@@ -48,3 +48,7 @@ class UserFile(Base):
         back_populates="user_file",
         passive_deletes=True,
     )
+    session_sources: Mapped[list["AgentSessionSource"]] = relationship(
+        back_populates="user_file",
+        passive_deletes=True,
+    )

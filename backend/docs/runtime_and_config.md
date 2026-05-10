@@ -8,9 +8,9 @@
 - Alembic
 - SQLite
 - LiteLLM for model-provider routing
-- Docling (standard pipeline + EasyOCR) for agent PDF/image attachment parsing on the API host
-- PyMuPDF retained as a dev/test helper for synthetic PDF bytes in tests only
-- Docker CLI for per-user workspace provisioning
+- PyMuPDF for high-resolution PDF page rendering in agent vision attachments
+- Docling/EasyOCR code retained only for archived historical bundle support
+- Docker CLI retained only for the legacy opt-in workspace/IDE surface
 
 ## Entry Points
 
@@ -49,6 +49,8 @@ Agent settings:
 - `AGENT_BULK_MAX_CONCURRENT_THREADS`
 - retry policy fields
 - image and attachment limit fields
+- `AGENT_MAX_PDF_PAGES`
+- `AGENT_CLI_BASE_URL` / `BILL_HELPER_AGENT_CLI_BASE_URL`
 - `AGENT_WORKSPACE_ENABLED`
 - `AGENT_WORKSPACE_IMAGE`
 - `AGENT_WORKSPACE_DOCKER_BINARY`
@@ -70,7 +72,8 @@ Runtime override behavior:
 - effective runtime settings resolve as `override -> env default` where applicable
 - `user_memory` is DB-backed only, normalized as an ordered `list[str]`, and injected into every agent system prompt as a markdown unordered list when set
 - `available_agent_models` is DB-backed only, normalized as an ordered `list[str]`, and always resolved to include the effective `agent_model`
-- `vision_capable_agent_models` is a derived read-only list returned by `GET /api/v1/settings` so clients can tell which enabled models allow OCR-off attachment sends
+- `vision_capable_agent_models` is a derived read-only list returned by `GET /api/v1/settings` so clients can tell which enabled models can receive image/PDF attachments
+- `agent_max_pdf_pages` defaults to `10`, is persisted as an override, and rejects oversized PDFs before page rendering
 - `entry_tagging_model` is DB-backed only, may be blank, and must stay inside the effective `available_agent_models` list; blank disables inline entry tag suggestion
 - identity is request-principal-based at API boundaries and is not persisted in runtime settings
 - protected HTTP routes require explicit `X-Bill-Helper-Principal`; the frontend owns that header through the local principal session
@@ -84,11 +87,13 @@ Behavior notes:
 - env-file variables are mirrored into `os.environ` so provider SDKs and LiteLLM can see shared secrets
 - `get_settings()` caches environment settings with `lru_cache`
 
-## Agent Workspace Provisioning
+## Agent Files, CLI, And Legacy Workspace
 
 Relevant modules:
 
 - `backend/services/user_files.py`
+- `backend/services/agent/work_sessions.py`
+- `backend/services/agent/terminal.py`
 - `backend/services/agent_workspace.py`
 - `backend/services/workspace_browser.py`
 - `backend/services/workspace_ide.py`
@@ -98,7 +103,11 @@ Relevant modules:
 Current behavior:
 
 - user creation and admin bootstrap eagerly create `{data_dir}/user_files/{user_id}/uploads`
-- when `agent_workspace_enabled=true`, those same flows also ensure the named Docker volume `bill-helper-workspace-{user_id}` and the named `code-server` container definition `bill-helper-sandbox-{user_id}`
+- internal agent `run_bh` execution accepts only `bh ...` commands, runs the local CLI module in a subprocess, injects a short-lived bearer token plus `BH_SESSION_ID`/`BH_THREAD_ID`/`BH_RUN_ID`, and scrubs the token from output
+- external agents use `bh login` for saved CLI auth and `bh sessions list|create --use|use|update` to select named sessions, update summaries, attach source text/files, and create review proposals without requiring a hosted run id
+- canonical user source uploads are stored once per owner by content hash; attaching the same source to the same session returns the existing link
+- when `agent_workspace_enabled=true`, legacy workspace endpoints can still provision the named Docker volume `bill-helper-workspace-{user_id}` and the named `code-server` container definition `bill-helper-sandbox-{user_id}`
+- Docker workspace provisioning is disabled by default and is not started by login, logout, user creation, or admin session operations
 - the provisioned container mounts the user's canonical upload root at `/workspace/uploads` as read-only and a named volume at `/workspace` for writable scratch files plus IDE state
 - the workspace image runs `code-server` as its main process, publishes its IDE port to localhost only, and uses a direct volume root where editable files live under `/workspace/scratch`, read-only uploads live under `/workspace/uploads`, and persisted IDE state lives in `/workspace/.ide`
 - the workspace image installs `bh` via `pip install --no-deps` on the local package after an explicit `docker/agent-workspace-requirements.txt` pass (V1 scientific stack plus `httpx`/`pydantic` for the CLI)—it does **not** install the full API dependency graph from `pyproject.toml`; rebuild `bill-helper-agent-workspace:latest` and recreate running `bill-helper-sandbox-*` containers after changing the workspace Dockerfile or requirements file
@@ -107,14 +116,12 @@ Current behavior:
 - `ensure_user_workspace_provisioned()` enforces the current image/label/port/mount contract and recreates mismatched containers onto the current revision without compatibility shims for older mount layouts
 - `GET /api/v1/workspace` reports current container state, IDE readiness, and degraded launch reason for the authenticated user
 - when the configured workspace image is missing, `GET /api/v1/workspace` returns a snapshot with `status="image_missing"` so the UI can still explain the missing image instead of returning `503`
-- `POST /api/v1/workspace/start` and `POST /api/v1/workspace/stop` remain explicit lifecycle controls, but login and auth bootstrap now trigger best-effort background start attempts so the IDE is usually ready before the user opens `/workspace`
+- `POST /api/v1/workspace/start` and `POST /api/v1/workspace/stop` remain explicit legacy lifecycle controls
 - `POST /api/v1/workspace/ide/session` mints a narrow `HttpOnly` workspace cookie for `/api/v1/workspace/ide/` and launches the same-origin IDE proxy without inventing a second auth model
-- logging out or admin session deletion stops that user's workspace after the session revoke is committed, regardless of any other remaining sessions
 - backend shutdown now runs a best-effort sweep that stops all running user workspace containers so app termination does not leave sandboxes running
 - the backend assumes `agent_workspace_image` already exists and returns a provisioning error if it does not
 - the image can be built locally with `docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .`
 - container creation adds `host.docker.internal -> host-gateway` so local terminal sessions can reach the configured backend base URL on Linux as well as Docker Desktop setups
-- workspace terminal execution injects `BH_API_BASE_URL`, `BH_AUTH_TOKEN`, `BH_THREAD_ID`, and `BH_RUN_ID` per command; the short-lived bearer token is created and revoked by the backend around each terminal invocation
 - if the backend itself runs inside Docker, it still needs host-daemon access via `/var/run/docker.sock` or `DOCKER_HOST` to manage sibling user workspaces
 
 ## Session Auth Runtime
@@ -152,6 +159,7 @@ Supported persisted overrides include:
 - `vision_capable_agent_models` (derived read-only response field, not persisted)
 - run-limit and retry fields
 - attachment limits
+  - `agent_max_pdf_pages`
 - `agent_base_url`
 - `agent_api_key`
 

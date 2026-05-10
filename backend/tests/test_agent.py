@@ -63,11 +63,11 @@ def _patch_terminal_success(monkeypatch, *, stdout: str = "schema: name|type\ngr
     from backend.services.agent.tool_types import ToolExecutionResult, ToolExecutionStatus
 
     def fake_execute_tool(name, arguments, context):
-        assert name == "terminal"
+        assert name == "run_bh"
         return ToolExecutionResult(
             output_text=(
                 "OK\n"
-                "summary: terminal command completed\n"
+                "summary: bh command completed\n"
                 "exit_code: 0\n"
                 "cwd: /workspace/scratch\n"
                 "duration_ms: 1\n"
@@ -77,7 +77,7 @@ def _patch_terminal_success(monkeypatch, *, stdout: str = "schema: name|type\ngr
                 "stderr: \n"
             ),
             output_json={
-                "summary": "terminal command completed",
+                "summary": "bh command completed",
                 "command": arguments["command"],
                 "cwd": "/workspace/scratch",
                 "exit_code": 0,
@@ -192,7 +192,7 @@ def test_send_message_rejects_model_outside_available_agent_models(client):
 def test_run_includes_context_tokens(client, monkeypatch):
     monkeypatch.setattr(
         "backend.services.agent.runtime.calculate_context_tokens",
-        lambda *, model_name, llm_messages: 321,
+        lambda *, model_name, llm_messages, tools=None: 321,
     )
     patch_model(
         monkeypatch,
@@ -258,7 +258,7 @@ def test_get_run_surface_override_formats_terminal_reply_for_telegram(client, mo
 def test_thread_detail_uses_persisted_context_tokens_for_idle_thread(client, monkeypatch):
     monkeypatch.setattr(
         "backend.services.agent.runtime.calculate_context_tokens",
-        lambda *, model_name, llm_messages: 123,
+        lambda *, model_name, llm_messages, tools=None: 123,
     )
     patch_model(
         monkeypatch,
@@ -284,7 +284,7 @@ def test_thread_detail_prefers_running_run_context_tokens(client, monkeypatch):
 
     monkeypatch.setattr(
         "backend.services.agent.runtime.calculate_context_tokens",
-        lambda *, model_name, llm_messages: len(llm_messages) * 100,
+        lambda *, model_name, llm_messages, tools=None: len(llm_messages) * 100,
     )
     def multi_step_model(_messages):
         call_count["value"] += 1
@@ -297,7 +297,7 @@ def test_thread_detail_prefers_running_run_context_tokens(client, monkeypatch):
                         "id": "call_terminal",
                         "type": "function",
                         "function": {
-                            "name": "terminal",
+                            "name": "run_bh",
                             "arguments": json.dumps({"command": "bh tags list"}),
                         },
                     }
@@ -331,7 +331,7 @@ def test_thread_detail_prefers_running_run_context_tokens(client, monkeypatch):
 
     proceed_second_call.set()
     payload = wait_for_run_completion(client, run["id"], timeout_seconds=1.0)
-    assert payload["context_tokens"] == 400
+    assert payload["context_tokens"] == 500
 
 
 def test_delete_thread_removes_thread_from_list_and_detail(client):
@@ -428,6 +428,12 @@ def test_uploaded_attachments_are_stored_under_canonical_user_files(client, monk
     assert all(expected_root in path.parents for path in attachment_paths)
     assert all(path.exists() for path in attachment_paths)
 
+    sources_response = client.get(f"/api/v1/agent/sessions/{thread['id']}/sources")
+    sources_response.raise_for_status()
+    sources = sources_response.json()["sources"]
+    assert len(sources) == 1
+    assert sources[0]["display_name"] == "receipt.png"
+
 
 def test_draft_attachment_upload_can_be_sent_later_by_attachment_id(client, monkeypatch):
     captured_messages: list[list[dict]] = []
@@ -460,9 +466,10 @@ def test_draft_attachment_upload_can_be_sent_later_by_attachment_id(client, monk
     assert user_messages
     user_content = user_messages[-1].get("content")
     assert isinstance(user_content, list)
-    assert [part.get("type") for part in user_content] == ["text", "text"]
+    assert [part.get("type") for part in user_content] == ["text", "image_url", "text"]
     assert "statement.pdf" in user_content[0].get("text", "")
-    assert user_content[1].get("text") == "Please summarize this attachment."
+    assert user_content[1].get("image_url", {}).get("url", "").startswith("data:image/png;base64,")
+    assert user_content[2].get("text") == "Please summarize this attachment."
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
@@ -471,23 +478,17 @@ def test_draft_attachment_upload_can_be_sent_later_by_attachment_id(client, monk
     assert len(first_user["attachments"]) == 1
     assert first_user["attachments"][0]["display_name"] == "statement.pdf"
 
+    sources_response = client.get(f"/api/v1/agent/sessions/{thread['id']}/sources")
+    sources_response.raise_for_status()
+    sources = sources_response.json()["sources"]
+    assert len(sources) == 1
+    assert sources[0]["source_id"] == draft_attachment["id"]
+    assert sources[0]["display_name"] == "statement.pdf"
 
-def test_draft_attachment_upload_reuses_parsed_bundle_for_same_hash(client, monkeypatch):
+
+def test_draft_attachment_upload_reuses_vision_bundle_for_same_hash(client, monkeypatch):
     from backend.models_files import UserFile
     from backend.services.user_files import resolve_user_file_path
-
-    convert_calls: list[Path] = []
-
-    def stub_convert(source_path: Path, *, is_pdf: bool) -> Path:
-        convert_calls.append(source_path)
-        bundle_dir = source_path.parent
-        (bundle_dir / "parsed.md").write_text("# reused bundle\n", encoding="utf-8")
-        return bundle_dir / "parsed.md"
-
-    monkeypatch.setattr(
-        "backend.services.agent.agent_attachment_bundle.convert_upload_bundle_source",
-        stub_convert,
-    )
 
     pdf_bytes = build_pdf_bytes(["Invoice total CAD 123.45"])
     first_response = client.post(
@@ -504,7 +505,6 @@ def test_draft_attachment_upload_reuses_parsed_bundle_for_same_hash(client, monk
     second_response.raise_for_status()
     second_attachment = second_response.json()
 
-    assert len(convert_calls) == 1
     assert first_attachment["id"] != second_attachment["id"]
 
     with open_session() as db:
@@ -514,26 +514,14 @@ def test_draft_attachment_upload_reuses_parsed_bundle_for_same_hash(client, monk
         assert second_user_file is not None
         assert first_user_file.stored_relative_path != second_user_file.stored_relative_path
         assert first_user_file.sha256 == second_user_file.sha256
-        assert resolve_user_file_path(first_user_file).parent.joinpath("parsed.md").is_file()
-        assert resolve_user_file_path(second_user_file).parent.joinpath("parsed.md").is_file()
+        assert resolve_user_file_path(first_user_file).parent.joinpath("page-1.png").is_file()
+        assert resolve_user_file_path(second_user_file).parent.joinpath("page-1.png").is_file()
+        assert not resolve_user_file_path(second_user_file).parent.joinpath("parsed.md").exists()
 
 
-def test_draft_attachment_upload_reruns_docling_when_hash_match_bundle_lacks_parsed_markdown(client, monkeypatch):
+def test_draft_attachment_upload_rerenders_when_hash_match_bundle_lacks_page_images(client, monkeypatch):
     from backend.models_files import UserFile
     from backend.services.user_files import resolve_user_file_path
-
-    convert_calls: list[Path] = []
-
-    def stub_convert(source_path: Path, *, is_pdf: bool) -> Path:
-        convert_calls.append(source_path)
-        bundle_dir = source_path.parent
-        (bundle_dir / "parsed.md").write_text("# regenerated bundle\n", encoding="utf-8")
-        return bundle_dir / "parsed.md"
-
-    monkeypatch.setattr(
-        "backend.services.agent.agent_attachment_bundle.convert_upload_bundle_source",
-        stub_convert,
-    )
 
     pdf_bytes = build_pdf_bytes(["Invoice total CAD 123.45"])
     first_response = client.post(
@@ -546,7 +534,7 @@ def test_draft_attachment_upload_reruns_docling_when_hash_match_bundle_lacks_par
     with open_session() as db:
         first_user_file = db.get(UserFile, first_attachment["id"])
         assert first_user_file is not None
-        resolve_user_file_path(first_user_file).parent.joinpath("parsed.md").unlink()
+        resolve_user_file_path(first_user_file).parent.joinpath("page-1.png").unlink()
 
     second_response = client.post(
         "/api/v1/agent/draft-attachments",
@@ -555,12 +543,10 @@ def test_draft_attachment_upload_reruns_docling_when_hash_match_bundle_lacks_par
     second_response.raise_for_status()
     second_attachment = second_response.json()
 
-    assert len(convert_calls) == 2
-
     with open_session() as db:
         second_user_file = db.get(UserFile, second_attachment["id"])
         assert second_user_file is not None
-        assert resolve_user_file_path(second_user_file).parent.joinpath("parsed.md").is_file()
+        assert resolve_user_file_path(second_user_file).parent.joinpath("page-1.png").is_file()
 
 
 def test_draft_attachment_upload_without_ocr_for_pdf_skips_docling_markdown_and_keeps_page_images(client, monkeypatch):
@@ -599,7 +585,18 @@ def test_draft_attachment_upload_without_ocr_for_pdf_skips_docling_markdown_and_
         assert bundle_dir.joinpath("page-1.png").is_file()
 
 
-def test_draft_attachment_upload_runs_docling_when_ocr_is_enabled_after_raw_duplicate(client, monkeypatch):
+def test_draft_attachment_upload_rejects_pdf_over_page_limit(client):
+    pdf_bytes = build_pdf_bytes([f"Page {index}" for index in range(11)])
+    response = client.post(
+        "/api/v1/agent/draft-attachments",
+        files={"file": ("statement.pdf", pdf_bytes, "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PDF has 11 pages. Max pages allowed is 10."
+
+
+def test_draft_attachment_upload_ignores_ocr_flag_after_raw_duplicate(client, monkeypatch):
     convert_calls: list[Path] = []
 
     def stub_convert(source_path: Path, *, is_pdf: bool) -> Path:
@@ -628,7 +625,7 @@ def test_draft_attachment_upload_runs_docling_when_ocr_is_enabled_after_raw_dupl
     )
     second_response.raise_for_status()
 
-    assert len(convert_calls) == 1
+    assert convert_calls == []
 
 
 def test_delete_draft_attachment_removes_unbound_upload_bundle(client):
@@ -881,10 +878,10 @@ def test_send_message_rejects_disabling_ocr_for_non_vision_model(client, monkeyp
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "OCR can only be disabled when the selected model supports vision."
+    assert response.json()["detail"] == "Attachments require a vision-capable model."
 
 
-def test_pdf_attachment_includes_docling_markdown_without_eager_images(client, monkeypatch):
+def test_pdf_attachment_includes_high_resolution_page_images(client, monkeypatch):
     captured_messages: list[list[dict]] = []
 
     def capture_model(messages):
@@ -909,12 +906,13 @@ def test_pdf_attachment_includes_docling_markdown_without_eager_images(client, m
     assert user_messages
     user_content = user_messages[-1].get("content")
     assert isinstance(user_content, list)
-    assert [part.get("type") for part in user_content] == ["text", "text"]
+    assert [part.get("type") for part in user_content] == ["text", "image_url", "text"]
     first_text = user_content[0].get("text", "")
     assert "statement.pdf" in first_text
-    assert "Docling" in first_text or "parsed.md" in first_text
-    assert "Invoice total CAD" in first_text
-    assert user_content[1].get("text") == "Please summarize this attachment."
+    assert "PDF, vision path" in first_text
+    assert "1 page(s)" in first_text
+    assert user_content[1].get("image_url", {}).get("url", "").startswith("data:image/png;base64,")
+    assert user_content[2].get("text") == "Please summarize this attachment."
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
@@ -924,7 +922,7 @@ def test_pdf_attachment_includes_docling_markdown_without_eager_images(client, m
     assert first_user["attachments"][0]["mime_type"] == "application/pdf"
 
 
-def test_pdf_attachment_lists_docling_figure_images_without_eager_image_parts(client, monkeypatch):
+def test_pdf_attachment_sends_each_page_as_image_part(client, monkeypatch):
     captured_messages: list[list[dict]] = []
 
     def capture_model(messages):
@@ -954,14 +952,12 @@ def test_pdf_attachment_lists_docling_figure_images_without_eager_image_parts(cl
     assert user_messages
     user_content = user_messages[-1].get("content")
     assert isinstance(user_content, list)
-    assert [part.get("type") for part in user_content] == ["text", "text"]
+    assert [part.get("type") for part in user_content] == ["text", "image_url", "image_url", "text"]
     head = user_content[0].get("text", "")
     assert "invoice.pdf" in head
-    assert "Page one invoice line item" in head
-    assert "Page two invoice line item" in head
-    assert "Use `read_image`" in head
-    assert "/workspace/uploads/" in head
-    assert ".png" in head
+    assert "2 page(s)" in head
+    assert user_content[1].get("image_url", {}).get("url", "").startswith("data:image/png;base64,")
+    assert user_content[2].get("image_url", {}).get("url", "").startswith("data:image/png;base64,")
     assert user_content[-1].get("text") == "Read every page."
 
 
@@ -993,13 +989,12 @@ def test_attachment_parts_stay_before_user_prompt_for_mixed_uploads(client, monk
     assert user_messages
     user_content = user_messages[-1].get("content")
     assert isinstance(user_content, list)
-    assert [part.get("type") for part in user_content] == ["text", "text", "text"]
+    assert [part.get("type") for part in user_content] == ["text", "image_url", "text", "image_url", "text"]
     assert "statement.pdf" in user_content[0].get("text", "")
-    assert "Use `read_image`" in user_content[0].get("text", "")
-    assert "receipt.png" in user_content[1].get("text", "")
-    assert "parsed.md" in user_content[1].get("text", "")
-    assert "Use `read_image`" in user_content[1].get("text", "")
-    assert user_content[2].get("text") == "Compare both files."
+    assert user_content[1].get("image_url", {}).get("url", "").startswith("data:image/png;base64,")
+    assert "receipt.png" in user_content[2].get("text", "")
+    assert user_content[3].get("image_url", {}).get("url", "").startswith("data:image/png;base64,")
+    assert user_content[4].get("text") == "Compare both files."
 
 
 def test_system_prompt_includes_current_date_tag():
@@ -1237,14 +1232,13 @@ def test_tool_catalog_exposes_only_terminal_and_retained_session_tools():
     assert "add_user_memory" in names
     assert "rename_thread" in names
     assert "send_intermediate_update" in names
-    assert "terminal" in names
-    assert "read_image" in names
+    assert "run_bh" in names
+    assert "terminal" not in names
     assert names == [
         "add_user_memory",
         "rename_thread",
         "send_intermediate_update",
-        "terminal",
-        "read_image",
+        "run_bh",
     ]
 
 
@@ -1454,19 +1448,27 @@ def test_thread_title_stays_untitled_without_rename_tool(client, monkeypatch):
     assert detail_response.json()["thread"]["title"] is None
 
 
-def test_system_prompt_embeds_bh_cheat_sheet_only():
-    from backend.cli.reference import render_bh_cheat_sheet
+def test_system_prompt_embeds_hosted_bh_cheat_sheet_only():
+    from backend.cli.reference import render_hosted_agent_bh_cheat_sheet
     from backend.services.agent.prompts import system_prompt
 
     prompt = system_prompt()
 
     assert "## `bh` Reference" in prompt
-    assert render_bh_cheat_sheet() in prompt
+    assert render_hosted_agent_bh_cheat_sheet() in prompt
+    assert "bh login" not in prompt
+    assert "bh instruction" not in prompt
+    assert "bh sessions update" in prompt
+    assert "bh sessions list" not in prompt
+    assert "bh sessions create" not in prompt
+    assert "bh sessions use" not in prompt
+    assert "bh sessions get" not in prompt
+    assert "bh sessions sources add-file" not in prompt
     assert "billengine" not in prompt.lower()
 
 
 def test_agent_feature_doc_embeds_generated_runtime_tool_and_bh_sections():
-    from backend.cli.reference import render_bh_cheat_sheet
+    from backend.cli.reference import render_hosted_agent_bh_cheat_sheet
     from backend.services.agent.tool_reference import render_runtime_tool_contract_markdown
 
     doc_path = Path("docs/features/agent_billing_assistant.md")
@@ -1481,7 +1483,7 @@ def test_agent_feature_doc_embeds_generated_runtime_tool_and_bh_sections():
     bh_block = document.split(bh_start, maxsplit=1)[1].split(bh_end, maxsplit=1)[0].strip()
 
     assert runtime_block == render_runtime_tool_contract_markdown().strip()
-    assert bh_block == render_bh_cheat_sheet().strip()
+    assert bh_block == render_hosted_agent_bh_cheat_sheet().strip()
     assert "billengine" not in document.lower()
 
 
@@ -1496,7 +1498,7 @@ def test_run_persists_tool_calls(client, monkeypatch):
                     "id": "call_terminal",
                     "type": "function",
                     "function": {
-                        "name": "terminal",
+                        "name": "run_bh",
                         "arguments": json.dumps({"command": "bh tags list"}),
                     },
                 }
@@ -1514,7 +1516,7 @@ def test_run_persists_tool_calls(client, monkeypatch):
 
     assert run["status"] == "completed"
     assert len(run["tool_calls"]) == 1
-    assert run["tool_calls"][0]["tool_name"] == "terminal"
+    assert run["tool_calls"][0]["tool_name"] == "run_bh"
     assert run["tool_calls"][0]["status"] == "ok"
     assert isinstance(run["tool_calls"][0]["output_text"], str)
     assert run["tool_calls"][0]["output_text"].startswith("OK")
@@ -1535,7 +1537,7 @@ def test_run_records_tool_argument_decode_failures(client, monkeypatch):
                 {
                     "id": "call_terminal",
                     "type": "function",
-                    "function": {"name": "terminal", "arguments": "{"},
+                    "function": {"name": "run_bh", "arguments": "{"},
                 }
             ],
         },
@@ -1552,8 +1554,8 @@ def test_run_records_tool_argument_decode_failures(client, monkeypatch):
     assert run["status"] == "completed"
     assert len(run["tool_calls"]) == 1
     tool_call = run["tool_calls"][0]
-    assert tool_call["tool_name"] == "terminal"
-    assert tool_call["display_label"] == "Ran terminal command"
+    assert tool_call["tool_name"] == "run_bh"
+    assert tool_call["display_label"] == "Ran bh command"
     assert tool_call["status"] == "error"
     assert tool_call["input_json"] == {}
     assert tool_call["output_json"]["summary"] == "tool argument decode failed"
@@ -1572,7 +1574,7 @@ def test_thread_detail_compacts_tool_call_payloads(client, monkeypatch):
                     "id": "call_terminal",
                     "type": "function",
                     "function": {
-                        "name": "terminal",
+                        "name": "run_bh",
                         "arguments": json.dumps({"command": "bh tags list"}),
                     },
                 }
@@ -1595,7 +1597,7 @@ def test_thread_detail_compacts_tool_call_payloads(client, monkeypatch):
     assert len(detail["runs"]) == 1
     compact_tool_call = detail["runs"][0]["tool_calls"][0]
     assert compact_tool_call["id"] == run["tool_calls"][0]["id"]
-    assert compact_tool_call["tool_name"] == "terminal"
+    assert compact_tool_call["tool_name"] == "run_bh"
     assert compact_tool_call["display_label"] == "bh tags list"
     assert compact_tool_call["has_full_payload"] is False
     assert compact_tool_call["input_json"] is None
@@ -1614,7 +1616,7 @@ def test_tool_call_detail_endpoint_returns_full_payload(client, monkeypatch):
                     "id": "call_terminal",
                     "type": "function",
                     "function": {
-                        "name": "terminal",
+                        "name": "run_bh",
                         "arguments": json.dumps({"command": "bh tags list"}),
                     },
                 }
@@ -1636,7 +1638,7 @@ def test_tool_call_detail_endpoint_returns_full_payload(client, monkeypatch):
     payload = response.json()
 
     assert payload["id"] == tool_call_id
-    assert payload["tool_name"] == "terminal"
+    assert payload["tool_name"] == "run_bh"
     assert payload["display_label"] == "bh tags list"
     assert payload["has_full_payload"] is True
     assert isinstance(payload["input_json"], dict)
@@ -1654,7 +1656,7 @@ def test_run_persists_assistant_tool_step_text_as_intermediate_update(client, mo
                     "id": "call_terminal",
                     "type": "function",
                     "function": {
-                        "name": "terminal",
+                        "name": "run_bh",
                         "arguments": json.dumps({"command": "bh tags list"}),
                     },
                 }
@@ -1672,7 +1674,7 @@ def test_run_persists_assistant_tool_step_text_as_intermediate_update(client, mo
 
     assert run["status"] == "completed"
     assert len(run["tool_calls"]) == 1
-    assert run["tool_calls"][0]["tool_name"] == "terminal"
+    assert run["tool_calls"][0]["tool_name"] == "run_bh"
     reasoning_events = [event for event in run["events"] if event["event_type"] == "reasoning_update"]
     assert len(reasoning_events) == 1
     assert reasoning_events[0]["message"] == "I am checking current tags before making any changes."
@@ -1686,7 +1688,7 @@ def test_final_message_strips_empty_pending_review_footer(client, monkeypatch):
             "role": "assistant",
             "content": (
                 "Here is your dashboard summary.\n\n"
-                "Tools used (high level): terminal (checked bh entries list) "
+                "Tools used (high level): run_bh (checked bh entries list) "
                 "Pending review item ids: []"
             ),
         },
@@ -1766,6 +1768,8 @@ def test_stream_message_endpoint_emits_real_time_events(client, monkeypatch):
     run_event_types = [event["event"]["event_type"] for event in run_events]
     assert run_event_types[0] == "run_started"
     assert all("tool_call" not in event for event in run_events)
+    assert all(isinstance(event.get("run_usage"), dict) for event in run_events)
+    assert "input_tokens" in run_events[0]["run_usage"]
     text = "".join(event.get("delta", "") for event in events if event.get("type") == "text_delta")
     assert text == "Hello"
     assert run_event_types[-1] == "run_completed"
@@ -2070,7 +2074,7 @@ def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasonin
                             "id": "call_terminal",
                             "type": "function",
                             "function": {
-                                "name": "terminal",
+                                "name": "run_bh",
                                 "arguments": json.dumps({"command": "bh tags list"}),
                             },
                         }
@@ -2122,9 +2126,9 @@ def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasonin
         "tool_call_completed",
     ]
     assert [event["tool_call"]["tool_name"] for event in tool_call_events] == [
-        "terminal",
-        "terminal",
-        "terminal",
+        "run_bh",
+        "run_bh",
+        "run_bh",
     ]
     assert [event["tool_call"]["display_label"] for event in tool_call_events] == [
         "bh tags list",
@@ -2143,7 +2147,7 @@ def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasonin
     assert len(detail["runs"]) == 1
     run = detail["runs"][0]
     assert len(run["tool_calls"]) == 1
-    assert run["tool_calls"][0]["tool_name"] == "terminal"
+    assert run["tool_calls"][0]["tool_name"] == "run_bh"
     assert run["tool_calls"][0]["display_label"] == "bh tags list"
     reasoning_run_events = [event for event in run["events"] if event["event_type"] == "reasoning_update"]
     assert len(reasoning_run_events) == 1
@@ -2265,7 +2269,7 @@ def test_run_accumulates_usage_tokens_across_steps(client, monkeypatch):
                     "id": "call_terminal",
                     "type": "function",
                     "function": {
-                        "name": "terminal",
+                        "name": "run_bh",
                         "arguments": json.dumps({"command": "bh tags list"}),
                     },
                 }
@@ -2423,9 +2427,8 @@ def test_runtime_tool_registry_only_contains_current_tools():
     assert set(TOOLS) == {
         "add_user_memory",
         "rename_thread",
-        "terminal",
+        "run_bh",
         "send_intermediate_update",
-        "read_image",
     }
 
 

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: write agent PDF/image uploads into dated readable bundle dirs, run Docling, and register ``UserFile`` rows.
+# - Purpose: write agent PDF/image uploads into dated readable bundle dirs and register ``UserFile`` rows.
 # - Inputs: raw bytes, mime type, original filename, owner user id, optional data dir and timezone name.
 # - Outputs: ``UserFile`` for the primary uploaded file path.
-# - Side effects: canonical filesystem writes and Docling artifact generation inside the upload bundle.
+# - Side effects: canonical filesystem writes plus optional PDF page rasterization inside the upload bundle.
 from __future__ import annotations
 
 import hashlib
@@ -298,6 +298,14 @@ def pdf_pages_as_png_bytes(primary_path: Path) -> list[bytes]:
             pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
             rendered.append(pixmap.tobytes("png"))
         return rendered
+    finally:
+        document.close()
+
+
+def pdf_page_count_from_bytes(file_bytes: bytes) -> int:
+    document = pymupdf.open(stream=file_bytes, filetype="pdf")
+    try:
+        return int(document.page_count)
     finally:
         document.close()
 

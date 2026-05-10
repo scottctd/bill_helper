@@ -30,7 +30,7 @@ Use the docs in layers:
 - `features/README.md`: cross-cutting feature-doc index.
 - `features/agent_billing_assistant.md`: detailed billing assistant runtime, prompt, tool, and CLI contract doc.
 - `features/system_prompt_example.md`: **generated** snapshot of the full current agent system prompt for the `app` surface (`uv run python scripts/render_agent_system_prompt_snapshot.py`). Do not edit by hand.
-- `features/agent_cli_workspace.md`: agent workspace terminal plus `bh` feature behavior.
+- `features/agent_cli_workspace.md`: agent `bh` sessions, sources, and CLI feature behavior.
 - `features/entry_lifecycle.md`: focused entry-domain flow map.
 - `features/dashboard_analytics.md`: focused dashboard analytics flow map.
 - `features/account_reconciliation.md`: focused account reconciliation flow map.

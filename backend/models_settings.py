@@ -50,6 +50,7 @@ class RuntimeSettings(Base):
     agent_max_images_per_message: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )
+    agent_max_pdf_pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
     agent_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     agent_api_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

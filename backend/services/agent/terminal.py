@@ -1,6 +1,7 @@
-"""Terminal execution for agent runs.
+"""Internal `bh` CLI execution for agent runs.
 
 CALLING SPEC:
+    run_bh(context, args) -> ToolExecutionResult
     run_terminal(context, args) -> ToolExecutionResult
 
 Inputs:
@@ -9,14 +10,17 @@ Inputs:
 Outputs:
     - structured command result with exit code, stdout, stderr, cwd, and truncation flags
 Side effects:
-    - ensures the user's workspace container is running, mints a short-lived backend session token,
-      executes a shell command inside the workspace container, and revokes the temporary session
+    - mints a short-lived backend session token, runs a `bh ...` CLI invocation, and revokes the token
 """
 
 from __future__ import annotations
 
 from datetime import timedelta
 import logging
+import os
+import shlex
+import subprocess
+import sys
 from time import monotonic
 from typing import Any
 
@@ -26,43 +30,40 @@ from backend.config import get_settings
 from backend.database import open_session
 from backend.models_agent import AgentRun
 from backend.models_finance import User
-from backend.services import docker_cli
-from backend.services.agent.tool_args.terminal import RunTerminalArgs
+from backend.services.agent.tool_args.terminal import RunBhArgs
 from backend.services.agent.tool_results import format_lines
 from backend.services.agent.tool_types import ToolContext, ToolExecutionResult, ToolExecutionStatus
-from backend.services.agent_workspace import start_user_workspace
 from backend.services.sessions import create_session, revoke_session_by_id, utc_now
 
-_DEFAULT_WORKSPACE_ROOT = "/workspace/scratch"
-_DEFAULT_DATA_ROOT = "/workspace/uploads"
+_BH_DISPLAY_CWD = "bh://internal"
 _MAX_OUTPUT_CHARS = 12000
 logger = logging.getLogger(__name__)
 
 
-def run_terminal(context: ToolContext, args: RunTerminalArgs) -> ToolExecutionResult:
+def run_bh(context: ToolContext, args: RunBhArgs) -> ToolExecutionResult:
     try:
-        execution = _execute_terminal(context, args=args)
-    except (docker_cli.DockerCliError, ValueError) as exc:
+        execution = _execute_bh(context, args=args)
+    except (subprocess.TimeoutExpired, ValueError) as exc:
         return ToolExecutionResult(
             output_text=format_lines(
                 [
                     "ERROR",
-                    "summary: terminal command failed",
+                    "summary: bh command failed",
                     f"details: {exc}",
                 ]
             ),
             output_json={
-                "summary": "terminal command failed",
+                "summary": "bh command failed",
                 "details": str(exc),
             },
             status=ToolExecutionStatus.ERROR,
         )
     except Exception as exc:  # pragma: no cover - guarded runtime fallback
         logger.exception(
-            "Terminal tool failed unexpectedly: scope=agent_terminal run_id=%s user_id=%s cwd=%s command=%s error_type=%s",
+            "bh runner tool failed unexpectedly: scope=agent_run_bh run_id=%s user_id=%s cwd=%s command=%s error_type=%s",
             context.run_id,
             context.principal_user_id,
-            args.cwd or _DEFAULT_WORKSPACE_ROOT,
+            _BH_DISPLAY_CWD,
             args.command,
             type(exc).__name__,
         )
@@ -70,12 +71,12 @@ def run_terminal(context: ToolContext, args: RunTerminalArgs) -> ToolExecutionRe
             output_text=format_lines(
                 [
                     "ERROR",
-                    "summary: terminal command failed",
+                    "summary: bh command failed",
                     f"details: {exc}",
                 ]
             ),
             output_json={
-                "summary": "terminal command failed",
+                "summary": "bh command failed",
                 "details": str(exc),
             },
             status=ToolExecutionStatus.ERROR,
@@ -87,49 +88,49 @@ def run_terminal(context: ToolContext, args: RunTerminalArgs) -> ToolExecutionRe
     )
 
 
-def _execute_terminal(context: ToolContext, *, args: RunTerminalArgs) -> dict[str, Any]:
+def run_terminal(context: ToolContext, args: RunBhArgs) -> ToolExecutionResult:
+    return run_bh(context, args)
+
+
+def _execute_bh(context: ToolContext, *, args: RunBhArgs) -> dict[str, Any]:
     principal_user_id = (context.principal_user_id or "").strip()
     if not principal_user_id:
-        raise ValueError("Terminal tool requires a principal user.")
+        raise ValueError("run_bh requires a principal user.")
     thread_id = _thread_id_for_run(context)
     settings = get_settings()
-    spec = start_user_workspace(user_id=principal_user_id, settings=settings)
+    argv = _parse_bh_command(args.command)
+    _validate_hosted_bh_command(argv)
     session_token, session_id = _create_temporary_session(user_id=principal_user_id)
     env = {
-        "BH_API_BASE_URL": settings.workspace_backend_base_url,
+        **os.environ,
+        "BH_API_BASE_URL": settings.agent_cli_base_url,
         "BH_AUTH_TOKEN": session_token,
+        "BH_SESSION_ID": thread_id,
         "BH_THREAD_ID": thread_id,
         "BH_RUN_ID": context.run_id,
-        "BH_WORKSPACE_ROOT": _DEFAULT_WORKSPACE_ROOT,
-        "BH_DATA_ROOT": _DEFAULT_DATA_ROOT,
     }
-    command_cwd = args.cwd or _DEFAULT_WORKSPACE_ROOT
     started_at = monotonic()
     try:
-        completed = docker_cli.exec_in_container(
-            docker_binary=spec.docker_binary,
-            container_name=spec.container_name,
-            command=["bash", "-lc", args.command],
+        completed = subprocess.run(
+            [sys.executable, "-m", "backend.cli.main", *argv[1:]],
             env=env,
-            workdir=command_cwd,
-            timeout_seconds=float(args.timeout_seconds),
+            timeout=float(args.timeout_seconds),
+            check=False,
+            capture_output=True,
+            text=True,
         )
         raw_stdout = completed.stdout or ""
         raw_stderr = completed.stderr or ""
         exit_code = int(completed.returncode)
-    except docker_cli.DockerCliError as error:
-        raw_stdout = error.stdout or ""
-        raw_stderr = error.stderr or ""
-        exit_code = int(error.exit_code)
     finally:
         _revoke_temporary_session(session_id=session_id)
     duration_ms = int((monotonic() - started_at) * 1000)
     stdout, stdout_truncated = _truncate_and_scrub(raw_stdout, secret=session_token)
     stderr, stderr_truncated = _truncate_and_scrub(raw_stderr, secret=session_token)
     return {
-        "summary": "terminal command completed" if exit_code == 0 else "terminal command exited non-zero",
+        "summary": "bh command completed" if exit_code == 0 else "bh command exited non-zero",
         "command": args.command,
-        "cwd": command_cwd,
+        "cwd": _BH_DISPLAY_CWD,
         "exit_code": exit_code,
         "stdout": stdout,
         "stderr": stderr,
@@ -139,10 +140,71 @@ def _execute_terminal(context: ToolContext, *, args: RunTerminalArgs) -> dict[st
     }
 
 
+def _parse_bh_command(command: str) -> list[str]:
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        raise ValueError(f"Invalid command: {exc}") from exc
+    if not argv:
+        raise ValueError("Command is empty. Use `bh ...`.")
+    if argv[0] != "bh":
+        raise ValueError("run_bh only supports `bh ...` commands.")
+    return argv
+
+
+def _validate_hosted_bh_command(argv: list[str]) -> None:
+    command_tokens = _bh_command_tokens(argv)
+    if not command_tokens:
+        return
+    if command_tokens[0] in {"instruction", "login"}:
+        raise ValueError("`bh login` and `bh instruction` are for external agents; hosted runs already receive auth and app rules.")
+    if command_tokens[0] != "sessions":
+        return
+    if len(command_tokens) < 2 or command_tokens[1] != "update":
+        raise ValueError(
+            "Hosted runs cannot list, create, switch, get, or attach session sources. "
+            "The app owns session management; use `bh sessions update` only for the current session."
+        )
+    _validate_hosted_session_update(command_tokens[2:])
+
+
+def _bh_command_tokens(argv: list[str]) -> list[str]:
+    tokens = argv[1:]
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--format":
+            index += 2
+            continue
+        if token.startswith("--format="):
+            index += 1
+            continue
+        break
+    return tokens[index:]
+
+
+def _validate_hosted_session_update(tokens: list[str]) -> None:
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--summary-file" or token.startswith("--summary-file="):
+            raise ValueError("Hosted `bh sessions update` cannot read summary files; pass --summary text instead.")
+        if token in {"--title", "--summary", "--format"}:
+            index += 2
+            continue
+        if token.startswith("--title=") or token.startswith("--summary=") or token.startswith("--format="):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        raise ValueError("Hosted `bh sessions update` can update only the current session; omit session_id.")
+
+
 def _thread_id_for_run(context: ToolContext) -> str:
     thread_id = context.db.scalar(select(AgentRun.thread_id).where(AgentRun.id == context.run_id))
     if not isinstance(thread_id, str) or not thread_id:
-        raise ValueError("Terminal tool requires a valid run/thread context.")
+        raise ValueError("run_bh requires a valid run/thread context.")
     return thread_id
 
 

@@ -28,9 +28,9 @@ def test_read_image_display_uses_image_count():
     assert display.label == "Loaded 2 images"
 
 
-def test_terminal_display_summarizes_bh_command_without_flags():
+def test_run_bh_display_summarizes_bh_command_without_flags():
     display = build_tool_call_display(
-        "terminal",
+        "run_bh",
         input_json={"command": "bh entries create --date 2026-03-20 --amount 12.34 --note lunch"},
     )
 
@@ -38,18 +38,24 @@ def test_terminal_display_summarizes_bh_command_without_flags():
     assert display.detail is None
 
 
-def test_terminal_display_unwraps_shell_wrappers():
+def test_run_bh_display_unwraps_shell_wrappers():
     display = build_tool_call_display(
-        "terminal",
+        "run_bh",
         input_json={"command": "zsh -lc 'bh proposals list --status pending --limit 10'"},
     )
 
     assert display.label == "bh proposals list"
 
 
-def test_terminal_display_falls_back_for_unparseable_or_unknown_commands():
-    malformed = build_tool_call_display("terminal", input_json={"command": "'"})
-    unknown = build_tool_call_display("terminal", input_json={"command": "git status --short"})
+def test_run_bh_display_falls_back_for_unparseable_or_unknown_commands():
+    malformed = build_tool_call_display("run_bh", input_json={"command": "'"})
+    unknown = build_tool_call_display("run_bh", input_json={"command": "git status --short"})
 
-    assert malformed.label == "Ran terminal command"
-    assert unknown.label == "Ran terminal command"
+    assert malformed.label == "Ran bh command"
+    assert unknown.label == "Ran bh command"
+
+
+def test_legacy_terminal_display_uses_bh_label():
+    display = build_tool_call_display("terminal", input_json={"command": "bh entries list --limit 1"})
+
+    assert display.label == "bh entries list"

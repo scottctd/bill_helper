@@ -1,67 +1,59 @@
-# Agent CLI Workspace
+# Agent CLI Sessions
 
-This feature doc describes the current agent execution model built around the workspace terminal and the `bh` CLI.
+This feature doc describes the current agent execution model built around `bh` and external-agent-friendly sessions.
 
 ## Why This Exists
 
-The old model-visible tool catalog kept growing across reads, proposals, and review actions. That had two problems:
-
-- it consumed model context with many overlapping tool descriptions
-- it made extension work expensive because every new domain capability wanted a new model-facing tool
-
-The current design reduces the model-visible surface to one general workspace terminal tool, one focused on-demand image reader, and a few tiny session tools, then moves Bill Helper app operations behind the installed `bh` CLI.
+The older model-visible tool catalog kept growing across reads, proposals, and review actions. The current design keeps model tools small and moves Bill Helper operations behind `bh`, so hosted and external agents share one narrow operational contract.
 
 ## Current Model-Visible Tool Surface
 
-The runtime catalog exposed to the model now contains only:
+The runtime catalog exposed to the hosted model contains only:
 
-- `terminal`
-- `read_image`
+- `run_bh`
 - `send_intermediate_update`
 - `rename_thread`
 - `add_user_memory`
 
-This means the old direct CRUD/read tool surface is fully replaced at the model boundary.
+`run_bh` is not a general shell. It accepts only commands that start with `bh` and rejects all other commands.
 
-The old read/proposal/review handler modules still exist in backend code, but they are now internal building blocks behind backend APIs and `bh`.
+The old read/proposal/review handler modules still exist in backend code, but they are internal building blocks behind backend APIs and `bh`.
 
-`read_image` is intentionally narrow: it loads existing `/workspace/...` image files into a later tool turn when attachment hints or workspace inspection show that visual evidence is needed. It does not replace `terminal` or `bh` for app operations.
+## `run_bh` Contract
 
-## Terminal Contract
+`run_bh` executes the local `bh` CLI module in a subprocess.
 
-`terminal` executes the provided command verbatim via `bash -lc` inside the current user's Docker workspace container.
+Behavior:
 
-Default behavior:
-
-- cwd defaults to `/workspace/scratch`
-- multiline shell snippets, heredocs, pipes, redirects, and standard shell composition are supported
-- output is truncated safely when needed
+- command parsing uses shell-style tokenization, but only `bh ...` is allowed
 - stdout and stderr are returned separately
 - duration and exit code are reported
 - injected auth secrets are scrubbed from tool output
+- legacy `cwd` arguments are ignored because there is no hosted workspace filesystem
 
 Injected env per invocation:
 
 - `BH_API_BASE_URL`
 - `BH_AUTH_TOKEN`
+- `BH_SESSION_ID`
 - `BH_THREAD_ID`
 - `BH_RUN_ID`
-- `BH_WORKSPACE_ROOT`
-- `BH_DATA_ROOT`
 
 The auth token is a short-lived backend session created for the thread owner and revoked after the command finishes.
 
-For human IDE terminal use, workspace IDE launch also refreshes `/workspace/.ide/bh-env.json` plus a sourced shell snippet so `bh` works without manual env exports.
-
 ## What `bh` Does
 
-`bh` is a thin HTTP client installed in the workspace image.
+`bh` is a thin HTTP client.
 
 It does not mutate the DB directly. All authoritative state changes still go through backend routes and review/apply workflows.
 
 Current command groups:
 
+- `login`
+- `instruction`
 - `status`
+- `sessions list|create|use|get|update`
+- `sessions sources list|add-text|add-file`
 - `entries list|get|create|update|remove`
 - `accounts list|create|update|remove`
 - `snapshots list|reconciliation|create|remove`
@@ -70,26 +62,82 @@ Current command groups:
 - `tags list|create|update|remove`
 - `proposals list|get|update|remove`
 
+`bh login` creates a password-backed bearer session and saves the CLI API base URL plus token in the per-user CLI config. Environment variables still override saved config, so hosted internal runs can keep injecting short-lived credentials.
+
+`bh instruction` prints the domain rules and CLI reference so external agents can load Bill Helper operating policy without depending on the hosted system prompt.
+
+## Installing `bh`
+
+For a repository checkout, no global install is required:
+
+```bash
+uv sync
+uv run bh --help
+```
+
+For an external agent that should be able to run `bh` from any cwd, install the checkout as a uv tool:
+
+```bash
+uv tool install --editable .
+bh --help
+```
+
+If the `bh` executable is not on `PATH`, add uv's tool bin directory to the shell environment:
+
+```bash
+export PATH="$(uv tool dir --bin):$PATH"
+```
+
+After install, configure the target Bill Helper backend and select a working session:
+
+```bash
+printf '%s\n' '<password>' | bh login --api-base-url http://localhost:8000/api/v1 --username admin --password-stdin
+bh instruction
+bh sessions list
+bh sessions create --title "May receipts" --use
+```
+
+## Sessions And Sources
+
+External agents own their cwd and local files. Bill Helper stores only what the agent explicitly attaches:
+
+- named session rows, backed by `agent_threads`
+- editable session summaries
+- session-level source links to canonical `user_files` rows
+- proposals and human review history
+
+`bh sessions sources add-file` uploads text, image, or PDF sources. The backend deduplicates canonical files per owner by content hash. Uploading the same file again returns the same stored source id, and attaching the same stored source to the same session is idempotent.
+
+The external agent remains responsible for deciding how to parse, OCR, summarize, or inspect source files before proposing ledger changes.
+
 ## Proposal And Review Flow
 
-Proposal lifecycle is now thread-scoped in the CLI:
+Proposal lifecycle is thread/session-scoped in the CLI:
 
-1. the agent runs a resource-scoped `bh ... create|update|remove|add-member|remove-member ...` command
-2. backend stores a pending `AgentChangeItem`
-3. pending proposals can be inspected, updated, or removed with `bh proposals ...`
-4. the review UI approves, rejects, or reopens the remaining proposals
-5. approval applies the change through existing backend apply handlers
+1. the agent runs `bh login` once for the target backend
+2. the agent lists sessions with `bh sessions list` or creates one with `bh sessions create --use`
+3. the agent optionally attaches sources and updates the session summary
+4. the agent runs a resource-scoped `bh ... create|update|remove|add-member|remove-member ...` command
+5. backend stores a pending `AgentChangeItem`
+6. pending proposals can be inspected, updated, or removed with `bh proposals ...`
+7. the review UI approves, rejects, or reopens the remaining proposals
+8. approval applies the change through existing backend apply handlers
 
-Thread-scoped proposal commands depend on:
-
-- `BH_THREAD_ID`
-- `BH_RUN_ID`
-
-That lets every proposal stay attached to a concrete thread/run review history, and it also keeps proposal commands unavailable in ordinary human IDE terminals.
+Hosted runs pass `BH_RUN_ID`, so proposals attach to the invoking run. External agents can omit a run id; the backend creates or reuses a completed synthetic CLI run for the session.
 
 ## API Surface Behind The CLI
 
-Key proposal routes:
+Session routes:
+
+- `GET /api/v1/agent/sessions`
+- `POST /api/v1/agent/sessions`
+- `GET /api/v1/agent/sessions/{session_id}`
+- `PATCH /api/v1/agent/sessions/{session_id}`
+- `GET /api/v1/agent/sessions/{session_id}/sources`
+- `POST /api/v1/agent/sessions/{session_id}/sources/text`
+- `POST /api/v1/agent/sessions/{session_id}/sources`
+
+Proposal routes:
 
 - `GET /api/v1/agent/threads/{thread_id}/proposals`
 - `GET /api/v1/agent/threads/{thread_id}/proposals/{proposal_id}`
@@ -103,60 +151,30 @@ Review routes remain frontend-driven human review endpoints:
 - `POST /api/v1/agent/change-items/{item_id}/reject`
 - `POST /api/v1/agent/change-items/{item_id}/reopen`
 
-## Workspace Image Requirements
+## Legacy Workspace
 
-The configured workspace image must include:
-
-- the Bill Helper Python package
-- the `bh` console entry point
-- the normal shell/file utilities the agent relies on
-
-The current image is built from:
-
-- [docker/agent-workspace.dockerfile](../../docker/agent-workspace.dockerfile)
-
-It installs the package from the repository source tree so the CLI is available at runtime.
-
-## What Replaced The Legacy CRUD Tools
-
-At the runtime boundary, yes: the old direct CRUD tools are replaced.
-
-That means:
-
-- the model no longer receives `list_*`, `propose_*`, `update_pending_proposal`, or `remove_pending_proposal` as direct tools
-- the model should use `terminal` plus `bh`
-
-What is still retained internally:
-
-- proposal validation and normalization logic
-- read helper implementations
-- review/apply workflows
-- metadata and patching helpers
-
-Those internals remain valuable because the CLI and proposal HTTP routes reuse them.
-
-## Operational Notes
-
-- `BILL_HELPER_WORKSPACE_BACKEND_BASE_URL` controls container-to-backend reachability and defaults to `http://host.docker.internal:8000/api/v1`
-- local e2e runs that start the backend on a different port must override that env
-- direct `curl` or ad hoc Python from the workspace is still possible, but the prompt and docs now prefer `bh` whenever a command exists
-- human IDE terminals read API/auth defaults from `/workspace/.ide/bh-env.json` when explicit env vars are absent
+The Docker workspace/IDE implementation is retained as a legacy opt-in surface behind `BILL_HELPER_AGENT_WORKSPACE_ENABLED=1`, but the default hosted agent path no longer provisions Docker resources and no longer executes inside a workspace container.
 
 ## Verification Expectations
 
 When this surface changes, useful checks include:
 
-- CLI command execution inside the workspace container
+- `bh login`
+- `bh instruction`
+- `bh sessions create|list|use|get|update`
+- `bh sessions sources add-text|add-file|list`
 - proposal create/list/get through `bh`
 - browser review/apply flow on a disposable backend
-- workspace container startup with the current image
 
 ## Related Files
 
 - [backend/cli/support.py](../../backend/cli/support.py)
 - [backend/cli/main.py](../../backend/cli/main.py)
+- [backend/cli/session_commands.py](../../backend/cli/session_commands.py)
 - [backend/services/agent/terminal.py](../../backend/services/agent/terminal.py)
+- [backend/services/agent/work_sessions.py](../../backend/services/agent/work_sessions.py)
 - [backend/services/agent/tool_runtime_support/catalog.py](../../backend/services/agent/tool_runtime_support/catalog.py)
 - [backend/services/agent/tool_runtime_support/catalog_terminal.py](../../backend/services/agent/tool_runtime_support/catalog_terminal.py)
+- [backend/routers/agent_sessions.py](../../backend/routers/agent_sessions.py)
 - [backend/routers/agent_proposals.py](../../backend/routers/agent_proposals.py)
 - [backend/services/agent/proposal_http.py](../../backend/services/agent/proposal_http.py)

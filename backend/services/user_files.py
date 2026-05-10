@@ -21,6 +21,7 @@ USER_FILES_DIRNAME = "user_files"
 UPLOADS_DIRNAME = "uploads"
 STORAGE_AREA_UPLOAD = "upload"
 SOURCE_TYPE_AGENT_ATTACHMENT = "agent_message_attachment"
+SOURCE_TYPE_AGENT_SESSION_SOURCE = "agent_session_source"
 _SHA256_BLOCK_SIZE = 1024 * 1024
 
 

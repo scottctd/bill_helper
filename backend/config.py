@@ -32,6 +32,7 @@ DEFAULT_CORS_PORT = 5173
 DEFAULT_AGENT_MODEL = "bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0"
 DEFAULT_AGENT_WORKSPACE_IMAGE = "bill-helper-agent-workspace:latest"
 DEFAULT_WORKSPACE_BACKEND_BASE_URL = "http://host.docker.internal:8000/api/v1"
+DEFAULT_AGENT_CLI_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -114,6 +115,7 @@ class Settings(BaseSettings):
     agent_retry_backoff_multiplier: float = Field(default=2.0, ge=1.0, le=10.0)
     agent_max_image_size_bytes: int = 5 * 1024 * 1024
     agent_max_images_per_message: int = 4
+    agent_max_pdf_pages: int = Field(default=10, ge=1, le=100)
     agent_base_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices(
@@ -128,10 +130,17 @@ class Settings(BaseSettings):
             "BILL_HELPER_AGENT_API_KEY",
         ),
     )
-    agent_workspace_enabled: bool = True
+    agent_workspace_enabled: bool = False
     agent_workspace_image: str = DEFAULT_AGENT_WORKSPACE_IMAGE
     agent_workspace_docker_binary: str = "docker"
     workspace_backend_base_url: str = DEFAULT_WORKSPACE_BACKEND_BASE_URL
+    agent_cli_base_url: str = Field(
+        default=DEFAULT_AGENT_CLI_BASE_URL,
+        validation_alias=AliasChoices(
+            "AGENT_CLI_BASE_URL",
+            "BILL_HELPER_AGENT_CLI_BASE_URL",
+        ),
+    )
 
     @model_validator(mode="after")
     def _derive_database_url(self) -> Settings:

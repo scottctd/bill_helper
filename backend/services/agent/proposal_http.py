@@ -26,6 +26,7 @@ from backend.auth.contracts import RequestPrincipal
 from backend.enums_agent import AgentChangeStatus, AgentChangeType
 from backend.models_agent import AgentChangeItem
 from backend.services.access_scope import load_agent_run_for_principal
+from backend.services.agent.work_sessions import ensure_external_agent_run
 from backend.services.agent.change_contracts.catalog import (
     CreateAccountPayload,
     CreateEntityPayload,
@@ -92,9 +93,13 @@ def build_thread_tool_context(
     *,
     principal: RequestPrincipal,
     thread_id: str,
-    run_id: str,
+    run_id: str | None,
 ) -> ToolContext:
-    run = load_agent_run_for_principal(db, run_id=run_id, principal=principal)
+    normalized_run_id = (run_id or "").strip()
+    if normalized_run_id:
+        run = load_agent_run_for_principal(db, run_id=normalized_run_id, principal=principal)
+    else:
+        run = ensure_external_agent_run(db, principal=principal, session_id=thread_id)
     if run.thread_id != thread_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

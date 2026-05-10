@@ -72,6 +72,7 @@ class AgentThread(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
@@ -91,6 +92,11 @@ class AgentThread(Base):
         back_populates="thread",
         cascade="all, delete-orphan",
         order_by="AgentRun.created_at",
+    )
+    sources: Mapped[list[AgentSessionSource]] = relationship(
+        back_populates="thread",
+        cascade="all, delete-orphan",
+        order_by="AgentSessionSource.created_at",
     )
 
 
@@ -161,6 +167,32 @@ class AgentMessageAttachment(Base):
         from backend.services.user_files import resolve_user_file_path
 
         return str(resolve_user_file_path(self.user_file))
+
+
+class AgentSessionSource(Base):
+    __tablename__ = "agent_session_sources"
+    __table_args__ = (
+        UniqueConstraint(
+            "thread_id",
+            "user_file_id",
+            name="uq_agent_session_sources_thread_file",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    thread_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_file_id: Mapped[str] = mapped_column(
+        ForeignKey("user_files.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    thread: Mapped[AgentThread] = relationship(back_populates="sources")
+    user_file: Mapped["UserFile"] = relationship(back_populates="session_sources")
 
 
 class AgentRun(Base):

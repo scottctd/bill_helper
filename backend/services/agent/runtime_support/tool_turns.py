@@ -22,7 +22,7 @@ from backend.services.agent.runtime_state import (
 
 
 ContextTokenCalculator = Callable[..., int | None]
-RunContextUpdater = Callable[[AgentRun, list[dict[str, Any]]], None]
+RunContextUpdater = Callable[[AgentRun, list[dict[str, Any]], list[dict[str, Any]]], None]
 
 EMPTY_PENDING_REVIEW_FOOTER_PATTERN = re.compile(
     r"^\s*Tools used \(high level\):.*Pending review item ids:\s*\[\s*\]\s*$",
@@ -47,12 +47,16 @@ def update_run_context_tokens(
     *,
     run: AgentRun,
     llm_messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
     calculate_context_tokens: ContextTokenCalculator,
 ) -> None:
-    run.context_tokens = calculate_context_tokens(
+    next_count = calculate_context_tokens(
         model_name=run.model_name,
         llm_messages=llm_messages,
+        tools=tools,
     )
+    if next_count is not None:
+        run.context_tokens = next_count
 
 
 def prepare_tool_turn(
@@ -63,6 +67,7 @@ def prepare_tool_turn(
     assistant_content: str,
     model_reasoning: str,
     tool_calls: list[dict[str, Any]],
+    request_tools: list[dict[str, Any]],
     update_run_context_tokens: RunContextUpdater,
 ) -> tuple[list[PreparedToolCall], list[AgentRunEvent]]:
     prepared_calls: list[PreparedToolCall] = []
@@ -108,7 +113,7 @@ def prepare_tool_turn(
             )
         )
 
-    update_run_context_tokens(run=run, llm_messages=llm_messages)
+    update_run_context_tokens(run, llm_messages, request_tools)
     db.add(run)
     db.commit()
     return prepared_calls, event_rows

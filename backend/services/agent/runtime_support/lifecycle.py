@@ -16,6 +16,7 @@ from backend.services.agent.reviews.auto_approve_run import (
 )
 from backend.models_agent import AgentMessage, AgentRun, AgentRunEvent, AgentThread
 from backend.services.agent.message_history import build_llm_messages
+from backend.services.agent.tools_for_model_request import tools_for_agent_model_request
 from backend.services.agent.runtime_state import (
     cancel_incomplete_tool_calls as _cancel_incomplete_tool_calls,
     load_run_snapshot as _load_run_snapshot,
@@ -69,6 +70,7 @@ def create_run(
         context_tokens=calculate_context_tokens(
             model_name=selected_model_name,
             llm_messages=llm_messages,
+            tools=tools_for_agent_model_request(thread_title=thread.title),
         ),
     )
     thread.updated_at = utc_now()

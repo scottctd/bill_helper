@@ -140,11 +140,32 @@ def _tool_call_for_stream_event(
     return next((call for call in run.tool_calls if call.id == event.tool_call_id), None)
 
 
+def run_usage_snapshot_for_stream(run: AgentRun) -> dict[str, Any]:
+    costs = calculate_usage_costs(
+        model_name=run.model_name,
+        input_tokens=run.input_tokens,
+        output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens,
+        cache_write_tokens=run.cache_write_tokens,
+    )
+    return {
+        "context_tokens": run.context_tokens,
+        "input_tokens": run.input_tokens,
+        "output_tokens": run.output_tokens,
+        "cache_read_tokens": run.cache_read_tokens,
+        "cache_write_tokens": run.cache_write_tokens,
+        "input_cost_usd": costs.input_cost_usd,
+        "output_cost_usd": costs.output_cost_usd,
+        "total_cost_usd": costs.total_cost_usd,
+    }
+
+
 def stream_run_event_to_payload(
     run: AgentRun,
     event: AgentRunEvent,
     *,
     tool_call: AgentToolCall | None = None,
+    include_run_usage: bool = True,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "type": "run_event",
@@ -157,6 +178,8 @@ def stream_run_event_to_payload(
             compact_tool_call,
             include_payload=False,
         ).model_dump(mode="json")
+    if include_run_usage:
+        payload["run_usage"] = run_usage_snapshot_for_stream(run)
     return payload
 
 
@@ -254,6 +277,7 @@ def thread_to_schema(thread: AgentThread) -> AgentThreadRead:
     return AgentThreadRead(
         id=thread.id,
         title=thread.title,
+        summary=thread.summary,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
     )
@@ -269,6 +293,7 @@ def thread_summary_to_schema(
     return AgentThreadSummaryRead(
         id=thread.id,
         title=thread.title,
+        summary=thread.summary,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
         last_message_preview=last_message_preview,

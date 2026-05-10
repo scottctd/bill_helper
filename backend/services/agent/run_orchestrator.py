@@ -126,6 +126,14 @@ class AgentRunLoopAdapter(ABC, Generic[PreparedToolCallT]):
     def is_stopped(self) -> bool:
         return False
 
+    def persist_context_after_final_assistant(
+        self,
+        *,
+        step: AssistantStepContext,
+        llm_messages: list[dict[str, Any]],
+    ) -> list[StreamPayload]:
+        return []
+
 
 def run_agent_loop(
     adapter: AgentRunLoopAdapter[PreparedToolCallT],
@@ -201,6 +209,11 @@ def run_agent_loop(
                     yield payload
                 continue
 
+            for payload in adapter.persist_context_after_final_assistant(
+                step=step,
+                llm_messages=llm_messages,
+            ):
+                yield payload
             for payload in adapter.record_model_reasoning(step=step):
                 yield payload
             for payload in adapter.complete(step=step):

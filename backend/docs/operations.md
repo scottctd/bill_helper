@@ -37,6 +37,11 @@
 - `0033_multi_user_security`
 - `0034_add_entry_tagging_model_to_runtime_settings`
 - `0035_add_user_files_and_agent_workspace`
+- `0036_add_agent_run_created_at_index`
+- `0037_add_agent_message_attachments_use_ocr`
+- `0038_add_agent_model_display_names_to_runtime_settings`
+- `0039_add_agent_run_approval_policy`
+- `0040_add_agent_session_sources`
 
 Commands:
 
@@ -48,10 +53,9 @@ Commands:
 Useful commands:
 
 - bootstrap/reset admin: `uv run python scripts/bootstrap_admin.py --name <user> --password <pass>`
-- build workspace image: `docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .`
 - py-compile touched modules: `uv run python -m py_compile ...`
 - backend tests (fast default): `OPENROUTER_API_KEY=test uv run pytest backend/tests -q -m "not workspace_docker"`
-- backend workspace tests (run when changing workspace lifecycle or IDE proxy behavior): `OPENROUTER_API_KEY=test uv run pytest backend/tests/test_agent_workspace.py -q -m workspace_docker`
+- backend workspace tests (legacy opt-in, run only when changing workspace lifecycle or IDE proxy behavior): `OPENROUTER_API_KEY=test uv run pytest backend/tests/test_agent_workspace.py -q -m workspace_docker`
 - docs sync: `uv run python scripts/check_docs_sync.py`
 
 ## Operational Impact
@@ -61,8 +65,8 @@ Useful commands:
 - canonical user-visible files persist under `{data_dir}/user_files/{user_id}/uploads`
 - agent message attachments are durable `user_files` rows linked from `agent_message_attachments`
 - deleting a thread removes thread-scoped DB rows only; it no longer deletes uploaded payload files from disk
-- admin bootstrap and user-create flows eagerly provision user file roots plus named Docker workspace resources when workspace provisioning is enabled
-- user deletion removes the named workspace container, named workspace volume, and `{data_dir}/user_files/{user_id}`
+- admin bootstrap and user-create flows eagerly provision user file roots; Docker workspace resources are legacy opt-in and are no longer started by auth flows
+- user deletion removes `{data_dir}/user_files/{user_id}` and any legacy named workspace resources if they exist
 - non-stream sends run in a background thread; stream sends emit SSE from the request and resume in background on disconnect if needed
 - runtime settings are global to the app instance even though finance and agent resources are user-owned
 - dashboard/filter-group reads lazily provision default filter groups per user
@@ -73,8 +77,8 @@ Useful commands:
 - app auth is multi-user but still prototype-grade: there is one admin role and no finer-grained RBAC
 - runtime settings remain global, not per user
 - `agent_api_key` runtime overrides are stored as plaintext in the local DB for this prototype
-- OCR fallback requires a local `tesseract` executable
-- workspace provisioning requires a prebuilt local Docker image and host-daemon access; the backend does not build the image itself
+- attachment OCR/Docling paths are archived for historical bundles; current hosted sends use vision-prepared image/PDF parts
+- legacy workspace provisioning requires a prebuilt local Docker image and host-daemon access; the backend does not build the image itself
 - streaming uses SSE only; there is no websocket transport
 - no autonomous or scheduled agent runs
 - taxonomy assignments use string `subject_id` values without cross-table FK enforcement

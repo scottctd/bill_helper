@@ -66,17 +66,17 @@ Bill Helper is a local-first personal finance ledger with AI-assisted, review-ga
 
 Model-visible tools:
 
-- `terminal`
+- `run_bh`
 - `send_intermediate_update`
 - `rename_thread`
 - `add_user_memory`
 
 Execution model:
 
-- `terminal` executes inside the per-user workspace container
-- the workspace receives injected backend/auth/thread/run env per invocation
+- `run_bh` executes the local Bill Helper CLI module in a hosted subprocess
+- the subprocess receives injected backend/auth/session/thread/run env per invocation
 - Bill Helper app-state reads and proposal/review actions go through the installed `bh` CLI
-- local file and shell work stays in the workspace terminal rather than adding more specialized model-facing tools
+- local file and shell work belongs to external agents on their own machines, not the hosted `run_bh` tool
 
 Contract notes:
 
@@ -141,7 +141,7 @@ Cross-page consistency:
 ### Agent-assisted writes
 
 1. user prompts agent
-2. runtime gathers context via workspace terminal commands and records traces
+2. runtime gathers context via `run_bh` commands and records traces
 3. runtime creates proposal item(s) only
 4. reviewer approves/rejects each item
 5. apply service creates resource transactionally
@@ -154,7 +154,7 @@ Cross-page consistency:
 - agent threads are user-owned instead of admin-global; admins can still access everything or impersonate a user
 - review apply uses the approving reviewer principal for scoped entry resolution and owner attribution, not mutable runtime settings identity
 - only image and PDF attachments are accepted in agent messages
-- active agent runs have workspace terminal execution through `terminal`; Bill Helper app operations are expected to flow through `bh`
+- active agent runs execute Bill Helper app operations through `run_bh`; external file work stays outside the app
 - provisioned workspaces mount only the owning user's canonical upload root at `/workspace/uploads` as read-only and do not expose `bill_helper.db`
 
 ## Out of Scope (Current)

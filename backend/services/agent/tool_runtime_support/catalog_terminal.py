@@ -1,25 +1,24 @@
 # CALLING SPEC:
-# - Purpose: define terminal tool definitions for the model-visible runtime catalog.
+# - Purpose: define internal `bh` CLI runner tool definitions for the runtime catalog.
 # - Inputs: callers that import `catalog_terminal.py`.
-# - Outputs: terminal-related `AgentToolDefinition` records.
+# - Outputs: `bh` runner `AgentToolDefinition` records.
 # - Side effects: module-local registry construction only.
 from __future__ import annotations
 
-from backend.services.agent.tool_args.terminal import RunTerminalArgs
+from backend.services.agent.tool_args.terminal import RunBhArgs
 from backend.services.agent.tool_runtime_support.definitions import AgentToolDefinition
-from backend.services.agent.terminal import run_terminal
+from backend.services.agent.terminal import run_bh
 
 
 TERMINAL_TOOLS: dict[str, AgentToolDefinition] = {
-    "terminal": AgentToolDefinition(
-        name="terminal",
+    "run_bh": AgentToolDefinition(
+        name="run_bh",
         description=(
-            "Use this tool for shell work inside the current user's workspace container. "
-            "Use `bh` for Bill Helper app operations, standard shell commands for local work under /workspace, "
-            "and read-only inspection under /workspace/uploads. "
-            "Use `bh` when the task is about the Bill Helper app. "
+            "Use this tool only for Bill Helper app operations through `bh ...`. "
+            "It does not provide a general shell or filesystem workspace. "
+            "The hosted prompt already includes the Bill Helper domain rules and hosted CLI reference."
         ),
-        args_model=RunTerminalArgs,
-        handler=run_terminal,
+        args_model=RunBhArgs,
+        handler=run_bh,
     ),
 }

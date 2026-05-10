@@ -120,6 +120,7 @@ Operational rules:
   - `agent_retry_backoff_multiplier`
   - `agent_max_image_size_bytes`
   - `agent_max_images_per_message`
+  - `agent_max_pdf_pages`
   - `agent_base_url` (optional custom provider endpoint, validated to prevent SSRF)
   - `agent_api_key` (optional custom provider API key, never exposed in API responses)
 - `created_at`, `updated_at`
@@ -140,13 +141,13 @@ Purpose:
 - `thread_id` (FK -> `agent_threads.id`)
 - `role` (`AgentMessageRole`)
 - `content_markdown`
-- `attachments_use_ocr` (bool, default `true`; message-level multimodal preference for attached PDFs/images)
+- `attachments_use_ocr` (legacy bool; current hosted attachment sends use vision-prepared images/PDF pages)
 - `created_at`
 
 Operational rules:
 
-- `attachments_use_ocr=false` is accepted only when the send-time model supports vision
-- later thread replay may still fall back to OCR text when a non-vision model reuses the same history
+- attachment-bearing sends require a vision-capable model
+- current message-history assembly sends image/PDF page content parts instead of OCR text
 
 ## `entities`
 
@@ -285,7 +286,7 @@ Deletion semantics:
 - soft-deleting an entry removes its direct `entry_group_members` row if one exists
 - deleting a group is allowed only when it has no direct members and is not attached as a child group
 
-## Agent Tables (`0006_agent_append_only_core`, `0008_agent_run_usage_metrics`, `0015_add_agent_tool_call_output_text`, `0020_add_agent_message_attachment_original_filename`, `0021_add_agent_run_context_tokens`, `0022_agent_run_events_and_tool_lifecycle`, `0029_add_agent_run_surface`, `0030_add_account_agent_change_types`, `0035_add_user_files_and_agent_workspace`)
+## Agent Tables (`0006_agent_append_only_core`, `0008_agent_run_usage_metrics`, `0015_add_agent_tool_call_output_text`, `0020_add_agent_message_attachment_original_filename`, `0021_add_agent_run_context_tokens`, `0022_agent_run_events_and_tool_lifecycle`, `0029_add_agent_run_surface`, `0030_add_account_agent_change_types`, `0035_add_user_files_and_agent_workspace`, `0037_add_agent_message_attachments_use_ocr`, `0040_add_agent_session_sources`)
 
 ## `user_files`
 
@@ -296,7 +297,7 @@ Fields:
 - `id` (PK UUID string)
 - `owner_user_id` (FK -> `users.id`)
 - `storage_area` (currently `upload`)
-- `source_type` (string origin marker such as `agent_message_attachment`)
+- `source_type` (string origin marker such as `agent_message_attachment` or `agent_session_source`)
 - `stored_relative_path` (owner-local relative path under `user_files/{user_id}`)
 - `original_filename`
 - `display_name`
@@ -309,6 +310,7 @@ Operational notes:
 
 - files live under `{data_dir}/user_files/{user_id}/uploads`
 - `(owner_user_id, stored_relative_path)` is unique
+- repeated uploads by the same owner reuse the existing row by content hash when size, mime type, and SHA-256 match
 - deleting a thread removes attachment rows but does not delete canonical file payloads from disk
 
 ## `agent_threads`
@@ -320,6 +322,7 @@ Fields:
 - `id` (PK UUID string)
 - `owner_user_id` (FK -> `users.id`)
 - `title` (nullable)
+- `summary` (nullable external-agent editable session summary)
 - `created_at`, `updated_at`
 
 ## `agent_messages`
@@ -332,6 +335,7 @@ Fields:
 - `thread_id` (FK -> `agent_threads.id`)
 - `role` (`AgentMessageRole`)
 - `content_markdown`
+- `attachments_use_ocr` (legacy bool; current hosted attachment sends use vision-prepared images/PDF pages)
 - `created_at`
 
 ## `agent_message_attachments`
@@ -349,6 +353,23 @@ Operational note:
 
 - new uploads are persisted under `{data_dir}/user_files/{owner_user_id}/uploads/...`
 - serializers keep the current attachment API surface by deriving `mime_type`, `original_filename`, and absolute `file_path` from the linked `user_files` row
+
+## `agent_session_sources`
+
+Purpose: session-level source links for external agents using `bh sessions sources ...` and for hosted app attachments that are automatically linked when bound to a message.
+
+Fields:
+
+- `id` (PK UUID string)
+- `thread_id` (FK -> `agent_threads.id`)
+- `user_file_id` (FK -> `user_files.id`)
+- `note` (nullable)
+- `created_at`
+
+Operational notes:
+
+- `(thread_id, user_file_id)` is unique, so attaching the same stored source to the same session is idempotent.
+- deleting a session removes source links but keeps canonical `user_files` payloads.
 
 ## `agent_runs`
 

@@ -11,6 +11,7 @@ CALLING SPEC:
     text_table(...) -> str
     detail_block(...) -> str
     unique_short_ids(ids) -> dict[str, str]
+    format_minor_amount(amount_minor, currency_code=None) -> str
     compact_row(values) -> str
     escape_compact(value) -> str
     bool_text(value) -> str
@@ -57,18 +58,16 @@ def render_text_fallback(payload: dict[str, Any]) -> str:
 
 def render_status_compact(payload: dict[str, Any]) -> str:
     auth = payload.get("auth") or {}
-    workspace = payload.get("workspace") or {}
+    user = auth.get("user") if isinstance(auth.get("user"), dict) else {}
     context = payload.get("context") or {}
     return "\n".join(
         [
             "OK",
-            "schema: user|workspace_status|ide_ready|thread_id|run_id|api_base_url",
+            "schema: user|session_id|run_id|api_base_url",
             compact_row(
                 [
-                    auth.get("name") or auth.get("user_name") or "-",
-                    workspace.get("status") or "-",
-                    bool_text(workspace.get("ide_ready")),
-                    context.get("thread_id") or "-",
+                    user.get("name") or auth.get("name") or auth.get("user_name") or "-",
+                    context.get("session_id") or context.get("thread_id") or "-",
                     context.get("run_id") or "-",
                     context.get("api_base_url") or "-",
                 ]
@@ -79,16 +78,14 @@ def render_status_compact(payload: dict[str, Any]) -> str:
 
 def render_status_text(payload: dict[str, Any]) -> str:
     auth = payload.get("auth") or {}
-    workspace = payload.get("workspace") or {}
+    user = auth.get("user") if isinstance(auth.get("user"), dict) else {}
     context = payload.get("context") or {}
     return "\n".join(
         [
             "CLI Status",
             "",
-            f"User: {auth.get('name') or auth.get('user_name') or '-'}",
-            f"Workspace: {workspace.get('status') or '-'}",
-            f"IDE Ready: {bool_text(workspace.get('ide_ready'))}",
-            f"Thread: {context.get('thread_id') or '-'}",
+            f"User: {user.get('name') or auth.get('name') or auth.get('user_name') or '-'}",
+            f"Session: {context.get('session_id') or context.get('thread_id') or '-'}",
             f"Run: {context.get('run_id') or '-'}",
             f"API Base URL: {context.get('api_base_url') or '-'}",
         ]
@@ -177,6 +174,22 @@ def unique_short_ids(ids: Any) -> dict[str, str]:
     }
 
 
+def format_minor_amount(amount_minor: Any, currency_code: str | None = None) -> str:
+    if amount_minor is None:
+        return "-"
+    try:
+        minor_units = int(amount_minor)
+    except (TypeError, ValueError):
+        amount_text = scalar_text(amount_minor)
+    else:
+        sign = "-" if minor_units < 0 else ""
+        absolute_minor = abs(minor_units)
+        major, minor = divmod(absolute_minor, 100)
+        amount_text = f"{sign}{major}.{minor:02d}"
+    currency = (currency_code or "").strip()
+    return f"{amount_text} {currency}" if currency else amount_text
+
+
 def compact_row(values: list[Any]) -> str:
     return "|".join(escape_compact(scalar_text(value)) for value in values)
 
@@ -199,4 +212,3 @@ def scalar_text(value: Any) -> str:
 
 def bool_text(value: Any) -> str:
     return "true" if bool(value) else "false"
-

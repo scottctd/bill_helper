@@ -2,7 +2,11 @@
 
 CALLING SPEC:
     build_cli_context(output_format=None) -> CliContext
+    resolve_output_format(output_format=None) -> str
+    request_login(api_base_url=..., username=..., password=...) -> dict
+    save_cli_config(updates) -> Path
     request_json(context, method, path, params=None, json_body=None) -> tuple[int, object]
+    resolve_session_id(context, session_id=...) -> str
     print_output(payload, output_format=context.output_format) -> None
     load_json_argument(inline_json=..., json_file=...) -> object
 
@@ -18,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import mimetypes
 import os
 from pathlib import Path
 import sys
@@ -31,6 +36,7 @@ from backend.cli.rendering import render_output
 
 _RUN_ID_HEADER = "X-Bill-Helper-Agent-Run-Id"
 _WORKSPACE_CLI_CONFIG_PATH = Path("/workspace/.ide/bh-env.json")
+_LOCAL_CLI_CONFIG_PATH = Path.home() / ".config" / "bill-helper" / "bh-env.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,14 +55,14 @@ class CliError(RuntimeError):
 
 
 def build_cli_context(*, output_format: str | None = None) -> CliContext:
-    workspace_config = _load_workspace_cli_config()
+    workspace_config = _load_cli_config()
     api_base_url = _required_value(
         env_names=("BH_API_BASE_URL",),
         workspace_config=workspace_config,
         config_key="api_base_url",
         error_message=(
             "Missing CLI API base URL. Set BH_API_BASE_URL "
-            "or launch the workspace IDE so /workspace/.ide/bh-env.json is created."
+            "or configure the bh CLI config file."
         ),
     )
     auth_token = _required_value(
@@ -65,17 +71,72 @@ def build_cli_context(*, output_format: str | None = None) -> CliContext:
         config_key="auth_token",
         error_message=(
             "Missing CLI auth token. Set BH_AUTH_TOKEN "
-            "or launch the workspace IDE so /workspace/.ide/bh-env.json is created."
+            "or configure the bh CLI config file."
         ),
     )
-    resolved_format = output_format or ("text" if sys.stdout.isatty() else "compact")
     return CliContext(
         api_base_url=api_base_url.rstrip("/"),
         auth_token=auth_token,
-        thread_id=_first_env(("BH_THREAD_ID",)),
+        thread_id=(
+            _first_env(("BH_SESSION_ID", "BH_THREAD_ID"))
+            or _optional_config(workspace_config, "session_id")
+            or _optional_config(workspace_config, "thread_id")
+        ),
         run_id=_first_env(("BH_RUN_ID",)),
-        output_format=resolved_format,
+        output_format=resolve_output_format(output_format),
     )
+
+
+def resolve_output_format(output_format: str | None = None) -> str:
+    return output_format or ("text" if sys.stdout.isatty() else "compact")
+
+
+def request_login(
+    *,
+    api_base_url: str,
+    username: str,
+    password: str,
+) -> dict[str, Any]:
+    normalized_base_url = api_base_url.rstrip("/")
+    try:
+        response = httpx.request(
+            "POST",
+            f"{normalized_base_url}/auth/login",
+            json={"username": username, "password": password},
+            timeout=30.0,
+        )
+    except httpx.RequestError as exc:
+        raise CliError(f"Request failed: {exc}") from exc
+    if response.status_code >= 400:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {"detail": response.text or response.reason_phrase}
+        raise CliError(
+            _default_error_message(
+                status_code=response.status_code,
+                detail=payload.get("detail", payload),
+            )
+        )
+    payload = response.json()
+    if not isinstance(payload, dict) or not isinstance(payload.get("token"), str):
+        raise CliError("Login response did not include a session token.")
+    return payload
+
+
+def save_cli_config(updates: dict[str, Any]) -> Path:
+    current = _load_cli_config_path(_LOCAL_CLI_CONFIG_PATH)
+    current.update(_clean_config_updates(updates))
+    _LOCAL_CLI_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _LOCAL_CLI_CONFIG_PATH.write_text(
+        json.dumps(current, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        _LOCAL_CLI_CONFIG_PATH.chmod(0o600)
+    except OSError:
+        pass
+    return _LOCAL_CLI_CONFIG_PATH
 
 
 def request_json(
@@ -91,17 +152,19 @@ def request_json(
     headers = {"Authorization": f"Bearer {context.auth_token}"}
     if include_run_id:
         run_id = (context.run_id or "").strip()
-        if not run_id:
-            raise CliError("This command requires BH_RUN_ID in the environment.")
-        headers[_RUN_ID_HEADER] = run_id
-    response = httpx.request(
-        method,
-        f"{context.api_base_url}{path}",
-        headers=headers,
-        params=_clean_mapping(params),
-        json=json_body,
-        timeout=30.0,
-    )
+        if run_id:
+            headers[_RUN_ID_HEADER] = run_id
+    try:
+        response = httpx.request(
+            method,
+            f"{context.api_base_url}{path}",
+            headers=headers,
+            params=_clean_mapping(params),
+            json=json_body,
+            timeout=30.0,
+        )
+    except httpx.RequestError as exc:
+        raise CliError(f"Request failed: {exc}") from exc
     if response.status_code >= 400:
         try:
             payload = response.json()
@@ -118,10 +181,52 @@ def request_json(
     return response.status_code, response.json()
 
 
+def request_multipart(
+    context: CliContext,
+    method: str,
+    path: str,
+    *,
+    file_path: Path,
+    field_name: str = "file",
+    data: dict[str, Any] | None = None,
+    include_run_id: bool = False,
+) -> tuple[int, Any]:
+    headers = {"Authorization": f"Bearer {context.auth_token}"}
+    if include_run_id and context.run_id:
+        headers[_RUN_ID_HEADER] = context.run_id
+    mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+    with file_path.open("rb") as handle:
+        try:
+            response = httpx.request(
+                method,
+                f"{context.api_base_url}{path}",
+                headers=headers,
+                data=_clean_mapping(data),
+                files={field_name: (file_path.name, handle, mime_type)},
+                timeout=30.0,
+            )
+        except httpx.RequestError as exc:
+            raise CliError(f"Request failed: {exc}") from exc
+    if response.status_code >= 400:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {"detail": response.text or response.reason_phrase}
+        raise CliError(
+            _default_error_message(
+                status_code=response.status_code,
+                detail=payload.get("detail", payload),
+            )
+        )
+    if response.status_code == 204 or not response.content:
+        return response.status_code, {"status": "OK"}
+    return response.status_code, response.json()
+
+
 def resolve_thread_id(context: CliContext, *, override: str | None = None) -> str:
     candidate = (override or context.thread_id or "").strip()
     if not candidate:
-        raise CliError("This command requires BH_THREAD_ID. Proposal commands are only available during agent runs.")
+        raise CliError("This command requires a current session. Use `bh sessions create --use`, `bh sessions use <session_id>`, set BH_SESSION_ID, or pass --session-id.")
     return candidate
 
 
@@ -171,6 +276,16 @@ def resolve_group_id(context: CliContext, *, group_id: str) -> str:
         records=payload if isinstance(payload, list) else [],
         candidate_id=group_id,
         resource_label="group",
+    )
+
+
+def resolve_session_id(context: CliContext, *, session_id: str) -> str:
+    _, payload = request_json(context, "GET", "/agent/sessions")
+    records = payload.get("sessions") if isinstance(payload, dict) else []
+    return _resolve_id_from_records(
+        records=records if isinstance(records, list) else [],
+        candidate_id=session_id,
+        resource_label="session",
     )
 
 
@@ -257,6 +372,14 @@ def _required_value(
     raise CliError(error_message)
 
 
+def _optional_config(config: dict[str, Any], key: str) -> str | None:
+    value = config.get(key)
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
 def _first_env(names: tuple[str, ...]) -> str | None:
     for name in names:
         value = _optional_env(name)
@@ -271,20 +394,43 @@ def _optional_env(name: str) -> str | None:
     return normalized or None
 
 
-def _load_workspace_cli_config() -> dict[str, Any]:
+def _load_cli_config() -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    for path in (_WORKSPACE_CLI_CONFIG_PATH, _LOCAL_CLI_CONFIG_PATH):
+        payload = _load_cli_config_path(path)
+        if payload:
+            merged.update(payload)
+    return merged
+
+
+def _load_cli_config_path(path: Path) -> dict[str, Any]:
     try:
-        raw_text = _WORKSPACE_CLI_CONFIG_PATH.read_text(encoding="utf-8")
+        raw_text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return {}
     except OSError as exc:
-        raise CliError(f"Failed to read {_WORKSPACE_CLI_CONFIG_PATH}: {exc}") from exc
+        raise CliError(f"Failed to read {path}: {exc}") from exc
     try:
         payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:
-        raise CliError(f"Invalid workspace CLI config at {_WORKSPACE_CLI_CONFIG_PATH}: {exc}") from exc
+        raise CliError(f"Invalid CLI config at {path}: {exc}") from exc
     if not isinstance(payload, dict):
-        raise CliError(f"Invalid workspace CLI config at {_WORKSPACE_CLI_CONFIG_PATH}: expected object.")
+        raise CliError(f"Invalid CLI config at {path}: expected object.")
     return payload
+
+
+def _clean_config_updates(values: dict[str, Any]) -> dict[str, Any]:
+    cleaned: dict[str, Any] = {}
+    for key, value in values.items():
+        if value is None:
+            continue
+        if isinstance(value, str):
+            normalized = value.strip()
+            if normalized:
+                cleaned[key] = normalized
+            continue
+        cleaned[key] = value
+    return cleaned
 
 
 def _clean_mapping(values: dict[str, Any] | None) -> dict[str, Any] | None:

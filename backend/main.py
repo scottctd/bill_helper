@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-import logging
+
 import uvicorn
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,19 +35,14 @@ from backend.services.crud_policy import PolicyViolation
 from backend.services.agent.langfuse_litellm import ensure_langfuse_litellm_configured
 from backend.services.agent_workspace import stop_all_user_workspaces_best_effort
 
-logger = logging.getLogger(__name__)
-
 
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
+    ensure_langfuse_litellm_configured()
     try:
-        ensure_langfuse_litellm_configured()
         yield
     finally:
-        try:
-            stop_all_user_workspaces_best_effort()
-        except Exception:
-            logger.exception("Workspace shutdown sweep crashed during app shutdown")
+        stop_all_user_workspaces_best_effort()
 
 
 def create_app() -> FastAPI:
@@ -97,7 +92,6 @@ def create_app() -> FastAPI:
             dependencies=protected_dependencies,
         )
     app.include_router(workspace.router, prefix=app_settings.api_prefix)
-
     return app
 
 

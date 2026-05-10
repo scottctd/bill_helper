@@ -1,16 +1,16 @@
 # Billing Assistant Agent
 
-This feature doc describes the current billing assistant architecture, prompt shape, exact runtime-visible tool contracts, and the `bh` CLI contract the agent uses through the workspace terminal.
+This feature doc describes the current billing assistant architecture, prompt shape, exact runtime-visible tool contracts, and the `bh` CLI contract the agent uses through the hosted `run_bh` tool.
 
 ## Agent UX Quick Path
 
 1. Open the app and navigate to the Agent route.
 2. Create or select a conversation thread.
-3. Pick the next-run model from the composer dropdown if needed, attach optional images/PDFs, keep `OCR` on for text-first parsing or leave it off for vision-first sends, let preparation finish or continue in the background, then send.
+3. Pick the next-run model from the composer dropdown if needed, attach optional images/PDFs, let vision preparation finish or continue in the background, then send.
 4. Review the live run timeline:
-   - user and assistant messages render inline
-   - progress updates and tool-call events appear during execution
-   - untitled threads are gated so the first model step can only call `rename_thread`
+  - user and assistant messages render inline
+  - progress updates and tool-call events appear during execution
+  - untitled threads are gated so the first model step can only call `rename_thread`
 5. Open the thread review modal after proposals are created.
 6. Approve, reject, reopen, or batch-process proposals.
 7. Only approved proposals mutate real owner-scoped ledger data.
@@ -19,45 +19,45 @@ This feature doc describes the current billing assistant architecture, prompt sh
 
 The current assistant is a review-gated tool-calling runtime with a deliberately small model-visible surface:
 
-- the model sees only `rename_thread`, `send_intermediate_update`, `add_user_memory`, `terminal`, and `read_image`
-- Bill Helper app reads, proposal creation/updates/removal, and review actions now happen through the installed `bh` CLI inside the workspace container
-- `terminal` is the bridge for both local workspace file work and backend-backed Bill Helper operations
-- `read_image` is the narrow multimodal escape hatch for loading specific `/workspace/...` images only when attachment hints or later workspace work make visual inspection necessary
+- the model sees only `rename_thread`, `send_intermediate_update`, `add_user_memory`, and `run_bh`
+- Bill Helper app reads, proposal creation/updates/removal, and review actions now happen through `bh`
+- `run_bh` is a narrow bridge for backend-backed Bill Helper operations, not a general shell
 - proposals still create `AgentChangeItem` rows first; direct ledger mutation still happens only in review apply handlers
 
 The old read/proposal/review modules still exist internally, but no longer as direct model-facing tools. They are now backend building blocks reused by proposal HTTP routes, normalization, patching, and apply logic.
 
 ## Core Components
 
-| Component | Files | Responsibility |
-| --- | --- | --- |
-| Runtime | `backend/services/agent/runtime.py`, `backend/services/agent/runtime_loop.py`, `backend/services/agent/run_orchestrator.py` | Tool-calling loop, event persistence, final assistant completion, and streaming/background adapters |
-| Model client | `backend/services/agent/model_client.py`, `backend/services/agent/model_client_support/` | LiteLLM integration, retry behavior, streaming delta normalization, and usage accounting |
-| Prompt assembly | `backend/services/agent/system_prompt.j2`, `backend/services/agent/prompts.py` | Behavior rules, current-user context, `bh` cheat sheet insertion, and memory injection |
-| Message history | `backend/services/agent/message_history.py`, `backend/services/agent/message_history_content.py`, `backend/services/agent/attachment_content.py` | Thread history shaping, attachment extraction, PDF/image handling, and review/interruption prefixing |
-| Runtime-visible tool catalog | `backend/services/agent/tool_runtime_support/catalog.py`, `backend/services/agent/tool_runtime_support/catalog_session.py`, `backend/services/agent/tool_runtime_support/catalog_terminal.py`, `backend/services/agent/tool_runtime_support/catalog_image.py` | Exact tool schemas exposed to the model |
-| Workspace execution | `backend/services/agent/terminal.py`, `backend/services/agent/read_image.py`, `backend/services/docker_cli.py`, `backend/services/agent_workspace.py` | Workspace startup, short-lived session injection, shell execution, on-demand image reads, output truncation, and secret scrubbing |
-| CLI | `backend/cli/main.py`, `backend/cli/support.py`, `backend/cli/rendering.py`, `backend/cli/reference.py` | Thin HTTP client, compact/text rendering, and prompt/doc reference metadata |
-| Internal domain helpers | `backend/services/agent/read_tools/`, `backend/services/agent/proposals/`, `backend/services/agent/proposal_http.py`, `backend/services/agent/proposal_patching.py` | Lookup helpers plus proposal normalization, metadata, and patching reused behind APIs and review/apply |
-| Review/apply | `backend/services/agent/reviews/`, `backend/services/agent/apply/`, `backend/routers/agent.py`, `backend/routers/agent_proposals.py` | Proposal inspection, approve/reject/reopen transitions, reviewer overrides, and canonical mutations |
-| Frontend agent UI | `frontend/src/features/agent/` | Thread list, composer, run timeline, tool blocks, and review modal |
+
+| Component                    | Files                                                                                                                                                                                         | Responsibility                                                                                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime                      | `backend/services/agent/runtime.py`, `backend/services/agent/runtime_loop.py`, `backend/services/agent/run_orchestrator.py`                                                                   | Tool-calling loop, event persistence, final assistant completion, and streaming/background adapters                                                 |
+| Model client                 | `backend/services/agent/model_client.py`, `backend/services/agent/model_client_support/`                                                                                                      | LiteLLM integration, retry behavior, streaming delta normalization, and usage accounting                                                            |
+| Prompt assembly              | `backend/services/agent/system_prompt.j2`, `backend/services/agent/prompts.py`                                                                                                                | Behavior rules, current-user context, `bh` cheat sheet insertion, and memory injection                                                              |
+| Message history              | `backend/services/agent/message_history.py`, `backend/services/agent/message_history_content.py`, `backend/services/agent/attachment_content.py`                                              | Thread history shaping, attachment extraction, PDF/image handling, and review/interruption prefixing                                                |
+| Runtime-visible tool catalog | `backend/services/agent/tool_runtime_support/catalog.py`, `backend/services/agent/tool_runtime_support/catalog_session.py`, `backend/services/agent/tool_runtime_support/catalog_terminal.py` | Exact tool schemas exposed to the model                                                                                                             |
+| CLI execution                | `backend/services/agent/terminal.py`, `backend/services/agent/work_sessions.py`, `backend/services/docker_cli.py`, `backend/services/agent_workspace.py`                                      | Hosted `bh` execution, short-lived session injection, source/session persistence, output truncation, secret scrubbing, and legacy workspace support |
+| CLI                          | `backend/cli/main.py`, `backend/cli/support.py`, `backend/cli/rendering.py`, `backend/cli/reference.py`                                                                                       | Thin HTTP client, compact/text rendering, and prompt/doc reference metadata                                                                         |
+| Internal domain helpers      | `backend/services/agent/read_tools/`, `backend/services/agent/proposals/`, `backend/services/agent/proposal_http.py`, `backend/services/agent/proposal_patching.py`                           | Lookup helpers plus proposal normalization, metadata, and patching reused behind APIs and review/apply                                              |
+| Review/apply                 | `backend/services/agent/reviews/`, `backend/services/agent/apply/`, `backend/routers/agent.py`, `backend/routers/agent_proposals.py`                                                          | Proposal inspection, approve/reject/reopen transitions, reviewer overrides, and canonical mutations                                                 |
+| Frontend agent UI            | `frontend/src/features/agent/`                                                                                                                                                                | Thread list, composer, run timeline, tool blocks, and review modal                                                                                  |
+
 
 ## Runtime Flow
 
 1. User sends a message to an agent thread.
-2. If the user attached files in the composer first, backend has already persisted and parsed those draft uploads under canonical `user_files`.
-3. Backend persists the message, binds any uploaded attachments (or inline request files), and creates a new `agent_runs` row.
+2. If the user attached files in the composer first, backend has already persisted and prepared those draft uploads under canonical `user_files`.
+3. Backend persists the message, binds any uploaded attachments (or inline request files), links those files as session sources, and creates a new `agent_runs` row.
 4. Runtime builds the system prompt, current-user context, entity-category context, user memory section, and message history.
 5. If the thread is untitled, the runtime exposes only `rename_thread` and requests that tool explicitly.
-6. After the thread has a valid title, the runtime exposes the five-tool catalog.
+6. After the thread has a valid title, the runtime exposes the four-tool catalog.
 7. The model uses `send_intermediate_update` before meaningful tool-call batches.
-8. For Bill Helper app work, the model calls `terminal` and executes `bh ...` inside the workspace container.
-9. `terminal` ensures the workspace is running, mints a short-lived backend session, injects `BH_*` env, executes `bash -lc`, truncates output when needed, and revokes the temporary session afterward.
-10. When an upload hint lists related image paths, the model can call `read_image` later to append only the selected `/workspace/...` images for visual inspection.
-11. `bh` calls backend routes for reads and current-thread proposal lifecycle actions.
-12. Proposal creation stores pending `AgentChangeItem` rows scoped to the current thread and run.
-13. Human review approves, rejects, or reopens proposals.
-14. Only approval apply handlers mutate the real domain tables.
+8. For Bill Helper app work, the model calls `run_bh` and executes `bh ...`.
+9. `run_bh` mints a short-lived backend session, injects `BH_*` env, executes the local CLI module, truncates output when needed, and revokes the temporary session afterward.
+10. Hosted `bh` calls backend routes for reads, current-session summary updates, and current-thread proposal lifecycle actions. Session navigation and source attachment commands remain available to external agents through `bh instruction`, but are blocked for hosted runs.
+11. Proposal creation stores pending `AgentChangeItem` rows scoped to the current thread and hosted run, or to a synthetic CLI run for external agents.
+12. Human review approves, rejects, or reopens proposals.
+13. Only approval apply handlers mutate the real domain tables.
 
 ## Prompt Shape
 
@@ -80,7 +80,7 @@ The system prompt is a markdown document with:
 
 Important current behavior:
 
-- prompt guidance explicitly routes Bill Helper app work through `terminal` plus `bh`
+- prompt guidance explicitly routes Bill Helper app work through `run_bh` plus `bh`
 - the prompt embeds a concise `bh` cheat sheet, not full tool schema docs
 - raw `curl` and ad hoc Python are discouraged when a `bh` command exists
 - duplicate checks, entity/tag/account grounding, group workflow rules, and review-continuation rules still live in the prompt
@@ -91,19 +91,15 @@ The model-visible tool surface is intentionally small, but it is still documente
 
 ### Attachment Content The Agent Sees
 
-For a newly uploaded PDF or image bundle, the initial user turn is text-first. The agent sees:
+For a newly uploaded PDF or image bundle, the initial user turn is vision-first. The agent sees:
 
-- one attachment text block per uploaded file before the user’s free-text prompt
-- absolute workspace paths, including:
-  - `raw.<ext>`
-  - `parsed.md`
-  - all related image paths under `/workspace/uploads/...`
-- a short note telling the agent to use `read_image` only when visual inspection is needed
-- the full `parsed.md` contents inline under a `--- parsed.md ---` delimiter
+- original uploaded image bytes as `image_url` parts, without resizing
+- one high-resolution rendered page image per PDF page
+- a short attachment text marker describing each PDF and page count
+- the user’s free-text prompt after the attachment parts
 
-When the composer keeps OCR enabled, the initial attachment block does not include any eager `image_url` parts.
-When the composer disables OCR for a vision-capable model, images are sent as direct `image_url` parts and PDFs are sent as bundle image parts instead of inline `parsed.md` text.
-In the app UI, vision-capable models default the composer `OCR` toggle off for newly attached files, while non-vision models force it on.
+The current hosted path does not run Docling or OCR. PDFs with more pages than `agent_max_pdf_pages` are rejected before rendering.
+
 
 <!-- GENERATED:runtime-tool-contracts:start -->
 ### `add_user_memory`
@@ -142,106 +138,41 @@ Arguments:
   description: A short, user-visible progress note. Use plain text or inline markdown (e.g. **bold**, `code`, *italic*) for emphasis when helpful.
   constraints: minLength=1, maxLength=400
 
-### `terminal`
+### `run_bh`
 
 Description:
 
-Use this tool for shell work inside the current user's workspace container. Use `bh` for Bill Helper app operations, standard shell commands for local work under /workspace, and read-only inspection under /workspace/uploads. Use `bh` when the task is about the Bill Helper app. 
+Use this tool only for Bill Helper app operations through `bh ...`. It does not provide a general shell or filesystem workspace. The hosted prompt already includes the Bill Helper domain rules and hosted CLI reference.
 
 Arguments:
 
 - `command: string` required
-  description: Shell command to execute verbatim via `bash -lc`. May include newlines, pipes, redirects, command substitution, or heredocs.
+  description: Bill Helper CLI command to execute. Must start with `bh`; general shell commands are rejected.
   constraints: minLength=1
 - `cwd: string | null`
-  description: Optional working directory inside the workspace container. Defaults to the writable scratch root `/workspace/scratch`.
+  description: Ignored legacy field retained for older tool arguments. `run_bh` executes the local `bh` CLI only.
   constraints: default=None
 - `timeout_seconds: integer`
   description: Command timeout in seconds. Defaults to 120. Allowed range: 1 to 600.
   constraints: minimum=1, maximum=600, default=120
-
-### `read_image`
-
-Description:
-
-Load one or more image files that already exist inside the current user's workspace container and append them for visual inspection. Use this when an attachment note lists related image paths or when you discover relevant image files under /workspace.
-
-Arguments:
-
-- `paths: list[string]` required
-  description: Absolute image paths inside the current user's workspace container. Use paths already shown in attachment workspace hints or discovered in `/workspace`.
-  constraints: minItems=1
 <!-- GENERATED:runtime-tool-contracts:end -->
 
-### `read_image` Output Contract
-
-On success, the backend stores the normal tool-call payload and also appends a multimodal `role=tool` message to the next model call.
-
-Persisted tool-call JSON:
-
-```json
-{
-  "status": "ok",
-  "summary": "loaded N image(s)",
-  "paths": [
-    "/workspace/uploads/2026-03-22/example/raw.png",
-    "/workspace/scratch/chart.png"
-  ],
-  "image_count": 2
-}
-```
-
-Model-facing tool message content:
-
-```json
-[
-  {
-    "type": "text",
-    "text": "Loaded image(s) for visual inspection:\n- /workspace/uploads/2026-03-22/example/raw.png\n- /workspace/scratch/chart.png"
-  },
-  {
-    "type": "image_url",
-    "image_url": {
-      "url": "data:image/png;base64,..."
-    }
-  },
-  {
-    "type": "image_url",
-    "image_url": {
-      "url": "data:image/png;base64,..."
-    }
-  }
-]
-```
-
-Failure behavior:
-
-- non-vision models receive a normal tool error and no image parts are appended
-- invalid paths, missing files, non-image files, paths outside `/workspace`, and over-limit requests fail the whole tool call
-- duplicate input paths are silently deduped while preserving first-seen order
 
 ## `bh` CLI Contract
 
-`bh` is the canonical app-operation interface for both the agent and humans in the workspace IDE terminal.
+`bh` is the canonical app-operation interface for hosted and external agents.
 
 Current behavior:
 
 - `bh` is a thin HTTP client; it never mutates the database or canonical files directly
-- auth and backend reachability come from `BH_*` env or `/workspace/.ide/bh-env.json`
+- auth and backend reachability come from `BH_`* env or the user's local `bh` config
 - non-TTY output defaults to `compact`
 - TTY output defaults to `text`
 - `json` is explicit opt-in only
 - compact output never uses ANSI color
 - compact list outputs use 8-character ids when unique in the current result set, and fall back to full ids on collisions
 - displayed short ids are reusable across follow-up `bh` reads, including proposal inspection commands and nested proposal references inside proposal payloads, because `bh` resolves them to canonical ids before the final API call
-- proposal commands use `BH_THREAD_ID` and `BH_RUN_ID` from the active agent run
-
-Interactive IDE launch refreshes:
-
-- `/workspace/.ide/bh-env.json`
-- `/workspace/.ide/bh-shell-env.sh`
-
-That lets humans run `bh ...` directly in the IDE terminal without manual exports.
+- proposal commands use `BH_SESSION_ID` / `BH_THREAD_ID`; `BH_RUN_ID` is optional for hosted runs
 
 ### Compact Output Contract
 
@@ -256,23 +187,37 @@ Compact output is line-oriented and token-efficient:
 
 ### Canonical `bh` Cheat Sheet
 
+
 <!-- GENERATED:bh-cheat-sheet:start -->
-Use `bh` for Bill Helper app reads and current-thread proposal creation and proposal mutation.
+Use `bh` for Bill Helper app reads and current-session proposal creation and proposal mutation.
 
 - Agent calls should expect `compact` output by default; use `--format text` or `--format json` only when needed.
 - Every command also accepts `--format {compact,json,text}` as an optional global override.
 - List output uses 8-character ids when unique in the current result set; collisions fall back to full ids.
 - Compact output is line-oriented: one `schema:` line defines column order, then one escaped `|`-delimited row per record.
-- Read commands work in the human IDE terminal. Any `create`, `update`, `remove`, `add-member`, `remove-member`, or `proposals` command requires the current agent-run env (`BH_THREAD_ID` and `BH_RUN_ID`).
+- Text output formats monetary minor units as decimal currency amounts; compact/json preserve raw minor-unit fields.
+- Hosted runs receive temporary auth and the current session id automatically.
+- Mutating proposal commands use the injected current session. `BH_RUN_ID` is present for hosted runs and should not be supplied manually.
+- The app owns hosted session creation, selection, and attachment linking. Hosted runs may update only the current session with `bh sessions update`; do not use session navigation or source-management commands.
 - Inspect before mutating: read entries/tags/accounts/entities/groups/proposals first, then create resource-scoped proposals.
-- `bh proposals update` and `bh proposals remove` only work for pending proposals in the current thread.
+- `bh proposals update` and `bh proposals remove` only work for pending proposals in the current session/thread.
 
 Command specifications:
 
 ### `bh status`
-- Purpose: Show current auth, workspace, thread, and run context.
+- Purpose: Show current auth and CLI session context.
 - Required arguments: none.
 - Optional arguments: none.
+
+### `bh sessions update`
+- Purpose: Update the current app-managed session title or summary.
+- Required arguments: none.
+- Optional arguments:
+  - `--title TEXT: replace the current session title.`
+  - `--summary TEXT: replace the current session summary.`
+- Notes:
+  - Hosted runs use the injected current session id. Do not provide a session id.
+  - `--summary-file` is for external agents with local files and is not available to hosted runs.
 
 ### `bh entries list`
 - Purpose: List entries.
@@ -525,16 +470,18 @@ Command specifications:
   - `<proposal_id>: full proposal id or unique short id prefix.`
 - Optional arguments: none.
 
-Compact list schemas:
+Compact output schemas:
 - `entries_list` -> `id|date|kind|amount_minor|currency|name|from|to|tags`
 - `accounts_list` -> `id|name|currency|active`
 - `snapshots_list` -> `id|date|balance_minor|note`
 - `groups_list` -> `id|type|name|descendants|first_date|last_date`
 - `entities_list` -> `name|category`
 - `tags_list` -> `name|type|description`
+- `sessions_detail` -> `id|title|pending|running|updated_at`
 - `proposals_list` -> `id|status|change_type|summary`
 
 Common flows:
+- Update the current session summary: `bh sessions update --summary "Reviewed May receipts and proposed 3 entries."`
 - Inspect recent matching entries: `bh entries list --source "farm boy" --limit 10`
 - Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`
 - Create a tag proposal: `bh tags create --name grocery --type expense`
@@ -544,21 +491,34 @@ Common flows:
 - Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{"patch.tags":["grocery"]}'`
 - Remove a pending proposal: `bh proposals remove a1b2c3d4`
 - Create a group-membership add proposal: `bh groups add-member --payload-json '{"action":"add","group_ref":{"group_id":"a971c92e"},"target":{"target_type":"entry","entry_ref":{"entry_id":"8bf2fa83"}}}'`
-
 <!-- GENERATED:bh-cheat-sheet:end -->
+
+
 
 ## Proposal And Review Lifecycle
 
-Proposal lifecycle is now thread-scoped through the CLI and review APIs:
+Proposal lifecycle is now session/thread-scoped through the CLI and review APIs:
 
-1. the agent runs a resource-scoped `bh ... create|update|remove|add-member|remove-member ...` command
-2. backend stores a pending `AgentChangeItem`
-3. `bh proposals list` and `bh proposals get` inspect thread-local proposal history
-4. `bh proposals update` and `bh proposals remove` can change or drop pending proposals before review
-5. the human review UI drives approve, reject, and reopen
-6. approval applies the change through the existing backend apply handlers
+1. the agent creates or selects a session
+2. the agent optionally attaches sources and updates the session summary
+3. the agent runs a resource-scoped `bh ... create|update|remove|add-member|remove-member ...` command
+4. backend stores a pending `AgentChangeItem`
+5. `bh proposals list` and `bh proposals get` inspect session-local proposal history
+6. `bh proposals update` and `bh proposals remove` can change or drop pending proposals before review
+7. the human review UI drives approve, reject, and reopen
+8. approval applies the change through the existing backend apply handlers
 
 ## API Surface Behind The CLI
+
+Session/source routes:
+
+- `GET /api/v1/agent/sessions`
+- `POST /api/v1/agent/sessions`
+- `GET /api/v1/agent/sessions/{session_id}`
+- `PATCH /api/v1/agent/sessions/{session_id}`
+- `GET /api/v1/agent/sessions/{session_id}/sources`
+- `POST /api/v1/agent/sessions/{session_id}/sources/text`
+- `POST /api/v1/agent/sessions/{session_id}/sources`
 
 Thread-scoped proposal routes:
 
@@ -577,7 +537,6 @@ Review routes:
 Read routes used by `bh` include:
 
 - `GET /api/v1/auth/me`
-- `GET /api/v1/workspace`
 - `GET /api/v1/entries`
 - `GET /api/v1/entries/{entry_id}`
 - `GET /api/v1/accounts`
@@ -588,20 +547,23 @@ Read routes used by `bh` include:
 - `GET /api/v1/entities`
 - `GET /api/v1/tags`
 
-## Workspace And Configuration Notes
+## CLI And Configuration Notes
 
-- `BILL_HELPER_WORKSPACE_BACKEND_BASE_URL` controls container-to-backend reachability
-- terminal execution injects `BH_API_BASE_URL`, `BH_AUTH_TOKEN`, `BH_THREAD_ID`, `BH_RUN_ID`, `BH_WORKSPACE_ROOT`, and `BH_DATA_ROOT`
+- from a checkout, `uv run bh ...` runs the CLI without global installation
+- external agents can install `bh` onto `PATH` with `uv tool install --editable .`
+- if `bh` is not on `PATH`, add `$(uv tool dir --bin)` to the shell `PATH`
+- `BILL_HELPER_AGENT_CLI_BASE_URL` controls hosted `run_bh` to backend reachability
+- `run_bh` execution injects `BH_API_BASE_URL`, `BH_AUTH_TOKEN`, `BH_SESSION_ID`, `BH_THREAD_ID`, and `BH_RUN_ID`
 - the auth token is a short-lived session created for the thread owner and revoked after the command finishes
-- the configured workspace image must include the Bill Helper package, the `bh` entrypoint, and normal shell/file utilities
-- `terminal` scrubs the temporary auth token from captured stdout/stderr
+- `run_bh` scrubs the temporary auth token from captured stdout/stderr
 
 ## Verification Expectations
 
 When this surface changes, useful checks include:
 
 - CLI unit tests for format defaults and compact renderer behavior
-- workspace terminal execution against a disposable backend
+- hosted `run_bh` execution against a disposable backend
+- session/source create/list/update through `bh`
 - proposal create/list/get through `bh`
 - review approve/reject/reopen through `bh`
 - browser review/apply flow on an isolated backend
@@ -618,5 +580,6 @@ When this surface changes, useful checks include:
 - [backend/services/agent/system_prompt.j2](../../backend/services/agent/system_prompt.j2)
 - [backend/services/agent/prompts.py](../../backend/services/agent/prompts.py)
 - [backend/services/agent/terminal.py](../../backend/services/agent/terminal.py)
-- [backend/services/workspace_cli_env.py](../../backend/services/workspace_cli_env.py)
+- [backend/services/agent/work_sessions.py](../../backend/services/agent/work_sessions.py)
+- [backend/routers/agent_sessions.py](../../backend/routers/agent_sessions.py)
 - [backend/routers/agent_proposals.py](../../backend/routers/agent_proposals.py)

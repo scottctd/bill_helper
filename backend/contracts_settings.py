@@ -36,6 +36,7 @@ RuntimeSettingsWriteField = Literal[
     "agent_retry_backoff_multiplier",
     "agent_max_image_size_bytes",
     "agent_max_images_per_message",
+    "agent_max_pdf_pages",
     "agent_base_url",
     "agent_api_key",
 ]
@@ -59,6 +60,7 @@ class RuntimeSettingsWriteFields(BaseModel):
     agent_retry_backoff_multiplier: float | None = Field(default=None, ge=1.0, le=10.0)
     agent_max_image_size_bytes: int | None = Field(default=None, ge=1024, le=104857600)
     agent_max_images_per_message: int | None = Field(default=None, ge=1, le=12)
+    agent_max_pdf_pages: int | None = Field(default=None, ge=1, le=100)
     agent_base_url: str | None = Field(default=None, max_length=500)
     agent_api_key: str | None = Field(default=None, max_length=500)
 

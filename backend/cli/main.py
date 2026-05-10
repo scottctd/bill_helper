@@ -15,8 +15,13 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+import getpass
+import json
+import sys
 from typing import Any
 
+from backend.cli.reference import render_bh_cheat_sheet
+from backend.cli.session_commands import add_sessions_parser
 from backend.cli.create_commands import (
     ACCOUNT_CREATE_SPEC,
     ENTITY_CREATE_SPEC,
@@ -35,19 +40,22 @@ from backend.cli.support import (
     build_cli_context,
     load_json_argument,
     print_output,
+    request_login,
     request_json,
     resolve_account_id,
     resolve_account_name,
     resolve_entry_id,
     resolve_group_id,
+    resolve_output_format,
     resolve_payload_proposal_references,
     resolve_proposal_id,
     resolve_snapshot_id,
     resolve_thread_id,
+    save_cli_config,
 )
 
 
-CommandHandler = Callable[[argparse.Namespace, CliContext], Any]
+CommandHandler = Callable[[argparse.Namespace, CliContext | None], Any]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,6 +68,26 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         parser.print_help()
         return 1
+
+    if getattr(args, "requires_context", True) is False:
+        try:
+            payload = args.handler(args, None)
+        except CliError as exc:
+            print(str(exc), file=__import__("sys").stderr)
+            return exc.exit_code
+        if getattr(args, "raw_output", False):
+            output_format = resolve_output_format(getattr(args, "output_format", None))
+            if output_format == "json":
+                print(json.dumps({"instruction": str(payload)}, indent=2, sort_keys=True))
+            else:
+                print(str(payload))
+        else:
+            print_output(
+                payload,
+                output_format=resolve_output_format(getattr(args, "output_format", None)),
+                render_key=getattr(args, "render_key", None),
+            )
+        return 0
 
     try:
         context = build_cli_context(output_format=args.output_format)
@@ -77,7 +105,10 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_format_option(parser)
     subparsers = parser.add_subparsers(dest="command")
 
+    _build_login_parser(subparsers)
     _build_status_parser(subparsers)
+    _build_instruction_parser(subparsers)
+    add_sessions_parser(subparsers, _add_format_option)
     _build_entries_parser(subparsers)
     _build_accounts_parser(subparsers)
     _build_snapshots_parser(subparsers)
@@ -88,10 +119,35 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_login_parser(subparsers) -> None:
+    parser = subparsers.add_parser("login", help="Create and save a CLI auth session.")
+    _add_format_option(parser)
+    parser.add_argument(
+        "--api-base-url",
+        default="http://localhost:8000/api/v1",
+        help="Bill Helper API base URL. Defaults to http://localhost:8000/api/v1.",
+    )
+    parser.add_argument("--username", required=True)
+    password_group = parser.add_mutually_exclusive_group()
+    password_group.add_argument("--password", default=None)
+    password_group.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="Read the password from stdin.",
+    )
+    parser.set_defaults(handler=_handle_login, requires_context=False, render_key="login")
+
+
 def _build_status_parser(subparsers) -> None:
-    parser = subparsers.add_parser("status", help="Show current auth/workspace/CLI context.")
+    parser = subparsers.add_parser("status", help="Show current auth and CLI session context.")
     _add_format_option(parser)
     parser.set_defaults(handler=_handle_status, render_key="status")
+
+
+def _build_instruction_parser(subparsers) -> None:
+    parser = subparsers.add_parser("instruction", help="Show Bill Helper domain rules and CLI reference.")
+    _add_format_option(parser)
+    parser.set_defaults(handler=_handle_instruction, requires_context=False, raw_output=True)
 
 
 def _build_entries_parser(subparsers) -> None:
@@ -336,21 +392,63 @@ def _add_format_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _handle_status(_args: argparse.Namespace, context: CliContext) -> dict[str, Any]:
+def _handle_status(_args: argparse.Namespace, context: CliContext | None) -> dict[str, Any]:
+    assert context is not None
     _, me = request_json(context, "GET", "/auth/me")
-    _, workspace = request_json(context, "GET", "/workspace")
     return {
         "auth": me,
-        "workspace": workspace,
         "context": {
-            "thread_id": context.thread_id,
+            "session_id": context.thread_id,
             "run_id": context.run_id,
             "api_base_url": context.api_base_url,
         },
     }
 
 
-def _handle_entries_list(args: argparse.Namespace, context: CliContext) -> Any:
+def _handle_login(args: argparse.Namespace, _context: CliContext | None) -> dict[str, Any]:
+    password = _resolve_login_password(args)
+    payload = request_login(
+        api_base_url=args.api_base_url,
+        username=args.username,
+        password=password,
+    )
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
+    save_cli_config(
+        {
+            "api_base_url": args.api_base_url.rstrip("/"),
+            "auth_token": payload["token"],
+        }
+    )
+    return {
+        "summary": f"logged in as {user.get('name') or args.username}",
+        "user": user.get("name") or args.username,
+        "api_base_url": args.api_base_url.rstrip("/"),
+        "auth_session_id": payload.get("session_id"),
+        "config_saved": True,
+    }
+
+
+def _handle_instruction(_args: argparse.Namespace, _context: CliContext | None) -> str:
+    return render_bh_cheat_sheet()
+
+
+def _resolve_login_password(args: argparse.Namespace) -> str:
+    if args.password is not None:
+        password = args.password
+    elif args.password_stdin:
+        password = sys.stdin.read()
+    elif sys.stdin.isatty():
+        password = getpass.getpass("Password: ")
+    else:
+        raise CliError("Provide --password, --password-stdin, or run bh login interactively.")
+    normalized = password.strip()
+    if not normalized:
+        raise CliError("Password cannot be empty.")
+    return normalized
+
+
+def _handle_entries_list(args: argparse.Namespace, context: CliContext | None) -> Any:
+    assert context is not None
     resolved_account_id = resolve_account_id(context, account_id=args.account_id) if args.account_id is not None else None
     resolved_group_id = resolve_group_id(context, group_id=args.filter_group_id) if args.filter_group_id is not None else None
     _, payload = request_json(

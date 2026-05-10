@@ -16,8 +16,8 @@ from backend.config import get_settings
 from backend.models_agent import AgentMessageAttachment
 from backend.models_files import UserFile
 from backend.services.agent.agent_attachment_bundle import (
-    ingest_agent_attachment_with_docling,
     ingest_agent_attachment_without_docling,
+    pdf_page_count_from_bytes,
 )
 from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import ResolvedRuntimeSettings
@@ -59,16 +59,23 @@ async def ingest_draft_attachment_upload(
             detail=f"Attachment too large. Max bytes allowed is {settings.agent_max_image_size_bytes}.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    try:
-        if use_ocr:
-            return ingest_agent_attachment_with_docling(
-                db,
-                owner_user_id=owner_user_id,
-                file_bytes=file_bytes,
-                mime_type=mime_type,
-                original_filename=upload.filename,
-                timezone_name=get_settings().current_user_timezone,
+    if mime_type == "application/pdf":
+        try:
+            page_count = pdf_page_count_from_bytes(file_bytes)
+        except Exception as exc:
+            raise PolicyViolation(
+                detail="Attachment could not be read as a PDF.",
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            ) from exc
+        if page_count > settings.agent_max_pdf_pages:
+            raise PolicyViolation(
+                detail=(
+                    f"PDF has {page_count} pages. Max pages allowed is "
+                    f"{settings.agent_max_pdf_pages}."
+                ),
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
+    try:
         return ingest_agent_attachment_without_docling(
             db,
             owner_user_id=owner_user_id,
@@ -79,7 +86,7 @@ async def ingest_draft_attachment_upload(
         )
     except RuntimeError as exc:
         raise PolicyViolation(
-            detail="Attachment could not be parsed. Try a different file or format.",
+            detail="Attachment could not be prepared for vision. Try a different file or format.",
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         ) from exc
 

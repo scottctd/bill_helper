@@ -20,10 +20,6 @@ from backend.schemas_auth import (
     AuthUserRead,
 )
 from backend.schemas_finance import UserRead
-from backend.services.agent_workspace import (
-    queue_best_effort_user_workspace_start,
-    stop_user_workspace_best_effort,
-)
 from backend.services.sessions import (
     create_session,
     list_active_sessions,
@@ -131,7 +127,6 @@ def login_as_user(
         is_admin_impersonation=True,
     )
     db.commit()
-    queue_best_effort_user_workspace_start(user_id=user.id)
     return AuthLoginResponse(
         token=token,
         user=AuthUserRead.model_validate(user),
@@ -173,4 +168,3 @@ def delete_admin_session(
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
     db.commit()
-    stop_user_workspace_best_effort(user_id=session_row.user_id)

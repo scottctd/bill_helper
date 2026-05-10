@@ -1,5 +1,7 @@
 # Workspace API
 
+This is the legacy opt-in Docker workspace/IDE API. The default hosted agent path no longer provisions Docker resources or executes inside a workspace container.
+
 Current routes:
 
 - `GET /workspace`
@@ -16,7 +18,7 @@ The snapshot and lifecycle routes are bearer-authenticated and always operate on
 Returns one snapshot object that describes lifecycle and IDE launch state:
 
 - `workspace_enabled`: whether backend provisioning is enabled at all
-- `starts_on_login`: whether authenticated app sessions best-effort auto-start the workspace
+- `starts_on_login`: legacy field; current auth flows do not auto-start workspaces
 - `status`: current container state such as `disabled`, `created`, `running`, or `missing`
 - `container_name` / `volume_name`: deterministic Docker resource names for the current user
 - `ide_ready`: whether the proxied `code-server` endpoint is reachable right now
@@ -27,7 +29,7 @@ Behavior notes:
 
 - the backend enforces only the current `code-server` workspace contract; mismatched container definitions are recreated onto the current revision without preserving older mount-layout compatibility logic.
 - if the configured image is missing, the snapshot returns `status="image_missing"` plus an operator-facing message instead of failing the whole page.
-- login no longer blocks on Docker startup failures; the snapshot is the source of truth for degraded IDE state.
+- login does not start or block on Docker workspace state; the snapshot is the source of truth for degraded IDE state.
 
 ## `POST /workspace/start`
 
@@ -36,7 +38,7 @@ Starts the current user's provisioned workspace container and returns the same s
 Behavior notes:
 
 - when provisioning is disabled, this is a no-op and the returned snapshot stays `disabled`
-- the frontend auth bootstrap also calls this route best-effort after restoring an authenticated session so the IDE comes back after app reloads or backend restarts
+- current frontend auth bootstrap does not call this route automatically; callers start the legacy workspace explicitly
 
 ## `POST /workspace/stop`
 

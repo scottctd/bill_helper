@@ -60,7 +60,7 @@ Default groups other than `untagged` can have their rules edited, but their name
    - weekday distribution
    - largest expenses with matching filter-group keys
    - current-month projection plus projected filter-group totals
-4. `backend/routers/agent_dashboard.py` exposes a separate principal-scoped agent usage read model backed by `backend/services/agent_dashboard.py`; it filters to terminal runs, derives USD pricing from persisted token counters, and returns KPI cards, time buckets, token slices, model rows, surface rows, and top expensive runs.
+4. `backend/routers/agent_dashboard.py` exposes a separate principal-scoped agent usage read model backed by `backend/services/agent_dashboard.py`; it filters to finished runs, derives USD pricing from persisted token counters, and returns KPI cards, time buckets, token slices, model rows, surface rows, and top expensive runs.
 5. `backend/routers/filter_groups.py` exposes CRUD for saved filter groups and also commits default provisioning on first read.
 6. `backend/routers/entries.py` can apply a saved filter group server-side via `filter_group_id`, so the entries workspace can open the exact matching ledger rows for any group.
 

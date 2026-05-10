@@ -1,7 +1,7 @@
 # CALLING SPEC:
-# - Purpose: define argument contracts for the terminal tool.
-# - Inputs: callers that import `terminal.py` and pass CLI-style terminal fields.
-# - Outputs: validated Pydantic models for terminal execution.
+# - Purpose: define argument contracts for the internal `bh` CLI runner tool.
+# - Inputs: callers that import `terminal.py` and pass CLI-style `bh` fields.
+# - Outputs: validated Pydantic models for `bh` command execution.
 # - Side effects: module-local validation only.
 from __future__ import annotations
 
@@ -14,17 +14,16 @@ class ToolArgsModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class RunTerminalArgs(ToolArgsModel):
+class RunBhArgs(ToolArgsModel):
     command: str = Field(
         min_length=1,
         description=(
-            "Shell command to execute verbatim via `bash -lc`. "
-            "May include newlines, pipes, redirects, command substitution, or heredocs."
+            "Bill Helper CLI command to execute. Must start with `bh`; general shell commands are rejected."
         ),
     )
     cwd: str | None = Field(
         default=None,
-        description="Optional working directory inside the workspace container. Defaults to the writable scratch root `/workspace/scratch`.",
+        description="Ignored legacy field retained for older tool arguments. `run_bh` executes the local `bh` CLI only.",
     )
     timeout_seconds: int = Field(
         default=120,
@@ -44,3 +43,6 @@ class RunTerminalArgs(ToolArgsModel):
     @classmethod
     def normalize_cwd(cls, value: str | None) -> str | None:
         return normalize_loose_text(value)
+
+
+RunTerminalArgs = RunBhArgs

@@ -6,7 +6,7 @@ Scope rules:
 
 - non-admin principals can access only their own threads and all child resources under those threads
 - admin principals can access any thread and may impersonate a user when they need an exact end-user scope
-- thread-scoped proposal routes also require `X-Bill-Helper-Agent-Run-Id` so the backend can associate new or revised proposals with the active agent run that invoked `bh`
+- thread-scoped proposal routes accept `X-Bill-Helper-Agent-Run-Id` when a hosted run is invoking `bh`; external agents may omit it, in which case the backend creates or reuses a completed synthetic CLI run for that session
 
 ## Threads
 
@@ -72,17 +72,57 @@ Includes:
 - ordered run `events[]`
 - nullable usage counters and derived pricing fields
 
+## Sessions And Sources
+
+Sessions are the external-agent-facing shape over the same `agent_threads` review history. They add an editable summary and session-level source links without requiring Bill Helper to know the external agent's cwd or local files. Hosted app attachments are linked into these source records automatically when they are bound to a message.
+
+### `GET /agent/sessions`
+
+List principal-scoped sessions. Response: `AgentSessionListRead`
+
+### `POST /agent/sessions`
+
+Create a session. Body: optional `title`, optional `summary`. Response: `201 AgentSessionRead`
+
+### `GET /agent/sessions/{session_id}`
+
+Fetch one session summary. Response: `AgentSessionRead`
+
+### `PATCH /agent/sessions/{session_id}`
+
+Update a session title and/or summary. Body: optional `title`, optional `summary`. Response: `AgentSessionRead`
+
+### `GET /agent/sessions/{session_id}/sources`
+
+List sources attached to the session. Response: `AgentSessionSourceListRead`
+
+### `POST /agent/sessions/{session_id}/sources/text`
+
+Attach raw text as a source. Body: `text`, optional `filename`, optional `display_name`, optional `note`. Response: `201 AgentSessionSourceRead`
+
+### `POST /agent/sessions/{session_id}/sources`
+
+Attach a file source as `multipart/form-data`. Fields: optional `note`, required `file`. Response: `201 AgentSessionSourceRead`
+
+Behavior:
+
+- source files may be text, image, or PDF
+- canonical file rows are deduplicated per owner by content hash
+- attaching the same stored source to the same session is idempotent and returns the existing source link
+- sources are session-level context records only; the external agent remains responsible for parsing/OCR/vision work before deciding what to propose
+- hosted image/PDF message attachments are persisted by the app and linked to the current session automatically; hosted agents should not re-upload those files through source routes
+
 ## Message Send
 
 ### `POST /agent/draft-attachments`
 
-Upload one draft image or PDF attachment and parse it immediately.
+Upload one draft image or PDF attachment and prepare it for a later vision send.
 
 Content type: `multipart/form-data`
 
 Form fields:
 
-- `use_ocr` (`true` by default; when `false`, images store raw-only and PDFs prepare page images without inline OCR text)
+- `use_ocr` (legacy compatibility field; current behavior ignores it and prepares vision content)
 - `file` (required image or PDF attachment)
 
 Behavior:
@@ -90,9 +130,9 @@ Behavior:
 - owner-scoped to the authenticated principal
 - validates the same attachment size and mime-type limits as message-send
 - stores the canonical upload bundle under `{data_dir}/user_files/{owner_user_id}/uploads/...`
-- when the same owner uploads the same attachment bytes again, the backend reuses the existing parsed bundle by content hash and skips a second Docling pass
-- when `use_ocr=true`, runs Docling parsing before returning, so the frontend can show upload then parsing progress before the user presses `Send`
-- when `use_ocr=false`, skips OCR parsing; images are stored raw and PDFs prepare page-image assets for later vision sends
+- when the same owner uploads the same attachment bytes again, the backend reuses the existing canonical file row by content hash
+- images are stored as the original bytes; PDFs are rendered into page images for the model without text parsing or OCR
+- PDFs with more pages than the resolved `agent_max_pdf_pages` setting are rejected before rendering
 - returns a lightweight attachment handle for later message-send requests
 
 Response: `201 AgentDraftAttachmentRead`
@@ -100,7 +140,7 @@ Response: `201 AgentDraftAttachmentRead`
 Errors:
 
 - `400` unsupported type or invalid payload
-- `422` attachment could not be parsed
+- `422` attachment could not be prepared for vision
 
 ### `DELETE /agent/draft-attachments/{attachment_id}`
 
@@ -127,7 +167,7 @@ Form fields:
 
 - `content` (optional if files are present)
 - `model_name` (optional explicit model selection; must match one of the `available_agent_models` returned by `GET /settings`)
-- `attachments_use_ocr` (`true` by default; when `false`, vision-capable models receive image parts instead of inline OCR text for attached PDFs/images)
+- `attachments_use_ocr` (legacy compatibility field; current hosted sends always use vision-prepared image/PDF parts)
 - `approval_policy` (`default` by default; `yolo` auto-applies pending proposals created in this run after it completes successfully, using the same approval dependency rules as manual review)
 - `surface` (`app` by default; `telegram` enables Telegram-safe prompt and reply shaping)
 - `files` (0..N image or PDF attachments uploaded inline with this request)
@@ -137,13 +177,12 @@ Behavior:
 
 - thread lookup is owner-scoped
 - validates the combined attachment count and size limits across inline `files` plus referenced `attachment_ids`
-- persists the message and stores uploaded attachments under `{data_dir}/user_files/{owner_user_id}/uploads/...` using dated readable bundle directories (`uploads/YYYY-MM-DD/<original-stem>/`, with `(N)` suffixes for collisions) and a fixed primary filename (`raw.<ext>`); Docling output (`parsed.md` plus readable referenced images) is written beside the primary file before the message is committed, and existing bundles can be migrated with `scripts/migrate_agent_upload_bundle_paths.py`
-- referenced `attachment_ids` are attached without re-uploading or re-parsing; they must belong to the same principal and still be unbound drafts
+- persists the message, stores uploaded attachments under `{data_dir}/user_files/{owner_user_id}/uploads/...` using dated readable bundle directories (`uploads/YYYY-MM-DD/<original-stem>/`, with `(N)` suffixes for collisions) and a fixed primary filename (`raw.<ext>`), and links the files as session sources
+- referenced `attachment_ids` are attached without re-uploading; they must belong to the same principal and still be unbound drafts
 - creates an `agent_runs` row with initial `status=running` and the requested `approval_policy`
 - starts bounded tool-calling execution in background
-- PDFs and images are converted with Docling (standard pipeline + EasyOCR on the API host)
-- when `attachments_use_ocr=true`, the initial model turn receives inline `parsed.md` plus absolute `/workspace/uploads/...` image-path hints, and later tool turns can load selected images on demand through `read_image`
-- when `attachments_use_ocr=false`, the selected model must support vision; images are sent as direct `image_url` parts and PDFs are sent as bundle image parts instead of inline OCR text
+- selected models must support vision when attachments are present
+- images are sent as direct `image_url` parts without resizing; PDFs are sent as one rendered page image per page up to `agent_max_pdf_pages`
 - provider routing resolves through LiteLLM using the requested `model_name` when supplied, otherwise the configured default model
 - proposal tool outputs include `proposal_id` and `proposal_short_id`
 
@@ -153,9 +192,9 @@ Errors:
 
 - `400` invalid payload
 - `400` selected `model_name` is not enabled in runtime settings
-- `400` `attachments_use_ocr=false` was requested for a non-vision model
+- `400` attachments were sent with a non-vision model
 - `404` thread not found
-- `422` attachment could not be parsed (Docling failure); no user message is persisted
+- `422` attachment could not be prepared for vision; no user message is persisted
 - `503` provider credentials unavailable
 
 ### `POST /agent/threads/{thread_id}/messages/stream`
@@ -168,7 +207,7 @@ Form fields:
 
 - `content` (optional if files are present)
 - `model_name` (optional explicit model selection; must match one of the `available_agent_models` returned by `GET /settings`)
-- `attachments_use_ocr` (`true` by default; when `false`, vision-capable models receive image parts instead of inline OCR text for attached PDFs/images)
+- `attachments_use_ocr` (legacy compatibility field; current hosted sends always use vision-prepared image/PDF parts)
 - `approval_policy` (`default` by default; `yolo` auto-applies pending proposals created in this run after it completes successfully, using the same approval dependency rules as manual review)
 - `surface` (`app` by default; `telegram` enables Telegram-safe prompt and reply shaping)
 - `files` (0..N image or PDF attachments uploaded inline with this request)
@@ -188,12 +227,14 @@ Event contract:
 - `reasoning_delta`
 - `text_delta`
 - `run_event`
-  - shape: `{ type, run_id, event, tool_call? }`
+  - shape: `{ type, run_id, event, tool_call?, run_usage? }`
   - `tool_call` is present only for tool lifecycle events and uses the compact `AgentToolCallRead` shape (`has_full_payload=false`)
+  - `run_usage` is present on **live** execution and carries the run's cumulative token counters, `context_tokens`, and derived USD fields (same pricing rules as `AgentRunRead`); it is omitted when replaying persisted events for an already-finished run so the client does not apply final totals to every historical event
   - `rename_thread` starts streaming as a compact tool-call event before the final assistant message
 
 Usage notes:
 
+- live streams include `run_usage` on each emitted `run_event` so clients can refresh usage UI without polling thread detail
 - usage totals are persisted on the run record and read from snapshot endpoints
 - cache-aware pricing still rolls into the existing `input_cost_usd` and `total_cost_usd` fields
 - retries after partial streamed text suppress already-emitted prefixes
@@ -213,7 +254,7 @@ Query params:
 
 Behavior:
 
-- only includes terminal runs (`completed` and `failed`)
+- only includes finished runs (`completed` and `failed`)
 - scopes runs through the owning thread principal, like the rest of the agent read surface
 - derives USD costs from persisted token counters and the existing LiteLLM pricing helper
 - returns summary metrics, cost-over-time buckets, token distribution, per-model rows, per-surface rows, and top expensive runs
@@ -249,7 +290,7 @@ Behavior:
 
 - lookup is owner-scoped through the parent thread
 - running runs are marked `failed` with `error_text = "Run interrupted by user."`
-- already terminal runs are returned unchanged
+- already finished runs are returned unchanged
 
 Errors:
 
@@ -287,7 +328,7 @@ Errors:
 
 ### `POST /agent/threads/{thread_id}/proposals`
 
-Create one review-gated proposal in the active thread/run. Response: `201 AgentProposalRecordRead`
+Create one review-gated proposal in the active thread/session. Response: `201 AgentProposalRecordRead`
 
 Body:
 
@@ -297,7 +338,7 @@ Body:
 Behavior:
 
 - validates payloads with the same normalization/ownership rules used by the internal proposal handlers
-- associates the new `AgentChangeItem` with the active run from `X-Bill-Helper-Agent-Run-Id`
+- associates the new `AgentChangeItem` with `X-Bill-Helper-Agent-Run-Id` when present, otherwise creates or reuses the session's synthetic external-agent CLI run
 - supports the full current proposal set: entry, account, snapshot, group, group-member, tag, and entity changes
 
 ### `PATCH /agent/threads/{thread_id}/proposals/{proposal_id}`

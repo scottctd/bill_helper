@@ -17,9 +17,9 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `backend/auth/*` owns request-principal normalization plus FastAPI auth dependencies.
 - `backend/routers/auth.py` and `backend/routers/admin.py` own session-auth and admin management HTTP routes.
 - Services own domain policy, principal-scoped queries, and orchestration.
-- The agent subsystem lives under `backend/services/agent/*` with `backend/routers/agent.py` as a thin transport aggregator over the split `agent_threads.py`, `agent_runs.py`, `agent_reviews.py`, and `agent_attachments.py` modules.
-- Shared persistence and runtime configuration are centralized in `backend/database.py`, `backend/services/runtime_settings.py`, `backend/services/user_files.py`, and `backend/services/agent_workspace.py`.
-- current-user workspace snapshot reads and file-tree shaping live in `backend/services/workspace_browser.py` with `backend/routers/workspace.py` as the HTTP boundary.
+- The agent subsystem lives under `backend/services/agent/*` with `backend/routers/agent.py` as a thin transport aggregator over the split `agent_threads.py`, `agent_runs.py`, `agent_reviews.py`, `agent_attachments.py`, and `agent_sessions.py` modules.
+- Shared persistence and runtime configuration are centralized in `backend/database.py`, `backend/services/runtime_settings.py`, `backend/services/user_files.py`, and `backend/services/agent/work_sessions.py`; `backend/services/agent_workspace.py` is legacy opt-in workspace support.
+- current-user workspace snapshot reads and file-tree shaping live in `backend/services/workspace_browser.py` with `backend/routers/workspace.py` as a legacy opt-in HTTP boundary. The default internal agent path no longer provisions or executes inside Docker.
 
 ## Current Migration Head
 
@@ -36,6 +36,7 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `0037_add_agent_message_attachments_use_ocr`
 - `0038_add_agent_model_display_names_to_runtime_settings`
 - `0039_add_agent_run_approval_policy`
+- `0040_add_agent_session_sources`
 
 ## Related Docs
 

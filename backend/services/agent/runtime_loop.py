@@ -44,6 +44,7 @@ from backend.services.agent.principal_scope import load_thread_owner_user
 from backend.services.agent.langfuse_litellm import agent_run_litellm_metadata
 from backend.services.agent.tool_runtime import build_openai_tool_schemas, execute_tool
 from backend.services.agent.tool_types import ToolContext, ToolExecutionStatus
+from backend.services.agent.tools_for_model_request import tools_for_agent_model_request
 from backend.services.runtime_settings import resolve_runtime_settings
 
 
@@ -51,10 +52,18 @@ _RENAME_THREAD_TOOL_NAME = "rename_thread"
 
 ModelCall = Callable[..., dict[str, Any]]
 ModelStreamCall = Callable[..., Iterator[dict[str, Any]]]
-RunContextUpdate = Callable[[AgentRun, list[dict[str, Any]]], None]
+RunContextUpdate = Callable[[AgentRun, list[dict[str, Any]], list[dict[str, Any]]], None]
 RunStoppedCheck = Callable[[Session, AgentRun], bool]
 PrepareToolTurn = Callable[
-    [Session, AgentRun, list[dict[str, Any]], str, str, list[dict[str, Any]]],
+    [
+        Session,
+        AgentRun,
+        list[dict[str, Any]],
+        str,
+        str,
+        list[dict[str, Any]],
+        list[dict[str, Any]],
+    ],
     tuple[list[PreparedToolCall], list[AgentRunEvent]],
 ]
 PersistTerminalState = Callable[..., AgentRunEvent | None]
@@ -67,6 +76,20 @@ def _empty_model_result(
     if False:  # pragma: no cover - generator shape helper
         yield {}
     return result
+
+
+def _assistant_message_snapshot_for_tokens(assistant_message: dict[str, Any]) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "role": "assistant",
+        "content": assistant_message.get("content") or "",
+    }
+    tool_calls = assistant_message.get("tool_calls")
+    if tool_calls:
+        entry["tool_calls"] = tool_calls
+    reasoning = assistant_message.get("reasoning")
+    if reasoning:
+        entry["reasoning"] = reasoning
+    return entry
 
 
 @dataclass(slots=True)
@@ -103,6 +126,7 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             principal_user_id=owner_user.id if owner_user is not None else None,
             principal_is_admin=owner_user.is_admin if owner_user is not None else False,
         )
+        self._last_model_request_tools = tools_for_agent_model_request(thread_title=self.thread.title)
 
     @property
     def max_steps(self) -> int:
@@ -164,6 +188,28 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
     def is_stopped(self) -> bool:
         return self.dependencies.run_is_stopped(self.db, self.run)
 
+    def _capture_request_tools_for_model_call(self) -> None:
+        self._last_model_request_tools = tools_for_agent_model_request(thread_title=self.thread.title)
+
+    def _request_tools_for_next_model_call(self) -> list[dict[str, Any]]:
+        return tools_for_agent_model_request(thread_title=self.thread.title)
+
+    def persist_context_after_final_assistant(
+        self,
+        *,
+        step: AssistantStepContext,
+        llm_messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        llm_messages.append(_assistant_message_snapshot_for_tokens(step.assistant_message))
+        self.dependencies.update_run_context_tokens(
+            self.run,
+            llm_messages,
+            self._last_model_request_tools,
+        )
+        self.db.add(self.run)
+        self.db.commit()
+        return []
+
     def prepare_tool_calls(
         self,
         *,
@@ -177,6 +223,7 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             step.assistant_content,
             step.model_reasoning,
             step.tool_calls,
+            self._request_tools_for_next_model_call(),
         )
         return prepared_calls, self._event_payloads(event_rows)
 
@@ -213,7 +260,11 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
                 message=reasoning_message or "",
                 source=source,
             )
-            self.dependencies.update_run_context_tokens(self.run, llm_messages)
+            self.dependencies.update_run_context_tokens(
+                self.run,
+                llm_messages,
+                self._request_tools_for_next_model_call(),
+            )
             self.db.add(self.run)
             self.db.commit()
             return self._event_payloads([reasoning_event] if reasoning_event is not None else [])
@@ -255,7 +306,11 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             tool_call=tool_row,
         )
         llm_messages.append(_tool_result_llm_message(prepared_tool_call, result))
-        self.dependencies.update_run_context_tokens(self.run, llm_messages)
+        self.dependencies.update_run_context_tokens(
+            self.run,
+            llm_messages,
+            self._request_tools_for_next_model_call(),
+        )
         self.db.add(self.run)
         self.db.commit()
         payloads.extend(self._event_payloads([completed_row]))
@@ -347,6 +402,7 @@ class RuntimeNonStreamRunLoopAdapter(RuntimeRunLoopAdapterBase):
         step_index: int,
         llm_messages: list[dict[str, Any]],
     ) -> Generator[dict[str, Any], None, dict[str, Any]]:
+        self._capture_request_tools_for_model_call()
         assistant_message = self.dependencies.call_model(
             llm_messages,
             self.db,
@@ -393,6 +449,7 @@ class RuntimeStreamRunLoopAdapter(RuntimeRunLoopAdapterBase):
         step_index: int,
         llm_messages: list[dict[str, Any]],
     ) -> Generator[dict[str, Any], None, dict[str, Any]]:
+        self._capture_request_tools_for_model_call()
         assistant_message: dict[str, Any] | None = None
         for event in self.dependencies.call_model_stream(
             llm_messages,

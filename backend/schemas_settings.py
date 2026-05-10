@@ -28,6 +28,7 @@ class RuntimeSettingsOverridesRead(BaseModel):
     agent_retry_backoff_multiplier: float | None = None
     agent_max_image_size_bytes: int | None = None
     agent_max_images_per_message: int | None = None
+    agent_max_pdf_pages: int | None = None
     agent_base_url: str | None = None
     agent_api_key_configured: bool = False
 
@@ -51,6 +52,7 @@ class RuntimeSettingsRead(BaseModel):
     agent_retry_backoff_multiplier: float
     agent_max_image_size_bytes: int
     agent_max_images_per_message: int
+    agent_max_pdf_pages: int
     agent_base_url: str | None = None
     agent_api_key_configured: bool = False
     overrides: RuntimeSettingsOverridesRead

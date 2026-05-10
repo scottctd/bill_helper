@@ -18,7 +18,6 @@ from backend.contracts_users import (
 )
 from backend.models_finance import Account, Entry, User
 from backend.schemas_finance import UserRead
-from backend.services.agent_workspace import ensure_user_workspace_provisioned, remove_user_workspace
 from backend.services.crud_policy import PolicyViolation, assert_unique_name, normalize_required_name
 from backend.services.passwords import PasswordVerificationResult, hash_password, verify_password
 from backend.services.sessions import revoke_sessions_for_user
@@ -76,7 +75,6 @@ def create_user_with_unique_name(
     )
     db.add(user)
     db.flush()
-    ensure_user_workspace_provisioned(user_id=user.id)
     return user
 
 
@@ -99,7 +97,6 @@ def create_or_reset_admin_user(
     existing.is_admin = True
     db.add(existing)
     db.flush()
-    ensure_user_workspace_provisioned(user_id=existing.id)
     return existing
 
 
@@ -332,7 +329,6 @@ def delete_user_for_admin(
     if not _is_admin_principal(principal):
         raise PolicyViolation.forbidden("Only admin principal can delete users.")
     user = load_user_for_principal(db, user_id=user_id, principal=principal)
-    remove_user_workspace(user_id=user.id)
     delete_user_file_root(user_id=user.id)
     revoke_sessions_for_user(db, user_id=user.id)
     db.delete(user)

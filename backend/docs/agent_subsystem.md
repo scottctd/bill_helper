@@ -16,6 +16,8 @@
   - shared recoverable fallback and contextual logging helpers
 - `backend/services/agent/context_tokens.py`
   - best-effort prompt-size estimation through LiteLLM `token_counter`
+- `backend/services/agent/tools_for_model_request.py`
+  - resolves the tool schema list that matches each live `LiteLLMModelClient` request (full catalog vs rename-only for untitled threads) so context-size token counts stay aligned with `model_client_support/client.py`
 - `backend/services/agent/prompts.py`
   - system prompt composition, tool-discipline policy, and response-surface guidance
 - `backend/services/agent/message_history.py`
@@ -45,9 +47,9 @@
 - `backend/services/agent/session_tools/`
   - session-tool package: `progress.py` for `send_intermediate_update`, `memory.py` for add-only persistent memory appends, and `threads.py` for short thread-topic updates
 - `backend/services/agent/terminal.py`
-  - workspace terminal execution helper that injects per-command auth/thread/run context and executes shell commands inside the per-user workspace container
+  - hosted `bh` CLI execution helper that injects per-command auth/session/run context and rejects general shell commands
 - `backend/services/agent/read_image.py`
-  - on-demand workspace image reader that appends selected `/workspace/...` images back into the model conversation for vision-capable runs
+  - archived on-demand image reader retained for historical workspace experiments; it is not exposed in the active model tool catalog
 - `backend/services/agent/proposals/`
   - proposal-family package: `common.py` for shared proposal/thread helpers, `catalog.py` for tag/entity/account proposals, `entries.py` for entry proposal handlers, `groups.py` for group CRUD proposal flows, `group_memberships/` for membership canonicalization, validation, and handlers, family-owned normalization modules plus a small `normalization.py` registry for proposal payload canonicalization
 - `backend/services/agent/entry_references.py`
@@ -69,19 +71,21 @@
 - `backend/services/user_files.py`
   - canonical per-user upload storage, hashing, and path management helpers
 - `backend/services/agent_workspace.py`
-  - per-user workspace spec building plus Docker-backed workspace provisioning/start-stop helpers
+  - legacy per-user workspace spec building plus Docker-backed workspace provisioning/start-stop helpers, disabled by default
 - `backend/services/docker_cli.py`
-  - thin Docker CLI adapter for image, volume, container, and exec lifecycle commands
+  - legacy thin Docker CLI adapter for image, volume, container, and exec lifecycle commands
 - `backend/services/agent/attachment_content.py`
   - public attachment-content seam for message-history callers and tests (vision detection plus assembly exports)
 - `backend/services/agent/attachment_text_normalize.py`
   - small text normalizer shared by tests and future extractors
 - `backend/services/agent/docling_convert.py`
-  - Docling standard pipeline (EasyOCR) plus readable `parsed.md`/image rewrite for bundle directories
+  - archived Docling standard pipeline (EasyOCR) plus readable `parsed.md`/image rewrite for historical bundle directories
 - `backend/services/agent/agent_attachment_bundle.py`
-  - dated `uploads/YYYY-MM-DD/<bundle>/raw.<ext>` paths, readable bundle naming, ingest + Docling before DB registration, bundle path predicates
+  - dated `uploads/YYYY-MM-DD/<bundle>/raw.<ext>` paths, readable bundle naming, PDF page count/rasterization helpers, bundle path predicates
 - `backend/services/agent/attachment_content_assembly.py`
-  - attachment display-name plus Docling bundle text/hint assembly helpers for initial model turns
+  - attachment display-name plus vision content assembly helpers for initial model turns
+- `backend/services/agent/work_sessions.py`
+  - external-agent session/source persistence plus synthetic CLI run ownership for proposal creation without a hosted run id
 - `backend/services/agent/user_context.py`
   - current-user and account-context normalization
 - `backend/services/agent/runtime_state.py`
@@ -101,8 +105,8 @@
 - prompt rendering carries a run surface hint so Telegram-directed turns can request plain-text-friendly final answers
 - `Current User Context` includes timezone/date bullets plus `Entity Category Reference` and `Account Context`
 - `Agent Memory` is rendered as a markdown unordered list built from persisted runtime-setting memory items
-- the model-visible tool catalog is intentionally small: `rename_thread`, `send_intermediate_update`, `add_user_memory`, `terminal`, and `read_image`
-- app-state reads and proposal lifecycle work now flow through the workspace terminal and the installed `bh` CLI rather than the older large direct read/proposal tool list
+- the model-visible tool catalog is intentionally small: `rename_thread`, `send_intermediate_update`, `add_user_memory`, and `run_bh`
+- app-state reads and proposal lifecycle work flow through `run_bh` running local `bh ...` commands rather than through a Docker shell or the older large direct read/proposal tool list
 - duplicate-entry checks should happen before new entry proposals
 - tag/entity naming should stay canonical and generalized
 - tag-delete proposals may proceed while referenced; proposal previews should surface impact counts and apply removes entry junction rows by cascade
@@ -110,7 +114,7 @@
 - `add_user_memory` is an add-only tool for explicit remember-this requests; mutate/remove requests must be declined
 - `rename_thread` should run right after the first user message in a new thread, then only when the user explicitly asks or the topic materially changes
 - untitled threads are runtime-gated to expose only the `rename_thread` tool on the first model step and request an explicit required `tool_choice`; if a provider rejects that forced `tool_choice`, the LiteLLM client retries once without `tool_choice` while keeping the rename-only tool list restriction
-- `terminal` injects backend URL, a short-lived bearer session, current thread id, and current run id on every execution; the agent does not supply those manually
+- `run_bh` injects backend URL, a short-lived bearer session, current session/thread id, and current run id on every execution; the agent does not supply those manually
 - the prompt has a dedicated `Grouping` section that combines fixed `BUNDLE` / `SPLIT` / `RECURRING` semantics, examples, and workflow guidance
 - after proposing a new entry, the prompt instructs the agent to check whether an existing recurring, split, or bundle group should absorb it and to propose the membership change when needed
 - group membership proposals may reference pending `create_group` and `create_entry` proposal ids in the same thread; approval is blocked until those dependencies are applied
@@ -128,6 +132,8 @@
   - run detail, tool-call detail, and interrupt endpoints
 - `backend/routers/agent_proposals.py`
   - thread-scoped proposal list/get/create HTTP translation for the `bh` CLI
+- `backend/routers/agent_sessions.py`
+  - external-agent session CRUD plus text/file source attachment HTTP translation for `bh sessions ...`
 - `backend/routers/agent_reviews.py`
   - approve/reject/reopen HTTP translation for review actions
 - `backend/routers/agent_attachments.py`
@@ -153,6 +159,13 @@ Endpoints:
 - `DELETE /api/v1/agent/draft-attachments/{attachment_id}`
 - `POST /api/v1/agent/threads/{thread_id}/messages`
 - `POST /api/v1/agent/threads/{thread_id}/messages/stream`
+- `GET /api/v1/agent/sessions`
+- `POST /api/v1/agent/sessions`
+- `GET /api/v1/agent/sessions/{session_id}`
+- `PATCH /api/v1/agent/sessions/{session_id}`
+- `GET /api/v1/agent/sessions/{session_id}/sources`
+- `POST /api/v1/agent/sessions/{session_id}/sources/text`
+- `POST /api/v1/agent/sessions/{session_id}/sources`
 - `GET /api/v1/agent/threads/{thread_id}/proposals`
 - `GET /api/v1/agent/threads/{thread_id}/proposals/{proposal_id}`
 - `POST /api/v1/agent/threads/{thread_id}/proposals`
@@ -168,14 +181,15 @@ Endpoints:
 
 ## Thread Detail Behavior
 
-- `GET /api/v1/agent/threads/{thread_id}` returns `current_context_tokens`
+- `GET /api/v1/agent/threads/{thread_id}` returns `current_context_tokens`, a LiteLLM `token_counter` estimate over the same in-loop `messages` plus the tool schemas that request would attach (running runs keep `AgentRun.context_tokens` updated after each tool result and after the final assistant message; idle threads use the newest completed run's snapshot or fall back to counting `build_llm_messages` with the same untitled/titled tool-surface rule)
 - message-send endpoints accept optional multipart `model_name`; when present it must match one of the resolved runtime `available_agent_models`
 - message-send endpoints accept optional multipart `approval_policy` (`default` or `yolo`); each run persists the chosen value and exposes it on `AgentRunRead`
 - message-send endpoints accept optional multipart `attachments_use_ocr`; `false` is only accepted for vision-capable models
 - message-send endpoints accept raw multipart `files`, pre-uploaded `attachment_ids`, or both in the same request
 - thread detail returns compact tool-call snapshots by default (`has_full_payload=false`)
-- thread detail keeps `configured_model_name` as the resolved runtime default while each run persists its own `model_name`; `current_context_tokens` follows the newest run model when a thread already has runs
+- thread detail keeps `configured_model_name` as the resolved runtime default while each run persists its own `model_name`
 - attachment read models include a normalized `display_name` plus the authenticated download URL so the frontend can render inline labels/previews without inferring names from storage paths
+- hosted image/PDF attachments are linked to the current session source list automatically when they are bound to a user message
 - full tool payloads are fetched through `GET /api/v1/agent/tool-calls/{tool_call_id}`
 - runs persist ordered `events[]` rows for replayable timeline activity
 - runs also carry their `change_items`; the frontend flattens those per-run proposal lists into one thread review model
@@ -187,27 +201,29 @@ Endpoints:
 
 - when Langfuse credentials are present, each LLM step is reported through OpenTelemetry to Langfuse; without `LANGFUSE_OTEL_HOST`, LiteLLM targets **US** cloud — EU tenants must set the host explicitly (see `runtime_and_config.md`); install-time dependencies are `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp-proto-http` alongside LiteLLM
 - runs support both background execution and SSE execution
-- draft attachment uploads parse eagerly before send so the frontend can show upload progress, then parsing progress, while the user is still composing
-- repeated draft uploads of the same bytes for the same owner reuse an existing parsed bundle by SHA-256 and skip a second Docling conversion pass, while still creating a fresh draft row/bundle copy so removal semantics stay independent
+- draft attachment uploads prepare vision content eagerly before send so the frontend can show upload progress, then page-preparation progress, while the user is still composing
+- repeated draft uploads of the same bytes for the same owner reuse an existing canonical file row by SHA-256 while still creating a fresh draft attachment row so removal semantics stay independent
 - each run persists a `surface` hint so later execution and polling can distinguish Telegram-originated runs from default app runs
 - streamed runs emit transient `reasoning_delta`, `text_delta`, and ordered persisted `run_event` rows
 - streamed tool lifecycle `run_event` payloads include a compact top-level `tool_call` snapshot so clients can render the tool name immediately without fetching full payloads
+- live streamed `run_event` payloads optionally include `run_usage` (cumulative counters and derived USD costs for that run at event time) for incremental UI such as thread-level usage bars; historical replay omits `run_usage` so past events do not carry the finished run's final totals
 - tool-call payloads now include backend-computed `display_label` / `display_detail` fields so clients can render high-signal summaries without duplicating formatter logic
 - clients may hydrate a streamed `rename_thread` tool call immediately and update the visible thread title before the final assistant message arrives
 - `send_intermediate_update` is persisted as a `reasoning_update` event, not as a fake tool call
 - malformed tool-call JSON now persists an explicit tool-call error with raw argument text and decode metadata instead of being silently rewritten to an empty argument object
 - attachment-bearing user turns reach the model as ordered content parts: attachment text, then the typed user prompt
-- each user message persists `attachments_use_ocr`; OCR-off requests are honored for vision-capable runs, while later non-vision replay falls back to the parsed text path so thread history still works after a model change
-- eager draft uploads reuse the same canonical upload bundle and Docling parsing path as inline message attachments; once a draft is attached to a message it can no longer be deleted as an unbound draft
+- each user message persists the legacy `attachments_use_ocr` flag, but current hosted attachment sends always require a vision-capable model and use image/PDF page parts
+- eager draft uploads reuse the same canonical upload bundle path as inline message attachments; once a draft is attached to a message it can no longer be deleted as an unbound draft
 - new agent uploads are written into the canonical per-user store under `{data_dir}/user_files/{owner_user_id}/uploads/...`, and `agent_message_attachments` link to those canonical rows instead of owning file metadata directly
-- PDF and image attachments are written into per-upload bundle directories: with `attachments_use_ocr=true`, Docling (standard pipeline + EasyOCR) produces `raw.<ext>`, `parsed.md`, and sibling figure images on the API host, exposed as inline `parsed.md` text plus workspace image-path hints; with `attachments_use_ocr=false` (vision-capable runs only), PDFs skip Docling and are stored as `raw.pdf` plus PyMuPDF `page-<n>.png` renders at scale 2× over the default 72 pt/in raster (~144 dpi; one file per page), and message assembly sends those page images as `image_url` parts (one per page). If a vision turn still sees a Docling-only bundle (for example a draft uploaded with OCR on), assembly rasterizes `raw.pdf` the same way instead of sending Docling figure crops. Rows outside the dated bundle layout only receive a short re-upload hint at inference time; the model can call `read_image` for additional bundle images when needed.
+- the hosted agent prompt does not expose external setup, session navigation, or source-management commands; `run_bh` enforces the same boundary and allows only current-session updates through `bh sessions update`
+- PDF and image attachments are written into per-upload bundle directories. Images keep the original bytes with no resizing. PDFs are stored as `raw.pdf` plus PyMuPDF `page-<n>.png` renders at scale 2 over the default 72 pt/in raster, one file per page, and are rejected before rendering when page count exceeds `agent_max_pdf_pages` (default `10`). Message assembly sends those images as `image_url` parts and does not run Docling or OCR.
 - interruption marks runs as `failed` and injects interruption context into the next turn
 - pending proposals remain inspectable in later turns while still `PENDING_REVIEW`
 - reviewed proposal context now includes reviewer override values when `payload_override` changed the approved payload, so later turns can see concrete edited values instead of only changed field names
 - run snapshots expose persisted `surface`, explicit `reply_surface`, and `terminal_assistant_reply`, so read-time formatting overrides do not masquerade as the stored run surface
 - deleting a thread removes attachment linkage rows but intentionally leaves canonical uploaded payload files in place
-- the active agent runtime now exposes full workspace terminal execution through `terminal`; app-state operations are expected to go through the installed `bh` CLI inside that terminal
-- proposal HTTP routes are thread-scoped and require `X-Bill-Helper-Agent-Run-Id` so `bh` can keep new proposals attached to the invoking run
+- the active agent runtime now exposes only `bh` CLI execution through `run_bh`; app-state operations are expected to go through `bh`
+- proposal HTTP routes are thread-scoped; `X-Bill-Helper-Agent-Run-Id` keeps proposals attached to a hosted invoking run when present, while external agents may omit it and use the session's synthetic CLI run
 
 ## Review And Apply Behavior
 

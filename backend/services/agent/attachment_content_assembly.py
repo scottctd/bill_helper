@@ -1,5 +1,5 @@
 # CALLING SPEC:
-# - Purpose: build multimodal LLM parts for agent attachments (Docling bundle layout).
+# - Purpose: build multimodal LLM parts for agent attachment bundles.
 # - Inputs: persisted ``AgentMessageAttachment`` rows and assembly options.
 # - Outputs: OpenAI-style content part dicts.
 # - Side effects: reads canonical files from disk.
@@ -187,7 +187,7 @@ def _assemble_pdf_visual_parts(
                     "type": "text",
                     "text": (
                         f"Attachment {attachment_name} could not be rasterized for vision. "
-                        "Re-upload the PDF or enable OCR mode."
+                        "Re-upload the PDF."
                     ),
                 }
             ]
@@ -230,7 +230,7 @@ def _non_bundle_reupload_parts(attachment_name: str, *, is_pdf: bool) -> list[di
             "type": "text",
             "text": (
                 f"Attachment {attachment_name} is not stored as a dated Docling bundle; "
-                f"re-upload the {kind} so it can be parsed."
+                f"re-upload the {kind} so it can be prepared for vision."
             ),
         }
     ]

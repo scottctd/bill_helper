@@ -70,7 +70,7 @@ def _unwrap_shell_command(command: str, *, depth: int = 0) -> str:
     return _unwrap_shell_command(inner, depth=depth + 1)
 
 
-def _extract_terminal_command(input_json: dict[str, Any] | None) -> str | None:
+def _extract_bh_command(input_json: dict[str, Any] | None) -> str | None:
     command = _normalize_text((input_json or {}).get("command"))
     if command is None:
         return None
@@ -95,14 +95,14 @@ def _bh_command_summary(command: str) -> str | None:
     return " ".join(summary_tokens)
 
 
-def _terminal_display(input_json: dict[str, Any] | None, _output_json: dict[str, Any] | None) -> ToolCallDisplay:
-    command = _extract_terminal_command(input_json)
+def _run_bh_display(input_json: dict[str, Any] | None, _output_json: dict[str, Any] | None) -> ToolCallDisplay:
+    command = _extract_bh_command(input_json)
     if command is None:
-        return ToolCallDisplay(label="Ran terminal command")
+        return ToolCallDisplay(label="Ran bh command")
     bh_summary = _bh_command_summary(command)
     if bh_summary is not None:
         return ToolCallDisplay(label=bh_summary)
-    return ToolCallDisplay(label="Ran terminal command")
+    return ToolCallDisplay(label="Ran bh command")
 
 
 def _count_label(prefix: str, count: int, singular: str, plural: str) -> str:
@@ -134,7 +134,8 @@ _DISPLAY_BUILDERS: dict[str, Callable[[dict[str, Any] | None, dict[str, Any] | N
     "add_user_memory": _add_user_memory_display,
     "rename_thread": _rename_thread_display,
     "read_image": _read_image_display,
-    "terminal": _terminal_display,
+    "run_bh": _run_bh_display,
+    "terminal": _run_bh_display,
 }
 
 

@@ -63,6 +63,7 @@ class ResolvedRuntimeSettings:
     agent_retry_backoff_multiplier: float
     agent_max_image_size_bytes: int
     agent_max_images_per_message: int
+    agent_max_pdf_pages: int
     agent_base_url: str | None
     agent_api_key: str | None
 
@@ -295,6 +296,14 @@ def resolve_runtime_settings(db: Session) -> ResolvedRuntimeSettings:
         minimum=1,
         fallback=defaults.agent_max_images_per_message,
     )
+    agent_max_pdf_pages = sanitize_int_between(
+        override.agent_max_pdf_pages
+        if override and override.agent_max_pdf_pages is not None
+        else defaults.agent_max_pdf_pages,
+        minimum=1,
+        maximum=100,
+        fallback=defaults.agent_max_pdf_pages,
+    )
     agent_base_url = (
         normalize_text_or_none(override.agent_base_url if override else None)
     ) or normalize_text_or_none(defaults.agent_base_url)
@@ -318,6 +327,7 @@ def resolve_runtime_settings(db: Session) -> ResolvedRuntimeSettings:
         agent_retry_backoff_multiplier=agent_retry_backoff_multiplier,
         agent_max_image_size_bytes=agent_max_image_size_bytes,
         agent_max_images_per_message=agent_max_images_per_message,
+        agent_max_pdf_pages=agent_max_pdf_pages,
         agent_base_url=agent_base_url,
         agent_api_key=agent_api_key,
     )
@@ -355,6 +365,7 @@ def build_runtime_settings_view(
         agent_retry_backoff_multiplier=resolved.agent_retry_backoff_multiplier,
         agent_max_image_size_bytes=resolved.agent_max_image_size_bytes,
         agent_max_images_per_message=resolved.agent_max_images_per_message,
+        agent_max_pdf_pages=resolved.agent_max_pdf_pages,
         agent_base_url=resolved.agent_base_url,
         agent_api_key_configured=bool(resolved.agent_api_key) or has_provider_credentials,
         overrides=RuntimeSettingsOverridesView(
@@ -403,6 +414,9 @@ def build_runtime_settings_view(
             if override
             else None,
             agent_max_images_per_message=override.agent_max_images_per_message
+            if override
+            else None,
+            agent_max_pdf_pages=override.agent_max_pdf_pages
             if override
             else None,
             agent_base_url=normalize_text_or_none(override.agent_base_url)

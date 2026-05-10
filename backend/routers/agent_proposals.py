@@ -35,25 +35,18 @@ router = APIRouter(
 )
 
 
-def _require_agent_run_id(
+def _optional_agent_run_id(
     run_id: str | None = Header(default=None, alias="X-Bill-Helper-Agent-Run-Id"),
-) -> str:
+) -> str | None:
     normalized = (run_id or "").strip()
-    if not normalized:
-        from fastapi import HTTPException, status
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing X-Bill-Helper-Agent-Run-Id header.",
-        )
-    return normalized
+    return normalized or None
 
 
 @router.get("/threads/{thread_id}/proposals", response_model=AgentProposalListRead)
 def list_proposals_for_thread(
     thread_id: str,
     query: AgentProposalListQuery = Depends(),
-    run_id: str = Depends(_require_agent_run_id),
+    run_id: str | None = Depends(_optional_agent_run_id),
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentProposalListRead:
@@ -74,7 +67,7 @@ def list_proposals_for_thread(
 def get_proposal_for_thread(
     thread_id: str,
     proposal_id: str,
-    run_id: str = Depends(_require_agent_run_id),
+    run_id: str | None = Depends(_optional_agent_run_id),
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentProposalRecordRead:
@@ -87,7 +80,7 @@ def get_proposal_for_thread(
 def create_proposal_for_thread(
     thread_id: str,
     payload: AgentProposalCreateRequest,
-    run_id: str = Depends(_require_agent_run_id),
+    run_id: str | None = Depends(_optional_agent_run_id),
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentProposalRecordRead:
@@ -109,7 +102,7 @@ def update_proposal_for_thread(
     thread_id: str,
     proposal_id: str,
     payload: AgentProposalUpdateRequest,
-    run_id: str = Depends(_require_agent_run_id),
+    run_id: str | None = Depends(_optional_agent_run_id),
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentProposalRecordRead:
@@ -130,7 +123,7 @@ def update_proposal_for_thread(
 def delete_proposal_for_thread(
     thread_id: str,
     proposal_id: str,
-    run_id: str = Depends(_require_agent_run_id),
+    run_id: str | None = Depends(_optional_agent_run_id),
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> None:

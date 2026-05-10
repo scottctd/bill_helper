@@ -18,7 +18,7 @@ Entries, accounts, entities, tags, groups, spending analytics, reconciliation �
 The dashboard breaks your money into filter groups — day-to-day, one-time, fixed, transfers, income — and renders timelines, category breakdowns, and trends. Actually understand where your money goes, month by month.
 
 ### 📄 Drop in a document, get entries back
-Upload a bank PDF or a receipt image. The agent parses it with Docling OCR, reasons about the contents, and returns structured entries ready for your review. Categorizing a month of transactions takes minutes, not hours.
+Upload a bank PDF or a receipt image. The agent receives images and high-resolution PDF page renders directly as vision input, reasons about the contents, and returns structured entries ready for your review. Categorizing a month of transactions takes minutes, not hours.
 
 ### 🏦 Account reconciliation that makes sense
 Attach balance snapshots to any account. Get an interval-by-interval view of what the bank says changed vs. what you tracked — with a clear delta you can act on.
@@ -40,7 +40,6 @@ Plug in any LiteLLM-compatible provider: Anthropic, OpenAI, OpenRouter, AWS Bedr
 - Python 3.13+
 - Node.js 18+
 - [`uv`](https://docs.astral.sh/uv/)
-- Docker *(for the AI workspace — skip with `BILL_HELPER_AGENT_WORKSPACE_ENABLED=0`)*
 
 ### Step 1 — Clone and install
 
@@ -74,21 +73,13 @@ Full reference: [`docs/development.md`](docs/development.md) · `.env.example`
 uv run alembic upgrade head
 ```
 
-### Step 4 — Build the agent workspace image
-
-```bash
-docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .
-```
-
-This packages the `bh` CLI and a browser IDE into an isolated Docker container where the agent runs. Rebuild it whenever you change backend or `bh` CLI code.
-
-### Step 5 — Create your admin account
+### Step 4 — Create your admin account
 
 ```bash
 uv run python scripts/bootstrap_admin.py --name admin --password admin
 ```
 
-### Step 6 — Launch 🎉
+### Step 5 — Launch 🎉
 
 ```bash
 ./scripts/dev_up.sh
@@ -118,10 +109,9 @@ All settings use the `BILL_HELPER_` prefix and can be set via `.env` or the in-a
 |----------|---------|-------------|
 | `BILL_HELPER_AGENT_MODEL` | `bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0` | LiteLLM model string |
 | `BILL_HELPER_AGENT_MAX_STEPS` | `100` | Max tool-call steps per run |
-| `BILL_HELPER_AGENT_WORKSPACE_ENABLED` | `true` | Enable per-user Docker workspace |
-| `BILL_HELPER_AGENT_WORKSPACE_IMAGE` | `bill-helper-agent-workspace:latest` | Workspace Docker image tag |
-| `BILL_HELPER_AGENT_WORKSPACE_DOCKER_BINARY` | `docker` | Docker CLI binary path |
-| `BILL_HELPER_WORKSPACE_BACKEND_BASE_URL` | `http://host.docker.internal:8000/api/v1` | API URL reachable from inside the workspace |
+| `BILL_HELPER_AGENT_MAX_PDF_PAGES` | `10` | Max PDF pages accepted for vision preparation |
+| `BILL_HELPER_AGENT_CLI_BASE_URL` | `http://127.0.0.1:8000/api/v1` | API URL injected into internal `run_bh` CLI runs |
+| `BILL_HELPER_AGENT_WORKSPACE_ENABLED` | `false` | Legacy opt-in Docker workspace/IDE surface |
 | `BILL_HELPER_DEFAULT_CURRENCY_CODE` | `CAD` | Default currency for new entries |
 | `BILL_HELPER_DASHBOARD_CURRENCY_CODE` | `CAD` | Currency shown in the dashboard |
 | `CURRENT_USER_TIMEZONE` | `America/Toronto` | Timezone for agent date context |
@@ -139,7 +129,7 @@ The agent needs to be tested against a diverse set of real-world scenarios — c
 Connect Gmail and Outlook mailboxes to automatically surface transaction-related emails (bank alerts, receipts, invoices) as import candidates. The agent would parse each email, propose entries, and route them through the standard review workflow — no automated writes, same approval model as today.
 
 ### 🐳 Docker Compose packaging
-A single `docker compose` setup that bundles the backend, pre-built frontend static files, optional Telegram bot, and the agent workspace image. Goal: one command to run a fully production-ready self-hosted instance on any machine with Docker.
+A single `docker compose` setup that bundles the backend, pre-built frontend static files, and optional Telegram bot. Goal: one command to run a fully production-ready self-hosted instance on any machine with Docker.
 
 ### 📱 Full iOS feature parity
 The iOS app currently covers roughly 15 of ~60 API endpoints — read-only views, basic navigation, no real auth flow. The plan is to close that gap: entry creation, full agent interaction, account management, and proper session handling.
@@ -147,8 +137,23 @@ The iOS app currently covers roughly 15 of ~60 API endpoints — read-only views
 ### 🔌 OpenAI Responses API support
 LiteLLM handles most of the model abstraction today, but the OpenAI Responses API (vs. the Completions API) unlocks streaming improvements and new capabilities. Adding first-class support is on the list.
 
-### 🗃️ Agent workspace database
-An optional lightweight SQLite inside the per-user sandbox — not a replica of the authoritative ledger, but a scratchpad the agent can use to cache context, run exploratory queries, and reason across multi-step tasks without hammering the API.
+### 🗃️ Agent session source history
+External agents can create named sessions, attach source files or text, and keep a human-readable summary so review history stays inspectable without Bill Helper owning the agent's local working directory.
+
+Install the external-agent CLI from a checkout:
+
+```bash
+uv tool install --editable .
+bh --help
+```
+
+Then log in and create or select a session:
+
+```bash
+printf '%s\n' '<password>' | bh login --api-base-url http://localhost:8000/api/v1 --username admin --password-stdin
+bh sessions list
+bh sessions create --title "May receipts" --use
+```
 
 ### 🏦 Bank sync / CSV import
 Automated ingestion from bank exports and CSV files — every imported transaction still goes through the review pipeline before landing in the ledger.
@@ -173,9 +178,6 @@ cd frontend && npm run dev
 # Backend tests (fast)
 OPENROUTER_API_KEY=test uv run pytest backend/tests -q -m "not workspace_docker"
 
-# Backend workspace tests (requires Docker)
-OPENROUTER_API_KEY=test uv run pytest backend/tests/test_agent_workspace.py -q -m workspace_docker
-
 # Frontend tests
 cd frontend && npm run test
 
@@ -185,9 +187,6 @@ cd frontend && npm run test:e2e
 # Design and docs consistency checks
 uv run python scripts/check_llm_design.py
 uv run python scripts/check_docs_sync.py
-
-# Rebuild workspace image after backend / bh changes
-docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .
 ```
 
 ---
@@ -201,7 +200,7 @@ frontend/         React + Vite web app
 ios/              SwiftUI iOS app (partial coverage)
 telegram/         Telegram bot transport
 alembic/          Database migrations
-docker/           Dockerfiles, including the agent workspace image
+docker/           Legacy Docker workspace artifacts plus packaging experiments
 scripts/          Dev, seed, and maintenance scripts
 docs/             Extended documentation
 ```

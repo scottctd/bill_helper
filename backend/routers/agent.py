@@ -10,10 +10,12 @@ from backend.routers.agent_dashboard import router as dashboard_router
 from backend.routers.agent_proposals import router as proposals_router
 from backend.routers.agent_reviews import router as reviews_router
 from backend.routers.agent_runs import router as runs_router
+from backend.routers.agent_sessions import router as sessions_router
 from backend.routers.agent_threads import router as threads_router
 
 router = APIRouter()
 router.include_router(dashboard_router)
+router.include_router(sessions_router)
 router.include_router(threads_router)
 router.include_router(runs_router)
 router.include_router(proposals_router)

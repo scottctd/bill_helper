@@ -55,7 +55,7 @@ def test_thread_proposal_routes_create_get_and_list(client, monkeypatch) -> None
     assert listed["proposals"][0]["proposal_id"] == created["proposal_id"]
 
 
-def test_thread_proposal_routes_require_run_header(client, monkeypatch) -> None:
+def test_thread_proposal_routes_allow_external_session_without_run_header(client, monkeypatch) -> None:
     patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "ok"})
 
     thread = create_thread(client)
@@ -64,8 +64,8 @@ def test_thread_proposal_routes_require_run_header(client, monkeypatch) -> None:
 
     response = client.get(f"/api/v1/agent/threads/{thread['id']}/proposals")
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Missing X-Bill-Helper-Agent-Run-Id header."
+    response.raise_for_status()
+    assert response.json()["returned_count"] == 0
 
 
 def test_thread_proposal_routes_update_and_remove_pending_proposal(client, monkeypatch) -> None:

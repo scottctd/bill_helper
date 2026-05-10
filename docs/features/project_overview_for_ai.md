@@ -21,7 +21,7 @@
 - **Routers:** HTTP translation only (parsing, response mapping, status codes).
 - **Services:** Domain logic and orchestration.
 - **Storage:** Dedicated service modules, not routers.
-- **Data flow:** Client → router → service → models; agent proposals are created through the workspace terminal plus `bh`, applied only after human review.
+- **Data flow:** Client -> router -> service -> models; agent proposals are created through the `run_bh` tool plus `bh`, applied only after human review.
 
 ---
 
@@ -37,14 +37,13 @@
 
 **Model-visible tools:**
 
-- `terminal` – executes `bash -lc` inside the per-user workspace container with injected backend/auth/thread/run env.
+- `run_bh` - executes local `bh ...` CLI commands with injected backend/auth/session/thread/run env.
 - `send_intermediate_update` – short user-visible progress note.
 - `rename_thread` – rename current thread.
 - `add_user_memory` – append persistent memory items (add-only).
 
-**Workspace app interface:**
+**Agent CLI interface:**
 
-- The workspace image includes the `bh` CLI.
 - Bill Helper reads and proposal/review actions now go through `bh` instead of a large direct CRUD tool catalog.
 - Current CLI coverage includes status, entries, accounts, snapshots, reconciliation, groups, entities, tags, and current-thread proposals.
 
@@ -73,7 +72,7 @@
 - **Parallel threads:** Multiple threads can run concurrently; composer is thread-scoped (Send on idle thread even when another runs).
 - **Running indicator:** Sidebar shows which threads have active runs.
 - **Agent context:** Receives account markdown notes in system prompt for grounding.
-- **Tool contract:** The model-facing tool surface stays small; domain operations are expressed as CLI calls inside the workspace terminal. Proposal history remains thread-scoped and review-gated.
+- **Tool contract:** The model-facing tool surface stays small; domain operations are expressed as `bh` CLI calls through `run_bh`. Proposal history remains thread-scoped and review-gated.
 
 ### 2.5 Review Workflow
 
@@ -91,7 +90,7 @@
 
 - **Core:** Accounts (CRUD, snapshots, reconciliation), entries (CRUD, filtering, group context), groups, filter groups, dashboard (KPIs, charts, timeline).
 - **Catalogs:** Entities, tags, users, taxonomies, currencies.
-- **Agent:** Threads, messages, runs, reviews, attachments, workspace terminal execution.
+- **Agent:** Threads, messages, runs, reviews, attachments, and hosted `bh` execution.
 - **Settings:** Runtime settings.
 - **Auth:** Password-backed bearer sessions for the app and API.
 

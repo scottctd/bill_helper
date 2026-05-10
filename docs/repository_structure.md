@@ -10,7 +10,7 @@
 - `pyproject.toml`: Python package metadata, dependencies, scripts, pytest config.
 - `uv.lock`: locked Python dependency graph for `uv`.
 - `alembic.ini`: Alembic runtime/logging configuration.
-- `docker/`: Dockerfiles for local sandbox/runtime images, including the agent workspace image.
+- `docker/`: legacy Docker workspace artifacts plus packaging experiments.
 - `ios/`: SwiftUI iOS MVP workspace containing the app shell target, shared mobile core sources, feature surfaces, `ios/docs/` client notes, and focused API/unit tests.
 - `telegram/`: top-level Telegram transport package with `telegram/README.md`, `telegram/docs/` implementation notes, config, PTB application/handler wiring, the `telegram/ptb.py` import-collision shim/re-export for `python-telegram-bot`, polling/webhook intake adapters, file/reply helpers, and targeted tests for the bot integration surface.
 
@@ -57,6 +57,7 @@
 - `versions/0037_add_agent_message_attachments_use_ocr.py`: adds persisted message-level OCR mode for attachment-bearing user turns.
 - `versions/0038_add_agent_model_display_names_to_runtime_settings.py`: adds optional JSON map of model id → UI label (`runtime_settings.agent_model_display_names`).
 - `versions/0039_add_agent_run_approval_policy.py`: adds `agent_runs.approval_policy` (`default` vs `yolo`) for optional post-run auto-approval.
+- `versions/0040_add_agent_session_sources.py`: adds external-agent session summaries, session-source links, and the runtime PDF page limit.
 - `versions/__init__.py`: package marker.
 
 ## Backend (`/backend`)
@@ -69,7 +70,7 @@
 - `enums_finance.py`: ledger enums (`EntryKind`, `GroupType`, `GroupMemberRole`, plus legacy migration-only `LinkType`).
 - `enums_agent.py`: agent run/review/message enums.
 - `models_finance.py`: ledger/account/entity/tag/taxonomy/filter-group/entry ORM models.
-- `models_agent.py`: agent thread/message/run/tool-call/change/review ORM models, including message-level attachment OCR mode.
+- `models_agent.py`: agent thread/message/run/tool-call/change/review ORM models, including session summaries and session-source links.
 - `models_files.py`: canonical per-user durable file registry ORM model.
 - `models_settings.py`: runtime settings ORM model and table mapping.
 - `contracts_groups.py`: shared group create/update contracts and the typed group-member target payload used by schemas, routers, services, and group-member apply flows.
@@ -78,10 +79,12 @@
 - `models_shared.py`: shared model defaults (`utc_now`, `uuid_str`) used by both model domains.
 - `schemas_finance.py`: ledger, filter-group, and dashboard request/response schemas.
 - `schemas_agent.py`: agent thread/message/run/review request/response schemas.
+- `schemas_agent_sessions.py`: external-agent session and source request/response schemas.
 - `schemas_auth.py`: auth, admin-user, and admin-session request/response schemas.
 - `schemas_settings.py`: runtime settings request/response schemas.
-- `schemas_workspace.py`: current-user workspace snapshot and recursive file-tree schemas.
+- `schemas_workspace.py`: legacy current-user workspace snapshot and recursive file-tree schemas.
 - `auth/`: request-principal contracts, explicit dev-session header parsing, and FastAPI auth dependencies.
+- `cli/`: `bh` command entrypoint, auth/session/source command groups, output rendering, and HTTP client support for hosted and external agents.
 - `validation/`: neutral validation/normalization helpers plus shared contract field types used by schemas, services, and tool-input models.
 - `main.py`: FastAPI app creation, routing, CORS, health check.
 - `README.md`: thin backend-local navigation doc that points to canonical docs.
@@ -103,7 +106,8 @@
 - `dashboard.py`: monthly analytics endpoint.
 - `agent.py`: append-only agent thread/message/run/review endpoints.
 - `settings.py`: runtime settings read/update endpoints backed by `models_settings.py` / `schemas_settings.py`, with env fallback where applicable and DB-backed list-form `user_memory`.
-- `workspace.py`: current-user workspace snapshot, explicit start/stop endpoints, IDE launch endpoint, and same-origin IDE proxy routes for the per-user sandbox.
+- `agent_sessions.py`: external-agent session CRUD plus text/file source attachment endpoints.
+- `workspace.py`: legacy current-user workspace snapshot, explicit start/stop endpoints, IDE launch endpoint, and same-origin IDE proxy routes for the per-user sandbox.
 - non-admin principal scope applies to owned-resource routes (`accounts`, `entries`, `users`, `groups`, `dashboard`).
 - shared dictionary mutation routes (`entities`, `tags`, `taxonomies` POST/PATCH, plus entity and tag DELETE) require admin principal.
 
@@ -125,12 +129,12 @@
 - `crud_policy.py`: shared CRUD validation/conflict policy primitives and standardized error-translation helpers.
 - `serializers.py`: ORM-to-schema mapping helpers.
 - `taxonomy.py`: shared taxonomy normalization, term assignment, and usage-count helpers.
-- `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional `agent_model_display_names`, plus derived vision-capable model lists for the composer.
+- `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional `agent_model_display_names`, the PDF page cap, plus derived vision-capable model lists for the composer.
 - `user_files.py`: canonical per-user upload path management, atomic writes/imports, hashing, and readable stored-filename helpers.
-- `docker_cli.py`: thin Docker CLI adapter for image/volume/container lifecycle helpers.
-- `agent_workspace.py`: deterministic per-user workspace spec construction plus Docker-backed provisioning/start-stop/remove helpers.
-- `workspace_browser.py`: current-user workspace snapshot shaping for lifecycle and IDE launch state.
-- `workspace_ide.py`: IDE launch-cookie helpers plus same-origin proxy header policy for `code-server`.
+- `docker_cli.py`: legacy thin Docker CLI adapter for image/volume/container lifecycle helpers.
+- `agent_workspace.py`: legacy deterministic per-user workspace spec construction plus Docker-backed provisioning/start-stop/remove helpers, disabled by default.
+- `workspace_browser.py`: legacy current-user workspace snapshot shaping for lifecycle and IDE launch state.
+- `workspace_ide.py`: legacy IDE launch-cookie helpers plus same-origin proxy header policy for `code-server`.
 - `agent/`: agent runtime, tool execution, prompt-size counting, serialization, prompt/model adapters, and review apply handlers.
   - `tool_args/`: focused tool-input package for read filters, progress/session commands, thread rename, and pending-proposal admin wrappers.
   - `session_tools/`: session-scoped non-proposal tool handlers for progress updates, add-only memory appends, and thread rename operations.
@@ -142,8 +146,9 @@
   - `execution.py`: agent execution-policy service (message intake/run lifecycle/context-token reads) plus benchmark/test execution facade methods.
   - `attachments.py`: message-to-canonical-file linkage helpers for attachment rows.
   - `attachment_content.py`: public attachment-content seam plus vision capability checks.
-  - `docling_convert.py`: Docling standard-pipeline conversion and referenced markdown export for agent bundles
-  - `agent_attachment_bundle.py`: dated upload bundle paths, Docling orchestration, and workspace path helpers
+  - `docling_convert.py`: archived Docling standard-pipeline conversion and referenced markdown export for historical agent bundles
+  - `agent_attachment_bundle.py`: dated upload bundle paths, vision page rendering, and bundle path helpers
+  - `work_sessions.py`: external-agent session/source persistence plus synthetic CLI run ownership for proposal creation
   - `agent_upload_bundle_relocate.py`: one-shot relocate of bundle dirs to created-at dates and readable folder names
   - `attachment_content_assembly.py`: attachment display-name, data-url, and model-content assembly helpers.
   - `message_history.py`: public thread-to-model message assembly seam.
@@ -171,7 +176,8 @@
 - `test_migrations_core.py`: migration regression coverage, including legacy link-to-typed-group conversion.
 - `test_taxonomies.py`: taxonomy endpoints and tag/entity category assignment behavior tests.
 - `test_auth_boundaries.py`: app-level principal dependency boundary regression tests.
-- `test_workspace.py`: current-user workspace API coverage for snapshot scoping and disabled-mode lifecycle semantics.
+- `test_agent_sessions.py`: external-agent session/source and CLI proposal ownership coverage.
+- `test_workspace.py`: legacy current-user workspace API coverage for snapshot scoping and disabled-mode lifecycle semantics.
 - `test_benchmark_seed_workflows.py`: benchmark/seed workflow regression tests.
 
 ## Frontend (`/frontend`)
@@ -216,7 +222,7 @@
 - `DashboardPage.tsx`: tabbed interactive analytics dashboard (overview/daily/breakdowns/insights) backed by Recharts.
 - `LoginPage.tsx`: password sign-in page for the browser app.
 - `AdminPage.tsx`: admin-only user/session management workspace.
-- `WorkspacePage.tsx`: current-user workspace IDE shell with iframe launch and minimal degraded/mobile fallback states.
+- `WorkspacePage.tsx`: legacy current-user workspace IDE shell retained without an active app route.
 - `SettingsPage.tsx`: thin runtime-settings page shell that composes the `features/settings` controller and section modules.
 - `EntriesPage.tsx`: list/filter/delete entries and open popup create/edit editor.
 - `EntryDetailPage.tsx`: show entry detail, direct-group context, direct-group graph, and popup editing.
@@ -227,13 +233,13 @@
 - `AccountsPage.test.tsx`: page-level integration tests for account create, snapshot, and delete flows.
 - `EntriesPage.test.tsx`: page-level integration tests for missing-entity markers in the entries table.
 - `PropertiesPage.test.tsx`: page-level integration tests for taxonomy and property delete flows.
-- `WorkspacePage.test.tsx`: page-level integration tests for workspace IDE launch, degraded states, and narrow-screen fallback.
+- `WorkspacePage.test.tsx`: legacy page-level integration tests for workspace IDE launch, degraded states, and narrow-screen fallback.
 
 #### Feature Modules (`/frontend/src/features`)
 
 - `auth/`
   - `storage.ts`: localStorage-backed bearer token helpers.
-  - `AuthProvider.tsx`: app-wide auth context, `/auth/me` bootstrap, and best-effort workspace auto-start after auth restoration.
+  - `AuthProvider.tsx`: app-wide auth context, `/auth/me` bootstrap, login, logout, and impersonation token adoption.
   - `AuthSessionCard.tsx`: sidebar logout control that reflects the signed-in user.
 - `accounts/`
   - `useAccountsPageModel.ts`: query/mutation orchestration, derived state, and action handlers.
@@ -261,8 +267,8 @@
 
 - `types.ts`: shared TS API/data types.
 - `api.ts`: fetch wrappers and API request functions, including shared bearer-token injection plus admin/auth helpers.
-- `types/workspace.ts`: workspace snapshot and recursive file-tree contracts.
-- `api/workspace.ts`: current-user workspace snapshot and start/stop request helpers.
+- `types/workspace.ts`: legacy workspace snapshot and recursive file-tree contracts.
+- `api/workspace.ts`: legacy current-user workspace snapshot and start/stop request helpers.
 - `format.ts`: money formatting and date helpers.
 - `queryKeys.ts`: centralized TanStack Query key factory for all domains.
 - `queryInvalidation.ts`: shared cache invalidation rules after mutations/review actions, including group-driven entry/group refresh.

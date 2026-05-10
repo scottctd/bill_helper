@@ -333,6 +333,7 @@ Response highlights:
 - `agent_model_display_names` (map of model id → short label for UI; only keys in the effective `available_agent_models` list are returned)
 - `vision_capable_agent_models`
 - `agent_bulk_max_concurrent_threads`
+- `agent_max_pdf_pages`
 - `agent_base_url`
 - `agent_api_key_configured`
 - `overrides`
@@ -343,7 +344,8 @@ Behavior:
 - `user_memory` is DB-backed only and returned as an ordered list of strings
 - `available_agent_models` is DB-backed only and returned as an ordered list of model identifiers; the effective list always includes `agent_model`
 - `agent_model_display_names` merges built-in short labels for the default catalog model ids with any DB-backed overrides; stored labels win on key overlap; the API returns only entries whose keys match the effective available model list (case-insensitive match, canonical keys follow the available-model ordering)
-- `vision_capable_agent_models` is a derived read-only subset of `available_agent_models` that the frontend can use to disable OCR-off attachment sends for non-vision models
+- `vision_capable_agent_models` is a derived read-only subset of `available_agent_models` that the frontend can use to understand which models can receive image/PDF attachments
+- `agent_max_pdf_pages` caps PDF page rendering for hosted agent vision attachments
 - identity is not part of runtime settings anymore
 - `entry_tagging_model` is DB-backed only, nullable, and must resolve to one of the effective `available_agent_models`; blank disables inline entry tag suggestion
 - `agent_api_key` is never returned
@@ -369,6 +371,7 @@ Updatable fields include:
 - `agent_bulk_max_concurrent_threads`
 - retry policy fields
 - image and attachment limit fields
+  - `agent_max_pdf_pages`
 - `agent_base_url`
 - `agent_api_key`
 

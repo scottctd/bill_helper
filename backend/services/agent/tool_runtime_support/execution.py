@@ -18,6 +18,9 @@ from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
 
 logger = logging.getLogger(__name__)
+_LEGACY_TOOL_ALIASES = {
+    "terminal": "run_bh",
+}
 
 
 def _json_safe_validation_details(exc: ValidationError) -> list[dict[str, Any]]:
@@ -25,7 +28,7 @@ def _json_safe_validation_details(exc: ValidationError) -> list[dict[str, Any]]:
 
 
 def execute_tool(name: str, arguments: dict[str, Any], context: ToolContext) -> ToolExecutionResult:
-    definition = TOOLS.get(name)
+    definition = TOOLS.get(_LEGACY_TOOL_ALIASES.get(name, name))
     if definition is None:
         return error_result(f"unknown tool '{name}'")
 

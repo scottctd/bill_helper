@@ -4,8 +4,8 @@
 
 - `uv` for Python environment, scripts, and tests
 - `node` + `npm` for the frontend
-- `docker` for the default agent-workspace provisioning flow and Docker-backed workspace tests
-- Docling + EasyOCR run on the API host for agent PDF/image uploads (first Docling use may download models); ensure typical PyTorch/OpenCV system libraries are available in your environment if conversion fails at import or runtime
+- `docker` only for the legacy opt-in workspace/IDE surface and Docker-backed workspace tests
+- PyMuPDF dependencies for PDF page rendering in agent vision attachments
 
 ## First-Time Setup
 
@@ -71,23 +71,57 @@ BILL_HELPER_DATA_DIR=./.data
 | `BILL_HELPER_AGENT_RETRY_BACKOFF_MULTIPLIER` | `2.0` | Retry backoff multiplier |
 | `BILL_HELPER_AGENT_MAX_IMAGE_SIZE_BYTES` | `5242880` | Per-attachment size limit |
 | `BILL_HELPER_AGENT_MAX_IMAGES_PER_MESSAGE` | `4` | Max image/PDF uploads per message |
-| `BILL_HELPER_AGENT_WORKSPACE_ENABLED` | `true` | Enable eager per-user Docker workspace provisioning |
-| `BILL_HELPER_AGENT_WORKSPACE_IMAGE` | `bill-helper-agent-workspace:latest` | Prebuilt image tag for per-user workspaces |
-| `BILL_HELPER_AGENT_WORKSPACE_DOCKER_BINARY` | `docker` | Docker CLI binary used for workspace lifecycle commands |
-| `BILL_HELPER_WORKSPACE_BACKEND_BASE_URL` | `http://host.docker.internal:8000/api/v1` | Backend API base URL used by workspace terminal commands and the installed `bh` CLI |
+| `BILL_HELPER_AGENT_MAX_PDF_PAGES` | `10` | Max pages accepted for PDF vision rendering |
+| `BILL_HELPER_AGENT_CLI_BASE_URL` | `http://127.0.0.1:8000/api/v1` | Backend API base URL injected into hosted `run_bh` CLI commands |
+| `BILL_HELPER_AGENT_WORKSPACE_ENABLED` | `false` | Enable legacy per-user Docker workspace provisioning |
+| `BILL_HELPER_AGENT_WORKSPACE_IMAGE` | `bill-helper-agent-workspace:latest` | Legacy prebuilt image tag for per-user workspaces |
+| `BILL_HELPER_AGENT_WORKSPACE_DOCKER_BINARY` | `docker` | Docker CLI binary used for legacy workspace lifecycle commands |
+| `BILL_HELPER_WORKSPACE_BACKEND_BASE_URL` | `http://host.docker.internal:8000/api/v1` | Backend API base URL used by the legacy workspace IDE terminal |
 | `AGENT_BASE_URL` / `BILL_HELPER_AGENT_BASE_URL` | _(none)_ | Optional custom provider endpoint |
 | `AGENT_API_KEY` / `BILL_HELPER_AGENT_API_KEY` | _(none)_ | Optional custom provider API key |
 
-## Agent Workspace Provisioning
+## Agent CLI And Legacy Workspace
 
-The backend now provisions one deterministic workspace definition per user:
+The hosted agent `run_bh` tool executes only approved `bh ...` commands through the local CLI module. It injects a temporary bearer token and the current session/run identifiers for each command, so app-state reads and proposal creation go through the same backend APIs as external agents. Hosted runs cannot call external setup, session navigation, or source-management commands; they may only update the current session summary/title with `bh sessions update`.
+
+External agents can work from any cwd on their own machine. They use `bh instruction` for domain rules, `bh sessions list|create|get|update`, and `bh sessions sources ...` to attach text/files to a session. Bill Helper stores only explicitly attached sources and proposal/review history, not the external agent's working directory. Hosted app attachments are stored by the app and linked to the current session automatically instead of being managed by the internal agent.
+
+For local development, run the CLI from the checkout:
+
+```bash
+uv run bh --help
+uv run bh instruction
+```
+
+For an external agent that needs a `bh` executable on `PATH`, install the checkout as a uv tool:
+
+```bash
+uv tool install --editable .
+bh --help
+```
+
+If the shell cannot find `bh`, add uv's tool bin directory to `PATH`:
+
+```bash
+export PATH="$(uv tool dir --bin):$PATH"
+```
+
+Then configure auth and a current session:
+
+```bash
+printf '%s\n' '<password>' | bh login --api-base-url http://localhost:8000/api/v1 --username admin --password-stdin
+bh sessions list
+bh sessions create --title "May receipts" --use
+```
+
+The legacy workspace feature is still available behind `BILL_HELPER_AGENT_WORKSPACE_ENABLED=1`. When enabled, it provisions one deterministic workspace definition per user:
 
 - host files: `{data_dir}/user_files/{user_id}/uploads`
 - named volume: `bill-helper-workspace-{user_id}`
 - named container: `bill-helper-sandbox-{user_id}`
 - mounts: `/workspace/uploads` read-only from the user's canonical uploads and `/workspace` from the named volume
 
-Build the local image before running admin bootstrap or creating users through the admin API:
+Build the local image before using legacy workspace endpoints:
 
 ```bash
 docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .
@@ -96,16 +130,16 @@ docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.doc
 Behavior notes:
 
 - the backend does not auto-build this image
-- when workspace provisioning is enabled, admin bootstrap and user creation fail with a provisioning error if the configured image tag is missing
-- set `BILL_HELPER_AGENT_WORKSPACE_ENABLED=0` in environments where you intentionally do not want Docker-backed provisioning
+- workspace provisioning is disabled by default and no longer runs during login, logout, user creation, or admin session revocation
+- set `BILL_HELPER_AGENT_WORKSPACE_ENABLED=1` only in environments where you intentionally want the legacy Docker-backed workspace
 - if the backend itself runs inside Docker, it still needs host-daemon access through `/var/run/docker.sock` or `DOCKER_HOST` to manage sibling user workspaces
 
-Workspace refresh notes:
+Legacy workspace refresh notes:
 
 - The workspace image is built from the checked-out repo and installs `bill-helper` during `docker build`; running sandbox containers do not see later source edits automatically.
 - Rebuild the image after changes to files copied into `docker/agent-workspace.dockerfile`, especially `backend/`, `telegram/`, `pyproject.toml`, `README.md`, `docker/agent-workspace.dockerfile`, or `docker/agent-workspace-entrypoint.sh`.
 - Recreate any running `bill-helper-sandbox-*` containers after that rebuild so the backend launches new workspaces from the new image. This refresh keeps the named workspace volume unless you remove it separately.
-- When the changed behavior affects installed workspace tools such as `bh`, verify the result from inside a fresh sandbox container instead of only running the command from the host checkout.
+- When the changed behavior affects installed legacy workspace tools, verify the result from inside a fresh sandbox container instead of only running the command from the host checkout.
 
 Refresh workflow:
 
@@ -194,6 +228,8 @@ Current revisions:
 - `0036_add_agent_run_created_at_index`
 - `0037_add_agent_message_attachments_use_ocr`
 - `0038_add_agent_model_display_names_to_runtime_settings`
+- `0039_add_agent_run_approval_policy`
+- `0040_add_agent_session_sources`
 
 ## Seed Data
 

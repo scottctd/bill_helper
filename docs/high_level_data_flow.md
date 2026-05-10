@@ -85,7 +85,7 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
 ### Agent-Assisted Write Path (Review-Gated)
 
 1. User sends message to `/api/v1/agent/threads/{thread_id}/messages` (background run) or `/api/v1/agent/threads/{thread_id}/messages/stream` (SSE token stream).
-2. Agent runtime executes the `terminal` tool and runs `bh` for Bill Helper reads and proposal creation.
+2. Agent runtime executes the `run_bh` tool and runs `bh` for Bill Helper reads and proposal creation.
 3. Proposed creates are persisted as `agent_change_items` (`PENDING_REVIEW`).
 4. Human reviewer approves/rejects individual items.
 5. On approval, apply handlers create domain rows (including entries) and record review actions.

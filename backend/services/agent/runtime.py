@@ -140,21 +140,24 @@ def calculate_context_tokens(
     *,
     model_name: str,
     llm_messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None,
 ) -> int | None:
     return count_context_tokens(
         model_name=model_name,
         messages=llm_messages,
-        tools=build_openai_tool_schemas(),
+        tools=tools if tools is not None else build_openai_tool_schemas(),
     )
 
 
 def _update_run_context_tokens(
     run: AgentRun,
     llm_messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
 ) -> None:
     _update_run_context_tokens_support(
         run=run,
         llm_messages=llm_messages,
+        tools=tools,
         calculate_context_tokens=calculate_context_tokens,
     )
 
@@ -164,13 +167,14 @@ def _runtime_loop_dependencies() -> RuntimeLoopDependencies:
         call_model=call_model,
         call_model_stream=call_model_stream,
         run_is_stopped=_run_is_stopped,
-        prepare_tool_turn=lambda db, run, llm_messages, assistant_content, model_reasoning, tool_calls: _prepare_tool_turn_support(
+        prepare_tool_turn=lambda db, run, llm_messages, assistant_content, model_reasoning, tool_calls, request_tools: _prepare_tool_turn_support(
             db,
             run=run,
             llm_messages=llm_messages,
             assistant_content=assistant_content,
             model_reasoning=model_reasoning,
             tool_calls=tool_calls,
+            request_tools=request_tools,
             update_run_context_tokens=_update_run_context_tokens,
         ),
         persist_terminal_run_state=_persist_terminal_run_state,
@@ -252,12 +256,20 @@ def run_existing_agent_run_stream(db: Session, run_id: str) -> Iterator[dict[str
         if resolution.run is None:
             return
         for event_row in resolution.run.events:
-            yield stream_run_event_to_payload(resolution.run, event_row)
+            yield stream_run_event_to_payload(
+                resolution.run,
+                event_row,
+                include_run_usage=False,
+            )
         return
     if resolution.state == "failed_missing_thread":
         if resolution.run is None or resolution.terminal_event is None:
             return
-        yield stream_run_event_to_payload(resolution.run, resolution.terminal_event)
+        yield stream_run_event_to_payload(
+            resolution.run,
+            resolution.terminal_event,
+            include_run_usage=False,
+        )
         return
 
     if resolution.run is None or resolution.thread is None:  # pragma: no cover - defensive

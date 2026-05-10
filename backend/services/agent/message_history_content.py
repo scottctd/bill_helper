@@ -66,10 +66,9 @@ def build_user_content(
     if not message.attachments:
         return content_text
 
-    use_ocr = message.attachments_use_ocr or not attachment_content.model_supports_vision(model_name or "")
     parts = attachment_content.assemble_attachment_parts(
         message.attachments,
-        use_ocr=use_ocr,
+        use_ocr=False,
     )
 
     if content_text.strip():
