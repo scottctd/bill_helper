@@ -1,14 +1,17 @@
 # Agent Workspace DB Extension - Optional SQLite Context Layer
 
 ## Status
+
 - Proposed
 - Later phase, not part of Agent Workspace V1
 
 ## Priority
+
 - Medium
 - Only start after there is clear demand
 
 ## Depends on
+
 - Agent Workspace V1
 
 ## Summary
@@ -62,13 +65,16 @@ Once the workspace grows, a structured local database becomes useful.
 ## Key Positioning
 
 ### Filesystem remains primary for execution
+
 The agent still reads and writes real files in `/workspace`.
 
 ### SQLite adds structured context
+
 The database stores metadata, relationships, derived indexes, and agent-friendly lookup
 structures.
 
 ### The app remains authoritative
+
 The product backend remains the source of truth for canonical product data. The workspace DB
 starts as a derived or mirrored context layer.
 
@@ -77,6 +83,7 @@ starts as a derived or mirrored context layer.
 The first DB version should store only agent-context data, not canonical finance-domain state.
 
 ### Good candidates
+
 - mirrored thread metadata
 - mirrored message metadata
 - file catalog and file hashes
@@ -87,6 +94,7 @@ The first DB version should store only agent-context data, not canonical finance
 - lightweight tags, links, and relationships
 
 ### Avoid initially
+
 - authoritative entries table
 - authoritative proposals table
 - authoritative approval state
@@ -96,7 +104,7 @@ The first DB version should store only agent-context data, not canonical finance
 
 ```text
 /workspace/system/context.db
-````
+```
 
 Optional migrations can live in:
 
@@ -131,11 +139,11 @@ Stores thread-level metadata.
 
 Example fields:
 
-* thread_id
-* title
-* created_at
-* updated_at
-* status
+- thread_id
+- title
+- created_at
+- updated_at
+- status
 
 ### Messages
 
@@ -143,14 +151,14 @@ Stores message-level metadata.
 
 Example fields:
 
-* message_id
-* thread_id
-* role
-* timestamp
-* content_text
-* content_summary
-* jsonl_offset or file pointer
-* run_id
+- message_id
+- thread_id
+- role
+- timestamp
+- content_text
+- content_summary
+- jsonl_offset or file pointer
+- run_id
 
 ### Files
 
@@ -158,16 +166,16 @@ Catalog of files in the workspace.
 
 Example fields:
 
-* file_id
-* path
-* file_name
-* sha256
-* mime_type
-* size_bytes
-* created_at
-* updated_at
-* source_type
-* source_thread_id
+- file_id
+- path
+- file_name
+- sha256
+- mime_type
+- size_bytes
+- created_at
+- updated_at
+- source_type
+- source_thread_id
 
 ### Attachments
 
@@ -175,12 +183,12 @@ Catalog of attachment-like artifacts.
 
 Example fields:
 
-* attachment_id
-* file_id
-* attachment_kind
-* display_name
-* origin_type
-* origin_ref
+- attachment_id
+- file_id
+- attachment_kind
+- display_name
+- origin_type
+- origin_ref
 
 ### Memories
 
@@ -188,11 +196,11 @@ Mirrored user memory items for agent retrieval.
 
 Example fields:
 
-* memory_id
-* created_at
-* text
-* category
-* source
+- memory_id
+- created_at
+- text
+- category
+- source
 
 ### Preferences
 
@@ -200,10 +208,10 @@ Mirrored stable user preferences.
 
 Example fields:
 
-* preference_key
-* preference_value
-* source
-* updated_at
+- preference_key
+- preference_value
+- source
+- updated_at
 
 ### Relationships
 
@@ -211,13 +219,13 @@ Generic edges between entities.
 
 Example fields:
 
-* relation_id
-* from_type
-* from_id
-* relation_type
-* to_type
-* to_id
-* metadata_json
+- relation_id
+- from_type
+- from_id
+- relation_type
+- to_type
+- to_id
+- metadata_json
 
 ### Artifacts
 
@@ -225,13 +233,13 @@ Generated outputs and their provenance.
 
 Example fields:
 
-* artifact_id
-* file_id
-* artifact_type
-* generated_by
-* source_thread_id
-* source_message_id
-* parent_artifact_id
+- artifact_id
+- file_id
+- artifact_type
+- generated_by
+- source_thread_id
+- source_message_id
+- parent_artifact_id
 
 ## Example Use Cases
 
@@ -258,17 +266,17 @@ The initial DB should be populated by backend-driven sync and workspace indexing
 
 ### Data sources
 
-* app thread/message events
-* mirrored workspace files
-* upload events
-* attachment metadata
-* agent memory updates if mirrored into workspace
+- app thread/message events
+- mirrored workspace files
+- upload events
+- attachment metadata
+- agent memory updates if mirrored into workspace
 
 ### Sync style
 
-* append or upsert on new events
-* periodic reindex is acceptable
-* full rebuild should be possible
+- append or upsert on new events
+- periodic reindex is acceptable
+- full rebuild should be possible
 
 ### Important rule
 
@@ -296,44 +304,44 @@ The DB should complement the filesystem, not replace it.
 
 ### Filesystem stays best for
 
-* raw documents
-* scripts
-* outputs
-* user browsing
-* inspectability
-* reproducibility
+- raw documents
+- scripts
+- outputs
+- user browsing
+- inspectability
+- reproducibility
 
 ### DB becomes best for
 
-* search
-* joins
-* metadata lookup
-* relationships
-* indexing
-* provenance
+- search
+- joins
+- metadata lookup
+- relationships
+- indexing
+- provenance
 
 ## Security and Safety
 
-* the DB lives inside the user's isolated workspace
-* no cross-user access
-* no secrets beyond what the user already granted to the workspace
-* DB corruption should not break canonical app state
-* rebuildability is required
+- the DB lives inside the user's isolated workspace
+- no cross-user access
+- no secrets beyond what the user already granted to the workspace
+- DB corruption should not break canonical app state
+- rebuildability is required
 
 ## Implementation Approach
 
 ### Phase 1: optional index only
 
-* create `/workspace/system/context.db`
-* define schema for threads, messages, files, attachments, memories, preferences, relationships
-* write sync/indexer logic
-* allow agent to inspect it through terminal
+- create `/workspace/system/context.db`
+- define schema for threads, messages, files, attachments, memories, preferences, relationships
+- write sync/indexer logic
+- allow agent to inspect it through terminal
 
 ### Phase 2: richer derived context
 
-* add text extraction indexes
-* add lightweight semantic retrieval metadata if needed
-* add artifact provenance and relationship graph support
+- add text extraction indexes
+- add lightweight semantic retrieval metadata if needed
+- add artifact provenance and relationship graph support
 
 ### Phase 3: evaluate broader role
 
@@ -345,12 +353,12 @@ a clear sync model.
 
 ## Acceptance Criteria
 
-* a SQLite DB exists in the workspace and is created automatically when enabled
-* thread and message metadata can be mirrored into it
-* workspace files can be indexed into it
-* memories and preferences can be mirrored into it
-* the agent can query it from the terminal
-* the system can rebuild it if deleted
+- a SQLite DB exists in the workspace and is created automatically when enabled
+- thread and message metadata can be mirrored into it
+- workspace files can be indexed into it
+- memories and preferences can be mirrored into it
+- the agent can query it from the terminal
+- the system can rebuild it if deleted
 
 ## Recommendation
 
@@ -358,7 +366,7 @@ Keep this as a deliberate extension, not part of the first workspace milestone.
 
 Build the workspace first. Only add `context.db` when one of these becomes painful:
 
-* searching prior conversations through files
-* tracking relationships across many artifacts
-* retrieving user memories and preferences efficiently
-* indexing larger document collections for agent use
+- searching prior conversations through files
+- tracking relationships across many artifacts
+- retrieving user memories and preferences efficiently
+- indexing larger document collections for agent use

@@ -146,6 +146,7 @@ volumes:
 ```
 
 Usage:
+
 - `docker compose up` — backend only
 - `docker compose --profile telegram up` — backend + telegram
 
@@ -196,7 +197,7 @@ if frontend_dist.is_dir():
         return FileResponse(frontend_dist / "index.html")
 ```
 
-**Important**: The SPA fallback must not match `/api/*` or `/healthz` or `/docs`
+**Important**: The SPA fallback must not match `/api/`* or `/healthz` or `/docs`
 or `/openapi.json`. Since FastAPI matches routes in registration order and the
 API routers are registered first, this works — the catch-all only fires for
 paths that don't match any API route.
@@ -225,32 +226,32 @@ Add a Docker section to the existing `.env.example`:
 
 ## Implementation Checklist
 
-- [ ] Create `Dockerfile` (multi-stage: frontend build → app)
-- [ ] Create `docker-entrypoint.sh`
-- [ ] Create `docker-compose.yml`
-- [ ] Create `.dockerignore`
-- [ ] Add static frontend serving + SPA fallback to `backend/main.py`
-- [ ] Add Docker section to `.env.example`
-- [ ] Add `curl` to the Docker image (needed for healthcheck)
-- [ ] Test: `docker compose build`
-- [ ] Test: `docker compose up` — verify frontend loads at `http://localhost:8000`
-- [ ] Test: `docker compose --profile telegram up` — verify telegram starts
-- [ ] Test: API calls work through the same port (`/api/v1/...`)
-- [ ] Update `README.md` with Docker quickstart section
-- [ ] Update `docs/repository_structure.md` with new files
-- [ ] Run `uv run python scripts/check_docs_sync.py`
+- Create `Dockerfile` (multi-stage: frontend build → app)
+- Create `docker-entrypoint.sh`
+- Create `docker-compose.yml`
+- Create `.dockerignore`
+- Add static frontend serving + SPA fallback to `backend/main.py`
+- Add Docker section to `.env.example`
+- Add `curl` to the Docker image (needed for healthcheck)
+- Test: `docker compose build`
+- Test: `docker compose up` — verify frontend loads at `http://localhost:8000`
+- Test: `docker compose --profile telegram up` — verify telegram starts
+- Test: API calls work through the same port (`/api/v1/...`)
+- Update `README.md` with Docker quickstart section
+- Update `docs/repository_structure.md` with new files
+- Run `uv run python scripts/check_docs_sync.py`
 
 ## Design Decisions
 
 1. **Single image, two entrypoints** — keeps the build simple, one image to push.
 2. **FastAPI serves static files** — avoids nginx complexity for now. Swap to
-   nginx later by adding a Compose service and removing the `StaticFiles` mount.
+  nginx later by adding a Compose service and removing the `StaticFiles` mount.
 3. **SQLite on a named volume** — data persists across container restarts.
-   Swap to Postgres later by adding a `postgres` service and changing
+  Swap to Postgres later by adding a `postgres` service and changing
    `BILL_HELPER_DATABASE_URL`.
 4. **Telegram via Compose profile** — doesn't start unless explicitly requested,
-   matching the current `dev_up.py` behavior of skipping when unconfigured.
+  matching the current `dev_up.py` behavior of skipping when unconfigured.
 5. **Entrypoint runs migrations** — `alembic upgrade head` runs before the
-   backend starts. Safe because it's idempotent.
-6. **`env_file` with `required: false`** — Compose won't fail if `.env` doesn't
-   exist; defaults from `Settings` classes apply.
+  backend starts. Safe because it's idempotent.
+6. `**env_file` with `required: false`** — Compose won't fail if `.env` doesn't
+  exist; defaults from `Settings` classes apply.
