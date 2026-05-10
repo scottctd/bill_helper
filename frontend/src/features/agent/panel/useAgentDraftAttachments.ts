@@ -3,7 +3,7 @@
  * - Purpose: provide the `useAgentDraftAttachments` React hook or UI state helper.
  * - Inputs: callers that import `frontend/src/features/agent/panel/useAgentDraftAttachments.ts` and pass module-defined arguments or framework events.
  * - Outputs: hooks and state helpers exported by `useAgentDraftAttachments`.
- * - Side effects: client-side attachment upload/parsing coordination plus local object URL lifecycle.
+ * - Side effects: client-side attachment upload/preparation coordination plus local object URL lifecycle.
  */
 import {
   type ChangeEvent,
@@ -19,11 +19,10 @@ import { detectDraftAttachmentKind, isSupportedAgentAttachment, type DraftAttach
 
 interface UseAgentDraftAttachmentsArgs {
   setActionError: (message: string | null) => void;
-  attachmentsUseOcr: boolean;
 }
 
 export function useAgentDraftAttachments(args: UseAgentDraftAttachmentsArgs) {
-  const { setActionError, attachmentsUseOcr } = args;
+  const { setActionError } = args;
   const [draftAttachments, setDraftAttachments] = useState<DraftAttachment[]>([]);
   const [isComposerDragActive, setIsComposerDragActive] = useState(false);
 
@@ -73,7 +72,7 @@ export function useAgentDraftAttachments(args: UseAgentDraftAttachmentsArgs) {
     const uploadPromise = (async () => {
       const uploadedAttachment = await uploadAgentDraftAttachment({
         file: attachment.file,
-        useOcr: attachment.useOcr,
+        useOcr: false,
         signal: abortController.signal,
         onUploadProgress: (progressPercent) => {
           updateDraftAttachment(attachment.id, (current) => ({
@@ -85,7 +84,7 @@ export function useAgentDraftAttachments(args: UseAgentDraftAttachmentsArgs) {
         onServerProcessingStart: () => {
           updateDraftAttachment(attachment.id, (current) => ({
             ...current,
-            phase: attachment.useOcr ? "parsing" : "processing",
+            phase: "processing",
             uploadProgress: 100
           }));
         }
@@ -124,31 +123,6 @@ export function useAgentDraftAttachments(args: UseAgentDraftAttachmentsArgs) {
     uploadPromisesRef.current[attachment.id] = uploadPromise;
   }
 
-  function restartDraftAttachmentUpload(attachmentId: string, nextUseOcr: boolean): void {
-    const currentAttachment = previousAttachmentsRef.current[attachmentId];
-    if (!currentAttachment) {
-      return;
-    }
-    uploadAbortControllersRef.current[attachmentId]?.abort();
-    delete uploadAbortControllersRef.current[attachmentId];
-    delete uploadPromisesRef.current[attachmentId];
-    if (currentAttachment.uploadedAttachmentId) {
-      void deleteAgentDraftAttachment(currentAttachment.uploadedAttachmentId).catch((error: Error) => {
-        setActionError(error.message);
-      });
-    }
-    const restartedAttachment: DraftAttachment = {
-      ...currentAttachment,
-      uploadedAttachmentId: null,
-      uploadProgress: 0,
-      phase: "uploading",
-      errorMessage: null,
-      useOcr: nextUseOcr
-    };
-    updateDraftAttachment(attachmentId, () => restartedAttachment);
-    startDraftAttachmentUpload(restartedAttachment);
-  }
-
   function appendDraftAttachments(files: File[]): void {
     if (files.length === 0) {
       return;
@@ -176,21 +150,12 @@ export function useAgentDraftAttachments(args: UseAgentDraftAttachmentsArgs) {
       uploadedAttachmentId: null,
       uploadProgress: 0,
       phase: "uploading" as const,
-      errorMessage: null,
-      useOcr: attachmentsUseOcr
+      errorMessage: null
     }));
 
     setDraftAttachments((current) => [...current, ...nextAttachments]);
     nextAttachments.forEach((attachment) => startDraftAttachmentUpload(attachment));
   }
-
-  useEffect(() => {
-    draftAttachments.forEach((attachment) => {
-      if (attachment.useOcr !== attachmentsUseOcr) {
-        restartDraftAttachmentUpload(attachment.id, attachmentsUseOcr);
-      }
-    });
-  }, [attachmentsUseOcr, draftAttachments]);
 
   function handleDraftFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);

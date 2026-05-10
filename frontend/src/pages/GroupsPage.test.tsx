@@ -104,6 +104,7 @@ const runtimeSettingsFixture: RuntimeSettings = {
   agent_retry_backoff_multiplier: 2,
   agent_max_image_size_bytes: 5_000_000,
   agent_max_images_per_message: 4,
+  agent_max_pdf_pages: 10,
   agent_base_url: null,
   agent_api_key_configured: false,
   overrides: {
@@ -122,6 +123,7 @@ const runtimeSettingsFixture: RuntimeSettings = {
     agent_retry_backoff_multiplier: null,
     agent_max_image_size_bytes: null,
     agent_max_images_per_message: null,
+    agent_max_pdf_pages: null,
     agent_base_url: null,
     agent_api_key_configured: false
   }

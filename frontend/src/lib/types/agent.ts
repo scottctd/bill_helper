@@ -247,6 +247,18 @@ export interface AgentThreadDetail {
   current_context_tokens: number | null;
 }
 
+/** Cumulative usage for one run, included on live SSE `run_event` payloads (omitted on historical replay). */
+export interface AgentStreamRunUsage {
+  context_tokens: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+  input_cost_usd: number | null;
+  output_cost_usd: number | null;
+  total_cost_usd: number | null;
+}
+
 export type AgentStreamEvent =
   | {
       type: "reasoning_delta";
@@ -263,4 +275,5 @@ export type AgentStreamEvent =
       run_id: string;
       event: AgentRunEvent;
       tool_call?: AgentToolCall;
+      run_usage?: AgentStreamRunUsage;
     };

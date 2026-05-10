@@ -14,6 +14,7 @@ export const SETTINGS_FIELD_IDS = {
   availableModels: "settings-available-models",
   bulkMaxThreads: "settings-bulk-max-threads",
   maxAttachmentsPerMessage: "settings-max-attachments-per-message",
+  maxPdfPages: "settings-max-pdf-pages",
 } as const;
 
 export const SETTINGS_TABS: SettingsTabDefinition[] = [

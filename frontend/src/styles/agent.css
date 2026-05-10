@@ -1216,7 +1216,7 @@
     @apply block h-full rounded-full bg-primary transition-[width] duration-200;
   }
 
-  .agent-draft-attachment-progress-bar.is-parsing {
+  .agent-draft-attachment-progress-bar.is-processing {
     @apply w-2/5;
     animation: agent-draft-progress-parse 1.2s ease-in-out infinite;
   }

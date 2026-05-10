@@ -22,6 +22,7 @@ export interface RuntimeSettingsOverrides {
   agent_retry_backoff_multiplier: number | null;
   agent_max_image_size_bytes: number | null;
   agent_max_images_per_message: number | null;
+  agent_max_pdf_pages: number | null;
   agent_base_url: string | null;
   agent_api_key_configured: boolean;
 }
@@ -43,6 +44,7 @@ export interface RuntimeSettings {
   agent_retry_backoff_multiplier: number;
   agent_max_image_size_bytes: number;
   agent_max_images_per_message: number;
+  agent_max_pdf_pages: number;
   agent_base_url: string | null;
   agent_api_key_configured: boolean;
   overrides: RuntimeSettingsOverrides;
@@ -64,6 +66,7 @@ export interface RuntimeSettingsUpdatePayload {
   agent_retry_backoff_multiplier?: number | null;
   agent_max_image_size_bytes?: number | null;
   agent_max_images_per_message?: number | null;
+  agent_max_pdf_pages?: number | null;
   agent_base_url?: string | null;
   agent_api_key?: string | null;
 }

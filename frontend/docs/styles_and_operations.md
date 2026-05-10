@@ -60,7 +60,7 @@
   - 8px base radii and stronger borders instead of blur-heavy softness
   - Public Sans for UI/body and JetBrains Mono for code-adjacent metadata
   - tabular numerals enabled by default for ledger and analytic surfaces
-- The home route still points to the agent workspace, but it now renders inside the same page header and content shell contract as the rest of the app.
+- The home route points to the agent sessions surface and renders inside the same page header and content shell contract as the rest of the app.
 
 ## Styling
 

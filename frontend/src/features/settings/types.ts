@@ -16,6 +16,7 @@ export interface SettingsFormState {
   agent_max_steps: string;
   agent_bulk_max_concurrent_threads: string;
   agent_max_images_per_message: string;
+  agent_max_pdf_pages: string;
   agent_max_image_size_mb: string;
   agent_retry_max_attempts: string;
   agent_retry_initial_wait_seconds: string;

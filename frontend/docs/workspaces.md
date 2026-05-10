@@ -161,7 +161,7 @@
 
 ### `frontend/src/pages/WorkspacePage.tsx`
 
-- dedicated current-user workspace page at `/workspace`
+- legacy current-user workspace page retained without an active app route
 - route is IDE-first and strips away extra page chrome: when the workspace is healthy, the page is just the embedded `code-server` iframe rather than a tree-first CRUD layout
 - the workspace shell stays mounted under the authenticated app chrome, so switching from `/workspace` to another in-app route and back reuses the same iframe instead of remounting `code-server`
 - the IDE opens the `/workspace` volume root, which now contains two user-facing top-level folders: `scratch/` for writable working files and `uploads/` for the direct read-only canonical upload tree

@@ -15,7 +15,7 @@ vi.mock("./components/Sidebar", () => ({
 }));
 
 vi.mock("./pages/HomePage", () => ({
-  HomePage: () => <div>Agent Workspace</div>,
+  HomePage: () => <div>Agent Sessions</div>,
 }));
 
 describe("App", () => {
@@ -43,7 +43,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    await screen.findByText("Agent Workspace");
+    await screen.findByText("Agent Sessions");
 
     expect(container.querySelector(".app-main")).toHaveClass("app-main-padded");
     expect(container.querySelector(".app-content")).not.toBeNull();

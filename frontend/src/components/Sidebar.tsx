@@ -7,7 +7,7 @@
  */
 import type { CSSProperties } from "react";
 import { NavLink } from "react-router-dom";
-import { Bot, Building2, CreditCard, FolderKanban, FolderTree, Home, Layers3, Network, PanelLeft, PanelLeftClose, Settings2, Shield, SlidersHorizontal } from "lucide-react";
+import { Bot, Building2, CreditCard, FolderKanban, Home, Layers3, Network, PanelLeft, PanelLeftClose, Settings2, Shield, SlidersHorizontal } from "lucide-react";
 
 import { AuthSessionCard, useAuth } from "../features/auth";
 import { cn } from "../lib/utils";
@@ -16,7 +16,6 @@ import { Button } from "./ui/button";
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: Home },
   { to: "/", label: "Agent", icon: Bot },
-  { to: "/workspace", label: "Workspace", icon: FolderTree },
   { to: "/accounts", label: "Accounts", icon: CreditCard },
   { to: "/entries", label: "Entries", icon: Layers3 },
   { to: "/groups", label: "Groups", icon: Network },

@@ -13,8 +13,8 @@ export function HomePage() {
   return (
     <div className="page stack-lg agent-page">
       <PageHeader
-        title="Agent Workspace"
-        description="Threads, attachments, and review."
+        title="Agent Sessions"
+        description="Sessions, sources, and review."
       />
       <WorkspaceSection className="agent-workspace-shell" contentClassName="agent-workspace-shell-body">
         <AgentPanel isOpen embedded />

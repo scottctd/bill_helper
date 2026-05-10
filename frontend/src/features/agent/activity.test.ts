@@ -4,6 +4,7 @@ import {
   buildRunTimelineFromEvents,
   buildThreadUsageTotals,
   latestRunMetric,
+  recomputeThreadCurrentContextTokens,
   mergeRunEvents,
   mergeRunToolCalls,
   runsByAssistantMessage,
@@ -257,5 +258,41 @@ describe("activity helpers", () => {
     ]);
 
     expect(sorted.map((run) => run.id)).toEqual(["run-early", "run-late"]);
+  });
+
+  it("recomputes current context from newest running run with tokens", () => {
+    const runs = [
+      buildRun({
+        id: "old",
+        created_at: "2026-02-15T10:01:00Z",
+        status: "completed",
+        context_tokens: 100
+      }),
+      buildRun({
+        id: "running",
+        created_at: "2026-02-15T10:02:00Z",
+        status: "running",
+        context_tokens: 999
+      })
+    ];
+    expect(recomputeThreadCurrentContextTokens(runs)).toBe(999);
+  });
+
+  it("falls back to newest run with context when none running", () => {
+    const runs = [
+      buildRun({
+        id: "a",
+        created_at: "2026-02-15T10:01:00Z",
+        status: "completed",
+        context_tokens: 50
+      }),
+      buildRun({
+        id: "b",
+        created_at: "2026-02-15T10:02:00Z",
+        status: "completed",
+        context_tokens: 75
+      })
+    ];
+    expect(recomputeThreadCurrentContextTokens(runs)).toBe(75);
   });
 });

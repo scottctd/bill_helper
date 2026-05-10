@@ -7,7 +7,7 @@
  */
 export type DraftAttachmentKind = "image" | "pdf";
 
-export type DraftAttachmentPhase = "uploading" | "parsing" | "processing" | "ready" | "failed";
+export type DraftAttachmentPhase = "uploading" | "processing" | "ready" | "failed";
 
 export interface DraftAttachment {
   id: string;
@@ -18,7 +18,6 @@ export interface DraftAttachment {
   uploadProgress: number;
   phase: DraftAttachmentPhase;
   errorMessage: string | null;
-  useOcr: boolean;
 }
 
 export interface ReadyDraftAttachment {

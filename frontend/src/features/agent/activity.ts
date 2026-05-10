@@ -135,6 +135,24 @@ export function buildThreadUsageTotals(detail: AgentThreadDetail | undefined): {
   };
 }
 
+/** Mirrors backend `current_context_tokens_for_thread` when runs already carry `context_tokens`. */
+export function recomputeThreadCurrentContextTokens(runs: AgentRun[]): number | null {
+  const sorted = sortRunsByCreatedAt(runs);
+  for (let index = sorted.length - 1; index >= 0; index -= 1) {
+    const run = sorted[index];
+    if (run.status === "running" && run.context_tokens != null) {
+      return run.context_tokens;
+    }
+  }
+  for (let index = sorted.length - 1; index >= 0; index -= 1) {
+    const run = sorted[index];
+    if (run.context_tokens != null) {
+      return run.context_tokens;
+    }
+  }
+  return null;
+}
+
 export function summarizeRunChangeTypes(changeItems: AgentChangeItem[]): {
   entryCount: number;
   tagCount: number;

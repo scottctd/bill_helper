@@ -40,6 +40,7 @@ const baseSettingsFixture: RuntimeSettings = {
   agent_retry_backoff_multiplier: 2,
   agent_max_image_size_bytes: 5_000_000,
   agent_max_images_per_message: 4,
+  agent_max_pdf_pages: 10,
   agent_base_url: null,
   agent_api_key_configured: false,
   overrides: {
@@ -58,6 +59,7 @@ const baseSettingsFixture: RuntimeSettings = {
     agent_retry_backoff_multiplier: null,
     agent_max_image_size_bytes: null,
     agent_max_images_per_message: null,
+    agent_max_pdf_pages: null,
     agent_base_url: null,
     agent_api_key_configured: false,
   },
@@ -393,6 +395,36 @@ describe("SettingsPage", () => {
     expect(vi.mocked(updateRuntimeSettings).mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         agent_bulk_max_concurrent_threads: 6,
+      })
+    );
+  });
+
+  it("saves the max PDF pages attachment limit", async () => {
+    vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 0, is_placeholder: false }]);
+    vi.mocked(getRuntimeSettings).mockResolvedValue(baseSettingsFixture);
+    vi.mocked(updateRuntimeSettings).mockResolvedValue({
+      ...baseSettingsFixture,
+      agent_max_pdf_pages: 12,
+      overrides: {
+        ...baseSettingsFixture.overrides,
+        agent_max_pdf_pages: 12,
+      },
+    });
+
+    renderWithQueryClient(<SettingsPage />);
+
+    await openAgentTab();
+    const maxPdfPagesInput = screen.getByLabelText("Max PDF pages");
+    await userEvent.clear(maxPdfPagesInput);
+    await userEvent.type(maxPdfPagesInput, "12");
+    fireEvent.submit(document.getElementById("runtime-settings-form") as HTMLFormElement);
+
+    await waitFor(() => {
+      expect(updateRuntimeSettings).toHaveBeenCalled();
+    });
+    expect(vi.mocked(updateRuntimeSettings).mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        agent_max_pdf_pages: 12,
       })
     );
   });

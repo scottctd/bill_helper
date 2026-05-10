@@ -228,6 +228,21 @@ function BulkAndAttachmentsCard({ formState, onFormPatch }: SettingsFormPatchHan
               onChange={(event) => onFormPatch({ agent_max_images_per_message: event.target.value })}
             />
           </FormField>
+
+          <FormField
+            label="Max PDF pages"
+            htmlFor={SETTINGS_FIELD_IDS.maxPdfPages}
+            hint="PDF attachments with more pages are rejected before vision rendering."
+          >
+            <Input
+              id={SETTINGS_FIELD_IDS.maxPdfPages}
+              type="number"
+              min={1}
+              max={100}
+              value={formState.agent_max_pdf_pages}
+              onChange={(event) => onFormPatch({ agent_max_pdf_pages: event.target.value })}
+            />
+          </FormField>
         </div>
 
         <FormField label="Max attachment size (MB)" hint="Per-file upload size limit for image and PDF attachments.">

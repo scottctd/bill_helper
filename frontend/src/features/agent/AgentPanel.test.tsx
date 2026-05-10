@@ -89,6 +89,7 @@ function buildRuntimeSettings(overrides: RuntimeSettingsOverrideInput = {}) {
     agent_retry_backoff_multiplier: null,
     agent_max_image_size_bytes: null,
     agent_max_images_per_message: null,
+    agent_max_pdf_pages: null,
     agent_base_url: null,
     agent_api_key_configured: true
   };
@@ -110,6 +111,7 @@ function buildRuntimeSettings(overrides: RuntimeSettingsOverrideInput = {}) {
     agent_retry_backoff_multiplier: 2,
     agent_max_image_size_bytes: 1000000,
     agent_max_images_per_message: 5,
+    agent_max_pdf_pages: 10,
     agent_base_url: null,
     agent_api_key_configured: true,
     ...overrides,
@@ -321,7 +323,7 @@ describe("AgentPanel", () => {
     expect(api.sendAgentMessage).not.toHaveBeenCalled();
   });
 
-  it("shows attachment upload then parsing progress before the draft becomes ready", async () => {
+  it("shows attachment upload then vision preparation progress before the draft becomes ready", async () => {
     let resolveUpload: (() => void) | null = null;
 
     vi.mocked(api.listAgentThreads).mockResolvedValue([buildThreadSummary()]);
@@ -352,13 +354,18 @@ describe("AgentPanel", () => {
     await userEvent.upload(fileInput, [buildPdfFile("statement.pdf")]);
 
     expect(await screen.findByText("statement.pdf")).toBeInTheDocument();
-    expect(screen.getByText("Parsing…")).toBeInTheDocument();
+    expect(screen.getByText("Preparing pages…")).toBeInTheDocument();
+    expect(api.uploadAgentDraftAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useOcr: false
+      })
+    );
 
     await act(async () => {
       resolveUpload?.();
     });
 
-    await waitFor(() => expect(screen.queryByText("Parsing…")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Preparing pages…")).not.toBeInTheDocument());
     expect(screen.getByText("statement.pdf")).toBeInTheDocument();
   });
 
@@ -408,13 +415,13 @@ describe("AgentPanel", () => {
           content: "Review this statement",
           files: [],
           attachmentIds: [uploadedAttachmentIdForFileName("statement.pdf")],
-          attachmentsUseOcr: true
+          attachmentsUseOcr: false
         })
       )
     );
   });
 
-  it("defaults OCR off for vision-capable models and shows non-OCR preparation labels", async () => {
+  it("uses vision preparation without exposing OCR controls", async () => {
     let resolveUpload: (() => void) | null = null;
 
     vi.mocked(api.listAgentThreads).mockResolvedValue([buildThreadSummary()]);
@@ -448,9 +455,7 @@ describe("AgentPanel", () => {
     await userEvent.upload(fileInput, [buildPdfFile("statement.pdf")]);
     await screen.findByText("statement.pdf");
 
-    const ocrToggle = screen.getByRole("switch", { name: "Use OCR for attachments" });
-    expect(ocrToggle).toBeEnabled();
-    expect(ocrToggle).not.toBeChecked();
+    expect(screen.queryByRole("switch", { name: "Use OCR for attachments" })).not.toBeInTheDocument();
     expect(await screen.findByText("Preparing pages…")).toBeInTheDocument();
 
     await userEvent.type(screen.getByRole("textbox"), "Use vision");
@@ -471,93 +476,6 @@ describe("AgentPanel", () => {
         })
       )
     );
-  });
-
-  it("forces OCR on for non-vision models", async () => {
-    vi.mocked(api.listAgentThreads).mockResolvedValue([buildThreadSummary()]);
-    vi.mocked(api.getAgentThread).mockResolvedValue(buildThreadDetail([]));
-    vi.mocked(api.getRuntimeSettings).mockResolvedValue(
-      buildRuntimeSettings({
-        available_agent_models: ["gpt-test", "openai/gpt-4.1-mini"],
-        vision_capable_agent_models: []
-      })
-    );
-
-    const { container } = renderWithQueryClient(<AgentPanel isOpen />);
-
-    await screen.findByRole("button", { name: "Review thread" });
-    const fileInput = container.querySelector('input[type="file"]');
-    if (!(fileInput instanceof HTMLInputElement)) {
-      throw new Error("Expected file input");
-    }
-
-    await userEvent.upload(fileInput, [buildPdfFile("statement.pdf")]);
-    const ocrToggle = await screen.findByRole("switch", { name: "Use OCR for attachments" });
-    expect(ocrToggle).toBeDisabled();
-    expect(ocrToggle).toBeChecked();
-  });
-
-  it("restarts draft preparation without OCR when the toggle flips off mid-parse", async () => {
-    vi.mocked(api.listAgentThreads).mockResolvedValue([buildThreadSummary()]);
-    vi.mocked(api.getAgentThread).mockResolvedValue(buildThreadDetail([]));
-    vi.mocked(api.getRuntimeSettings).mockResolvedValue(buildRuntimeSettings());
-    vi.mocked(api.uploadAgentDraftAttachment).mockImplementation(
-      ({ file, useOcr, onUploadProgress, onServerProcessingStart, signal }) =>
-        new Promise((resolve, reject) => {
-          onUploadProgress?.(100);
-          onServerProcessingStart?.();
-          if (useOcr) {
-            signal?.addEventListener(
-              "abort",
-              () => reject(new DOMException("The operation was aborted.", "AbortError")),
-              { once: true }
-            );
-            return;
-          }
-          signal?.addEventListener(
-            "abort",
-            () => reject(new DOMException("The operation was aborted.", "AbortError")),
-            { once: true }
-          );
-          if (vi.mocked(api.uploadAgentDraftAttachment).mock.calls.filter(([payload]) => payload.useOcr === false).length === 1) {
-            return;
-          }
-          resolve({
-            id: uploadedAttachmentIdForFileName(file.name),
-            display_name: file.name,
-            mime_type: file.type || "application/octet-stream",
-            created_at: "2026-03-06T10:00:00Z"
-          });
-        })
-    );
-
-    const { container } = renderWithQueryClient(<AgentPanel isOpen />);
-
-    await screen.findByRole("button", { name: "Review thread" });
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Agent model" }), "openrouter/qwen/qwen3.5-27b");
-    const fileInput = container.querySelector('input[type="file"]');
-    if (!(fileInput instanceof HTMLInputElement)) {
-      throw new Error("Expected file input");
-    }
-
-    await userEvent.upload(fileInput, [buildPdfFile("statement.pdf")]);
-    const ocrToggle = await screen.findByRole("switch", { name: "Use OCR for attachments" });
-    expect(ocrToggle).not.toBeChecked();
-    expect(await screen.findByText("Preparing pages…")).toBeInTheDocument();
-
-    await userEvent.click(ocrToggle);
-    expect(ocrToggle).toBeChecked();
-    await waitFor(() =>
-      expect(vi.mocked(api.uploadAgentDraftAttachment).mock.calls.map(([payload]) => payload.useOcr)).toEqual([false, true])
-    );
-    expect(await screen.findByText("Parsing…")).toBeInTheDocument();
-
-    await userEvent.click(ocrToggle);
-    expect(ocrToggle).not.toBeChecked();
-    await waitFor(() =>
-      expect(vi.mocked(api.uploadAgentDraftAttachment).mock.calls.map(([payload]) => payload.useOcr)).toEqual([false, true, false])
-    );
-    await waitFor(() => expect(screen.queryByText("Parsing…")).not.toBeInTheDocument());
   });
 
   it("starts one fresh thread per file in Bulk mode without reusing the selected thread", async () => {
@@ -598,7 +516,7 @@ describe("AgentPanel", () => {
           content: "Review this statement",
           files: [],
           attachmentIds: [uploadedAttachmentIdForFileName("statement-january.pdf")],
-          attachmentsUseOcr: true,
+          attachmentsUseOcr: false,
           modelName: "gpt-test",
           approvalPolicy: "default"
         }
@@ -609,7 +527,7 @@ describe("AgentPanel", () => {
           content: "Review this statement",
           files: [],
           attachmentIds: [uploadedAttachmentIdForFileName("statement-february.pdf")],
-          attachmentsUseOcr: true,
+          attachmentsUseOcr: false,
           modelName: "gpt-test",
           approvalPolicy: "default"
         }

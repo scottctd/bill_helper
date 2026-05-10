@@ -24,6 +24,7 @@ export const RESET_RUNTIME_SETTINGS_PAYLOAD: RuntimeSettingsUpdatePayload = {
   agent_max_steps: null,
   agent_bulk_max_concurrent_threads: null,
   agent_max_images_per_message: null,
+  agent_max_pdf_pages: null,
   agent_max_image_size_bytes: null,
   agent_retry_max_attempts: null,
   agent_retry_initial_wait_seconds: null,
@@ -108,6 +109,7 @@ export function buildSettingsFormState(data: RuntimeSettings): SettingsFormState
     agent_max_steps: String(data.agent_max_steps),
     agent_bulk_max_concurrent_threads: String(data.agent_bulk_max_concurrent_threads),
     agent_max_images_per_message: String(data.agent_max_images_per_message),
+    agent_max_pdf_pages: String(data.agent_max_pdf_pages),
     agent_max_image_size_mb: bytesToMegabytes(data.agent_max_image_size_bytes),
     agent_retry_max_attempts: String(data.agent_retry_max_attempts),
     agent_retry_initial_wait_seconds: String(data.agent_retry_initial_wait_seconds),
@@ -141,6 +143,10 @@ export function buildSettingsUpdatePayload(formState: SettingsFormState): Runtim
     formState.agent_max_images_per_message,
     "Max attachments per message"
   );
+  const nextAgentMaxPdfPages = parsePositiveInteger(formState.agent_max_pdf_pages, "Max PDF pages");
+  if (nextAgentMaxPdfPages > 100) {
+    throw new Error("Max PDF pages must be 100 or less.");
+  }
   const nextAgentRetryMaxAttempts = parsePositiveInteger(formState.agent_retry_max_attempts, "Retry max attempts");
   const nextAgentRetryInitialWaitSeconds = parseNonNegativeNumber(
     formState.agent_retry_initial_wait_seconds,
@@ -185,6 +191,7 @@ export function buildSettingsUpdatePayload(formState: SettingsFormState): Runtim
     agent_max_steps: nextAgentMaxSteps,
     agent_bulk_max_concurrent_threads: nextAgentBulkMaxConcurrentThreads,
     agent_max_images_per_message: nextAgentMaxImagesPerMessage,
+    agent_max_pdf_pages: nextAgentMaxPdfPages,
     agent_max_image_size_bytes: nextAgentMaxImageSizeBytes,
     agent_retry_max_attempts: nextAgentRetryMaxAttempts,
     agent_retry_initial_wait_seconds: nextAgentRetryInitialWaitSeconds,

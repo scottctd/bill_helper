@@ -12,6 +12,7 @@ import { getAgentToolCall } from "../../../lib/api";
 import { invalidateAgentThreadData } from "../../../lib/queryInvalidation";
 import type { AgentRun, AgentRunEvent, AgentStreamEvent, AgentThreadDetail, AgentToolCall } from "../../../lib/types";
 import { mergeRunToolCalls, runsWithoutAssistantMessage } from "../activity";
+import { patchAgentThreadCachedRunUsage } from "../threadDetailCache";
 import { extractRenameThreadTitle } from "./helpers";
 import type { PendingAssistantMessage } from "./types";
 
@@ -286,6 +287,9 @@ export function useAgentComposerStreamState({
         }
         if (event.event.event_type === "run_failed" && event.event.message) {
           setActionError(event.event.message);
+        }
+        if (event.run_usage) {
+          patchAgentThreadCachedRunUsage(queryClient, threadId, event.run_id, event.run_usage);
         }
         return;
       }
