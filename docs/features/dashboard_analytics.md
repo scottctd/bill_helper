@@ -57,6 +57,7 @@ Default groups other than `untagged` can have their rules edited, but their name
    - daily expense series by filter group
    - monthly expense trend by filter group
    - from/to/tag breakdowns
+   - income-by-source breakdown (`income_by_from[]`)
    - weekday distribution
    - largest expenses with matching filter-group keys
    - current-month projection plus projected filter-group totals
@@ -74,6 +75,11 @@ Default groups other than `untagged` can have their rules edited, but their name
   - timeline only lists months and years that have visible expense activity in the dashboard currency
   - monthly mode: KPI cards, an `Income vs Expense Trend` bar chart that always uses the last six calendar months ending at the **real** current month (`YYYY-MM` from the client clock), independent of the timeline selection; stacked income segments (salary, other income) plus stacked expense segments by filter group (bottom to top: fixed, transfers, one-time, day-to-day, untagged as applicable; tooltip shows segment name and amount on hover); a two-part legend lists income segments then expense segments in the same stack order as the bars; a promoted builtin-only grouped spend breakdown card that keeps builtin groups in the same sequence as the main trend view, pairs each one with per-group tag facets, and labels both ranked bars and facet bars as sqrt-scaled; refined small-multiple trend cards for expense groups; and a projection card with solid spent bars plus translucent projected extensions on a labeled sqrt scale
   - yearly mode: yearly KPI cards, monthly income vs expense bars for the selected year with stacked income segments (salary, other income) and stacked filter-group expense segments, the same income/expense legend under the chart, the same promoted builtin-only grouped spend breakdown card using year-aggregated totals/tag sums with sqrt-scaled ranked and facet bars, and refined small-multiple trend cards fed by the selected year's monthly points
+- `Income` tab:
+  - KPI cards for total income, salary, other income, and net
+  - horizontal bar chart for `income_by_from[]` (payer/source breakdown)
+  - month mode uses the selected month payload
+  - year mode aggregates `income_by_from[]` across the selected year and shows a scope note
 - `Daily Expense` tab:
   - monthly mode: average/median day-to-day spend metrics and a day-to-day daily bar chart with mean/median reference lines
   - yearly mode: average/median expense-month metrics and stacked monthly filter-group bars for the selected year

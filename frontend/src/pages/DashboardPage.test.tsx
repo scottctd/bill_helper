@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -201,6 +201,10 @@ function buildDashboard(month: string): Dashboard {
       { label: "groceries", total_minor: 8_000, share: 0.25 },
       { label: "rent", total_minor: 16_000, share: 0.5 }
     ],
+    income_by_from: [
+      { label: "Employer", total_minor: 48_000, share: 0.87 },
+      { label: "Interest", total_minor: 7_000, share: 0.13 }
+    ],
     weekday_spending: [
       { weekday: "Mon", total_minor: 5_000 },
       { weekday: "Tue", total_minor: 4_500 }
@@ -260,6 +264,7 @@ describe("DashboardPage", () => {
   it("promotes the overview charts and keeps breakdown month table under the renamed tabs", async () => {
     renderDashboardPage();
 
+    expect(await screen.findByRole("tab", { name: "Income" })).toBeInTheDocument();
     expect(await screen.findByRole("tab", { name: "Daily Expense" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Experimental MiMo" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Experimental Codex" })).not.toBeInTheDocument();
@@ -272,5 +277,16 @@ describe("DashboardPage", () => {
 
     expect(await screen.findByText("Monthly Spend by Filter Group")).toBeInTheDocument();
     expect(screen.getByText("Spending by Tags")).toBeInTheDocument();
+  });
+
+  it("renders the income tab with source breakdown chart", async () => {
+    renderDashboardPage();
+
+    await userEvent.click(await screen.findByRole("tab", { name: "Income" }));
+
+    const panel = await screen.findByRole("tabpanel");
+    expect(within(panel).getByText("Income by Source")).toBeInTheDocument();
+    expect(within(panel).getByText("Salary")).toBeInTheDocument();
+    expect(within(panel).getByText("Other income")).toBeInTheDocument();
   });
 });

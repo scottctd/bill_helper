@@ -328,6 +328,7 @@ def test_dashboard_and_review_endpoints_use_existing_backend_routes():
                     "spending_by_from": [],
                     "spending_by_to": [],
                     "spending_by_tag": [],
+                    "income_by_from": [],
                     "weekday_spending": [],
                     "largest_expenses": [],
                     "projection": {

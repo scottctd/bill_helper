@@ -585,6 +585,7 @@ class DashboardRead(BaseModel):
     spending_by_from: list[DashboardBreakdownItem]
     spending_by_to: list[DashboardBreakdownItem]
     spending_by_tag: list[DashboardBreakdownItem]
+    income_by_from: list[DashboardBreakdownItem]
     weekday_spending: list[DashboardWeekdaySpendingPoint]
     largest_expenses: list[DashboardLargestExpenseItem]
     projection: DashboardProjectionRead

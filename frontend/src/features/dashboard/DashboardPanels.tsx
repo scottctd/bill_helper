@@ -344,6 +344,79 @@ export function DashboardDailyPanel({
   );
 }
 
+type DashboardIncomePanelProps = {
+  viewMode: DashboardViewMode;
+  selectedYear: number;
+  currencyCode: string;
+  incomeByFrom: Dashboard["income_by_from"];
+  totalIncomeMinor: number;
+  salaryTotalMinor: number;
+  otherIncomeTotalMinor: number;
+  netTotalMinor: number;
+  yearlyQueriesLoading: boolean;
+};
+
+export function DashboardIncomePanel({
+  viewMode,
+  selectedYear,
+  currencyCode,
+  incomeByFrom,
+  totalIncomeMinor,
+  salaryTotalMinor,
+  otherIncomeTotalMinor,
+  netTotalMinor,
+  yearlyQueriesLoading
+}: DashboardIncomePanelProps) {
+  return (
+    <section className="stack-lg" role="tabpanel" id="dashboard-panel-income" aria-labelledby="dashboard-tab-income">
+      {viewMode === "year" ? (
+        <div className="dashboard-scope-note">
+          Income breakdown reflects the full <strong>{selectedYear}</strong> year.
+        </div>
+      ) : null}
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatBlock
+          label={viewMode === "year" ? `${selectedYear} income` : "Income"}
+          value={formatMinor(totalIncomeMinor, currencyCode)}
+          tone="success"
+        />
+        <StatBlock label="Salary" value={formatMinor(salaryTotalMinor, currencyCode)} tone="success" />
+        <StatBlock label="Other income" value={formatMinor(otherIncomeTotalMinor, currencyCode)} tone="success" />
+        <StatBlock
+          label={viewMode === "year" ? `${selectedYear} net` : "Net"}
+          value={formatMinor(netTotalMinor, currencyCode)}
+        />
+      </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Income by Source</CardTitle>
+        </CardHeader>
+        <CardContent className="h-80 min-w-0">
+          {viewMode === "year" && yearlyQueriesLoading ? (
+            <p className="muted text-sm">Loading yearly income breakdown...</p>
+          ) : incomeByFrom.length === 0 ? (
+            <p className="muted">No source breakdown yet.</p>
+          ) : (
+            <DashboardChartContainer>
+              {({ width, height }) => (
+                <BarChart width={width} height={height} data={incomeByFrom} layout="vertical" margin={{ left: 24 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
+                  <XAxis type="number" tickFormatter={axisTick} />
+                  <YAxis dataKey="label" type="category" width={140} />
+                  <Tooltip formatter={(value) => tooltipAmount(currencyCode, value)} />
+                  <Bar dataKey="total_minor" name="Total" fill={CHART_COLORS.income} radius={[0, 6, 6, 0]} />
+                </BarChart>
+              )}
+            </DashboardChartContainer>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 type DashboardBreakdownsPanelProps = {
   viewMode: DashboardViewMode;
   month: string;

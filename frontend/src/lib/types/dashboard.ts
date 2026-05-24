@@ -99,6 +99,7 @@ export interface Dashboard {
   spending_by_from: DashboardBreakdownItem[];
   spending_by_to: DashboardBreakdownItem[];
   spending_by_tag: DashboardBreakdownItem[];
+  income_by_from: DashboardBreakdownItem[];
   weekday_spending: DashboardWeekdaySpendingPoint[];
   largest_expenses: DashboardLargestExpenseItem[];
   projection: DashboardProjection;

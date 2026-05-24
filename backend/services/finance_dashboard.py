@@ -624,7 +624,9 @@ def build_dashboard_analytics(
     income_entries = [entry for entry in month_entries if entry.kind == EntryKind.INCOME]
     income_total_minor = sum(entry.amount_minor for entry in income_entries)
     income_filter_group_totals: dict[str, int] = defaultdict(int)
+    income_by_from: dict[str, int] = defaultdict(int)
     for entry in income_entries:
+        income_by_from[_normalize_breakdown_label(entry.from_entity)] += entry.amount_minor
         for key in _matching_filter_group_keys(
             entry=entry,
             filter_groups=active_filter_groups,
@@ -698,6 +700,7 @@ def build_dashboard_analytics(
         "spending_by_from": _build_breakdown_items(rollup.spending_by_from),
         "spending_by_to": _build_breakdown_items(rollup.spending_by_to),
         "spending_by_tag": _build_breakdown_items(rollup.spending_by_tag),
+        "income_by_from": _build_breakdown_items(income_by_from),
         "weekday_spending": weekday_spending,
         "largest_expenses": ranked_expenses[:8],
         "projection": projection,

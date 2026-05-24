@@ -9,9 +9,9 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { formatMinor } from "../../lib/format";
-import type { Dashboard } from "../../lib/types";
+import type { Dashboard, DashboardBreakdownItem } from "../../lib/types";
 
-export type DashboardTab = "overview" | "daily" | "breakdowns" | "insights" | "agent";
+export type DashboardTab = "overview" | "income" | "daily" | "breakdowns" | "insights" | "agent";
 export type DashboardViewMode = "month" | "year";
 
 export const BUILTIN_FILTER_GROUP_ORDER = ["day_to_day", "fixed", "one_time", "transfers", "untagged"] as const;
@@ -77,6 +77,7 @@ export function sortByIncomeTrendOrder<T extends { key: string }>(groups: T[]): 
 
 export const DASHBOARD_TABS: Array<{ id: DashboardTab; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "income", label: "Income" },
   { id: "daily", label: "Daily Expense" },
   { id: "breakdowns", label: "Breakdowns" },
   { id: "insights", label: "Insights" },
@@ -209,6 +210,29 @@ export function formatDayFromDate(dateStr: string): string {
 
 export function filterGroupTotalForMonth(dashboard: Dashboard | undefined, filterGroupKey: string): number {
   return dashboard?.filter_groups.find((group) => group.key === filterGroupKey)?.total_minor ?? 0;
+}
+
+/** Merge monthly breakdown rows by label, recompute shares, and keep the top eight rows. */
+export function mergeBreakdownItems(breakdownSets: DashboardBreakdownItem[][]): DashboardBreakdownItem[] {
+  const totals = new Map<string, number>();
+  for (const items of breakdownSets) {
+    for (const item of items) {
+      totals.set(item.label, (totals.get(item.label) ?? 0) + item.total_minor);
+    }
+  }
+  const grandTotal = [...totals.values()].reduce((sum, value) => sum + value, 0);
+  if (grandTotal <= 0) {
+    return [];
+  }
+
+  return [...totals.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 8)
+    .map(([label, total_minor]) => ({
+      label,
+      total_minor,
+      share: Math.round((total_minor / grandTotal) * 10_000) / 10_000
+    }));
 }
 
 /** Income filter group total from dashboard monthly_trend for a given month. */

@@ -18,6 +18,7 @@ import { AgentCostDashboard } from "../features/dashboard/AgentCostDashboard";
 import {
   DashboardBreakdownsPanel,
   DashboardDailyPanel,
+  DashboardIncomePanel,
   DashboardInsightsPanel,
   DashboardOverviewPanel
 } from "../features/dashboard/DashboardPanels";
@@ -39,8 +40,10 @@ import {
   builtinGroupColor,
   builtinIncomeGroupColor,
   filterGroupNamesByKey,
+  filterGroupTotalForMonth,
   isIncomeFilterGroupKey,
   median,
+  mergeBreakdownItems,
   takeLastTrendMonthPoints,
   pickTimelineMonthForYear,
   shiftMonthKey,
@@ -413,6 +416,22 @@ export function DashboardPage() {
     viewMode === "year"
       ? buildYearlyFilterGroupsWithTagTotals(data.filter_groups, selectedYearMonths, yearlyDashboardsByMonth)
       : data.filter_groups;
+  const incomeByFromItems =
+    viewMode === "year"
+      ? mergeBreakdownItems(
+          selectedYearMonths.map((monthKey) => yearlyDashboardsByMonth.get(monthKey)?.income_by_from ?? [])
+        )
+      : data.income_by_from;
+  const salaryTotalMinor =
+    viewMode === "year"
+      ? sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, "salary")
+      : filterGroupTotalForMonth(data, "salary");
+  const otherIncomeTotalMinor =
+    viewMode === "year"
+      ? sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, "other_income")
+      : filterGroupTotalForMonth(data, "other_income");
+  const incomePanelTotalMinor = viewMode === "year" ? selectedYearIncomeTotalMinor : data.kpis.income_total_minor;
+  const incomePanelNetTotalMinor = viewMode === "year" ? selectedYearNetTotalMinor : data.kpis.net_total_minor;
   return (
     <div className="dashboard-page-layout">
       <div className="stack-lg min-w-0">
@@ -517,6 +536,20 @@ export function DashboardPage() {
             selectedYearIncomeTotalMinor={selectedYearIncomeTotalMinor}
             selectedYearNetTotalMinor={selectedYearNetTotalMinor}
             yearlyPrimaryFilterGroupTotalMinor={yearlyPrimaryFilterGroupTotalMinor}
+          />
+        ) : null}
+
+        {activeTab === "income" ? (
+          <DashboardIncomePanel
+            viewMode={viewMode}
+            selectedYear={selectedYear}
+            currencyCode={data.currency_code}
+            incomeByFrom={incomeByFromItems}
+            totalIncomeMinor={incomePanelTotalMinor}
+            salaryTotalMinor={salaryTotalMinor}
+            otherIncomeTotalMinor={otherIncomeTotalMinor}
+            netTotalMinor={incomePanelNetTotalMinor}
+            yearlyQueriesLoading={yearlyQueriesLoading}
           />
         ) : null}
 

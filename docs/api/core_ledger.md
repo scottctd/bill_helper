@@ -383,6 +383,7 @@ Current sections include:
 - `spending_by_from[]`
 - `spending_by_to[]`
 - `spending_by_tag[]`
+- `income_by_from[]`
 - `weekday_spending[]`
 - `largest_expenses[]`
 - `projection`

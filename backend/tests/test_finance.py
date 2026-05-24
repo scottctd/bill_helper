@@ -328,6 +328,7 @@ def test_dashboard_monthly_aggregations(client):
     assert january["filter_group_totals"]["one_time"] == 500
 
     assert any(item["label"] == "Main Checking" and item["total_minor"] == 1700 for item in payload["spending_by_from"])
+    assert any(item["label"] == "Employer" and item["total_minor"] == 10000 for item in payload["income_by_from"])
     assert any(item["label"] == "Coffee Shop" and item["total_minor"] == 1200 for item in payload["spending_by_to"])
     assert not any(item["label"] == "Travel Card" for item in payload["spending_by_to"])
     assert any(item["label"] == "coffee_snacks" and item["total_minor"] == 1200 for item in payload["spending_by_tag"])
