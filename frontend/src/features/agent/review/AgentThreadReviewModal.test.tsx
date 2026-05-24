@@ -6,6 +6,7 @@ import { getRuntimeSettings, listCurrencies, listEntities, listTags } from "../.
 import { buildChangeItem, buildRun } from "../../../test/factories/agent";
 import { renderWithQueryClient } from "../../../test/renderWithQueryClient";
 import { AgentThreadReviewModal } from "./AgentThreadReviewModal";
+import type { AgentThreadReviewModalProps } from "./modalTypes";
 
 vi.mock("../../../lib/api", () => ({
   listCurrencies: vi.fn(),
@@ -13,6 +14,27 @@ vi.mock("../../../lib/api", () => ({
   listTags: vi.fn(),
   getRuntimeSettings: vi.fn()
 }));
+
+function buildReviewModalProps(overrides: Partial<AgentThreadReviewModalProps> = {}): AgentThreadReviewModalProps {
+  return {
+    open: true,
+    threadId: "thread-1",
+    runs: [],
+    onOpenChange: vi.fn(),
+    onApproveItem: vi.fn(),
+    onRejectItem: vi.fn(),
+    onReopenItem: vi.fn(),
+    onBatchApproveItems: vi.fn().mockResolvedValue({
+      items: [],
+      summary: { succeeded: 0, failed: 0, failedItemIds: [] }
+    }),
+    onBatchRejectItems: vi.fn().mockResolvedValue({
+      items: [],
+      summary: { succeeded: 0, failed: 0, failedItemIds: [] }
+    }),
+    ...overrides
+  };
+}
 
 describe("AgentThreadReviewModal", () => {
   beforeEach(() => {
@@ -132,12 +154,9 @@ describe("AgentThreadReviewModal", () => {
 
     renderWithQueryClient(
       <AgentThreadReviewModal
-        open
-        runs={[pendingRun, resolvedRun]}
-        onOpenChange={() => undefined}
-        onApproveItem={vi.fn()}
-        onRejectItem={vi.fn()}
-        onReopenItem={vi.fn()}
+        {...buildReviewModalProps({
+          runs: [pendingRun, resolvedRun]
+        })}
       />
     );
 
@@ -217,12 +236,10 @@ describe("AgentThreadReviewModal", () => {
 
     renderWithQueryClient(
       <AgentThreadReviewModal
-        open
-        runs={[firstRun]}
-        onOpenChange={() => undefined}
-        onApproveItem={onApproveItem}
-        onRejectItem={vi.fn()}
-        onReopenItem={vi.fn()}
+        {...buildReviewModalProps({
+          runs: [firstRun],
+          onApproveItem
+        })}
       />
     );
 
@@ -257,12 +274,10 @@ describe("AgentThreadReviewModal", () => {
 
     renderWithQueryClient(
       <AgentThreadReviewModal
-        open
-        runs={[run]}
-        onOpenChange={() => undefined}
-        onApproveItem={onApproveItem}
-        onRejectItem={vi.fn()}
-        onReopenItem={vi.fn()}
+        {...buildReviewModalProps({
+          runs: [run],
+          onApproveItem
+        })}
       />
     );
 
@@ -326,12 +341,10 @@ describe("AgentThreadReviewModal", () => {
 
     renderWithQueryClient(
       <AgentThreadReviewModal
-        open
-        runs={[run]}
-        onOpenChange={() => undefined}
-        onApproveItem={onApproveItem}
-        onRejectItem={vi.fn()}
-        onReopenItem={vi.fn()}
+        {...buildReviewModalProps({
+          runs: [run],
+          onApproveItem
+        })}
       />
     );
 
@@ -412,12 +425,9 @@ describe("AgentThreadReviewModal", () => {
 
     renderWithQueryClient(
       <AgentThreadReviewModal
-        open
-        runs={[run]}
-        onOpenChange={() => undefined}
-        onApproveItem={vi.fn()}
-        onRejectItem={vi.fn()}
-        onReopenItem={vi.fn()}
+        {...buildReviewModalProps({
+          runs: [run]
+        })}
       />
     );
 
@@ -456,12 +466,10 @@ describe("AgentThreadReviewModal", () => {
 
     renderWithQueryClient(
       <AgentThreadReviewModal
-        open
-        runs={[run]}
-        onOpenChange={() => undefined}
-        onApproveItem={vi.fn()}
-        onRejectItem={vi.fn()}
-        onReopenItem={onReopenItem}
+        {...buildReviewModalProps({
+          runs: [run],
+          onReopenItem
+        })}
       />
     );
 
@@ -483,6 +491,65 @@ describe("AgentThreadReviewModal", () => {
         }
       })
     );
+  });
+
+  it("uses one batch approve call for Approve All", async () => {
+    const run = buildRun({
+      id: "run-batch",
+      created_at: "2026-03-06T10:00:00Z",
+      change_items: [
+        buildChangeItem({
+          id: "change-1",
+          run_id: "run-batch",
+          change_type: "create_entry",
+          payload_json: {
+            kind: "EXPENSE",
+            date: "2026-03-05",
+            name: "Lunch",
+            amount_minor: 1200,
+            from_entity: "Main Checking",
+            to_entity: "Cafe"
+          }
+        }),
+        buildChangeItem({
+          id: "change-2",
+          run_id: "run-batch",
+          change_type: "create_entry",
+          payload_json: {
+            kind: "EXPENSE",
+            date: "2026-03-05",
+            name: "Coffee",
+            amount_minor: 500,
+            from_entity: "Main Checking",
+            to_entity: "Cafe"
+          }
+        })
+      ]
+    });
+    const onBatchApproveItems = vi.fn().mockResolvedValue({
+      items: run.change_items.map((item) => ({ ...item, status: "APPLIED" as const })),
+      summary: { succeeded: 2, failed: 0, failedItemIds: [] }
+    });
+
+    renderWithQueryClient(
+      <AgentThreadReviewModal
+        {...buildReviewModalProps({
+          runs: [run],
+          onBatchApproveItems
+        })}
+      />
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Approve All" }));
+
+    await waitFor(() => expect(onBatchApproveItems).toHaveBeenCalledTimes(1));
+    expect(onBatchApproveItems).toHaveBeenCalledWith({
+      threadId: "thread-1",
+      items: [
+        { itemId: "change-1", payloadOverride: undefined },
+        { itemId: "change-2", payloadOverride: undefined }
+      ]
+    });
   });
 
   it("serializes account review edits into payload overrides", async () => {
@@ -512,12 +579,10 @@ describe("AgentThreadReviewModal", () => {
 
     renderWithQueryClient(
       <AgentThreadReviewModal
-        open
-        runs={[run]}
-        onOpenChange={() => undefined}
-        onApproveItem={onApproveItem}
-        onRejectItem={vi.fn()}
-        onReopenItem={vi.fn()}
+        {...buildReviewModalProps({
+          runs: [run],
+          onApproveItem
+        })}
       />
     );
 

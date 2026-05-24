@@ -12,6 +12,7 @@ import type {
   AgentDashboard,
   AgentDashboardRangeKey,
   AgentChangeItem,
+  AgentBatchChangeItemReviewResponse,
   AgentRun,
   AgentStreamEvent,
   AgentThread,
@@ -435,4 +436,38 @@ export function reopenAgentChangeItem(payload: {
       payload_override: payload.payload_override
     })
   });
+}
+
+export function batchApproveAgentChangeItems(payload: {
+  threadId: string;
+  note?: string;
+  items?: Array<{ item_id: string; payload_override?: Record<string, unknown> }>;
+}): Promise<AgentBatchChangeItemReviewResponse> {
+  return request<AgentBatchChangeItemReviewResponse>(
+    `/api/v1/agent/threads/${payload.threadId}/change-items/batch-approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        note: payload.note,
+        items: payload.items
+      })
+    }
+  );
+}
+
+export function batchRejectAgentChangeItems(payload: {
+  threadId: string;
+  note?: string;
+  items?: Array<{ item_id: string; payload_override?: Record<string, unknown> }>;
+}): Promise<AgentBatchChangeItemReviewResponse> {
+  return request<AgentBatchChangeItemReviewResponse>(
+    `/api/v1/agent/threads/${payload.threadId}/change-items/batch-reject`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        note: payload.note,
+        items: payload.items
+      })
+    }
+  );
 }

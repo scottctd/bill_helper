@@ -10,6 +10,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   approveAgentChangeItem,
+  batchApproveAgentChangeItems,
+  batchRejectAgentChangeItems,
   createAgentThread,
   deleteAgentThread,
   interruptAgentRun,
@@ -19,7 +21,7 @@ import {
 } from "../../../lib/api";
 import { invalidateAgentThreadData, invalidateEntryReadModels } from "../../../lib/queryInvalidation";
 import { queryKeys } from "../../../lib/queryKeys";
-import type { AgentChangeItem, AgentThreadDetail, AgentThreadSummary } from "../../../lib/types";
+import type { AgentBatchChangeItemReviewResponse, AgentChangeItem, AgentThreadDetail, AgentThreadSummary } from "../../../lib/types";
 
 interface UseAgentThreadActionsArgs {
   selectedThreadId: string;
@@ -172,13 +174,36 @@ export function useAgentThreadActions({
     }
   });
 
+  const invalidateReviewReadModels = useCallback(() => {
+    invalidateAgentThreadData(queryClient, selectedThreadId || undefined);
+    invalidateEntryReadModels(queryClient);
+  }, [queryClient, selectedThreadId]);
+
+  const batchApproveMutation = useMutation({
+    mutationFn: batchApproveAgentChangeItems,
+    onSuccess: () => {
+      invalidateReviewReadModels();
+      setActionError(null);
+    }
+  });
+
+  const batchRejectMutation = useMutation({
+    mutationFn: batchRejectAgentChangeItems,
+    onSuccess: () => {
+      invalidateAgentThreadData(queryClient, selectedThreadId || undefined);
+      setActionError(null);
+    }
+  });
+
   const isMutating =
     createThreadMutation.isPending ||
     deleteThreadMutation.isPending ||
     renameThreadMutation.isPending ||
     approveMutation.isPending ||
     rejectMutation.isPending ||
-    reopenMutation.isPending;
+    reopenMutation.isPending ||
+    batchApproveMutation.isPending ||
+    batchRejectMutation.isPending;
 
   async function ensureThreadId(): Promise<string> {
     if (selectedThreadId) {
@@ -252,11 +277,66 @@ export function useAgentThreadActions({
     }
   }
 
+  function mapBatchReviewResponse(response: AgentBatchChangeItemReviewResponse) {
+    return {
+      items: response.items,
+      summary: {
+        succeeded: response.summary.succeeded,
+        failed: response.summary.failed,
+        failedItemIds: response.summary.failed_item_ids
+      }
+    };
+  }
+
+  async function batchApproveItems(payload: {
+    threadId: string;
+    items: Array<{ itemId: string; payloadOverride?: Record<string, unknown> }>;
+  }) {
+    setActionError(null);
+    try {
+      const response = await batchApproveMutation.mutateAsync({
+        threadId: payload.threadId,
+        items: payload.items.map((item) => ({
+          item_id: item.itemId,
+          payload_override: item.payloadOverride
+        }))
+      });
+      return mapBatchReviewResponse(response);
+    } catch (error) {
+      invalidateReviewReadModels();
+      setActionError((error as Error).message);
+      throw error;
+    }
+  }
+
+  async function batchRejectItems(payload: {
+    threadId: string;
+    items: Array<{ itemId: string; payloadOverride?: Record<string, unknown> }>;
+  }) {
+    setActionError(null);
+    try {
+      const response = await batchRejectMutation.mutateAsync({
+        threadId: payload.threadId,
+        items: payload.items.map((item) => ({
+          item_id: item.itemId,
+          payload_override: item.payloadOverride
+        }))
+      });
+      return mapBatchReviewResponse(response);
+    } catch (error) {
+      invalidateAgentThreadData(queryClient, selectedThreadId || undefined);
+      setActionError((error as Error).message);
+      throw error;
+    }
+  }
+
   return {
     actionError,
     addOptimisticRunningThreadId,
     applyThreadTitleToCaches,
     approveItem,
+    batchApproveItems,
+    batchRejectItems,
     clearOptimisticThreadTitle,
     createThreadMutation,
     deleteThread,

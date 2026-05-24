@@ -175,17 +175,13 @@ class TelegramReviewHandler:
             return
         run = await asyncio.to_thread(self.api_client.get_run, run_id)
         pending_items = [item for item in run.change_items if item.status == AgentChangeStatus.PENDING_REVIEW]
+        await asyncio.to_thread(
+            self.api_client.batch_approve_change_items if action == "approve_all" else self.api_client.batch_reject_change_items,
+            run_id,
+        )
+        refreshed_run = await asyncio.to_thread(self.api_client.get_run, run_id)
         for item in pending_items:
-            try:
-                updated = await asyncio.to_thread(
-                    self.api_client.approve_change_item if action == "approve_all" else self.api_client.reject_change_item,
-                    item.id,
-                )
-            except BillHelperApiError as exc:
-                if exc.status_code != 409:
-                    raise
-                refreshed_run = await asyncio.to_thread(self.api_client.get_run, run_id)
-                updated = _find_change_item(refreshed_run, item.id) or item
+            updated = _find_change_item(refreshed_run, item.id) or item
             message_id = review_run.item_message_ids.get(item.id)
             if message_id is None:
                 continue

@@ -263,6 +263,27 @@ class AgentChangeItemReopenRequest(AgentSchema):
     payload_override: dict[str, Any] | None = None
 
 
+class AgentBatchChangeItemAction(AgentSchema):
+    item_id: str
+    payload_override: dict[str, Any] | None = None
+
+
+class AgentBatchChangeItemReviewRequest(AgentSchema):
+    note: str | None = None
+    items: list[AgentBatchChangeItemAction] | None = None
+
+
+class AgentBatchChangeItemReviewSummary(AgentSchema):
+    succeeded: int
+    failed: int
+    failed_item_ids: list[str] = Field(default_factory=list)
+
+
+class AgentBatchChangeItemReviewResponse(AgentSchema):
+    items: list[AgentChangeItemRead]
+    summary: AgentBatchChangeItemReviewSummary
+
+
 class AgentProposalListQuery(AgentSchema):
     proposal_type: str | None = None
     proposal_status: AgentChangeStatus | None = None

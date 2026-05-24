@@ -121,7 +121,7 @@ Key ownership boundaries:
 - thread review is the only review entry point; per-run timeline cards do not expose their own review CTA
 - entry/tag/entity/group edit-before-approve now uses structured review forms, while delete-group and delete-member proposals remain read-only confirmation cards
 - group add-member review shows the parent group by name and renders entry members as locked full-entry forms; split role stays editable, and pending create-proposal refs remain locked behind dependency chips
-- `Approve All` and `Reject All` are sequential per-item calls
+- `Approve All` and `Reject All` use one batch review request per thread (or run for Telegram) instead of sequential per-item calls
 - entry popup auto-save requires valid required fields
 - entry popup can assign at most one direct group; broader group topology remains managed in the groups workspace
 - group edges are derived only; the UI does not provide manual edge editing

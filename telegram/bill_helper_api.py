@@ -16,6 +16,7 @@ import httpx
 from pydantic import TypeAdapter
 
 from backend.schemas_agent import (
+    AgentBatchChangeItemReviewResponse,
     AgentChangeItemRead,
     AgentRunRead,
     AgentThreadDetailRead,
@@ -147,6 +148,24 @@ class BillHelperApiClient:
             expected_status=200,
         )
         return AgentChangeItemRead.model_validate(payload)
+
+    def batch_approve_change_items(self, run_id: str) -> AgentBatchChangeItemReviewResponse:
+        payload = self._request_json(
+            "POST",
+            f"/agent/runs/{run_id}/change-items/batch-approve",
+            json_body={},
+            expected_status=200,
+        )
+        return AgentBatchChangeItemReviewResponse.model_validate(payload)
+
+    def batch_reject_change_items(self, run_id: str) -> AgentBatchChangeItemReviewResponse:
+        payload = self._request_json(
+            "POST",
+            f"/agent/runs/{run_id}/change-items/batch-reject",
+            json_body={},
+            expected_status=200,
+        )
+        return AgentBatchChangeItemReviewResponse.model_validate(payload)
 
     def get_dashboard(self, month: str | None = None) -> DashboardRead:
         payload = self._request_json("GET", "/dashboard", query_params={"month": month})

@@ -458,6 +458,42 @@ Behavior:
 
 - lookup is owner-scoped through the parent thread
 
+### `POST /agent/threads/{thread_id}/change-items/batch-approve`
+
+Approve and apply many pending proposal items for one thread in a single request. Response: `AgentBatchChangeItemReviewResponse`
+
+Body:
+
+- `note` (optional)
+- `items` (optional list of `{ item_id, payload_override? }`; omit to approve all pending items in the thread)
+
+Response:
+
+- `items`: updated `AgentChangeItemRead` rows touched by the batch
+- `summary`: `{ succeeded, failed, failed_item_ids }`
+
+Behavior:
+
+- owner-scoped through the parent thread
+- sorts pending items in dependency-friendly order and retries in multi-pass waves until no further progress is possible
+- per-item approve semantics match `POST /agent/change-items/{item_id}/approve`, including reviewer `payload_override` support
+- dependency deferrals during a pass are retried later instead of failing the whole batch
+- apply failures mark only the affected item `APPLY_FAILED` and are reported in `summary.failed_item_ids`
+
+### `POST /agent/threads/{thread_id}/change-items/batch-reject`
+
+Reject many pending proposal items for one thread in a single request. Response: `AgentBatchChangeItemReviewResponse`
+
+Body and response shape match batch approve; per-item semantics match `POST /agent/change-items/{item_id}/reject`.
+
+### `POST /agent/runs/{run_id}/change-items/batch-approve`
+
+Run-scoped batch approve. Same request/response contract as the thread batch route, but only pending items belonging to the specified run are eligible.
+
+### `POST /agent/runs/{run_id}/change-items/batch-reject`
+
+Run-scoped batch reject. Same request/response contract as the thread batch reject route, but only pending items belonging to the specified run are eligible.
+
 ### `POST /agent/change-items/{item_id}/reopen`
 
 Move one reviewed item back to `PENDING_REVIEW`. Response: `AgentChangeItemRead`

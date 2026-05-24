@@ -214,11 +214,14 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
     reviewModal: {
       isBusy: actions.isMutating,
       onApproveItem: actions.approveItem,
+      onBatchApproveItems: actions.batchApproveItems,
+      onBatchRejectItems: actions.batchRejectItems,
       onOpenChange: setIsThreadReviewOpen,
       onRejectItem: actions.rejectItem,
       onReopenItem: actions.reopenItem,
       open: isThreadReviewOpen,
-      runs: data.threadQuery.data?.runs ?? []
+      runs: data.threadQuery.data?.runs ?? [],
+      threadId: selectedThreadId
     },
     deleteDialog: {
       confirmLabel: "Delete thread",

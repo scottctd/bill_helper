@@ -23,6 +23,16 @@ from backend.services.agent.reviews.overrides import (
 from backend.services.crud_policy import PolicyViolation
 
 
+def _finalize_change_item_review(db: Session, item: AgentChangeItem, *, commit: bool) -> None:
+    db.add(item)
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    db.refresh(item)
+    db.refresh(item, attribute_names=["review_actions"])
+
+
 def approve_change_item(
     db: Session,
     *,
@@ -30,6 +40,7 @@ def approve_change_item(
     actor: str,
     note: str | None = None,
     payload_override: dict[str, object] | None = None,
+    commit: bool = True,
 ) -> AgentChangeItem | None:
     item = get_change_item_or_none(db, item_id)
     if item is None:
@@ -74,20 +85,14 @@ def approve_change_item(
         reason = str(exc)
         item.review_note = combine_notes(combined_note, f"apply failed: {reason}")
         item.updated_at = utc_now()
-        db.add(item)
-        db.commit()
-        db.refresh(item)
-        db.refresh(item, attribute_names=["review_actions"])
+        _finalize_change_item_review(db, item, commit=commit)
         raise
 
     item.status = AgentChangeStatus.APPLIED
     item.applied_resource_type = resource.resource_type
     item.applied_resource_id = resource.resource_id
     item.updated_at = utc_now()
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    db.refresh(item, attribute_names=["review_actions"])
+    _finalize_change_item_review(db, item, commit=commit)
     return item
 
 
@@ -98,6 +103,7 @@ def reject_change_item(
     actor: str,
     note: str | None = None,
     payload_override: dict[str, object] | None = None,
+    commit: bool = True,
 ) -> AgentChangeItem | None:
     item = get_change_item_or_none(db, item_id)
     if item is None:
@@ -124,10 +130,7 @@ def reject_change_item(
     item.review_note = combined_note
     item.updated_at = utc_now()
     db.add(action)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    db.refresh(item, attribute_names=["review_actions"])
+    _finalize_change_item_review(db, item, commit=commit)
     return item
 
 

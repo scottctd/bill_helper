@@ -138,6 +138,17 @@ export interface AgentChangeItem {
   review_actions: AgentReviewAction[];
 }
 
+export interface AgentBatchChangeItemReviewSummary {
+  succeeded: number;
+  failed: number;
+  failed_item_ids: string[];
+}
+
+export interface AgentBatchChangeItemReviewResponse {
+  items: AgentChangeItem[];
+  summary: AgentBatchChangeItemReviewSummary;
+}
+
 export type AgentApprovalPolicy = "default" | "yolo";
 
 export interface AgentRun {

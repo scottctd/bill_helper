@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from backend.schemas_agent import AgentRunRead
+from backend.schemas_agent import AgentBatchChangeItemReviewResponse, AgentBatchChangeItemReviewSummary, AgentChangeItemRead, AgentRunRead
 from telegram.review_handler import TelegramReviewHandler
 from telegram.state import ChatStateStore
 
@@ -154,6 +154,23 @@ def test_handle_batch_action_updates_items_and_summary(tmp_path):
                     item["status"] = "APPLIED"
             self.run = AgentRunRead.model_validate(payload)
             return next(item for item in self.run.change_items if item.id == item_id)
+
+        def batch_approve_change_items(self, run_id: str) -> AgentBatchChangeItemReviewResponse:
+            payload = self.run.model_dump(mode="json")
+            updated_items: list[AgentChangeItemRead] = []
+            for item in payload["change_items"]:
+                if item["status"] == "PENDING_REVIEW":
+                    item["status"] = "APPLIED"
+                    updated_items.append(AgentChangeItemRead.model_validate(item))
+            self.run = AgentRunRead.model_validate(payload)
+            return AgentBatchChangeItemReviewResponse(
+                items=updated_items,
+                summary=AgentBatchChangeItemReviewSummary(
+                    succeeded=len(updated_items),
+                    failed=0,
+                    failed_item_ids=[],
+                ),
+            )
 
     api_client = ApiClientStub()
     state_store = ChatStateStore(tmp_path / "chat_state.json")

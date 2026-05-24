@@ -58,6 +58,7 @@ When editing this package, import PTB symbols from `telegram.ptb`, not directly 
 - `/dashboard` renders charts in the Telegram transport process with matplotlib instead of calling a backend image endpoint
 - `/topics on` does not create Telegram topics; it only changes routing when Telegram supplies `message_thread_id`, and the first content message in an unseen Telegram topic creates and binds a fresh backend thread
 - review actions support approve/reject and approve-all/reject-all only; reopen and reviewer payload overrides remain web-only
+- approve-all/reject-all call the run-scoped batch review endpoints (`POST /agent/runs/{run_id}/change-items/batch-approve|batch-reject`) instead of looping per-item approve/reject requests
 - attachment support is limited to a single photo or document per message; media-group/album coalescing is not implemented
 - supported documents are image files and PDFs only
 - webhook mode requires `TELEGRAM_WEBHOOK_SECRET`; `python -m telegram.webhook` binds uvicorn to `0.0.0.0:8081`

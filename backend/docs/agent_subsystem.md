@@ -97,7 +97,7 @@
 - `backend/services/agent/benchmark_interface.py`
   - benchmark-facing `run_benchmark_case` contract
 - `backend/services/agent/reviews/`
-  - review-workflow package: `common.py` for change-item record helpers, `dependencies.py` for approval blockers, `overrides.py` for payload-override normalization, `workflow.py` for approve/reject/reopen state transitions, and `auto_approve_run.py` for YOLO post-run auto-approval passes
+  - review-workflow package: `common.py` for change-item record helpers, `dependencies.py` for approval blockers, `overrides.py` for payload-override normalization, `ordering.py` for dependency-friendly review ordering, `workflow.py` for approve/reject/reopen state transitions, `batch_workflow.py` for shared multi-pass batch approve/reject orchestration, and `auto_approve_run.py` for YOLO post-run auto-approval via the batch orchestrator
 - `backend/services/agent/apply/`
   - apply-family package: `common.py` for lookup and applied-reference helpers, `catalog.py` for tag/entity/account mutations, `entries.py` for entry mutations, `groups.py` for group and membership mutations, and `dispatch.py` for change-type routing
 - `backend/services/agent/serializers.py`
@@ -140,6 +140,7 @@
   - external-agent session CRUD plus text/file source attachment HTTP translation for `bh sessions ...`
 - `backend/routers/agent_reviews.py`
   - approve/reject/reopen HTTP translation for review actions
+  - thread/run batch approve/reject routes that delegate to `backend/services/agent/reviews/batch_workflow.py`
 - `backend/routers/agent_attachments.py`
   - draft attachment upload/delete plus attachment file download endpoints
 - `backend/routers/agent_threads.py`
@@ -180,6 +181,10 @@ Endpoints:
 - `GET /api/v1/agent/tool-calls/{tool_call_id}`
 - `POST /api/v1/agent/runs/{run_id}/interrupt`
 - `POST /api/v1/agent/change-items/{item_id}/approve`
+- `POST /api/v1/agent/threads/{thread_id}/change-items/batch-approve`
+- `POST /api/v1/agent/threads/{thread_id}/change-items/batch-reject`
+- `POST /api/v1/agent/runs/{run_id}/change-items/batch-approve`
+- `POST /api/v1/agent/runs/{run_id}/change-items/batch-reject`
 - `POST /api/v1/agent/change-items/{item_id}/reject`
 - `POST /api/v1/agent/change-items/{item_id}/reopen`
 - `GET /api/v1/agent/attachments/{attachment_id}`

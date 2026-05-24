@@ -98,7 +98,7 @@ Supporting modules include:
 - proposal-backed group or entry dependencies show chips only while the referenced create proposal is still unresolved; once that dependency is `APPLIED`, the review surface falls back to the resolved group name and entry snapshot without a dependency banner
 - delete-group and delete-group-member proposals stay confirmation-only in v1
 - non-applied items remain reviewer-editable after rejection or apply failure, so reviewers can revise the payload, move it back to `PENDING_REVIEW`, or approve it directly from the reviewed section; `APPLIED` items stay read-only
-- `Approve All` and `Reject All` remain sequential per-item API workflows and reuse any saved reviewer drafts
+- `Approve All` and `Reject All` call the thread-scoped batch review endpoints once, reuse any saved reviewer drafts via per-item `payload_override`, optimistically clear the pending TOC while the request runs, and invalidate agent/entry read models only after the batch completes
 - pending TOC rows rely on the section grouping instead of repeating a `PENDING_REVIEW` status badge, while resolved rows use compact symbolic status chips for audit context
 - apply failures surface inline on the affected item; local editor validation stays client-side and does not synthesize `APPLY_FAILED`
 

@@ -24,10 +24,13 @@ import { useAgentReviewEditorResources } from "./useAgentReviewEditorResources";
 
 export function useAgentThreadReviewController({
   open,
+  threadId,
   runs,
   onApproveItem,
   onRejectItem,
   onReopenItem,
+  onBatchApproveItems,
+  onBatchRejectItems,
   isBusy = false
 }: AgentThreadReviewModalProps) {
   const [items, setItems] = useState<ThreadReviewItem[]>([]);
@@ -70,9 +73,12 @@ export function useAgentThreadReviewController({
       clearReviewDrafts();
       return;
     }
+    if (isBatchRunning) {
+      return;
+    }
 
     setItems(flattenedItems);
-  }, [clearReviewDrafts, flattenedItems, open]);
+  }, [clearReviewDrafts, flattenedItems, isBatchRunning, open]);
 
   useEffect(() => {
     if (!open) {
@@ -216,8 +222,23 @@ export function useAgentThreadReviewController({
   }
 
   async function handleBatchAction(action: "approve" | "reject") {
-    if (isBusy || isBatchRunning || pendingItems.length === 0) {
+    if (isBusy || isBatchRunning || pendingItems.length === 0 || !threadId) {
       return;
+    }
+
+    const batchItems: Array<{ itemId: string; payloadOverride?: Record<string, unknown> }> = [];
+    for (const reviewItem of pendingItems) {
+      const currentReviewItem = items.find((item) => item.item.id === reviewItem.item.id) ?? reviewItem;
+      const overrideState = resolveOverrideState(currentReviewItem);
+      if (overrideState.validationError) {
+        setActionError(overrideState.validationError);
+        setActiveItemId(currentReviewItem.item.id);
+        return;
+      }
+      batchItems.push({
+        itemId: currentReviewItem.item.id,
+        payloadOverride: overrideState.hasChanges ? overrideState.payloadOverride : undefined
+      });
     }
 
     setActionError(null);
@@ -225,36 +246,53 @@ export function useAgentThreadReviewController({
     setBatchSummary(null);
     setIsBatchRunning(true);
 
-    let succeeded = 0;
-    let failed = 0;
-    const failedItemIds: string[] = [];
+    const optimisticStatus = action === "approve" ? "APPLIED" : "REJECTED";
+    const pendingIds = new Set(batchItems.map((item) => item.itemId));
+    setItems((current) =>
+      current.map((reviewItem) =>
+        pendingIds.has(reviewItem.item.id)
+          ? {
+              ...reviewItem,
+              item: {
+                ...reviewItem.item,
+                status: optimisticStatus
+              }
+            }
+          : reviewItem
+      )
+    );
 
-    for (const reviewItem of pendingItems) {
-      const currentReviewItem = items.find((item) => item.item.id === reviewItem.item.id) ?? reviewItem;
-      const result = action === "approve" ? await approveReviewItem(currentReviewItem) : await rejectReviewItem(currentReviewItem);
-      if (result) {
-        succeeded += 1;
-        continue;
+    try {
+      const result =
+        action === "approve"
+          ? await onBatchApproveItems({ threadId, items: batchItems })
+          : await onBatchRejectItems({ threadId, items: batchItems });
+
+      for (const updated of result.items) {
+        mergeUpdatedItem(updated);
       }
-      failed += 1;
-      failedItemIds.push(currentReviewItem.item.id);
+
+      setBatchSummary({
+        action,
+        succeeded: result.summary.succeeded,
+        failed: result.summary.failed,
+        failedItemIds: result.summary.failedItemIds
+      });
+
+      if (result.summary.failedItemIds.length > 0) {
+        setActiveItemId(result.summary.failedItemIds[0]);
+        setActionError(
+          `${result.summary.failed} proposal${result.summary.failed === 1 ? "" : "s"} failed during ${action === "approve" ? "approval" : "rejection"}.`
+        );
+        return;
+      }
+
+      setActionNotice(`${action === "approve" ? "Approved" : "Rejected"} ${result.summary.succeeded} proposal${result.summary.succeeded === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setActionError(resolveErrorMessage(error));
+    } finally {
+      setIsBatchRunning(false);
     }
-
-    setIsBatchRunning(false);
-    setBatchSummary({
-      action,
-      succeeded,
-      failed,
-      failedItemIds
-    });
-
-    if (failedItemIds.length > 0) {
-      setActiveItemId(failedItemIds[0]);
-      setActionError(`${failed} proposal${failed === 1 ? "" : "s"} failed during ${action === "approve" ? "approval" : "rejection"}.`);
-      return;
-    }
-
-    setActionNotice(`${action === "approve" ? "Approved" : "Rejected"} ${succeeded} proposal${succeeded === 1 ? "" : "s"}.`);
   }
 
   const handleKeyboardShortcut = useEffectEvent((event: KeyboardEvent) => {
