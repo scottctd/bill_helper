@@ -5,7 +5,7 @@
  * - Outputs: hooks and state helpers exported by `useAgentComposerActions`.
  * - Side effects: client-side state coordination and query wiring.
  */
-import { type Dispatch, type FormEvent, type SetStateAction, useEffect, useRef, useState } from "react";
+import { type Dispatch, type FormEvent, type SetStateAction, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useNotifications } from "../../../components/ui/notification-center";
@@ -20,6 +20,7 @@ import type {
   AgentThreadSummary
 } from "../../../lib/types";
 import { sortRunsByCreatedAt } from "../activity";
+import { agentStreamAbortControllers } from "./agentStreamSession";
 import {
   buildThreadSummary,
   deriveThreadTitleFromFilename,
@@ -90,14 +91,6 @@ export function useAgentComposerActions({
   const queryClient = useQueryClient();
   const { notify } = useNotifications();
   const [sendingThreadIds, setSendingThreadIds] = useState<string[]>([]);
-  const sendAbortControllersRef = useRef<Record<string, AbortController>>({});
-
-  useEffect(() => {
-    return () => {
-      Object.values(sendAbortControllersRef.current).forEach((controller) => controller.abort());
-      sendAbortControllersRef.current = {};
-    };
-  }, []);
 
   async function handleSubmitBulkMessages(content: string, attachments: DraftAttachment[]) {
     if (attachments.length === 0) {
@@ -198,7 +191,7 @@ export function useAgentComposerActions({
       threadId = await ensureThreadId();
       const activeThreadId = threadId;
       const sendAbortController = new AbortController();
-      sendAbortControllersRef.current[activeThreadId] = sendAbortController;
+      agentStreamAbortControllers[activeThreadId] = sendAbortController;
       setSendingThreadIds((current) => (current.includes(activeThreadId) ? current : [...current, activeThreadId]));
       addOptimisticRunningThreadId(activeThreadId);
       setThreadStreamHealthy(activeThreadId, true);
@@ -251,7 +244,7 @@ export function useAgentComposerActions({
         signal: sendAbortController.signal,
         onEvent: (streamEvent) => handleAgentStreamEvent(activeThreadId, streamEvent)
       });
-      delete sendAbortControllersRef.current[activeThreadId];
+      delete agentStreamAbortControllers[activeThreadId];
       setThreadStreamHealthy(activeThreadId, false);
       const detail = await getAgentThread(activeThreadId);
       queryClient.setQueryData(queryKeys.agent.thread(activeThreadId), detail);
@@ -263,7 +256,7 @@ export function useAgentComposerActions({
       resetOptimisticRunState(activeThreadId);
     } catch (error) {
       if (threadId) {
-        delete sendAbortControllersRef.current[threadId];
+        delete agentStreamAbortControllers[threadId];
         setThreadStreamHealthy(threadId, false);
       }
       if ((error as Error).name === "AbortError") {
@@ -312,10 +305,10 @@ export function useAgentComposerActions({
     setPendingUserMessage(selectedThreadId, null);
     resetOptimisticRunState(selectedThreadId);
     setSendingThreadIds((current) => current.filter((threadId) => threadId !== selectedThreadId));
-    const abortController = sendAbortControllersRef.current[selectedThreadId];
+    const abortController = agentStreamAbortControllers[selectedThreadId];
     if (abortController) {
       abortController.abort();
-      delete sendAbortControllersRef.current[selectedThreadId];
+      delete agentStreamAbortControllers[selectedThreadId];
     }
     let runIdToInterrupt = activeRunId || activeStreamRunId || null;
     if (!runIdToInterrupt) {

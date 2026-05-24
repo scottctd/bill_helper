@@ -106,3 +106,18 @@ export async function mapWithConcurrency<T, R>(
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
   return results;
 }
+
+export function resolveRunStreamBuffer(
+  runId: string | null | undefined,
+  activeStreamRunId: string | null,
+  activeBuffer: string,
+  buffersByRunId: Record<string, string>
+): string {
+  if (!runId) {
+    return "";
+  }
+  if (runId === activeStreamRunId) {
+    return activeBuffer;
+  }
+  return buffersByRunId[runId] ?? "";
+}

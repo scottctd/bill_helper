@@ -195,7 +195,9 @@ export function useAgentComposerRuntime({
     optimisticToolCallsByRunId,
     pendingRunAttachedToOptimisticMessage,
     resetOptimisticRunState,
-    shouldShowOptimisticAssistantBubble
+    shouldShowOptimisticAssistantBubble,
+    streamedReasoningTextByRunId,
+    streamedTextByRunId
   } = streamState;
   const actions = useAgentComposerActions({
     activeRunId,
@@ -428,6 +430,8 @@ export function useAgentComposerRuntime({
       pendingUserMessage,
       scrollToBottom,
       shouldShowOptimisticAssistantBubble,
+      streamedReasoningTextByRunId,
+      streamedTextByRunId,
       timelineScrollRef
     }
   };

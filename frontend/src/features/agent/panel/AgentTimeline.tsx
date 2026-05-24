@@ -27,6 +27,8 @@ import { AgentMessageAttachmentImage } from "./AgentMessageAttachmentImage";
 import { AgentMessageAttachmentPdf } from "./AgentMessageAttachmentPdf";
 import { openAttachmentInNewTab } from "./attachmentBrowserOpen";
 import { prettyDateTime } from "./format";
+import { resolveRunStreamBuffer } from "./helpers";
+import { agentStreamSession } from "./agentStreamSession";
 import type { PendingAssistantMessage, PendingUserMessage } from "./types";
 
 export interface AgentTimelineProps {
@@ -45,6 +47,8 @@ export interface AgentTimelineProps {
   activeStreamRunId: string | null;
   activeStreamReasoningText: string;
   activeStreamText: string;
+  streamedReasoningTextByRunId: Record<string, string>;
+  streamedTextByRunId: Record<string, string>;
   optimisticRunEventsByRunId: Record<string, AgentRunEvent[]>;
   optimisticToolCallsByRunId: Record<string, AgentToolCall[]>;
   activeOptimisticEvents: AgentRunEvent[];
@@ -54,6 +58,13 @@ export interface AgentTimelineProps {
   hydratingToolCallIds: ReadonlySet<string>;
   isAtBottom: boolean;
   scrollToBottom: () => void;
+}
+
+function resolveReasoningSegmentStartedAt(runId: string | null | undefined): number | undefined {
+  if (!runId) {
+    return undefined;
+  }
+  return agentStreamSession.reasoningSegmentStartedAtByRunId[runId];
 }
 
 function AgentTimelineComponent(props: AgentTimelineProps) {
@@ -73,6 +84,8 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     activeStreamRunId,
     activeStreamReasoningText,
     activeStreamText,
+    streamedReasoningTextByRunId = {},
+    streamedTextByRunId = {},
     optimisticRunEventsByRunId = {},
     optimisticToolCallsByRunId = {},
     activeOptimisticEvents = [],
@@ -239,15 +252,29 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
             const renderedContent = message.content_markdown;
             const messageRuns = isAssistant ? runsByAssistantMessageId.get(message.id) ?? [] : [];
             const userMessageRuns = isUser ? pendingAssistantRunsByUserMessageId.get(message.id) ?? [] : [];
-            const streamRunForMessage =
-              isAssistant && activeStreamRunId
-                ? messageRuns.find((run) => run.id === activeStreamRunId)
-                : undefined;
+            const streamRunForMessage = isAssistant
+              ? (activeStreamRunId
+                  ? messageRuns.find((run) => run.id === activeStreamRunId)
+                  : undefined) ?? messageRuns.find((run) => run.status === "running")
+              : undefined;
             const isLiveAssistantStream = Boolean(
               streamRunForMessage && streamRunForMessage.status === "running"
             );
+            const liveStreamRunId = streamRunForMessage?.id ?? null;
+            const liveStreamReasoningText = resolveRunStreamBuffer(
+              liveStreamRunId,
+              activeStreamRunId,
+              activeStreamReasoningText,
+              streamedReasoningTextByRunId
+            );
+            const liveStreamText = resolveRunStreamBuffer(
+              liveStreamRunId,
+              activeStreamRunId,
+              activeStreamText,
+              streamedTextByRunId
+            );
             const streamedAssistantMarkdown =
-              isLiveAssistantStream && activeStreamText.length > 0 ? activeStreamText : null;
+              isLiveAssistantStream && liveStreamText.length > 0 ? liveStreamText : null;
             const assistantDisplayMarkdown = streamedAssistantMarkdown ?? renderedContent;
 
             return (
@@ -280,7 +307,10 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                           onInspectActivity={detachFromBottom}
                           onHydrateToolCall={onHydrateToolCall}
                           hydratingToolCallIds={hydratingToolCallIds}
-                          streamingReasoningText={isLiveAssistantStream ? activeStreamReasoningText : undefined}
+                          streamingReasoningText={isLiveAssistantStream ? liveStreamReasoningText : undefined}
+                          streamingReasoningStartedAt={
+                            isLiveAssistantStream ? resolveReasoningSegmentStartedAt(liveStreamRunId) : undefined
+                          }
                         />
                       ) : null}
 
@@ -346,6 +376,13 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                             onInspectActivity={detachFromBottom}
                             onHydrateToolCall={onHydrateToolCall}
                             hydratingToolCallIds={hydratingToolCallIds}
+                            streamingReasoningText={resolveRunStreamBuffer(
+                              run.id,
+                              activeStreamRunId,
+                              activeStreamReasoningText,
+                              streamedReasoningTextByRunId
+                            )}
+                            streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(run.id)}
                           />
                         </article>
                       );
@@ -388,6 +425,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                   optimisticEvents={activeOptimisticEvents}
                   optimisticToolCalls={activeOptimisticToolCalls}
                   streamingReasoningText={activeStreamReasoningText}
+                  streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
                 />
               ) : activeOptimisticEvents.length > 0 || activeStreamReasoningText.length > 0 || activeStreamText.length > 0 ? (
                 <PendingAssistantActivityBlock
@@ -397,6 +435,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                   onHydrateToolCall={onHydrateToolCall}
                   hydratingToolCallIds={hydratingToolCallIds}
                   streamingReasoningText={activeStreamReasoningText}
+                  streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
                 />
               ) : null}
               {activeStreamText.length > 0 ? (
@@ -419,13 +458,22 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
             const alreadyAnchoredToUserMessage = Boolean(
               (messages ?? []).some((message) => message.id === run.user_message_id)
             );
+            const isLivePendingRun = run.status === "running";
+            const pendingRunStreamReasoning = isLivePendingRun
+              ? resolveRunStreamBuffer(
+                  run.id,
+                  activeStreamRunId,
+                  activeStreamReasoningText,
+                  streamedReasoningTextByRunId
+                )
+              : "";
             if (attachedToOptimisticMessage) {
               return null;
             }
             if (alreadyAnchoredToUserMessage) {
               return null;
             }
-            if (!hasRenderableRunCard(run, optimisticEvents)) {
+            if (!hasRenderableRunCard(run, optimisticEvents) && !isLivePendingRun && pendingRunStreamReasoning.length === 0) {
               return null;
             }
             return (
@@ -433,7 +481,8 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                 key={`pending-run-${run.id}`}
                 className={messageClassName({
                   isAssistant: true,
-                  isActivity: true
+                  isActivity: true,
+                  isStreaming: isLivePendingRun
                 })}
               >
                 <header className="agent-message-header agent-message-meta-only">
@@ -446,6 +495,10 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                   onInspectActivity={detachFromBottom}
                   onHydrateToolCall={onHydrateToolCall}
                   hydratingToolCallIds={hydratingToolCallIds}
+                  streamingReasoningText={
+                    pendingRunStreamReasoning.length > 0 ? pendingRunStreamReasoning : undefined
+                  }
+                  streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(run.id)}
                 />
               </article>
             );

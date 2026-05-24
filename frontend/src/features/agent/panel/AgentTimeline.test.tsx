@@ -72,6 +72,8 @@ function renderTimeline(
     activeStreamRunId: null,
     activeStreamReasoningText: "",
     activeStreamText: "",
+    streamedReasoningTextByRunId: {},
+    streamedTextByRunId: {},
     optimisticRunEventsByRunId: {},
     optimisticToolCallsByRunId: {},
     activeOptimisticEvents: [],
@@ -138,6 +140,10 @@ describe("AgentTimeline", () => {
       activeStreamRunId: null,
       activeStreamReasoningText: "",
       activeStreamText: "",
+      getStreamingReasoningText: () => "",
+      getStreamingText: () => "",
+      streamedReasoningTextByRunId: {},
+      streamedTextByRunId: {},
       optimisticRunEventsByRunId: {},
       optimisticToolCallsByRunId: {},
       activeOptimisticEvents: [],
@@ -514,5 +520,48 @@ describe("AgentTimeline", () => {
     );
     expect(document.querySelector("article.agent-message-streaming")).toHaveClass("agent-message-assistant");
     expect(document.querySelector("article.agent-message-streaming")).not.toHaveClass("agent-message-user");
+  });
+
+  it("streams reasoning on a persisted assistant message when the run is still running", () => {
+    const assistantMessage = buildMessage({
+      id: "assistant-1",
+      role: "assistant",
+      content_markdown: ""
+    });
+    const run = buildRun({
+      id: "run-persisted",
+      status: "running",
+      assistant_message_id: "assistant-1",
+      events: []
+    });
+
+    renderTimeline({
+      messages: [assistantMessage],
+      runsByAssistantMessageId: new Map([[assistantMessage.id, [run]]]),
+      activeStreamRunId: null,
+      streamedReasoningTextByRunId: { "run-persisted": "Checking entities before proposing changes." },
+      getStreamingReasoningText: (runId) =>
+        runId === "run-persisted" ? "Checking entities before proposing changes." : ""
+    });
+
+    expect(screen.getByText("Checking entities before proposing changes.")).toBeInTheDocument();
+  });
+
+  it("streams reasoning on pending run cards while buffers are live", () => {
+    const run = buildRun({
+      id: "run-pending",
+      status: "running",
+      assistant_message_id: null,
+      events: [buildRunEvent({ id: "event-1", sequence_index: 1, event_type: "run_started" })]
+    });
+
+    renderTimeline({
+      pendingAssistantRuns: [run],
+      streamedReasoningTextByRunId: { "run-pending": "Still thinking through the next step." },
+      getStreamingReasoningText: (runId) =>
+        runId === "run-pending" ? "Still thinking through the next step." : ""
+    });
+
+    expect(screen.getByText("Still thinking through the next step.")).toBeInTheDocument();
   });
 });

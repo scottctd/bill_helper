@@ -170,6 +170,8 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
       scrollToBottom: runtime.timeline.scrollToBottom,
       selectedThreadId,
       shouldShowOptimisticAssistantBubble: runtime.timeline.shouldShowOptimisticAssistantBubble,
+      streamedReasoningTextByRunId: runtime.timeline.streamedReasoningTextByRunId,
+      streamedTextByRunId: runtime.timeline.streamedTextByRunId,
       timelineScrollRef: runtime.timeline.timelineScrollRef
     },
     composer: {
