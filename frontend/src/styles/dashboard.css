@@ -123,4 +123,36 @@
   .dashboard-delta-flat {
     @apply text-muted-foreground;
   }
+
+  .dashboard-skeleton-block {
+    @apply animate-pulse rounded-md bg-muted/60;
+  }
+
+  .dashboard-skeleton-title {
+    @apply h-6 w-56;
+  }
+
+  .dashboard-skeleton-chart {
+    @apply w-full rounded-lg;
+  }
+
+  .dashboard-skeleton-control {
+    @apply h-10 w-full;
+  }
+
+  .dashboard-skeleton-timeline {
+    @apply box-border flex h-10 min-h-10 items-center gap-1.5 overflow-hidden rounded-md border border-input bg-muted/30 px-1;
+  }
+
+  .dashboard-skeleton-chip {
+    @apply h-8 w-14 shrink-0 rounded-md;
+  }
+
+  .dashboard-skeleton-stat {
+    @apply h-24 w-full rounded-xl;
+  }
+
+  .dashboard-skeleton-card {
+    @apply w-full rounded-xl;
+  }
 }

@@ -48,7 +48,8 @@ export const queryKeys = {
   dashboard: {
     all: ["dashboard"] as const,
     timeline: ["dashboard", "timeline"] as const,
-    month: (month: string) => ["dashboard", month] as const
+    month: (month: string) => ["dashboard", month] as const,
+    batch: (months: string[]) => ["dashboard", "batch", [...months].sort().join(",")] as const
   },
   settings: {
     runtime: ["settings", "runtime"] as const

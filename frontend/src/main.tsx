@@ -15,7 +15,14 @@ import { NotificationProvider } from "./components/ui/notification-center";
 import { AuthProvider } from "./features/auth";
 import "./styles.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1
+    }
+  }
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -13,12 +13,13 @@ from sqlalchemy.orm import Session
 from backend.auth.contracts import RequestPrincipal
 from backend.auth.dependencies import get_current_principal
 from backend.database import get_db
-from backend.schemas_finance import DashboardRead, DashboardTimelineRead
+from backend.schemas_finance import DashboardBatchRead, DashboardRead, DashboardTimelineRead
 from backend.services.finance_dashboard import (
     build_dashboard_read,
     build_dashboard_timeline_read,
     month_window,
 )
+from backend.services.finance_dashboard_batch import build_dashboard_batch_read
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -44,5 +45,19 @@ def get_dashboard_timeline(
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> DashboardTimelineRead:
     payload = build_dashboard_timeline_read(db, principal=principal)
+    db.commit()
+    return payload
+
+
+@router.get("/batch", response_model=DashboardBatchRead)
+def get_dashboard_batch(
+    months: list[str] = Query(..., min_length=1, max_length=24),
+    db: Session = Depends(get_db),
+    principal: RequestPrincipal = Depends(get_current_principal),
+) -> DashboardBatchRead:
+    try:
+        payload = build_dashboard_batch_read(db, months=months, principal=principal)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     db.commit()
     return payload

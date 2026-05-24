@@ -135,11 +135,14 @@
 - yearly mode moves annual trend charts into the active dashboard view instead of hiding them only inside `Insights`
 - uses Recharts with measured containers so charts render only after non-zero dimensions are available
 - dashboard totals and charts exclude internal transfers when both endpoints resolve to account-backed entity roots
-- monthly classification is driven by saved filter groups, including yearly views that fan out to month-scoped dashboard reads for the selected and previous years
+- monthly classification is driven by saved filter groups; year mode loads month-scoped dashboard reads through `GET /api/v1/dashboard/batch` for the selected and previous calendar years instead of fanning out per-month requests on initial page load
+- month view loads only the timeline, the selected month, and (when the Breakdowns tab is active) the previous month for month-over-month comparison; year mode is deferred until the user selects `Year`, with optional prefetch on hover/focus of the year toggle
+- initial dashboard paint uses a progressive skeleton shell (header, toolbar placeholders, stat/chart blocks) instead of a full-page loading gate; the sidebar prefetches the dashboard route chunk plus timeline/current-month queries on hover/focus
+- heavy tabs (`Breakdowns`, `Agent`) are lazy-loaded on first activation
 - the monthly and yearly `Income vs Expense Trend` charts stack income segments and expense filter-group segments (two stacks per month) using a restrained dashboard-specific palette; month view fixes the trend window to the last six months ending at the client’s current calendar month (not the timeline-selected month), and both modes show a grouped legend (Income, then Expense) with swatches in stack order
 - `Overview` replaces the old Sankey with a builtin-only grouped spend card that keeps builtin groups in the same sequence as the main trend view, combines each group with per-group tag facets, and marks both the ranked bars and facet bars as sqrt-scaled; it also adds refined small-multiple trend cards for expense groups
 - the current-month projection area uses stacked horizontal bars: solid spent-so-far segments with translucent projected growth extensions on a labeled sqrt scale
-- `Breakdowns` now includes the month-over-month `Monthly Spend by Filter Group` table instead of leaving that comparison in `Daily Expense`
+- `Breakdowns` uses inner experiment tabs (`Classic`, `Exp 1`–`Exp 5`) to compare filter-group → tag → payment-source drill-down layouts; `Classic` keeps the tag pie, destination/source bars, and month-over-month filter-group table, while experiments consume `filter_groups[].tag_from_breakdowns[]`
 - `Insights` is intentionally reduced to the largest-expenses table only; month mode shows the current month while year mode aggregates the selected year's largest expenses
 
 ## Filters

@@ -377,7 +377,7 @@ Current sections include:
 - `month`
 - `currency_code`
 - `kpis`
-- `filter_groups[]`
+- `filter_groups[]` (each item includes `tag_totals` and expense-only `tag_from_breakdowns[]` with ranked `from_items`)
 - `daily_spending[]`
 - `monthly_trend[]`
 - `spending_by_from[]`
@@ -395,4 +395,19 @@ Behavior:
 - built-in filter groups are provisioned and persisted on first dashboard read
 - totals and reconciliation are principal-scoped
 - analytics exclude internal transfers when both endpoints resolve to account-backed entity roots
+
+### `GET /dashboard/batch`
+
+Query params:
+
+- `months` (repeatable `YYYY-MM`, required, min 1, max 24)
+
+Response: `{ dashboards: DashboardRead[] }`
+
+Behavior:
+
+- returns one `DashboardRead` per requested month, sorted ascending by month key
+- duplicate month keys in the query are ignored
+- invalid month formats return `422`
+- each dashboard payload matches the single-month `GET /dashboard` contract and is principal-scoped
 - `monthly_trend[]` continues to include `income_total_minor` plus per-filter-group expense buckets, which the frontend now renders as stacked expense segments in the trend bar charts

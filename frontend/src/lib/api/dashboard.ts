@@ -16,3 +16,11 @@ export function getDashboard(month: string): Promise<Dashboard> {
 export function getDashboardTimeline(): Promise<DashboardTimeline> {
   return request<DashboardTimeline>("/api/v1/dashboard/timeline");
 }
+
+export function getDashboardBatch(months: string[]): Promise<{ dashboards: Dashboard[] }> {
+  const params = new URLSearchParams();
+  for (const month of months) {
+    params.append("months", month);
+  }
+  return request<{ dashboards: Dashboard[] }>(`/api/v1/dashboard/batch?${params.toString()}`);
+}

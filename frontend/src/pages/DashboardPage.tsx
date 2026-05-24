@@ -6,23 +6,23 @@
  * - Side effects: dashboard data fetching and UI event wiring.
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { Suspense, lazy, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { WorkspaceToolbar } from "../components/layout/WorkspaceToolbar";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { AgentCostDashboard } from "../features/dashboard/AgentCostDashboard";
+import { DashboardPageSkeleton } from "../features/dashboard/DashboardPageSkeleton";
 import {
-  DashboardBreakdownsPanel,
   DashboardDailyPanel,
   DashboardIncomePanel,
   DashboardInsightsPanel,
   DashboardOverviewPanel
 } from "../features/dashboard/DashboardPanels";
 import { DashboardTimelineStrip } from "../features/dashboard/DashboardTimelineStrip";
+import { usePrefetchDashboard } from "../features/dashboard/usePrefetchDashboard";
 import {
   CHART_COLORS,
   DASHBOARD_TABS,
@@ -54,12 +54,26 @@ import {
   sumFilterGroupForMonths,
   tooltipAmount
 } from "../features/dashboard/helpers";
-import { getDashboard, getDashboardTimeline } from "../lib/api";
+import { getDashboard, getDashboardBatch, getDashboardTimeline } from "../lib/api";
 import { currentMonth } from "../lib/format";
 import { queryKeys } from "../lib/queryKeys";
 import type { Dashboard } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+
+const LazyAgentCostDashboard = lazy(async () => {
+  const module = await import("../features/dashboard/AgentCostDashboard");
+  return { default: module.AgentCostDashboard };
+});
+
+const LazyDashboardBreakdownsPanel = lazy(async () => {
+  const module = await import("../features/dashboard/DashboardBreakdownsPanel");
+  return { default: module.DashboardBreakdownsPanel };
+});
+
+function DashboardTabFallback() {
+  return <p className="muted text-sm">Loading tab...</p>;
+}
 
 type IncomeTrendChartProps = {
   data: Array<Record<string, unknown>>;
@@ -155,6 +169,8 @@ function IncomeTrendChart({ data: chartData, trendGroups, incomeTrendGroups, cur
 }
 
 export function DashboardPage() {
+  const queryClient = useQueryClient();
+  const { prefetchYearDashboard } = usePrefetchDashboard();
   const [month, setMonth] = useState(currentMonth());
   const [viewMode, setViewMode] = useState<DashboardViewMode>("month");
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
@@ -169,7 +185,8 @@ export function DashboardPage() {
   });
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard.month(month),
-    queryFn: () => getDashboard(month)
+    queryFn: () => getDashboard(month),
+    staleTime: 60_000
   });
 
   const anchorMonthForTrend = currentMonth();
@@ -188,13 +205,29 @@ export function DashboardPage() {
   const previousYearMonths = buildYearMonthKeys(selectedYear - 1);
   const yearlyMonthKeys = [...previousYearMonths, ...selectedYearMonths];
 
-  const yearlyQueries = useQueries({
-    queries: yearlyMonthKeys.map((monthKey) => ({
-      queryKey: queryKeys.dashboard.month(monthKey),
-      queryFn: () => getDashboard(monthKey),
-      staleTime: 60_000
-    }))
+  const yearBatchQuery = useQuery({
+    queryKey: queryKeys.dashboard.batch(yearlyMonthKeys),
+    queryFn: () => getDashboardBatch(yearlyMonthKeys),
+    staleTime: 60_000,
+    enabled: viewMode === "year"
   });
+
+  const previousMonthKey = shiftMonthKey(month, -1);
+  const previousMonthQuery = useQuery({
+    queryKey: queryKeys.dashboard.month(previousMonthKey),
+    queryFn: () => getDashboard(previousMonthKey),
+    staleTime: 60_000,
+    enabled: viewMode === "month" && activeTab === "breakdowns"
+  });
+
+  useEffect(() => {
+    if (!yearBatchQuery.data) {
+      return;
+    }
+    for (const dashboard of yearBatchQuery.data.dashboards) {
+      queryClient.setQueryData(queryKeys.dashboard.month(dashboard.month), dashboard);
+    }
+  }, [queryClient, yearBatchQuery.data]);
 
   const timelineSelectionKey = viewMode === "month" ? month : String(selectedYear);
   const monthTimelineIndex = timelineMonths.indexOf(month);
@@ -293,7 +326,7 @@ export function DashboardPage() {
   }, [month, timelineMonths, timelineYears, viewMode, yearTimelineIndex]);
 
   const dashboardContentReady =
-    timelineQuery.isSuccess && dashboardQuery.isSuccess && dashboardQuery.data != null;
+    dashboardQuery.isSuccess && dashboardQuery.data != null && timelineQuery.isSuccess;
 
   useEffect(() => {
     if (!dashboardContentReady) {
@@ -324,28 +357,34 @@ export function DashboardPage() {
     };
   }, [dashboardContentReady, timelineSelectionKey, viewMode]);
 
-  if (timelineQuery.isLoading || dashboardQuery.isLoading) {
-    return <p>Loading dashboard...</p>;
+  if (dashboardQuery.isLoading || !dashboardQuery.data) {
+    return (
+      <DashboardPageSkeleton
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        timelineLoading={timelineQuery.isLoading}
+        trendLoading
+        panelLoading
+      />
+    );
   }
 
-  if (timelineQuery.isError) {
-    return <p>Failed to load dashboard timeline: {(timelineQuery.error as Error).message}</p>;
-  }
-
-  if (dashboardQuery.isError || !dashboardQuery.data) {
+  if (dashboardQuery.isError) {
     return <p>Failed to load dashboard: {(dashboardQuery.error as Error).message}</p>;
   }
 
   const data = dashboardQuery.data;
+  const timelineErrorMessage = timelineQuery.isError ? (timelineQuery.error as Error).message : null;
   const yearlyDashboardsByMonth = new Map<string, Dashboard>();
-  yearlyQueries.forEach((query, index) => {
-    if (query.data) {
-      yearlyDashboardsByMonth.set(yearlyMonthKeys[index], query.data);
+  if (viewMode === "year") {
+    for (const dashboard of yearBatchQuery.data?.dashboards ?? []) {
+      yearlyDashboardsByMonth.set(dashboard.month, dashboard);
     }
-  });
+  }
 
-  const yearlyQueriesLoading = yearlyQueries.some((query) => query.isLoading);
-  const yearlyQueryError = yearlyQueries.find((query) => query.isError)?.error as Error | undefined;
+  const yearlyQueriesLoading = viewMode === "year" && yearBatchQuery.isLoading;
+  const yearlyQueryError =
+    viewMode === "year" && yearBatchQuery.isError ? (yearBatchQuery.error as Error) : undefined;
   const dailyChartData = buildDailyChartData(data);
   const monthlyChartData = buildMonthlyChartData(data);
   const yearlyOverviewData = buildYearlyOverviewData(selectedYearMonths, yearlyDashboardsByMonth, data.filter_groups);
@@ -386,7 +425,8 @@ export function DashboardPage() {
   const insightsLargestExpenses =
     viewMode === "year" ? buildYearLargestExpenses(selectedYearMonths, yearlyDashboardsByMonth) : data.largest_expenses;
   const groupNamesByKey = filterGroupNamesByKey(data);
-  const previousMonthDashboard = yearlyDashboardsByMonth.get(shiftMonthKey(month, -1));
+  const previousMonthDashboard =
+    viewMode === "month" ? previousMonthQuery.data : yearlyDashboardsByMonth.get(previousMonthKey);
   const primaryFilterGroup = data.filter_groups.find((group) => group.key === "day_to_day") ?? data.filter_groups[0] ?? null;
   const selectedYearExpenseTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "expense_total_minor");
   const selectedYearIncomeTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "income_total_minor");
@@ -479,22 +519,40 @@ export function DashboardPage() {
                   aria-selected={viewMode === "year"}
                   className={cn("dashboard-view-toggle-button", viewMode === "year" && "dashboard-view-toggle-button-active")}
                   onClick={() => setViewMode("year")}
+                  onMouseEnter={() => prefetchYearDashboard(yearlyMonthKeys)}
+                  onFocus={() => prefetchYearDashboard(yearlyMonthKeys)}
                 >
                   Year
                 </button>
               </div>
             </div>
-            <DashboardTimelineStrip
-              viewMode={viewMode}
-              month={month}
-              selectedYear={selectedYear}
-              timelineMonths={timelineMonths}
-              timelineYears={timelineYears}
-              timelineScrollRef={timelineScrollRef}
-              registerTimelineItem={registerTimelineItem}
-              setTimelineMonth={setTimelineMonth}
-              onKeyDown={handleTimelineKeyDown}
-            />
+            {timelineQuery.isLoading ? (
+              <div className="field dashboard-toolbar-period dashboard-timeline-strip-field">
+                <span>Period</span>
+                <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                  {Array.from({ length: 8 }, (_, index) => (
+                    <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
+                  ))}
+                </div>
+              </div>
+            ) : timelineErrorMessage ? (
+              <div className="field dashboard-toolbar-period dashboard-timeline-strip-field">
+                <span>Period</span>
+                <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
+              </div>
+            ) : (
+              <DashboardTimelineStrip
+                viewMode={viewMode}
+                month={month}
+                selectedYear={selectedYear}
+                timelineMonths={timelineMonths}
+                timelineYears={timelineYears}
+                timelineScrollRef={timelineScrollRef}
+                registerTimelineItem={registerTimelineItem}
+                setTimelineMonth={setTimelineMonth}
+                onKeyDown={handleTimelineKeyDown}
+              />
+            )}
             <div className="field dashboard-toolbar-currency">
               <span>Currency</span>
               <p className="box-border flex h-10 min-h-10 w-full items-center rounded-md border border-input bg-muted/30 px-3 text-sm font-medium leading-none">
@@ -568,12 +626,15 @@ export function DashboardPage() {
         ) : null}
 
         {activeTab === "breakdowns" ? (
-          <DashboardBreakdownsPanel
-            viewMode={viewMode}
-            month={month}
-            data={data}
-            previousMonthDashboard={previousMonthDashboard}
-          />
+          <Suspense fallback={<DashboardTabFallback />}>
+            <LazyDashboardBreakdownsPanel
+              viewMode={viewMode}
+              month={month}
+              data={data}
+              previousMonthDashboard={previousMonthDashboard}
+              previousMonthLoading={viewMode === "month" && previousMonthQuery.isLoading}
+            />
+          </Suspense>
         ) : null}
 
         {activeTab === "insights" ? (
@@ -587,7 +648,11 @@ export function DashboardPage() {
           />
         ) : null}
 
-        {activeTab === "agent" ? <AgentCostDashboard /> : null}
+        {activeTab === "agent" ? (
+          <Suspense fallback={<DashboardTabFallback />}>
+            <LazyAgentCostDashboard />
+          </Suspense>
+        ) : null}
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { NavLink } from "react-router-dom";
 import { Bot, Building2, CreditCard, FolderKanban, Home, Layers3, Network, PanelLeft, PanelLeftClose, Settings2, Shield, SlidersHorizontal } from "lucide-react";
 
 import { AuthSessionCard, useAuth } from "../features/auth";
+import { usePrefetchDashboard } from "../features/dashboard/usePrefetchDashboard";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 
@@ -34,6 +35,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, width, onToggle }: SidebarProps) {
   const auth = useAuth();
+  const { prefetchCoreDashboard } = usePrefetchDashboard();
   const sidebarStyle = (!collapsed ? { "--sidebar-width": `${width}px` } : undefined) as CSSProperties | undefined;
 
   return (
@@ -62,6 +64,8 @@ export function Sidebar({ collapsed, width, onToggle }: SidebarProps) {
               end={item.to === "/"}
               className={({ isActive }) => cn("sidebar-link", isActive && "sidebar-link-active")}
               title={collapsed ? item.label : undefined}
+              onMouseEnter={item.to === "/dashboard" ? () => prefetchCoreDashboard() : undefined}
+              onFocus={item.to === "/dashboard" ? () => prefetchCoreDashboard() : undefined}
             >
               <Icon className="sidebar-link-icon" />
               {!collapsed ? <span className="sidebar-link-label">{item.label}</span> : null}

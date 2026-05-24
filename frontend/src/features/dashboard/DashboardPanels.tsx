@@ -10,10 +10,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
-  Pie,
-  PieChart,
   ReferenceLine,
   Tooltip,
   XAxis,
@@ -34,14 +31,11 @@ import {
 } from "./DashboardOverviewCharts";
 import {
   CHART_COLORS,
-  DASHBOARD_PIE_ANIMATION_PROPS,
   DashboardChartContainer,
   type DashboardViewMode,
   axisTick,
   builtinGroupColor,
   dashboardBarColor,
-  dashboardPieColor,
-  filterGroupTotalForMonth,
   formatDayFromDate,
   formatDelta,
   formatMonthLong,
@@ -411,143 +405,6 @@ export function DashboardIncomePanel({
               )}
             </DashboardChartContainer>
           )}
-        </CardContent>
-      </Card>
-    </section>
-  );
-}
-
-type DashboardBreakdownsPanelProps = {
-  viewMode: DashboardViewMode;
-  month: string;
-  data: Dashboard;
-  previousMonthDashboard: Dashboard | undefined;
-};
-
-export function DashboardBreakdownsPanel({ viewMode, month, data, previousMonthDashboard }: DashboardBreakdownsPanelProps) {
-  return (
-    <section className="grid gap-4 xl:grid-cols-3" role="tabpanel" id="dashboard-panel-breakdowns" aria-labelledby="dashboard-tab-breakdowns">
-      {viewMode === "year" ? (
-        <div className="dashboard-scope-note xl:col-span-3">
-          Breakdowns remain anchored to <strong>{formatMonthLong(month)}</strong>. Use `Overview` and `Daily Expense` for year-level trend charts.
-        </div>
-      ) : null}
-      <Card className="xl:col-span-1">
-        <CardHeader>
-          <CardTitle>Spending by Tags</CardTitle>
-        </CardHeader>
-        <CardContent className="h-80 min-w-0">
-          {data.spending_by_tag.length === 0 ? (
-            <p className="muted">No expense-tag data for this month.</p>
-          ) : (
-            <DashboardChartContainer>
-              {({ width, height }) => (
-                <PieChart width={width} height={height}>
-                  <Pie
-                    data={data.spending_by_tag}
-                    dataKey="total_minor"
-                    nameKey="label"
-                    outerRadius={95}
-                    {...DASHBOARD_PIE_ANIMATION_PROPS}
-                  >
-                    {data.spending_by_tag.map((item, index) => (
-                      <Cell key={item.label} fill={dashboardPieColor(index)} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => tooltipAmount(data.currency_code, value)} />
-                  <Legend />
-                </PieChart>
-              )}
-            </DashboardChartContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="xl:col-span-2">
-        <CardHeader>
-          <CardTitle>Spending by Destination</CardTitle>
-        </CardHeader>
-        <CardContent className="h-80 min-w-0">
-          {data.spending_by_to.length === 0 ? (
-            <p className="muted">No destination breakdown yet.</p>
-          ) : (
-            <DashboardChartContainer>
-              {({ width, height }) => (
-                <BarChart width={width} height={height} data={data.spending_by_to} layout="vertical" margin={{ left: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
-                  <XAxis type="number" tickFormatter={axisTick} />
-                  <YAxis dataKey="label" type="category" width={140} />
-                  <Tooltip formatter={(value) => tooltipAmount(data.currency_code, value)} />
-                  <Bar dataKey="total_minor" name="Total" fill={CHART_COLORS.destination} radius={[0, 6, 6, 0]} />
-                </BarChart>
-              )}
-            </DashboardChartContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="xl:col-span-3">
-        <CardHeader>
-          <CardTitle>Spending by Source (`from`)</CardTitle>
-        </CardHeader>
-        <CardContent className="h-72 min-w-0">
-          {data.spending_by_from.length === 0 ? (
-            <p className="muted">No source breakdown yet.</p>
-          ) : (
-            <DashboardChartContainer>
-              {({ width, height }) => (
-                <BarChart width={width} height={height} data={data.spending_by_from}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
-                  <XAxis dataKey="label" />
-                  <YAxis tickFormatter={axisTick} />
-                  <Tooltip formatter={(value) => tooltipAmount(data.currency_code, value)} />
-                  <Bar dataKey="total_minor" name="Total" fill={CHART_COLORS.source} radius={[6, 6, 0, 0]} />
-                </BarChart>
-              )}
-            </DashboardChartContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="xl:col-span-3">
-        <CardHeader>
-          <CardTitle>Monthly Spend by Filter Group</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-border/70">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Filter Group</TableHead>
-                  <TableHead>Monthly Spend</TableHead>
-                  <TableHead>Delta to Last Month</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.filter_groups.map((group) => {
-                  const prev = filterGroupTotalForMonth(previousMonthDashboard, group.key);
-                  const delta = group.total_minor - prev;
-                  const pct = prev > 0 ? ((delta / prev) * 100).toFixed(1) : null;
-                  return (
-                    <TableRow key={group.key}>
-                      <TableCell className="font-medium">{group.name}</TableCell>
-                      <TableCell>{formatMinor(group.total_minor, data.currency_code)}</TableCell>
-                      <TableCell>
-                        {prev === 0 && group.total_minor === 0 ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : (
-                          <span className={cn(delta > 0 ? "text-red-500" : delta < 0 ? "text-green-500" : "text-muted-foreground")}>
-                            {formatDelta(delta, data.currency_code)}
-                            {pct !== null ? ` (${delta > 0 ? "+" : ""}${pct}%)` : ""}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
         </CardContent>
       </Card>
     </section>

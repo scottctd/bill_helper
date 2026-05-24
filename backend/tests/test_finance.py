@@ -438,6 +438,48 @@ def test_dashboard_timeline_only_lists_months_with_visible_expenses(client):
     assert response.json() == {"months": ["2025-11", "2026-01"]}
 
 
+def test_dashboard_batch_returns_multiple_months(client):
+    account = create_account(client)
+    create_entry(
+        client,
+        account["id"],
+        "EXPENSE",
+        1200,
+        "2026-01-02",
+        name="Coffee",
+        tags=["coffee_snacks"],
+        from_entity="Main Checking",
+        to_entity="Coffee Shop",
+    )
+    create_entry(
+        client,
+        account["id"],
+        "EXPENSE",
+        900,
+        "2026-02-03",
+        name="Dinner",
+        tags=["day_to_day"],
+        from_entity="Main Checking",
+        to_entity="Restaurant",
+    )
+
+    response = client.get(
+        "/api/v1/dashboard/batch",
+        params=[("months", "2026-02"), ("months", "2026-01"), ("months", "2026-01")],
+    )
+    response.raise_for_status()
+    payload = response.json()
+
+    assert [item["month"] for item in payload["dashboards"]] == ["2026-01", "2026-02"]
+    assert payload["dashboards"][0]["kpis"]["expense_total_minor"] == 1200
+    assert payload["dashboards"][1]["kpis"]["expense_total_minor"] == 900
+
+
+def test_dashboard_batch_rejects_invalid_month(client):
+    response = client.get("/api/v1/dashboard/batch", params={"months": "2026-13"})
+    assert response.status_code == 422
+
+
 def test_account_routes_are_scoped_by_principal(client, auth_headers):
     account = create_account(client, name="Admin Account")
 
