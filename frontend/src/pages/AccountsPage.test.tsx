@@ -215,6 +215,17 @@ describe("AccountsPage", () => {
     expect(within(editDialog).getByRole("heading", { name: "Snapshot history" })).toBeInTheDocument();
     expect(within(editDialog).getByRole("heading", { name: "Add snapshot" })).toBeInTheDocument();
 
+    const editBody = editDialog.querySelector(".account-edit-body");
+    const editFooter = editDialog.querySelector(".account-edit-footer");
+    expect(editBody).not.toBeNull();
+    expect(editFooter).not.toBeNull();
+    if (!editBody || !editFooter) {
+      throw new Error("Expected account edit body and footer regions");
+    }
+    expect(editBody.contains(editFooter)).toBe(false);
+    expect(within(editFooter as HTMLElement).getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    expect(within(editDialog).getByRole("button", { name: "Add snapshot" })).toBeInTheDocument();
+
     await userEvent.click(within(editDialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "Main" })).not.toBeInTheDocument();

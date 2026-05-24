@@ -86,8 +86,8 @@
 - account rows single-select on click and open edit on double-click; delete remains the only explicit row action and is rendered as a compact icon button
 - account ids are shared entity-root ids; generic entity management does not expose them as editable entity rows
 - account creation edits `Name`, `Currency`, and `Notes`; owner is implicit from the authenticated user's current scope
-- the account edit modal is untabbed and fixed-height: a compact top details form (`Name`, `Currency`, `Active`, `Notes`) sits above a two-column lower workspace
-- the lower workspace keeps reconciliation and snapshot history in the left internal scroll column, with snapshot creation isolated in a compact right-side panel
+- the account edit modal is untabbed and fixed-height: a pinned footer holds `Save changes` / `Cancel`, while a scrollable body carries account details plus reconciliation and snapshot history
+- on large screens the lower workspace is two-column: reconciliation and snapshot history scroll inside the left column while snapshot creation stays fixed at the top of the right column; below `lg`, the same snapshot panel stacks as its own card beneath the history column inside the scroll body, separated from the pinned modal footer
 - legacy `institution` and `type` fields are removed
 - reconciliation and snapshot history inside the edit modal are driven by the selected row that opened it
 - snapshot history rows expose per-snapshot delete actions with confirmation

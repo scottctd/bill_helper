@@ -23,7 +23,7 @@ This doc is the fast path for understanding account management UX, snapshot chec
 - Account deletion starts from a subdued row-level delete action and is finalized in a confirmation dialog.
 - Account metadata now excludes legacy `institution` and `type`; creation still captures owner/name/currency/notes while the edit modal trims the editable fields to name/currency/notes/active state.
 - Account create/edit modals include optional markdown notes (`markdown_body`) for richer account-level context.
-- The account edit modal is a fixed-height untabbed workspace: compact details stay at the top, the left column scrolls reconciliation plus snapshot history, and the right column holds the snapshot-create form.
+- The account edit modal is a fixed-height untabbed workspace: a pinned footer holds save/cancel actions, a scrollable body carries compact account details plus reconciliation and snapshot history, and snapshot creation stays fixed at the top of the right column on large screens while the left column scrolls, or stacks below the history column below `lg`.
 - Snapshot creation and deletion happen inside the account modal; each saved snapshot row exposes its own delete action with confirmation.
 - The reconciliation section shows newest-first intervals, highlights the open interval separately, compresses reconciled intervals, and expands mismatched intervals.
 

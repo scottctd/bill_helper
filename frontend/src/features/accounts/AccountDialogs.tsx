@@ -99,6 +99,18 @@ export function AccountDialogs(props: AccountDialogsProps) {
   const createMarkdownResetKey = `account-create-${createDialogOpen ? "open" : "closed"}`;
   const editMarkdownResetKey = `account-edit-${editingAccount?.id ?? "none"}-${editDialogOpen ? "open" : "closed"}`;
 
+  const snapshotCreatePanel = (
+    <SnapshotCreatePanel
+      selectedAccount={editingAccount}
+      snapshotForm={snapshotForm}
+      onSnapshotFormChange={onSnapshotFormChange}
+      onCreateSnapshot={onCreateSnapshot}
+      formErrorMessage={snapshotFormErrorMessage}
+      createErrorMessage={snapshotCreateErrorMessage}
+      isCreating={snapshotIsCreating}
+    />
+  );
+
   return (
     <>
       <Dialog
@@ -167,13 +179,13 @@ export function AccountDialogs(props: AccountDialogsProps) {
           }
         }}
       >
-        <DialogContent className="account-edit-dialog max-w-6xl overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="account-edit-dialog max-w-6xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle>{editingAccount ? editingAccount.name : "Edit Account"}</DialogTitle>
             <DialogDescription>Account details, reconciliation, and snapshots in one workspace.</DialogDescription>
           </DialogHeader>
 
-          <div className="account-edit-layout">
+          <div className="account-edit-body scroll-surface">
             <form id="account-edit-form" className="account-edit-details-card" onSubmit={onUpdateAccount}>
               <div className="account-edit-details-grid">
                 <FormField label="Name">
@@ -216,7 +228,7 @@ export function AccountDialogs(props: AccountDialogsProps) {
 
             <div className="account-edit-workspace">
               <section className="account-edit-history-column">
-                <div className="account-edit-history-scroll scroll-surface">
+                <div className="account-edit-history-scroll">
                   <section className="account-edit-section">
                     <h3 className="text-base font-semibold">Reconciliation</h3>
                     <ReconciliationSection
@@ -238,21 +250,13 @@ export function AccountDialogs(props: AccountDialogsProps) {
                 </div>
               </section>
 
-              <aside className="account-edit-sidebar">
-                <SnapshotCreatePanel
-                  selectedAccount={editingAccount}
-                  snapshotForm={snapshotForm}
-                  onSnapshotFormChange={onSnapshotFormChange}
-                  onCreateSnapshot={onCreateSnapshot}
-                  formErrorMessage={snapshotFormErrorMessage}
-                  createErrorMessage={snapshotCreateErrorMessage}
-                  isCreating={snapshotIsCreating}
-                />
-              </aside>
+              <aside className="account-edit-sidebar">{snapshotCreatePanel}</aside>
             </div>
 
             {updateErrorMessage ? <p className="error">{updateErrorMessage}</p> : null}
+          </div>
 
+          <div className="account-edit-footer">
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onEditDialogOpenChange(false)}>
                 Cancel

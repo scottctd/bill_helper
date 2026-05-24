@@ -36,43 +36,42 @@ export function SnapshotCreatePanel(props: SnapshotCreatePanelProps) {
   } = props;
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-base font-semibold">Add snapshot</h3>
-
+    <div className="account-snapshot-create-panel">
       {selectedAccount ? (
-        <>
-          <form className="grid gap-4" onSubmit={onCreateSnapshot}>
-            <FormField label="Snapshot date">
-              <Input
-                type="date"
-                required
-                value={snapshotForm.snapshot_at}
-                onChange={(event) => onSnapshotFormChange({ ...snapshotForm, snapshot_at: event.target.value })}
-              />
-            </FormField>
-            <FormField label={`Balance (${selectedAccount.currency_code})`}>
-              <Input
-                type="number"
-                step="0.01"
-                required
-                value={snapshotForm.balance_major}
-                onChange={(event) => onSnapshotFormChange({ ...snapshotForm, balance_major: event.target.value })}
-              />
-            </FormField>
-            <FormField label="Note">
-              <Input value={snapshotForm.note} onChange={(event) => onSnapshotFormChange({ ...snapshotForm, note: event.target.value })} />
-            </FormField>
-            <Button type="submit" disabled={isCreating}>
-              <Plus className="mr-2 h-4 w-4" />
-              {isCreating ? "Adding..." : "Add snapshot"}
-            </Button>
-          </form>
-
+        <form className="account-snapshot-create-form" onSubmit={onCreateSnapshot}>
+          <h3 className="text-base font-semibold">Add snapshot</h3>
+          <FormField label="Snapshot date">
+            <Input
+              type="date"
+              required
+              value={snapshotForm.snapshot_at}
+              onChange={(event) => onSnapshotFormChange({ ...snapshotForm, snapshot_at: event.target.value })}
+            />
+          </FormField>
+          <FormField label={`Balance (${selectedAccount.currency_code})`}>
+            <Input
+              type="number"
+              step="0.01"
+              required
+              value={snapshotForm.balance_major}
+              onChange={(event) => onSnapshotFormChange({ ...snapshotForm, balance_major: event.target.value })}
+            />
+          </FormField>
+          <FormField label="Note">
+            <Input value={snapshotForm.note} onChange={(event) => onSnapshotFormChange({ ...snapshotForm, note: event.target.value })} />
+          </FormField>
           {formErrorMessage ? <p className="error">{formErrorMessage}</p> : null}
           {createErrorMessage ? <p className="error">{createErrorMessage}</p> : null}
-        </>
+          <Button type="submit" variant="outline" disabled={isCreating}>
+            <Plus className="mr-2 h-4 w-4" />
+            {isCreating ? "Adding..." : "Add snapshot"}
+          </Button>
+        </form>
       ) : (
-        <p className="muted">Open an account to add a snapshot.</p>
+        <>
+          <h3 className="text-base font-semibold">Add snapshot</h3>
+          <p className="muted">Open an account to add a snapshot.</p>
+        </>
       )}
     </div>
   );
