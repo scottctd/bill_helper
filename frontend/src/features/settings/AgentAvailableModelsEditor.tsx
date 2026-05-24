@@ -23,13 +23,43 @@ interface AgentAvailableModelsEditorProps {
   fieldId: string;
 }
 
+type EditorModelRow = AgentModelRow & { clientId: string };
+
+function createEditorRow(row: AgentModelRow = { modelId: "", displayName: "" }): EditorModelRow {
+  return { ...row, clientId: crypto.randomUUID() };
+}
+
+function editorRowsFromFormState(formState: SettingsFormState): EditorModelRow[] {
+  return rowsFromAgentModelFormState(formState).map((row) => createEditorRow(row));
+}
+
+function stripClientIds(rows: EditorModelRow[]): AgentModelRow[] {
+  return rows.map(({ modelId, displayName }) => ({ modelId, displayName }));
+}
+
+function patchesMatchFormState(
+  rows: EditorModelRow[],
+  formState: SettingsFormState
+): boolean {
+  const patch = buildAgentModelSettingsPatchFromRows(stripClientIds(rows), {
+    agent_model: formState.agent_model,
+    entry_tagging_model: formState.entry_tagging_model,
+  });
+  return (
+    patch.available_agent_models === formState.available_agent_models &&
+    patch.agent_model === formState.agent_model &&
+    patch.entry_tagging_model === formState.entry_tagging_model &&
+    JSON.stringify(patch.agent_model_display_names) === JSON.stringify(formState.agent_model_display_names)
+  );
+}
+
 export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: AgentAvailableModelsEditorProps) {
-  const [pendingRow, setPendingRow] = useState<AgentModelRow | null>(null);
-  const rowStateRef = useRef<AgentModelRow[] | null>(null);
+  const [pendingRow, setPendingRow] = useState<EditorModelRow | null>(null);
+  const rowStateRef = useRef<EditorModelRow[] | null>(null);
 
-  const baseRows = rowsFromAgentModelFormState(formState);
+  const baseRows = editorRowsFromFormState(formState);
 
-  function getRows(): AgentModelRow[] {
+  function getRows(): EditorModelRow[] {
     return rowStateRef.current ?? baseRows;
   }
 
@@ -43,23 +73,29 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
   };
 
   useEffect(() => {
-    setPendingRow(null);
-  }, [formState.available_agent_models]);
-
-  useEffect(() => {
+    const refRows = rowStateRef.current;
+    if (refRows && patchesMatchFormState(refRows, formState)) {
+      return;
+    }
     rowStateRef.current = null;
-  }, [formState.available_agent_models]);
+    setPendingRow(null);
+  }, [
+    formState.available_agent_models,
+    formState.agent_model_display_names,
+    formState.agent_model,
+    formState.entry_tagging_model,
+  ]);
 
-  function commit(nextBaseRows: AgentModelRow[]) {
+  function commit(nextBaseRows: EditorModelRow[]) {
     rowStateRef.current = nextBaseRows;
-    onFormPatch(buildAgentModelSettingsPatchFromRows(nextBaseRows, context));
+    onFormPatch(buildAgentModelSettingsPatchFromRows(stripClientIds(nextBaseRows), context));
   }
 
   function handleAdd() {
     if (pendingRow) {
       return;
     }
-    setPendingRow({ modelId: "", displayName: "" });
+    setPendingRow(createEditorRow());
   }
 
   function handleModelIdChange(index: number, value: string) {
@@ -125,15 +161,15 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
           const canMoveDown = !isPendingRow && index < committedRowCount - 1;
           return (
             <div
-              key={`${isPendingRow ? "pending" : row.modelId}-${index}`}
+              key={row.clientId}
               className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center"
             >
               <div className="grid gap-1">
-                <label className="text-xs font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-id-${index}`}>
+                <label className="text-xs font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-id-${row.clientId}`}>
                   Model id
                 </label>
                 <Input
-                  id={`${fieldId}-id-${index}`}
+                  id={`${fieldId}-id-${row.clientId}`}
                   className="font-mono text-xs"
                   placeholder="provider/model-id"
                   autoComplete="off"
@@ -143,11 +179,11 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
                 />
               </div>
               <div className="grid gap-1">
-                <label className="text-xs font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-label-${index}`}>
+                <label className="text-xs font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-label-${row.clientId}`}>
                   Display name
                 </label>
                 <Input
-                  id={`${fieldId}-label-${index}`}
+                  id={`${fieldId}-label-${row.clientId}`}
                   placeholder="Optional label"
                   autoComplete="off"
                   aria-label={`Display name, row ${index + 1}`}

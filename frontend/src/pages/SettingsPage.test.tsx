@@ -131,6 +131,26 @@ describe("SettingsPage", () => {
     ]);
   });
 
+  it("keeps focus while typing into available model fields", async () => {
+    vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 0, is_placeholder: false }]);
+    vi.mocked(getRuntimeSettings).mockResolvedValue(baseSettingsFixture);
+
+    renderWithQueryClient(<SettingsPage />);
+
+    await openAgentTab();
+    const modelIdInput = (await screen.findAllByRole("textbox", { name: /Model id, row/ }))[0]!;
+    await userEvent.click(modelIdInput);
+    await userEvent.type(modelIdInput, "-preview");
+    expect(modelIdInput).toHaveFocus();
+    expect(modelIdInput).toHaveValue("bedrock/us.anthropic.claude-sonnet-4-6-preview");
+
+    const displayNameInput = screen.getAllByRole("textbox", { name: /Display name, row/ })[0]!;
+    await userEvent.click(displayNameInput);
+    await userEvent.type(displayNameInput, " v2");
+    expect(displayNameInput).toHaveFocus();
+    expect(displayNameInput).toHaveValue("Claude Sonnet 4.6 v2");
+  });
+
   it("saves the default tagging model from the available model list", async () => {
     vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 0, is_placeholder: false }]);
     vi.mocked(getRuntimeSettings).mockResolvedValue(baseSettingsFixture);
