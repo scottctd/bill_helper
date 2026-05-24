@@ -22,7 +22,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from backend.cli.reference import render_bh_cheat_sheet
+from backend.services.agent.prompts import external_agent_prompt
 from backend.cli.session_commands import add_sessions_parser
 from backend.cli.create_commands import (
     ACCOUNT_CREATE_SPEC,
@@ -440,7 +440,7 @@ def _handle_login(args: argparse.Namespace, _context: CliContext | None) -> dict
 
 
 def _handle_instruction(_args: argparse.Namespace, _context: CliContext | None) -> str:
-    return render_bh_cheat_sheet()
+    return external_agent_prompt()
 
 
 def _resolve_login_password(args: argparse.Namespace) -> str:

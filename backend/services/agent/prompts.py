@@ -8,16 +8,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import lru_cache
-from importlib.resources import files
+from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from jinja2 import Environment, StrictUndefined
+import backend.services.agent as agent_package
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from backend.cli.reference import render_hosted_agent_bh_cheat_sheet
+from backend.cli.reference import render_bh_cheat_sheet, render_hosted_agent_bh_cheat_sheet
 
 DEFAULT_USER_TIMEZONE = "America/Toronto"
+_AGENT_TEMPLATE_DIR = Path(agent_package.__file__).resolve().parent
 
 _PROMPT_TEMPLATE_ENV = Environment(
+    loader=FileSystemLoader(_AGENT_TEMPLATE_DIR),
     autoescape=False,
     trim_blocks=False,
     lstrip_blocks=False,
@@ -26,14 +29,17 @@ _PROMPT_TEMPLATE_ENV = Environment(
 )
 
 SYSTEM_PROMPT_TEMPLATE_NAME = "system_prompt.j2"
+EXTERNAL_AGENT_PROMPT_TEMPLATE_NAME = "external_agent_prompt.j2"
 
 
 @lru_cache(maxsize=1)
 def _system_prompt_template():
-    template_text = files("backend.services.agent").joinpath(SYSTEM_PROMPT_TEMPLATE_NAME).read_text(
-        encoding="utf-8"
-    )
-    return _PROMPT_TEMPLATE_ENV.from_string(template_text)
+    return _PROMPT_TEMPLATE_ENV.get_template(SYSTEM_PROMPT_TEMPLATE_NAME)
+
+
+@lru_cache(maxsize=1)
+def _external_agent_prompt_template():
+    return _PROMPT_TEMPLATE_ENV.get_template(EXTERNAL_AGENT_PROMPT_TEMPLATE_NAME)
 
 
 def _resolve_prompt_timezone(timezone_name: str | None) -> tuple[str, ZoneInfo]:
@@ -84,4 +90,10 @@ def system_prompt(context: SystemPromptContext | None = None) -> str:
         bh_cheat_sheet=render_hosted_agent_bh_cheat_sheet(),
         user_memory_content=user_memory_content,
         entity_category_content=entity_category_content,
+    )
+
+
+def external_agent_prompt() -> str:
+    return _external_agent_prompt_template().render(
+        bh_cheat_sheet=render_bh_cheat_sheet(include_source_commands=True),
     )

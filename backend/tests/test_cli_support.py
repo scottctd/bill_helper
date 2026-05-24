@@ -567,6 +567,9 @@ def test_instruction_accepts_subcommand_format_option(capsys) -> None:
     payload = json.loads(captured.out)
     assert "bh login" in payload["instruction"]
     assert "bh sessions sources add-file" in payload["instruction"]
+    assert "## Domain Rules" in payload["instruction"]
+    assert "## Proposal Workflow" in payload["instruction"]
+    assert "rename_thread" not in payload["instruction"]
 
 
 def test_entries_parser_without_subcommand_prints_entries_help(capsys) -> None:

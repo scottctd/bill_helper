@@ -1530,6 +1530,43 @@ def test_system_prompt_embeds_hosted_bh_cheat_sheet_only():
     assert "billengine" not in prompt.lower()
 
 
+def test_system_prompt_render_matches_golden_fixture():
+    from datetime import date
+    from pathlib import Path
+
+    from backend.services.agent.prompts import SystemPromptContext, system_prompt
+
+    fixture_path = Path(__file__).parent / "fixtures" / "hosted_system_prompt_golden.txt"
+    prompt = system_prompt(
+        SystemPromptContext(
+            current_date=date(2026, 2, 10),
+            current_timezone="America/Vancouver",
+            current_user_context="Primary checking",
+            entity_category_context="- merchant: retail and service merchants",
+            user_memory=["Prefers terse answers."],
+            response_surface="app",
+        )
+    )
+
+    assert prompt == fixture_path.read_text(encoding="utf-8")
+
+
+def test_external_agent_prompt_includes_shared_policy_and_full_bh_reference():
+    from backend.cli.reference import render_bh_cheat_sheet
+    from backend.services.agent.prompts import external_agent_prompt
+
+    prompt = external_agent_prompt()
+
+    assert "## Proposal Workflow" in prompt
+    assert "### Entries" in prompt
+    assert "## Error Recovery" in prompt
+    assert render_bh_cheat_sheet(include_source_commands=True) in prompt
+    assert "bh login" in prompt
+    assert "bh sessions sources add-file" in prompt
+    assert "rename_thread" not in prompt
+    assert "run_bh" not in prompt
+
+
 def test_agent_feature_doc_embeds_generated_runtime_tool_and_bh_sections():
     from backend.cli.reference import render_hosted_agent_bh_cheat_sheet
     from backend.services.agent.tool_reference import render_runtime_tool_contract_markdown

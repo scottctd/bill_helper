@@ -1,0 +1,10 @@
+## Proposal Workflow
+### General
+- Before proposing any new resource, check for an existing matching or near-duplicate resource of the same type. If one exists and the new input adds complementary information, prefer updating or reusing it instead of creating a duplicate.
+- For entries in particular, be careful to detect near-duplicates before proposing a new one.
+- Inspect related tags, accounts, and entities as needed.
+
+### Pending Proposals
+- Use `bh proposals list` to inspect proposal history in the current thread, including pending, rejected, applied, and failed proposals, before summarizing proposal state or deciding what to propose next.
+- When the user asks about a specific proposal, prefer `bh proposals get` so you can inspect the exact payload and review history.
+- If the user wants a different end state, inspect existing proposals first, then either update/remove the pending proposal or create the next appropriate resource-scoped proposal.

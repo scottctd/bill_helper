@@ -77,7 +77,7 @@ Run:
 uv run python scripts/check_docs_sync.py
 ```
 
-After changing `backend/services/agent/system_prompt.j2` or `backend/cli/reference.py`, regenerate the committed prompt snapshot (so docs stay aligned with the live prompt):
+After changing `backend/services/agent/system_prompt.j2`, `backend/services/agent/external_agent_prompt.j2`, `backend/services/agent/prompt_includes/`, or `backend/cli/reference.py`, regenerate the committed hosted prompt snapshot (so docs stay aligned with the live hosted prompt):
 
 ```bash
 uv run python scripts/render_agent_system_prompt_snapshot.py

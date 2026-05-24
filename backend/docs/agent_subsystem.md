@@ -19,7 +19,11 @@
 - `backend/services/agent/tools_for_model_request.py`
   - resolves the tool schema list that matches each live `LiteLLMModelClient` request (full catalog vs rename-only for untitled threads) so context-size token counts stay aligned with `model_client_support/client.py`
 - `backend/services/agent/prompts.py`
-  - system prompt composition, tool-discipline policy, and response-surface guidance
+  - hosted and external-agent prompt composition; shared proposal/domain policy lives in `backend/services/agent/prompt_includes/`
+- `backend/services/agent/system_prompt.j2`
+  - hosted prompt shell with tool discipline, response-surface guidance, and per-user context injection
+- `backend/services/agent/external_agent_prompt.j2`
+  - external-agent instruction shell rendered by `bh instruction`
 - `backend/services/agent/message_history.py`
   - public message-history facade for thread-to-model message assembly
 - `backend/services/agent/message_history_content.py`
@@ -172,6 +176,7 @@ Endpoints:
 - `PATCH /api/v1/agent/threads/{thread_id}/proposals/{proposal_id}`
 - `DELETE /api/v1/agent/threads/{thread_id}/proposals/{proposal_id}`
 - `GET /api/v1/agent/runs/{run_id}`
+- `GET /api/v1/agent/runs/{run_id}/stream`
 - `GET /api/v1/agent/tool-calls/{tool_call_id}`
 - `POST /api/v1/agent/runs/{run_id}/interrupt`
 - `POST /api/v1/agent/change-items/{item_id}/approve`
@@ -201,6 +206,7 @@ Endpoints:
 
 - when Langfuse credentials are present, each LLM step is reported through OpenTelemetry to Langfuse; without `LANGFUSE_OTEL_HOST`, LiteLLM targets **US** cloud — EU tenants must set the host explicitly (see `runtime_and_config.md`); install-time dependencies are `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp-proto-http` alongside LiteLLM
 - runs support both background execution and SSE execution
+- `backend/services/agent/stream_hub.py` owns the in-process single-worker stream hub: one execution thread per `run_id`, subscriber fan-out, ephemeral delta replay, and `GET /runs/{run_id}/stream` reconnect after client disconnect or page refresh (single backend process only)
 - draft attachment uploads prepare vision content eagerly before send so the frontend can show upload progress, then page-preparation progress, while the user is still composing
 - repeated draft uploads of the same bytes for the same owner reuse an existing canonical file row by SHA-256 while still creating a fresh draft attachment row so removal semantics stay independent
 - each run persists a `surface` hint so later execution and polling can distinguish Telegram-originated runs from default app runs

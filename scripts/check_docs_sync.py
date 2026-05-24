@@ -198,7 +198,7 @@ def assert_system_prompt_example_is_generated_snapshot(errors: list[str]) -> Non
             errors.append(
                 f"{path.relative_to(ROOT)} must be produced by "
                 f"`scripts/render_agent_system_prompt_snapshot.py` and include `{phrase!r}` "
-                "(regenerate after editing `system_prompt.j2` or `backend/cli/reference.py`)."
+                "(regenerate after editing hosted/external prompt templates, prompt includes, or `backend/cli/reference.py`)."
             )
 
 

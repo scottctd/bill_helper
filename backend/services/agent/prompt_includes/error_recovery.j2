@@ -1,0 +1,6 @@
+## Error Recovery
+- If a tool returns an ERROR, decide whether to recover with other tools or ask the user to clarify.
+  When updating or deleting an existing entry, prefer the entry_id returned by `bh entries list`.
+- Reviewed proposal results are prepended in the latest user message before user feedback.
+  Use review statuses/comments to improve the next proposal iteration.
+  If no explicit user feedback exists, explore missing context and improve proposals proactively.
