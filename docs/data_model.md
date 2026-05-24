@@ -286,7 +286,7 @@ Deletion semantics:
 - soft-deleting an entry removes its direct `entry_group_members` row if one exists
 - deleting a group is allowed only when it has no direct members and is not attached as a child group
 
-## Agent Tables (`0006_agent_append_only_core`, `0008_agent_run_usage_metrics`, `0015_add_agent_tool_call_output_text`, `0020_add_agent_message_attachment_original_filename`, `0021_add_agent_run_context_tokens`, `0022_agent_run_events_and_tool_lifecycle`, `0029_add_agent_run_surface`, `0030_add_account_agent_change_types`, `0035_add_user_files_and_agent_workspace`, `0037_add_agent_message_attachments_use_ocr`, `0040_add_agent_session_sources`)
+## Agent Tables (`0006_agent_append_only_core`, `0008_agent_run_usage_metrics`, `0015_add_agent_tool_call_output_text`, `0020_add_agent_message_attachment_original_filename`, `0021_add_agent_run_context_tokens`, `0022_agent_run_events_and_tool_lifecycle`, `0029_add_agent_run_surface`, `0030_add_account_agent_change_types`, `0035_add_user_files_and_agent_workspace`, `0037_add_agent_message_attachments_use_ocr`, `0040_add_agent_session_sources`, `0041_add_agent_run_event_reasoning_duration_ms`)
 
 ## `user_files`
 
@@ -441,6 +441,7 @@ Fields:
 - `source` (nullable `AgentRunEventSource`)
 - `message` (nullable)
 - `tool_call_id` (nullable FK -> `agent_tool_calls.id`)
+- `reasoning_duration_ms` (nullable integer; populated on `reasoning_update` rows with `source = model_reasoning`)
 - `created_at`
 
 ## `agent_change_items`

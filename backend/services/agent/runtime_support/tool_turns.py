@@ -69,6 +69,7 @@ def prepare_tool_turn(
     tool_calls: list[dict[str, Any]],
     request_tools: list[dict[str, Any]],
     update_run_context_tokens: RunContextUpdater,
+    reasoning_duration_ms: int | None = None,
 ) -> tuple[list[PreparedToolCall], list[AgentRunEvent]]:
     prepared_calls: list[PreparedToolCall] = []
     event_rows: list[AgentRunEvent] = []
@@ -79,6 +80,7 @@ def prepare_tool_turn(
         run=run,
         message=model_reasoning,
         source=AgentRunEventSource.MODEL_REASONING,
+        reasoning_duration_ms=reasoning_duration_ms,
     )
     if reasoning_event is not None:
         event_rows.append(reasoning_event)

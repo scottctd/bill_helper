@@ -230,6 +230,7 @@ Current revisions:
 - `0038_add_agent_model_display_names_to_runtime_settings`
 - `0039_add_agent_run_approval_policy`
 - `0040_add_agent_session_sources`
+- `0041_add_agent_run_event_reasoning_duration_ms`
 
 ## Seed Data
 

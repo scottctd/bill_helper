@@ -167,7 +167,7 @@ def _runtime_loop_dependencies() -> RuntimeLoopDependencies:
         call_model=call_model,
         call_model_stream=call_model_stream,
         run_is_stopped=_run_is_stopped,
-        prepare_tool_turn=lambda db, run, llm_messages, assistant_content, model_reasoning, tool_calls, request_tools: _prepare_tool_turn_support(
+        prepare_tool_turn=lambda db, run, llm_messages, assistant_content, model_reasoning, tool_calls, request_tools, reasoning_duration_ms: _prepare_tool_turn_support(
             db,
             run=run,
             llm_messages=llm_messages,
@@ -176,6 +176,7 @@ def _runtime_loop_dependencies() -> RuntimeLoopDependencies:
             tool_calls=tool_calls,
             request_tools=request_tools,
             update_run_context_tokens=_update_run_context_tokens,
+            reasoning_duration_ms=reasoning_duration_ms,
         ),
         persist_terminal_run_state=_persist_terminal_run_state,
         update_run_context_tokens=_update_run_context_tokens,

@@ -5,6 +5,7 @@
 # - Side effects: module-defined persistence, validation, or orchestration behavior.
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Generator, Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -63,6 +64,7 @@ PrepareToolTurn = Callable[
         str,
         list[dict[str, Any]],
         list[dict[str, Any]],
+        int | None,
     ],
     tuple[list[PreparedToolCall], list[AgentRunEvent]],
 ]
@@ -194,6 +196,9 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
     def _request_tools_for_next_model_call(self) -> list[dict[str, Any]]:
         return tools_for_agent_model_request(thread_title=self.thread.title)
 
+    def consume_step_reasoning_duration_ms(self) -> int | None:
+        return None
+
     def persist_context_after_final_assistant(
         self,
         *,
@@ -224,6 +229,7 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             step.model_reasoning,
             step.tool_calls,
             self._request_tools_for_next_model_call(),
+            self.consume_step_reasoning_duration_ms(),
         )
         return prepared_calls, self._event_payloads(event_rows)
 
@@ -322,6 +328,7 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             run=self.run,
             message=step.model_reasoning,
             source=AgentRunEventSource.MODEL_REASONING,
+            reasoning_duration_ms=self.consume_step_reasoning_duration_ms(),
         )
         if reasoning_event is None:
             return []
@@ -430,6 +437,16 @@ class RuntimeStreamRunLoopAdapter(RuntimeRunLoopAdapterBase):
     ) -> None:
         super().__init__(db=db, thread=thread, run=run, dependencies=dependencies)
         self._last_emitted_sequence = 0
+        self._step_started_at: float | None = None
+        self._step_reasoning_started_at: float | None = None
+
+    def consume_step_reasoning_duration_ms(self) -> int | None:
+        started_at = self._step_reasoning_started_at or self._step_started_at
+        self._step_reasoning_started_at = None
+        self._step_started_at = None
+        if started_at is None:
+            return None
+        return max(1, int((time.monotonic() - started_at) * 1000))
 
     def _event_payload(self, event_row: AgentRunEvent) -> dict[str, Any] | None:
         self._last_emitted_sequence = max(
@@ -450,6 +467,8 @@ class RuntimeStreamRunLoopAdapter(RuntimeRunLoopAdapterBase):
         llm_messages: list[dict[str, Any]],
     ) -> Generator[dict[str, Any], None, dict[str, Any]]:
         self._capture_request_tools_for_model_call()
+        self._step_started_at = time.monotonic()
+        self._step_reasoning_started_at = None
         assistant_message: dict[str, Any] | None = None
         for event in self.dependencies.call_model_stream(
             llm_messages,
@@ -468,6 +487,8 @@ class RuntimeStreamRunLoopAdapter(RuntimeRunLoopAdapterBase):
             if event_type == "reasoning_delta":
                 delta = str(event.get("delta") or "")
                 if delta:
+                    if self._step_reasoning_started_at is None:
+                        self._step_reasoning_started_at = time.monotonic()
                     yield {
                         "type": "reasoning_delta",
                         "run_id": self.run.id,
@@ -486,6 +507,10 @@ class RuntimeStreamRunLoopAdapter(RuntimeRunLoopAdapterBase):
 
         if assistant_message is None:
             raise AgentModelError("model request failed: no response")
+        if self._step_reasoning_started_at is None and str(
+            assistant_message.get("reasoning") or ""
+        ).strip():
+            self._step_reasoning_started_at = self._step_started_at
         return assistant_message
 
 

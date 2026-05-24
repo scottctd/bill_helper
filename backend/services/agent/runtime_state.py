@@ -110,6 +110,7 @@ def persist_run_event(
     source: AgentRunEventSource | None = None,
     message: str | None = None,
     tool_call: AgentToolCall | None = None,
+    reasoning_duration_ms: int | None = None,
 ) -> AgentRunEvent:
     event_row = AgentRunEvent(
         run_id=run.id,
@@ -118,6 +119,7 @@ def persist_run_event(
         source=source,
         message=message,
         tool_call=tool_call,
+        reasoning_duration_ms=reasoning_duration_ms,
     )
     db.add(event_row)
     db.flush()
@@ -238,16 +240,23 @@ def record_reasoning_update_event(
     run: AgentRun,
     message: str,
     source: AgentRunEventSource,
+    reasoning_duration_ms: int | None = None,
 ) -> AgentRunEvent | None:
     normalized_message = _normalize_reasoning_message(message)
     if normalized_message is None:
         return None
+    duration_ms = (
+        reasoning_duration_ms
+        if source == AgentRunEventSource.MODEL_REASONING
+        else None
+    )
     return persist_run_event(
         db,
         run=run,
         event_type=AgentRunEventType.REASONING_UPDATE,
         source=source,
         message=normalized_message,
+        reasoning_duration_ms=duration_ms,
     )
 
 

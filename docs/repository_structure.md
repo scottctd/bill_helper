@@ -58,6 +58,7 @@
 - `versions/0038_add_agent_model_display_names_to_runtime_settings.py`: adds optional JSON map of model id → UI label (`runtime_settings.agent_model_display_names`).
 - `versions/0039_add_agent_run_approval_policy.py`: adds `agent_runs.approval_policy` (`default` vs `yolo`) for optional post-run auto-approval.
 - `versions/0040_add_agent_session_sources.py`: adds external-agent session summaries, session-source links, and the runtime PDF page limit.
+- `versions/0041_add_agent_run_event_reasoning_duration_ms.py`: adds optional `reasoning_duration_ms` on `agent_run_events` for collapsed model-reasoning summaries.
 - `versions/__init__.py`: package marker.
 
 ## Backend (`/backend`)

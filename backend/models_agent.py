@@ -319,6 +319,7 @@ class AgentRunEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+    reasoning_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     run: Mapped[AgentRun] = relationship(back_populates="events")
     tool_call: Mapped[AgentToolCall | None] = relationship(back_populates="events")

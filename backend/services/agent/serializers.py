@@ -122,6 +122,7 @@ def run_event_to_schema(event: AgentRunEvent) -> AgentRunEventRead:
         message=event.message,
         tool_call_id=event.tool_call_id,
         created_at=event.created_at,
+        reasoning_duration_ms=event.reasoning_duration_ms,
     )
 
 
