@@ -62,14 +62,14 @@ def _docker_available() -> bool:
 
 
 def test_mount_source_match_accepts_docker_desktop_host_prefix() -> None:
-    expected = Path("/Users/redacted-user/.local/share/bill_helper/user_files/user-1/uploads")
+    expected = Path("/Users/exampleuser/.local/share/bill_helper/user_files/user-1/uploads")
 
     assert _mount_source_matches_expected(  # noqa: SLF001
-        mount_source="/host_mnt/Users/redacted-user/.local/share/bill_helper/user_files/user-1/uploads",
+        mount_source="/host_mnt/Users/exampleuser/.local/share/bill_helper/user_files/user-1/uploads",
         expected_source=expected,
     )
     assert not _mount_source_matches_expected(  # noqa: SLF001
-        mount_source="/host_mnt/Users/redacted-user/.local/share/bill-helper/user_files/user-1/uploads",
+        mount_source="/host_mnt/Users/exampleuser/.local/share/bill-helper/user_files/user-1/uploads",
         expected_source=expected,
     )
 

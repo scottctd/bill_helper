@@ -18,7 +18,12 @@ from backend.models_finance import User
 from backend.services.agent.message_history_content import build_entity_category_context
 from backend.services.agent.prompts import SystemPromptContext, system_prompt
 from backend.services.agent.user_context import build_current_user_context
-from backend.services.runtime_settings import resolve_runtime_settings
+# Safe placeholder items for the committed snapshot doc. Never load real user_memory from the DB.
+SNAPSHOT_USER_MEMORY: list[str] = [
+    "Prefers terse answers.",
+    "Always mention CAD explicitly.",
+    "When importing statement transactions, use the transaction date instead of the post date when both are shown.",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,12 +91,11 @@ def _load_render_inputs(*, user_name: str, current_date: date, timezone_name: st
             db,
             owner_user_id=resolved_user_id,
         )
-        settings = resolve_runtime_settings(db)
         rendered_prompt = system_prompt(
             SystemPromptContext(
                 current_user_context=account_context,
                 entity_category_context=entity_category_context,
-                user_memory=settings.user_memory,
+                user_memory=SNAPSHOT_USER_MEMORY,
                 current_date=current_date,
                 current_timezone=timezone_name,
                 response_surface=response_surface,
@@ -104,7 +108,7 @@ def _load_render_inputs(*, user_name: str, current_date: date, timezone_name: st
             selected_user_name=resolved_user_name,
             account_context=account_context,
             entity_category_context=entity_category_context,
-            user_memory=settings.user_memory,
+            user_memory=SNAPSHOT_USER_MEMORY,
             rendered_prompt=rendered_prompt,
         )
 
@@ -128,7 +132,7 @@ def _build_snapshot_markdown(inputs: RenderInputs) -> str:
         f"- selected user: `{inputs.selected_user_name}`\n"
         "- current user context: derived from the current local database\n"
         "- entity category context: derived from the current local database\n"
-        "- user memory: derived from the current local database\n\n"
+        "- user memory: placeholder examples (not loaded from the local database)\n\n"
         "```md\n"
         f"{inputs.rendered_prompt}"
         "```\n"

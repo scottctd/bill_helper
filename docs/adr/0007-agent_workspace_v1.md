@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-03-14
-- Deciders: redacted-user
+- Deciders: Bill Helper maintainers
 
 ## Context
 
