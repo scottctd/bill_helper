@@ -22,6 +22,7 @@ import {
 import { useAgentComposerActions } from "./useAgentComposerActions";
 import { useAgentComposerStreamState } from "./useAgentComposerStreamState";
 import { useAgentDraftAttachments } from "./useAgentDraftAttachments";
+import { useAgentStreamReconnect } from "./useAgentStreamReconnect";
 import { useStickToBottom } from "./useStickToBottom";
 import {
   COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
@@ -188,6 +189,7 @@ export function useAgentComposerRuntime({
     activeStreamReasoningText,
     activeStreamRunId,
     activeStreamText,
+    getReconnectSequenceIndex,
     handleAgentStreamEvent,
     handleHydrateToolCall,
     hydratingToolCallIds,
@@ -199,6 +201,16 @@ export function useAgentComposerRuntime({
     streamedReasoningTextByRunId,
     streamedTextByRunId
   } = streamState;
+  useAgentStreamReconnect({
+    clearOptimisticThreadTitle,
+    getReconnectSequenceIndex,
+    handleAgentStreamEvent,
+    removeOptimisticRunningThreadId,
+    resetOptimisticRunState,
+    selectedThreadId,
+    setThreadStreamHealthy,
+    threadDetail
+  });
   const actions = useAgentComposerActions({
     activeRunId,
     activeStreamRunId,

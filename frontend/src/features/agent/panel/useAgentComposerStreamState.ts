@@ -20,7 +20,7 @@ import {
   resetAgentStreamSession
 } from "./agentStreamSession";
 import { extractRenameThreadTitle } from "./helpers";
-import { findRunningRunForThread, resolveLiveRunIdForThread } from "./liveRun";
+import { findRunningRunForThread, resolveLiveRunIdForThread, resolveReconnectSequenceIndex } from "./liveRun";
 import type { PendingAssistantMessage } from "./types";
 
 interface UseAgentComposerStreamStateArgs {
@@ -305,6 +305,13 @@ export function useAgentComposerStreamState({
   const handleAgentStreamEvent = useCallback(
     (threadId: string, event: AgentStreamEvent) => {
       if (event.type === "run_event") {
+        const sequenceIndex = event.event.sequence_index;
+        if (typeof sequenceIndex === "number") {
+          agentStreamSession.lastSequenceIndexByRunId[event.run_id] = Math.max(
+            agentStreamSession.lastSequenceIndexByRunId[event.run_id] ?? 0,
+            sequenceIndex
+          );
+        }
         syncActiveStreamRunIds((current) =>
           current[threadId] === event.run_id ? current : { ...current, [threadId]: event.run_id }
         );
@@ -424,6 +431,14 @@ export function useAgentComposerStreamState({
     [bump, hydrateToolCallDetails, queryClient, setActionError, syncActiveStreamRunIds]
   );
 
+  const getReconnectSequenceIndex = useCallback((runId: string) => {
+    const run = threadRunsRef.current.find((item) => item.id === runId);
+    if (!run) {
+      return agentStreamSession.lastSequenceIndexByRunId[runId] ?? 0;
+    }
+    return resolveReconnectSequenceIndex(run, agentStreamSession);
+  }, []);
+
   return {
     activeOptimisticEvents,
     activeOptimisticToolCalls,
@@ -432,6 +447,7 @@ export function useAgentComposerStreamState({
     activeStreamText,
     getStreamingReasoningText,
     getStreamingText,
+    getReconnectSequenceIndex,
     handleAgentStreamEvent,
     handleHydrateToolCall,
     hydratingToolCallIds,

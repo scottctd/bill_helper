@@ -77,6 +77,41 @@ function parseAgentStreamEvent(rawBlock: string): AgentStreamEvent | null {
   return payload as AgentStreamEvent;
 }
 
+async function consumeAgentSseResponse(
+  response: Response,
+  onEvent: (event: AgentStreamEvent) => void
+): Promise<void> {
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      buffer += decoder.decode();
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
+    const { blocks, remainder } = readSseBlocks(buffer);
+    buffer = remainder;
+    blocks.forEach((rawBlock) => {
+      const event = parseAgentStreamEvent(rawBlock);
+      if (event) {
+        onEvent(event);
+      }
+    });
+  }
+  if (buffer.trim()) {
+    const event = parseAgentStreamEvent(buffer);
+    if (event) {
+      onEvent(event);
+    }
+  }
+}
+
 function buildAgentMessageFormData(
   content: string,
   files: File[],
@@ -219,31 +254,41 @@ export async function streamAgentMessage(payload: {
     throw new Error("Streaming response body is unavailable.");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      buffer += decoder.decode();
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
-    const { blocks, remainder } = readSseBlocks(buffer);
-    buffer = remainder;
-    blocks.forEach((rawBlock) => {
-      const event = parseAgentStreamEvent(rawBlock);
-      if (event) {
-        payload.onEvent(event);
+  await consumeAgentSseResponse(response, payload.onEvent);
+}
+
+export async function streamAgentRun(payload: {
+  runId: string;
+  afterSequence?: number;
+  signal?: AbortSignal;
+  onEvent: (event: AgentStreamEvent) => void;
+}): Promise<void> {
+  const token = getStoredAuthToken();
+  if (!token) {
+    throw new Error("Log in before calling the API.");
+  }
+  const afterSequence = payload.afterSequence ?? 0;
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/agent/runs/${payload.runId}/stream?after_sequence=${afterSequence}`,
+    {
+      method: "GET",
+      signal: payload.signal,
+      headers: {
+        Accept: "text/event-stream",
+        Authorization: `Bearer ${token}`
       }
-    });
-  }
-  if (buffer.trim()) {
-    const event = parseAgentStreamEvent(buffer);
-    if (event) {
-      payload.onEvent(event);
     }
+  );
+  if (!response.ok) {
+    const body = await response.text();
+    const message = extractErrorMessage(body, response.status);
+    if (response.status === 401) {
+      clearStoredAuthToken();
+    }
+    throw new ApiError(message, response.status);
   }
+
+  await consumeAgentSseResponse(response, payload.onEvent);
 }
 
 export async function uploadAgentDraftAttachment(payload: {

@@ -132,6 +132,26 @@ def flatten_user_content(content: object) -> str:
     return ""
 
 
+def parse_sse_text(raw: str) -> list[dict]:
+    events: list[dict] = []
+    for block in raw.replace("\r\n", "\n").split("\n\n"):
+        lines = [line for line in block.split("\n") if line.strip()]
+        if not lines:
+            continue
+        event_type = ""
+        payload = None
+        for line in lines:
+            if line.startswith("event:"):
+                event_type = line.split(":", 1)[1].strip()
+            elif line.startswith("data:"):
+                payload = json.loads(line.split(":", 1)[1].strip())
+        if isinstance(payload, dict):
+            if event_type:
+                payload["event_name"] = event_type
+            events.append(payload)
+    return events
+
+
 def collect_sse_events(
     client,
     thread_id: str,
@@ -152,20 +172,20 @@ def collect_sse_events(
         response.raise_for_status()
         raw = "".join(response.iter_text())
 
-    events: list[dict] = []
-    for block in raw.replace("\r\n", "\n").split("\n\n"):
-        lines = [line for line in block.split("\n") if line.strip()]
-        if not lines:
-            continue
-        event_type = ""
-        payload = None
-        for line in lines:
-            if line.startswith("event:"):
-                event_type = line.split(":", 1)[1].strip()
-            elif line.startswith("data:"):
-                payload = json.loads(line.split(":", 1)[1].strip())
-        if isinstance(payload, dict):
-            if event_type:
-                payload["event_name"] = event_type
-            events.append(payload)
-    return events
+    return parse_sse_text(raw)
+
+
+def collect_run_sse_events(
+    client,
+    run_id: str,
+    *,
+    after_sequence: int = 0,
+) -> list[dict]:
+    with client.stream(
+        "GET",
+        f"/api/v1/agent/runs/{run_id}/stream",
+        params={"after_sequence": after_sequence},
+    ) as response:
+        response.raise_for_status()
+        raw = "".join(response.iter_text())
+    return parse_sse_text(raw)

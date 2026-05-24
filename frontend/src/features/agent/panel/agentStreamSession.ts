@@ -14,6 +14,7 @@ export interface AgentStreamSessionState {
   optimisticRunEventsByRunId: Record<string, AgentRunEvent[]>;
   optimisticToolCallsByRunId: Record<string, AgentToolCall[]>;
   reasoningSegmentStartedAtByRunId: Record<string, number>;
+  lastSequenceIndexByRunId: Record<string, number>;
 }
 
 export const agentStreamSession: AgentStreamSessionState = {
@@ -22,7 +23,8 @@ export const agentStreamSession: AgentStreamSessionState = {
   streamedTextByRunId: {},
   optimisticRunEventsByRunId: {},
   optimisticToolCallsByRunId: {},
-  reasoningSegmentStartedAtByRunId: {}
+  reasoningSegmentStartedAtByRunId: {},
+  lastSequenceIndexByRunId: {}
 };
 
 export const agentStreamAbortControllers: Record<string, AbortController> = {};
@@ -33,6 +35,7 @@ export function clearAgentStreamSessionRun(runId: string): void {
   delete agentStreamSession.optimisticRunEventsByRunId[runId];
   delete agentStreamSession.optimisticToolCallsByRunId[runId];
   delete agentStreamSession.reasoningSegmentStartedAtByRunId[runId];
+  delete agentStreamSession.lastSequenceIndexByRunId[runId];
 }
 
 export function clearAgentStreamSessionThread(threadId: string): void {
@@ -50,4 +53,5 @@ export function resetAgentStreamSession(): void {
   agentStreamSession.optimisticRunEventsByRunId = {};
   agentStreamSession.optimisticToolCallsByRunId = {};
   agentStreamSession.reasoningSegmentStartedAtByRunId = {};
+  agentStreamSession.lastSequenceIndexByRunId = {};
 }

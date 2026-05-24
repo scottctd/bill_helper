@@ -43,3 +43,15 @@ export function resolveLiveRunIdForThread(
   }
   return runningRun.status === "running" ? runningRun.id : null;
 }
+
+export function resolveReconnectSequenceIndex(
+  run: AgentRun,
+  session: AgentStreamSessionState
+): number {
+  const persistedMax = (run.events ?? []).reduce(
+    (max, event) => Math.max(max, event.sequence_index),
+    0
+  );
+  const sessionMax = session.lastSequenceIndexByRunId[run.id] ?? 0;
+  return Math.max(persistedMax, sessionMax);
+}

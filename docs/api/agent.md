@@ -218,7 +218,7 @@ Behavior:
 
 - uses the same validation and persistence rules as the non-stream endpoint
 - executes in-request and streams incremental events
-- if the client disconnects, the run continues in background
+- if the client disconnects, the run continues in background via the in-process stream hub
 - response payload shape stays aligned with the non-stream endpoint
 
 Response content type: `text/event-stream`
@@ -271,6 +271,25 @@ Behavior:
 - lookup is owner-scoped through the parent thread
 - optional query param `surface` (`app` or `telegram`) overrides terminal-reply formatting for this read only
 - payload includes lifecycle metadata, `approval_policy`, full tool calls (`has_full_payload=true`), change items, usage counters, and derived pricing fields
+
+### `GET /agent/runs/{run_id}/stream`
+
+Reconnect to an in-flight or recently finished run over SSE.
+
+Query params:
+
+- `after_sequence` (default `0`): replay only persisted `AgentRunEvent` rows with `sequence_index` greater than this cursor
+
+Behavior:
+
+- lookup is owner-scoped through the parent thread
+- replays persisted run events after the cursor, then replays any in-flight `reasoning_delta` / `text_delta` buffer for the active model step
+- for running runs, attaches to the shared in-process stream hub worker (starting it when needed) and fans out live events until the run reaches a terminal state
+- for finished runs, replays persisted events after the cursor and closes without starting execution
+- uses the same SSE event contract as `POST /agent/threads/{thread_id}/messages/stream`
+- single-process only: reconnect assumes the same backend worker that started the run is still alive
+
+Response content type: `text/event-stream`
 
 ### `GET /agent/tool-calls/{tool_call_id}`
 

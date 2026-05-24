@@ -576,4 +576,22 @@ describe("AgentTimeline", () => {
 
     expect(screen.getByText("Still thinking through the next step.")).toBeInTheDocument();
   });
+
+  it("renders reconnect stream buffers on pending run cards", () => {
+    const run = buildRun({
+      id: "run-reconnect",
+      status: "running",
+      assistant_message_id: null,
+      events: [buildRunEvent({ id: "event-1", sequence_index: 1, event_type: "run_started" })]
+    });
+
+    renderTimeline({
+      pendingAssistantRuns: [run],
+      streamedReasoningTextByRunId: { "run-reconnect": "Resuming after refresh." },
+      getStreamingReasoningText: (runId) =>
+        runId === "run-reconnect" ? "Resuming after refresh." : ""
+    });
+
+    expect(screen.getByText("Resuming after refresh.")).toBeInTheDocument();
+  });
 });

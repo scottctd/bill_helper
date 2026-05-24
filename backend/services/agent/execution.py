@@ -30,7 +30,6 @@ from backend.services.agent.message_history import build_llm_messages
 from backend.services.agent.tools_for_model_request import tools_for_agent_model_request
 from backend.services.agent.runtime import (
     ensure_agent_available,
-    run_existing_agent_run,
     start_agent_run,
 )
 from backend.services.agent.work_sessions import attach_user_file_to_work_session_thread
@@ -229,8 +228,6 @@ def run_agent_in_background(
     *,
     session_factory: Callable[[], Session] = open_session,
 ) -> None:
-    db = session_factory()
-    try:
-        run_existing_agent_run(db, run_id)
-    finally:
-        db.close()
+    from backend.services.agent.stream_hub import start_run_stream_execution
+
+    start_run_stream_execution(run_id, session_factory=session_factory)

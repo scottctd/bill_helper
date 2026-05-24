@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { agentStreamSession } from "./agentStreamSession";
-import { findRunningRunForThread, resolveLiveRunIdForThread } from "./liveRun";
-import { buildRun } from "../../../test/factories/agent";
+import { findRunningRunForThread, resolveLiveRunIdForThread, resolveReconnectSequenceIndex } from "./liveRun";
+import { buildRun, buildRunEvent } from "../../../test/factories/agent";
 
 describe("liveRun helpers", () => {
   it("prefers mapped stream run id for a thread", () => {
@@ -33,5 +33,19 @@ describe("liveRun helpers", () => {
     ];
 
     expect(findRunningRunForThread(runs)?.id).toBe("run-2");
+  });
+
+  it("uses the max persisted or session sequence index for reconnect", () => {
+    const run = buildRun({
+      id: "run-3",
+      status: "running",
+      events: [buildRunEvent({ sequence_index: 4 })]
+    });
+    const session = {
+      ...agentStreamSession,
+      lastSequenceIndexByRunId: { "run-3": 7 }
+    };
+
+    expect(resolveReconnectSequenceIndex(run, session)).toBe(7);
   });
 });

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-import json
 from threading import Thread
 from typing import Literal
 
@@ -51,7 +50,8 @@ from backend.services.agent.execution import (
 )
 from backend.services.agent.external_session import thread_initiated_by_external_agent
 from backend.services.agent.runtime import AgentRuntimeUnavailable
-from backend.services.agent.runtime import run_existing_agent_run_stream
+from backend.services.agent.sse import format_sse_event
+from backend.services.agent.stream_hub import iter_run_stream_hub_events, start_run_stream_execution
 from backend.services.agent.serializers import (
     message_to_schema,
     run_to_schema,
@@ -67,10 +67,6 @@ router = APIRouter(
     prefix="/agent",
     tags=["agent"],
 )
-
-
-def sse_event(event_type: str, payload: dict[str, object]) -> str:
-    return f"event: {event_type}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
 
 
 def _normalize_approval_policy_form(value: str | None) -> AgentApprovalPolicy:
@@ -353,18 +349,22 @@ async def send_thread_message_stream(
     def stream_events() -> Iterator[str]:
         stream_finished = False
         try:
-            for event in run_existing_agent_run_stream(db, run.id):
+            for event in iter_run_stream_hub_events(
+                db,
+                run.id,
+                after_sequence=0,
+                session_factory=open_background_session,
+            ):
                 event_type = str(event.get("type") or "event")
                 payload = dict(event)
-                yield sse_event(event_type, payload)
+                yield format_sse_event(event_type, payload)
             stream_finished = True
         finally:
             if not stream_finished:
-                Thread(
-                    target=run_agent_in_background,
-                    kwargs={"run_id": run.id, "session_factory": open_background_session},
-                    daemon=True,
-                ).start()
+                start_run_stream_execution(
+                    run.id,
+                    session_factory=open_background_session,
+                )
 
     return StreamingResponse(
         stream_events(),

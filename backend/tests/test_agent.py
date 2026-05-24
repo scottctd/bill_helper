@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from threading import Event
+from threading import Event, Thread
 
 import pytest
 
 from backend.database import open_session
 from backend.tests.agent_test_utils import (
     build_pdf_bytes,
+    collect_run_sse_events,
     collect_sse_events,
     create_thread,
     patch_model,
@@ -2253,6 +2254,110 @@ def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasonin
     assert len(reasoning_run_events) == 1
     assert reasoning_run_events[0]["message"] == "I am checking current tags before making any changes."
     assert reasoning_run_events[0]["source"] == "assistant_content"
+
+
+@pytest.fixture(autouse=True)
+def reset_agent_stream_hub():
+    from backend.services.agent.stream_hub import reset_run_stream_hub_for_tests
+
+    reset_run_stream_hub_for_tests()
+    yield
+    reset_run_stream_hub_for_tests()
+
+
+def _completed_stream_model():
+    def stream_model(_messages, _db, **_kwargs):
+        yield {"type": "text_delta", "delta": "Hello"}
+        yield {
+            "type": "done",
+            "message": {
+                "role": "assistant",
+                "content": "Hello",
+                "tool_calls": [],
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "cache_read_tokens": 0,
+                    "cache_write_tokens": 0,
+                },
+            },
+        }
+
+    return stream_model
+
+
+def test_run_stream_reconnect_resumes_live_events(client, monkeypatch):
+    from backend.services.agent import runtime
+
+    release_model = Event()
+
+    def stream_model(_messages, _db, **_kwargs):
+        yield {"type": "reasoning_delta", "delta": "Think"}
+        while not release_model.wait(timeout=0.05):
+            pass
+        yield {"type": "text_delta", "delta": "Done"}
+        yield {
+            "type": "done",
+            "message": {
+                "role": "assistant",
+                "content": "Done",
+                "tool_calls": [],
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "cache_read_tokens": 0,
+                    "cache_write_tokens": 0,
+                },
+            },
+        }
+
+    monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+
+    thread = create_thread(client)
+    run = send_message(client, thread["id"], "say hello", wait_for_completion=False)
+    assert run["status"] == "running"
+
+    reconnect_events: list[dict] = []
+
+    def collect_reconnect() -> None:
+        reconnect_events.extend(collect_run_sse_events(client, run["id"], after_sequence=0))
+
+    reconnect_thread = Thread(target=collect_reconnect)
+    reconnect_thread.start()
+    time.sleep(0.05)
+    release_model.set()
+    reconnect_thread.join(timeout=5.0)
+    assert not reconnect_thread.is_alive()
+
+    reasoning = "".join(event.get("delta", "") for event in reconnect_events if event.get("type") == "reasoning_delta")
+    text = "".join(event.get("delta", "") for event in reconnect_events if event.get("type") == "text_delta")
+    assert reasoning == "Think"
+    assert "Done" in text
+    assert "Done" in text
+    assert any(
+        event.get("type") == "run_event" and event.get("event", {}).get("event_type") == "run_completed"
+        for event in reconnect_events
+    )
+
+
+def test_run_stream_replay_respects_after_sequence(client, monkeypatch):
+    from backend.services.agent import runtime
+    from backend.tests.agent_test_utils import collect_run_sse_events
+
+    monkeypatch.setattr(runtime, "call_model_stream", _completed_stream_model())
+
+    thread = create_thread(client)
+    events = collect_sse_events(client, thread["id"], "say hello")
+    run_id = next(event["run_id"] for event in events if event.get("run_id"))
+
+    all_events = collect_run_sse_events(client, run_id, after_sequence=0)
+    partial_events = collect_run_sse_events(client, run_id, after_sequence=1)
+
+    assert len(partial_events) < len(all_events)
+    assert all_events[0]["type"] == "run_event"
+    assert all_events[0]["event"]["sequence_index"] == 1
+    if partial_events:
+        assert partial_events[0]["event"]["sequence_index"] > 1
 
 
 def test_interrupt_running_run_stops_background_processing(client, monkeypatch):
