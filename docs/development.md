@@ -245,6 +245,32 @@ Current seed behavior:
 - creates demo accounts and entries
 - creates `admin` with password `admin`
 
+## Bank Statement Download (Experimental, WIP)
+
+Headed Chrome automation for manual-login bank export downloads lives under `scripts/bank_download/`.
+
+Canonical documentation: [`scripts/bank_download/README.md`](../scripts/bank_download/README.md)
+
+Minimal setup:
+
+```bash
+uv sync --group dev
+uv run playwright install chrome
+```
+
+Recommended flow (CDP attach — works around bank bot checks and Chrome CDP restrictions):
+
+```bash
+uv run python scripts/record_bank_flow.py --show-launch-command
+# launch that Chrome command, log in manually, then:
+uv run python scripts/download_bank_statements.py \
+  --recipe scripts/bank_download/recipes/scotiabank-chequing-excel.json \
+  --cdp-url http://127.0.0.1:9222 \
+  --output-dir output/bank_downloads/scotiabank
+```
+
+See the README for recording flows, recipe format, troubleshooting, and WIP scope.
+
 ## Run Backend + Frontend Together
 
 ```bash

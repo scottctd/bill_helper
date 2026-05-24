@@ -291,6 +291,7 @@
 - `/skills/desloppify-maintenance/SKILL.md`: project-local desloppify workflow skill for exclude review, queue-driven fix loops, and standards-log updates during cleanup campaigns.
 - `/scripts/seed_defaults.py`: reset local DB and seed default tags, entity categories, and accounts; optional user-memory copy now has explicit error policy (`best_effort` default, optional `fail_fast`) and shared DB factory usage.
 - `/scripts/seed_demo.py`: local seed dataset generation.
+- `/scripts/download_bank_statements.py`: headed Chrome bank-export downloader with manual login plus JSON recipes under `/scripts/bank_download/` (see `/scripts/bank_download/README.md`).
 - `/scripts/bootstrap_admin.py`: create or reset an admin password-backed login and upgrade the database to head when needed.
 - `/scripts/migrate_agent_upload_bundle_paths.py`: migrate Docling bundle dirs to ``uploads/<created-at-date>/<readable-bundle>/raw.<ext>`` and rewrite readable sibling assets (optional admin one-shot).
 - `/scripts/setup_shared_env.sh`: copies `.env` (or `.env.example`) to `~/.config/bill-helper/.env` for cross-worktree secret sharing.

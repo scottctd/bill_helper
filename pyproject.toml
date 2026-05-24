@@ -54,5 +54,6 @@ markers = [
 [dependency-groups]
 dev = [
     "desloppify[full]",
+    "playwright>=1.58.2",
     "pytest>=8.3.4",
 ]
