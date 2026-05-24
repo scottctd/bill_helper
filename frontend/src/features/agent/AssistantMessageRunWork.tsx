@@ -18,6 +18,7 @@ export interface AssistantMessageRunWorkProps {
   optimisticRunEventsByRunId: Record<string, AgentRunEvent[]>;
   optimisticToolCallsByRunId: Record<string, AgentToolCall[]>;
   streamingReasoningText?: string;
+  streamingReasoningStartedAt?: number | null;
   onInspectActivity?: () => void;
   onHydrateToolCall?: (runId: string, toolCallId: string) => void;
   hydratingToolCallIds?: ReadonlySet<string>;
@@ -28,6 +29,7 @@ export function AssistantMessageRunWork({
   optimisticRunEventsByRunId,
   optimisticToolCallsByRunId,
   streamingReasoningText = "",
+  streamingReasoningStartedAt,
   onInspectActivity,
   onHydrateToolCall,
   hydratingToolCallIds
@@ -84,6 +86,7 @@ export function AssistantMessageRunWork({
           onHydrateToolCall={onHydrateToolCall}
           hydratingToolCallIds={hydratingToolCallIds}
           streamingReasoningText={streamingReasoningText}
+          streamingReasoningStartedAt={streamingReasoningStartedAt}
           showStreamingPlaceholder={placeholderActive}
         />
       </div>

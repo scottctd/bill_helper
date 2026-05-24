@@ -39,6 +39,7 @@ interface RunActivityReasoningUpdate {
   message: string;
   source: AgentRunEventSource;
   createdAt: string;
+  durationMs: number | null;
 }
 
 export type RunActivityItem = RunActivityToolCallItem | RunActivityReasoningUpdate;
@@ -252,7 +253,8 @@ export function buildRunTimelineFromEvents(events: AgentRunEvent[], toolCalls: R
         key: event.id,
         message: normalized,
         source: event.source ?? "tool_call",
-        createdAt: event.created_at
+        createdAt: event.created_at,
+        durationMs: event.reasoning_duration_ms ?? null
       });
       return;
     }

@@ -532,8 +532,48 @@
     display: none;
   }
 
+  .agent-reasoning-segment summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .agent-reasoning-segment summary {
+    @apply flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 py-0.5 text-xs transition-colors hover:bg-secondary/80;
+    list-style: none;
+  }
+
+  .agent-reasoning-segment-label {
+    @apply min-w-0 truncate text-xs font-medium text-muted-foreground;
+  }
+
+  .agent-reasoning-segment-streaming .agent-reasoning-segment-label {
+    @apply text-foreground;
+  }
+
+  .agent-reasoning-segment-time {
+    @apply ml-auto shrink-0 text-[11px] opacity-0 transition-opacity duration-150;
+  }
+
+  .agent-reasoning-segment summary:hover .agent-reasoning-segment-time {
+    @apply opacity-100;
+  }
+
+  .agent-reasoning-segment-details {
+    @apply mt-1 grid gap-1 border-l-2 border-border py-0.5 pl-3;
+  }
+
+  .agent-reasoning-segment-streaming-details {
+    @apply relative overflow-hidden;
+  }
+
+  .agent-reasoning-segment-streaming-details::before {
+    @apply pointer-events-none absolute inset-x-0 top-0;
+    content: "";
+    height: 1.25rem;
+    background: linear-gradient(to bottom, hsl(var(--card)), transparent);
+  }
+
   .agent-tool-call-name {
-    @apply min-w-0 truncate text-xs font-normal text-muted-foreground;
+    @apply min-w-0 truncate text-xs font-medium text-muted-foreground;
   }
 
   .agent-run-changes-summary {

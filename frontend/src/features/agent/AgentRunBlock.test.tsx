@@ -41,6 +41,32 @@ describe("AgentRunBlock", () => {
     expect(screen.getAllByText("Validating candidate entries").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("collapses model reasoning segments with duration and token summary", async () => {
+    const run = buildRun({
+      id: "run-model-reasoning",
+      status: "running",
+      events: [
+        buildRunEvent({
+          id: "event-1",
+          sequence_index: 1,
+          event_type: "reasoning_update",
+          message: "Checking entities before proposing changes.",
+          source: "model_reasoning",
+          reasoning_duration_ms: 3200
+        })
+      ]
+    });
+
+    render(<AgentRunBlock run={run} mode="activity" />);
+
+    expect(screen.getByText("Thought for 4s · 11 tokens")).toBeInTheDocument();
+    expect(screen.queryByText("Checking entities before proposing changes.")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("Thought for 4s · 11 tokens"));
+
+    expect(screen.getByText("Checking entities before proposing changes.")).toBeInTheDocument();
+  });
+
   it("renders model-visible tool output in tool-call details", async () => {
     const toolCall = buildToolCall({
       id: "tool-1",
@@ -211,5 +237,22 @@ describe("AgentRunBlock", () => {
 
     const toolDetails = screen.getByText("Listed entries").closest("details");
     expect(toolDetails).not.toHaveAttribute("open");
+  });
+
+  it("shows only the trailing lines of live model reasoning while streaming", () => {
+    const run = buildRun({
+      id: "run-streaming-reasoning",
+      status: "running",
+      events: []
+    });
+    const longReasoning = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`).join("\n");
+
+    const { container } = render(
+      <AgentRunBlock run={run} mode="activity" streamingReasoningText={longReasoning} />
+    );
+
+    expect(screen.queryByText("line-1")).not.toBeInTheDocument();
+    expect(screen.getByText(/line-7/)).toBeInTheDocument();
+    expect(container.querySelector(".agent-reasoning-segment-streaming-details")).not.toBeNull();
   });
 });

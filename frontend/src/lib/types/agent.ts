@@ -110,6 +110,7 @@ export interface AgentRunEvent {
   message: string | null;
   tool_call_id: string | null;
   created_at: string;
+  reasoning_duration_ms?: number | null;
 }
 
 export interface AgentReviewAction {

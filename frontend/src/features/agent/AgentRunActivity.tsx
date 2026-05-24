@@ -1,6 +1,6 @@
 /**
  * CALLING SPEC:
- * - Purpose: render flat agent run activity rows (reasoning/assistant text as plain markdown; tool calls expandable).
+ * - Purpose: render flat agent run activity rows (collapsible model reasoning, tool calls expandable).
  * - Inputs: callers that import `frontend/src/features/agent/AgentRunActivity.tsx`.
  * - Outputs: `AgentRunActivityRows`, `PendingAssistantActivityBlock`.
  * - Side effects: React rendering and tool hydration requests.
@@ -17,6 +17,14 @@ import {
   type RunActivityItem
 } from "./activity";
 import { MarkdownRenderer } from "../../components/ui/MarkdownRenderer";
+import {
+  estimateReasoningTokenCount,
+  formatThinkingSummaryLabel,
+  formatThoughtSummaryLabel,
+  isModelReasoningSource,
+  STREAMING_REASONING_TAIL_LINE_COUNT,
+  tailReasoningLines
+} from "./reasoning_segment";
 
 const STREAMING_REASONING_PLACEHOLDER = "\u258d";
 
@@ -35,7 +43,7 @@ function renderableStreamingReasoningText(value: string, showPlaceholder: boolea
   return showPlaceholder ? STREAMING_REASONING_PLACEHOLDER : "";
 }
 
-/** Interleaved reasoning/assistant prose: `text-xs` / medium / foreground (tool rows use muted labels). */
+/** User-facing progress notes: `text-xs` / medium / foreground. */
 function InterleavedAssistantMarkdown({ message }: { message: string }) {
   if (message === STREAMING_REASONING_PLACEHOLDER) {
     return (
@@ -45,6 +53,93 @@ function InterleavedAssistantMarkdown({ message }: { message: string }) {
     );
   }
   return <MarkdownRenderer markdown={message} className="agent-run-interleaved-markdown" />;
+}
+
+function ReasoningSegmentMarkdown({ message }: { message: string }) {
+  if (message === STREAMING_REASONING_PLACEHOLDER) {
+    return (
+      <p className="agent-run-interleaved-placeholder m-0">
+        <span className="agent-message-caret">{STREAMING_REASONING_PLACEHOLDER}</span>
+      </p>
+    );
+  }
+  return <MarkdownRenderer markdown={message} className="agent-run-interleaved-markdown" />;
+}
+
+function ReasoningSegmentRow({
+  item,
+  defaultOpen = false,
+  onInspectActivity
+}: {
+  item: Extract<RunActivityItem, { type: "reasoning_update" }>;
+  defaultOpen?: boolean;
+  onInspectActivity?: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const tokenCount = estimateReasoningTokenCount(item.message);
+  const summaryLabel = formatThoughtSummaryLabel({
+    durationMs: item.durationMs,
+    tokenCount
+  });
+
+  return (
+    <details
+      className="agent-reasoning-segment"
+      open={defaultOpen}
+      onToggle={(event) => setIsOpen((event.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary onClick={onInspectActivity}>
+        <span className="agent-reasoning-segment-label">{summaryLabel}</span>
+        <span className="agent-reasoning-segment-time muted">{prettyDateTime(item.createdAt)}</span>
+      </summary>
+      {isOpen ? (
+        <div className="agent-reasoning-segment-details">
+          <ReasoningSegmentMarkdown message={item.message} />
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
+function StreamingReasoningSegmentRow({
+  message,
+  startedAt,
+  onInspectActivity
+}: {
+  message: string;
+  startedAt?: number | null;
+  onInspectActivity?: () => void;
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const isPlaceholder = message === STREAMING_REASONING_PLACEHOLDER;
+  const displayMessage = isPlaceholder ? message : tailReasoningLines(message);
+  const tokenCount = isPlaceholder ? 0 : estimateReasoningTokenCount(message);
+  const summaryLabel =
+    startedAt != null
+      ? formatThinkingSummaryLabel({ durationMs: Math.max(0, nowMs - startedAt), tokenCount })
+      : "Thinking";
+
+  useEffect(() => {
+    if (startedAt == null) {
+      return;
+    }
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 750);
+    return () => window.clearInterval(intervalId);
+  }, [startedAt]);
+
+  return (
+    <details className="agent-reasoning-segment agent-reasoning-segment-streaming" open>
+      <summary onClick={onInspectActivity}>
+        <span className="agent-reasoning-segment-label">{summaryLabel}</span>
+      </summary>
+      <div
+        className="agent-reasoning-segment-details agent-reasoning-segment-streaming-details"
+        style={{ maxHeight: `calc(1.25rem * ${STREAMING_REASONING_TAIL_LINE_COUNT})` }}
+      >
+        <ReasoningSegmentMarkdown message={displayMessage} />
+      </div>
+    </details>
+  );
 }
 
 function ToolCallTimelineRow({
@@ -134,12 +229,23 @@ function ToolCallTimelineRow({
   );
 }
 
+function renderReasoningUpdateRow(
+  item: Extract<RunActivityItem, { type: "reasoning_update" }>,
+  onInspectActivity?: () => void
+) {
+  if (isModelReasoningSource(item.source)) {
+    return <ReasoningSegmentRow key={item.key} item={item} onInspectActivity={onInspectActivity} />;
+  }
+  return <InterleavedAssistantMarkdown key={item.key} message={item.message} />;
+}
+
 export function AgentRunActivityRows({
   items,
   onInspectActivity,
   onHydrateToolCall,
   hydratingToolCallIds,
   streamingReasoningText = "",
+  streamingReasoningStartedAt,
   showStreamingPlaceholder = false
 }: {
   items: RunActivityItem[];
@@ -147,6 +253,7 @@ export function AgentRunActivityRows({
   onHydrateToolCall?: (runId: string, toolCallId: string) => void;
   hydratingToolCallIds?: ReadonlySet<string>;
   streamingReasoningText?: string;
+  streamingReasoningStartedAt?: number | null;
   showStreamingPlaceholder?: boolean;
 }) {
   const visibleStreamingReasoningText = renderableStreamingReasoningText(streamingReasoningText, false);
@@ -155,7 +262,7 @@ export function AgentRunActivityRows({
     <div className="agent-run-activity-timeline">
       {items.map((item) => {
         if (item.type === "reasoning_update") {
-          return <InterleavedAssistantMarkdown key={item.key} message={item.message} />;
+          return renderReasoningUpdateRow(item, onInspectActivity);
         }
         return (
           <ToolCallTimelineRow
@@ -169,10 +276,18 @@ export function AgentRunActivityRows({
         );
       })}
       {hasStreamingReasoningText ? (
-        <InterleavedAssistantMarkdown message={visibleStreamingReasoningText} />
+        <StreamingReasoningSegmentRow
+          message={visibleStreamingReasoningText}
+          startedAt={streamingReasoningStartedAt}
+          onInspectActivity={onInspectActivity}
+        />
       ) : null}
       {showStreamingPlaceholder ? (
-        <InterleavedAssistantMarkdown message={STREAMING_REASONING_PLACEHOLDER} />
+        <StreamingReasoningSegmentRow
+          message={STREAMING_REASONING_PLACEHOLDER}
+          startedAt={streamingReasoningStartedAt}
+          onInspectActivity={onInspectActivity}
+        />
       ) : null}
     </div>
   );
@@ -184,7 +299,8 @@ export function PendingAssistantActivityBlock({
   onInspectActivity,
   onHydrateToolCall,
   hydratingToolCallIds,
-  streamingReasoningText = ""
+  streamingReasoningText = "",
+  streamingReasoningStartedAt
 }: {
   events: AgentRunEvent[];
   toolCalls?: AgentToolCall[];
@@ -192,6 +308,7 @@ export function PendingAssistantActivityBlock({
   onHydrateToolCall?: (runId: string, toolCallId: string) => void;
   hydratingToolCallIds?: ReadonlySet<string>;
   streamingReasoningText?: string;
+  streamingReasoningStartedAt?: number | null;
 }) {
   const items = useMemo(() => buildRunTimelineFromEvents(events, toolCalls), [events, toolCalls]);
   const hasStreamingReasoningText = streamingReasoningText.length > 0;
@@ -209,6 +326,7 @@ export function PendingAssistantActivityBlock({
       onHydrateToolCall={onHydrateToolCall}
       hydratingToolCallIds={hydratingToolCallIds}
       streamingReasoningText={streamingReasoningText}
+      streamingReasoningStartedAt={streamingReasoningStartedAt}
       showStreamingPlaceholder={showStreamingPlaceholder}
     />
   );

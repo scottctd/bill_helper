@@ -28,7 +28,9 @@ export function buildRunEvent(overrides: Partial<AgentRunEvent> = {}): AgentRunE
     source: overrides.source !== undefined ? overrides.source : null,
     message: overrides.message !== undefined ? overrides.message : null,
     tool_call_id: overrides.tool_call_id !== undefined ? overrides.tool_call_id : null,
-    created_at: overrides.created_at ?? "2026-02-15T10:00:00Z"
+    created_at: overrides.created_at ?? "2026-02-15T10:00:00Z",
+    reasoning_duration_ms:
+      overrides.reasoning_duration_ms !== undefined ? overrides.reasoning_duration_ms : null
   };
 }
 

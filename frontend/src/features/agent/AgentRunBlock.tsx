@@ -26,6 +26,7 @@ interface AgentRunBlockProps {
   optimisticEvents?: AgentRunEvent[];
   optimisticToolCalls?: AgentToolCall[];
   streamingReasoningText?: string;
+  streamingReasoningStartedAt?: number | null;
 }
 
 export function AgentRunBlock({
@@ -36,7 +37,8 @@ export function AgentRunBlock({
   mode = "all",
   optimisticEvents = [],
   optimisticToolCalls = [],
-  streamingReasoningText = ""
+  streamingReasoningText = "",
+  streamingReasoningStartedAt
 }: AgentRunBlockProps) {
   const showActivity = mode !== "summary";
   const showSummary = mode !== "activity";
@@ -81,6 +83,7 @@ export function AgentRunBlock({
           optimisticRunEventsByRunId={optimisticRunEventsByRunId}
           optimisticToolCallsByRunId={optimisticToolCallsByRunId}
           streamingReasoningText={streamingReasoningText}
+          streamingReasoningStartedAt={streamingReasoningStartedAt}
           onInspectActivity={onInspectActivity}
           onHydrateToolCall={onHydrateToolCall}
           hydratingToolCallIds={hydratingToolCallIds}
