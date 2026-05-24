@@ -119,7 +119,7 @@ When the user requests a feature from `tasks/*.md`, ask whether to move that tas
 
 ## Before Committing
 
-- Review `git diff` for secrets, tokens, credentials, local paths, financial data, or other sensitive material.
+- Review `git diff` for secrets, tokens, credentials, local paths, financial data, or other sensitive material. This is very important. Review comprehensively and carefully before EVERY commit.
 - Do not commit until the diff is clean.
 
 ## Commit Messages
