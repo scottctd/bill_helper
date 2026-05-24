@@ -469,6 +469,200 @@ def test_complete_stream_retries_without_forced_tool_choice_after_provider_rejec
     assert events[0]["message"]["tool_calls"][0]["function"]["name"] == "rename_thread"
 
 
+def test_complete_retries_without_tool_choice_after_litellm_unsupported_params_error(
+    monkeypatch,
+):
+    client = LiteLLMModelClient(
+        model_name="fireworks_ai/deepseek-v4-pro",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "rename_thread",
+                    "description": "Rename thread",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ],
+        retry_max_attempts=1,
+        retry_initial_wait_seconds=0.0,
+        retry_max_wait_seconds=0.0,
+        retry_backoff_multiplier=2.0,
+    )
+    captured_requests: list[dict[str, object]] = []
+
+    def fake_completion(**kwargs):
+        captured_requests.append(dict(kwargs))
+        if len(captured_requests) == 1:
+            raise litellm.UnsupportedParamsError(
+                message=(
+                    "fireworks_ai does not support parameters: ['tool_choice'], "
+                    "for model=deepseek-v4-pro"
+                ),
+                llm_provider="fireworks_ai",
+                model="deepseek-v4-pro",
+            )
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call_rename_thread",
+                                function=SimpleNamespace(
+                                    name="rename_thread",
+                                    arguments='{"title":"Budget Review"}',
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ],
+            usage={"input_tokens": 3, "output_tokens": 2},
+        )
+
+    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    response = client.complete(
+        [{"role": "user", "content": "hi"}],
+        tool_choice={"type": "function", "function": {"name": "rename_thread"}},
+    )
+
+    assert len(captured_requests) == 2
+    assert captured_requests[0]["tool_choice"] == {
+        "type": "function",
+        "function": {"name": "rename_thread"},
+    }
+    assert "tool_choice" not in captured_requests[1]
+    assert response["tool_calls"][0]["function"]["name"] == "rename_thread"
+
+
+def test_complete_retries_without_auto_tool_choice_after_litellm_unsupported_params_error(
+    monkeypatch,
+):
+    client = LiteLLMModelClient(
+        model_name="fireworks_ai/deepseek-v4-pro",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_entries",
+                    "description": "List entries",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ],
+        retry_max_attempts=1,
+        retry_initial_wait_seconds=0.0,
+        retry_max_wait_seconds=0.0,
+        retry_backoff_multiplier=2.0,
+    )
+    captured_requests: list[dict[str, object]] = []
+
+    def fake_completion(**kwargs):
+        captured_requests.append(dict(kwargs))
+        if len(captured_requests) == 1:
+            raise litellm.UnsupportedParamsError(
+                message=(
+                    "fireworks_ai does not support parameters: ['tool_choice'], "
+                    "for model=deepseek-v4-pro"
+                ),
+                llm_provider="fireworks_ai",
+                model="deepseek-v4-pro",
+            )
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="Hello",
+                        tool_calls=[],
+                    )
+                )
+            ],
+            usage={"input_tokens": 3, "output_tokens": 2},
+        )
+
+    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    response = client.complete([{"role": "user", "content": "hi"}])
+
+    assert len(captured_requests) == 2
+    assert captured_requests[0]["tool_choice"] == "auto"
+    assert "tool_choice" not in captured_requests[1]
+    assert response["content"] == "Hello"
+
+
+def test_complete_stream_retries_without_tool_choice_after_litellm_unsupported_params_error(
+    monkeypatch,
+):
+    client = LiteLLMModelClient(
+        model_name="fireworks_ai/deepseek-v4-pro",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "rename_thread",
+                    "description": "Rename thread",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ],
+        retry_max_attempts=1,
+        retry_initial_wait_seconds=0.0,
+        retry_max_wait_seconds=0.0,
+        retry_backoff_multiplier=2.0,
+    )
+    captured_requests: list[dict[str, object]] = []
+
+    def fake_completion(**kwargs):
+        captured_requests.append(dict(kwargs))
+        if len(captured_requests) == 1:
+            raise litellm.UnsupportedParamsError(
+                message=(
+                    "fireworks_ai does not support parameters: ['tool_choice'], "
+                    "for model=deepseek-v4-pro"
+                ),
+                llm_provider="fireworks_ai",
+                model="deepseek-v4-pro",
+            )
+        return iter(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call_rename_thread",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "rename_thread",
+                                            "arguments": '{"title":"Budget Review"}',
+                                        },
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {"choices": [{"delta": {}}], "usage": {"input_tokens": 2, "output_tokens": 1}},
+            ]
+        )
+
+    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    events = list(
+        client.complete_stream(
+            [{"role": "user", "content": "hi"}],
+            tool_choice={"type": "function", "function": {"name": "rename_thread"}},
+        )
+    )
+
+    assert len(captured_requests) == 2
+    assert "tool_choice" not in captured_requests[1]
+    assert [event["type"] for event in events] == ["done"]
+    assert events[0]["message"]["tool_calls"][0]["function"]["name"] == "rename_thread"
+
+
 def test_complete_injects_prompt_cache_control_points_when_supported(monkeypatch):
     captured_request: dict[str, object] = {}
     client = _build_model_client()

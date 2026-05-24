@@ -10,7 +10,13 @@ import logging
 from typing import Any
 
 import litellm
-from litellm import APIConnectionError, APIError, OpenAIError, Timeout
+from litellm import (
+    APIConnectionError,
+    APIError,
+    OpenAIError,
+    Timeout,
+    UnsupportedParamsError,
+)
 from tenacity import (
     Retrying,
     retry_if_exception_type,
@@ -57,11 +63,28 @@ def _request_uses_forced_tool_choice(request: dict[str, Any]) -> bool:
     return "tool_choice" in request and request.get("tool_choice") != "auto"
 
 
+def _unsupported_tool_choice_mentioned(exc: Exception) -> bool:
+    return "tool_choice" in _message_text(exc).casefold()
+
+
 def _is_unsupported_tool_choice_error(exc: Exception) -> bool:
+    if isinstance(exc, UnsupportedParamsError):
+        return _unsupported_tool_choice_mentioned(exc)
     status_code = getattr(exc, "status_code", None)
     if status_code not in (400, 404, 422):
         return False
     return _UNSUPPORTED_TOOL_CHOICE_ERROR_SNIPPET in _message_text(exc).casefold()
+
+
+def _should_retry_without_tool_choice(
+    request: dict[str, Any],
+    exc: Exception,
+) -> bool:
+    if "tool_choice" not in request or not _is_unsupported_tool_choice_error(exc):
+        return False
+    if isinstance(exc, UnsupportedParamsError):
+        return True
+    return _request_uses_forced_tool_choice(request)
 
 
 def _cache_injection_points_for_messages(
@@ -215,9 +238,7 @@ class LiteLLMModelClient:
         try:
             return self._completion_with_transient_ssl_retry(request)
         except Exception as exc:
-            if not _request_uses_forced_tool_choice(request) or not _is_unsupported_tool_choice_error(
-                exc
-            ):
+            if not _should_retry_without_tool_choice(request, exc):
                 raise
             logger.info(
                 "retrying model completion without forced tool_choice after provider rejection",
