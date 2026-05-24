@@ -109,6 +109,8 @@ External agents own their cwd and local files. Bill Helper stores only what the 
 
 Creating a session via `bh sessions create` or `POST /api/v1/agent/sessions` seeds that marker immediately, even before the first proposal. The frontend timeline shows a short hint banner instead of rendering the marker as chat.
 
+`bh instruction` tells external agents to create a fresh session for each new, unrelated task instead of reusing the persisted CLI session by default. Reuse is reserved for clear follow-up work on an existing session.
+
 `bh sessions sources add-file` uploads text, image, or PDF sources. The backend deduplicates canonical files per owner by content hash. Uploading the same file again returns the same stored source id, and attaching the same stored source to the same session is idempotent.
 
 The external agent remains responsible for deciding how to parse, OCR, summarize, or inspect source files before proposing ledger changes.

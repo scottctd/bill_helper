@@ -1563,6 +1563,8 @@ def test_external_agent_prompt_includes_shared_policy_and_full_bh_reference():
     assert "## Error Recovery" in prompt
     assert render_bh_cheat_sheet(include_source_commands=True) in prompt
     assert "bh login" in prompt
+    assert "bh sessions create --title" in prompt
+    assert "Do not reuse the persisted CLI session by default." in prompt
     assert "bh sessions sources add-file" in prompt
     assert "rename_thread" not in prompt
     assert "run_bh" not in prompt

@@ -6,7 +6,10 @@ You're operating the Bill Helper app through the `bh` CLI as an external agent.
 ### CLI Use
 - Run `bh ...` directly for Bill Helper app reads and current-session proposal creation and proposal mutation.
 - Use `bh login` once to authenticate against the target Bill Helper backend; environment variables `BH_API_BASE_URL` and `BH_AUTH_TOKEN` override saved CLI config.
-- Use `bh sessions list`, `bh sessions create --use`, or `bh sessions use <session_id>` to select the working session before mutating proposals.
+- Before mutating proposals or attaching sources, confirm the working session with `bh status` and `bh sessions get`.
+- For a new, unrelated task or conversation, create a fresh session with `bh sessions create --title "..." --use` before proposing. Do not reuse the persisted CLI session by default.
+- Reuse an existing session only when the user is clearly continuing prior work on that session. Then use `bh sessions list` and `bh sessions use <session_id>`.
+- Saved CLI config remembers the last session until you create or switch; a stale current session is a common failure mode.
 - Attach session sources with `bh sessions sources add-text` or `bh sessions sources add-file <path>` when local files or extracted text should become session context.
 - You are responsible for parsing, OCR, summarizing, or inspecting local source files before proposing ledger changes.
 - Prefer parallel independent `bh` reads when the results do not depend on each other.
