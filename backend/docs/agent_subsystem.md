@@ -113,7 +113,7 @@
 - `send_intermediate_update` is required as the first tool call when tool work is needed
 - `add_user_memory` is an add-only tool for explicit remember-this requests; mutate/remove requests must be declined
 - `rename_thread` should run right after the first user message in a new thread, then only when the user explicitly asks or the topic materially changes
-- untitled threads are runtime-gated to expose only the `rename_thread` tool on the first model step and request an explicit required `tool_choice`; if a provider rejects that forced `tool_choice`, the LiteLLM client retries once without `tool_choice` while keeping the rename-only tool list restriction
+- untitled threads are runtime-gated to expose only the `rename_thread` tool on the first model step and request an explicit required `tool_choice`; if a provider rejects that forced `tool_choice`, or LiteLLM raises `UnsupportedParamsError` because the provider does not support `tool_choice` at all, the model client retries once without `tool_choice` while keeping the rename-only tool list restriction
 - `run_bh` injects backend URL, a short-lived bearer session, current session/thread id, and current run id on every execution; the agent does not supply those manually
 - the prompt has a dedicated `Grouping` section that combines fixed `BUNDLE` / `SPLIT` / `RECURRING` semantics, examples, and workflow guidance
 - after proposing a new entry, the prompt instructs the agent to check whether an existing recurring, split, or bundle group should absorb it and to propose the membership change when needed
@@ -189,7 +189,7 @@ Endpoints:
 - thread detail returns compact tool-call snapshots by default (`has_full_payload=false`)
 - thread detail keeps `configured_model_name` as the resolved runtime default while each run persists its own `model_name`
 - attachment read models include a normalized `display_name` plus the authenticated download URL so the frontend can render inline labels/previews without inferring names from storage paths
-- hosted image/PDF attachments are linked to the current session source list automatically when they are bound to a user message
+- hosted image/PDF attachments are linked to the current session source list automatically when they are bound to a user message; plain-text attachments follow the same session-linking behavior
 - full tool payloads are fetched through `GET /api/v1/agent/tool-calls/{tool_call_id}`
 - runs persist ordered `events[]` rows for replayable timeline activity
 - runs also carry their `change_items`; the frontend flattens those per-run proposal lists into one thread review model
@@ -205,18 +205,19 @@ Endpoints:
 - repeated draft uploads of the same bytes for the same owner reuse an existing canonical file row by SHA-256 while still creating a fresh draft attachment row so removal semantics stay independent
 - each run persists a `surface` hint so later execution and polling can distinguish Telegram-originated runs from default app runs
 - streamed runs emit transient `reasoning_delta`, `text_delta`, and ordered persisted `run_event` rows
+- persisted `model_reasoning` `reasoning_update` rows store optional `reasoning_duration_ms` captured from the stream adapter (first `reasoning_delta` through step persistence) so clients can render collapsed per-segment summaries after reload
 - streamed tool lifecycle `run_event` payloads include a compact top-level `tool_call` snapshot so clients can render the tool name immediately without fetching full payloads
 - live streamed `run_event` payloads optionally include `run_usage` (cumulative counters and derived USD costs for that run at event time) for incremental UI such as thread-level usage bars; historical replay omits `run_usage` so past events do not carry the finished run's final totals
 - tool-call payloads now include backend-computed `display_label` / `display_detail` fields so clients can render high-signal summaries without duplicating formatter logic
 - clients may hydrate a streamed `rename_thread` tool call immediately and update the visible thread title before the final assistant message arrives
 - `send_intermediate_update` is persisted as a `reasoning_update` event, not as a fake tool call
 - malformed tool-call JSON now persists an explicit tool-call error with raw argument text and decode metadata instead of being silently rewritten to an empty argument object
-- attachment-bearing user turns reach the model as ordered content parts: attachment text, then the typed user prompt
-- each user message persists the legacy `attachments_use_ocr` flag, but current hosted attachment sends always require a vision-capable model and use image/PDF page parts
+- attachment-bearing user turns reach the model as ordered content parts: attachment parts first, then the typed user prompt
+- each user message persists the legacy `attachments_use_ocr` flag, but current hosted attachment sends use image/PDF page parts for visual files and inline text parts for plain-text files; image and PDF attachments require a vision-capable model
 - eager draft uploads reuse the same canonical upload bundle path as inline message attachments; once a draft is attached to a message it can no longer be deleted as an unbound draft
 - new agent uploads are written into the canonical per-user store under `{data_dir}/user_files/{owner_user_id}/uploads/...`, and `agent_message_attachments` link to those canonical rows instead of owning file metadata directly
 - the hosted agent prompt does not expose external setup, session navigation, or source-management commands; `run_bh` enforces the same boundary and allows only current-session updates through `bh sessions update`
-- PDF and image attachments are written into per-upload bundle directories. Images keep the original bytes with no resizing. PDFs are stored as `raw.pdf` plus PyMuPDF `page-<n>.png` renders at scale 2 over the default 72 pt/in raster, one file per page, and are rejected before rendering when page count exceeds `agent_max_pdf_pages` (default `10`). Message assembly sends those images as `image_url` parts and does not run Docling or OCR.
+- PDF and image attachments are written into per-upload bundle directories. Images keep the original bytes with no resizing. PDFs are stored as `raw.pdf` plus PyMuPDF `page-<n>.png` renders at scale 2 over the default 72 pt/in raster, one file per page, and are rejected before rendering when page count exceeds `agent_max_pdf_pages` (default `10`). Message assembly sends those images as `image_url` parts and does not run Docling or OCR. Plain-text attachments such as CSV are stored as `raw.<ext>` and assembled as inline `text` parts with the file body.
 - interruption marks runs as `failed` and injects interruption context into the next turn
 - pending proposals remain inspectable in later turns while still `PENDING_REVIEW`
 - reviewed proposal context now includes reviewer override values when `payload_override` changed the approved payload, so later turns can see concrete edited values instead of only changed field names

@@ -5,7 +5,7 @@
  * - Outputs: typed helpers, contracts, or exports from `types`.
  * - Side effects: module-local frontend behavior only.
  */
-export type DraftAttachmentKind = "image" | "pdf";
+export type DraftAttachmentKind = "image" | "pdf" | "text";
 
 export type DraftAttachmentPhase = "uploading" | "processing" | "ready" | "failed";
 
@@ -54,6 +54,7 @@ export interface PendingAssistantMessage {
 
 export const IMAGE_FILENAME_PATTERN = /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
 export const PDF_FILENAME_PATTERN = /\.pdf$/i;
+export const TEXT_FILENAME_PATTERN = /\.(csv|json|log|md|tsv|txt|xml|ya?ml)$/i;
 export const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 220;
 
 interface AttachmentFileLike {
@@ -77,10 +78,28 @@ export function isPdfAttachment(file: AttachmentFileLike): boolean {
   return PDF_FILENAME_PATTERN.test(file.name.toLowerCase());
 }
 
+export function isTextAttachment(file: AttachmentFileLike): boolean {
+  const mimeType = (file.type || "").toLowerCase();
+  if (
+    mimeType.startsWith("text/") ||
+    mimeType === "application/json" ||
+    mimeType === "application/csv"
+  ) {
+    return true;
+  }
+  return TEXT_FILENAME_PATTERN.test(file.name.toLowerCase());
+}
+
 export function isSupportedAgentAttachment(file: AttachmentFileLike): boolean {
-  return isImageAttachment(file) || isPdfAttachment(file);
+  return isImageAttachment(file) || isPdfAttachment(file) || isTextAttachment(file);
 }
 
 export function detectDraftAttachmentKind(file: AttachmentFileLike): DraftAttachmentKind {
-  return isPdfAttachment(file) ? "pdf" : "image";
+  if (isPdfAttachment(file)) {
+    return "pdf";
+  }
+  if (isTextAttachment(file)) {
+    return "text";
+  }
+  return "image";
 }

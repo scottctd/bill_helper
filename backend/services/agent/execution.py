@@ -23,6 +23,7 @@ from backend.services.agent.attachments import (
     attach_existing_user_files,
     create_message_attachment,
     ingest_draft_attachment_upload,
+    message_attachments_require_vision,
 )
 from backend.services.agent.context_tokens import count_context_tokens
 from backend.services.agent.message_history import build_llm_messages
@@ -134,9 +135,14 @@ async def create_user_message_and_start_run(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     has_attachments = bool(files or requested_attachment_ids)
-    if has_attachments and not model_supports_vision(selected_model_name):
+    if has_attachments and message_attachments_require_vision(
+        db,
+        files=files,
+        attachment_ids=requested_attachment_ids,
+        owner_user_id=thread.owner_user_id,
+    ) and not model_supports_vision(selected_model_name):
         raise AgentExecutionPolicyError(
-            detail="Attachments require a vision-capable model.",
+            detail="Image and PDF attachments require a vision-capable model.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 

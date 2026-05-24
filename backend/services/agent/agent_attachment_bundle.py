@@ -16,6 +16,11 @@ import pymupdf
 from sqlalchemy.orm import Session
 
 from backend.models_files import UserFile
+from backend.services.agent.attachment_mime_types import (
+    is_supported_agent_attachment_mime,
+    is_text_agent_attachment_mime,
+    is_visual_agent_attachment_mime,
+)
 from backend.services.agent.docling_convert import convert_upload_bundle_source
 from backend.services.crud_policy import PolicyViolation
 from backend.services.user_files import (
@@ -227,8 +232,9 @@ def ingest_agent_attachment_with_docling(
     mime = (mime_type or "").lower()
     is_pdf = mime == "application/pdf"
     is_image = mime.startswith("image/")
-    if not (is_pdf or is_image):
-        raise PolicyViolation.bad_request("Only PDF and image attachments are supported.")
+    is_text = is_text_agent_attachment_mime(mime)
+    if not is_supported_agent_attachment_mime(mime):
+        raise PolicyViolation.bad_request("Only PDF, image, and plain-text attachments are supported.")
 
     content_hash = _hash_bytes(file_bytes)
     existing = find_user_file_by_sha256(
@@ -329,8 +335,9 @@ def ingest_agent_attachment_without_docling(
     mime = (mime_type or "").lower()
     is_pdf = mime == "application/pdf"
     is_image = mime.startswith("image/")
-    if not (is_pdf or is_image):
-        raise PolicyViolation.bad_request("Only PDF and image attachments are supported.")
+    is_text = is_text_agent_attachment_mime(mime)
+    if not is_supported_agent_attachment_mime(mime):
+        raise PolicyViolation.bad_request("Only PDF, image, and plain-text attachments are supported.")
 
     content_hash = _hash_bytes(file_bytes)
     existing = find_user_file_by_sha256(
@@ -340,7 +347,12 @@ def ingest_agent_attachment_without_docling(
         storage_area=STORAGE_AREA_UPLOAD,
     )
     if existing is not None and existing.source_type == SOURCE_TYPE_AGENT_ATTACHMENT and existing.mime_type == mime:
-        if is_image or _bundle_has_pdf_page_images(existing, data_dir=data_dir) or _bundle_has_docling_output(existing, data_dir=data_dir):
+        if (
+            is_image
+            or is_text
+            or _bundle_has_pdf_page_images(existing, data_dir=data_dir)
+            or _bundle_has_docling_output(existing, data_dir=data_dir)
+        ):
             return duplicate_agent_attachment_from_existing_bundle(
                 db,
                 existing_user_file=existing,

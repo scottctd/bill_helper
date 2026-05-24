@@ -759,10 +759,73 @@ def test_send_message_rejects_unsupported_attachment_type(client):
     response = client.post(
         f"/api/v1/agent/threads/{thread['id']}/messages",
         data={"content": "process this"},
-        files=[("files", ("notes.txt", b"hello", "text/plain"))],
+        files=[("files", ("archive.zip", b"PK", "application/zip"))],
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "Only image and PDF attachments are supported."
+    assert response.json()["detail"] == "Only image, PDF, and plain-text attachments are supported."
+
+
+def test_text_csv_attachment_inlines_content(client, monkeypatch):
+    captured_messages: list[list[dict]] = []
+
+    def capture_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "Processed CSV attachment."}
+
+    patch_model(monkeypatch, capture_model)
+
+    thread = create_thread(client)
+    csv_body = "date,amount,description\n2026-01-01,-12.34,Coffee Shop\n"
+    run = send_message(
+        client,
+        thread["id"],
+        "Import these transactions.",
+        files=[("transactions.csv", csv_body.encode("utf-8"), "text/csv")],
+    )
+
+    assert run["status"] == "completed"
+    user_messages = [message for message in captured_messages[-1] if message.get("role") == "user"]
+    assert user_messages
+    user_content = user_messages[-1].get("content")
+    assert isinstance(user_content, list)
+    assert [part.get("type") for part in user_content] == ["text", "text"]
+    attachment_text = user_content[0].get("text", "")
+    assert "transactions.csv" in attachment_text
+    assert "text/csv" in attachment_text
+    assert "--- file content ---" in attachment_text
+    assert "Coffee Shop" in attachment_text
+    assert user_content[1].get("text") == "Import these transactions."
+
+
+def test_text_csv_attachment_works_without_vision_model(client, monkeypatch):
+    captured_messages: list[list[dict]] = []
+
+    def capture_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "Read the CSV."}
+
+    patch_model(monkeypatch, capture_model)
+    settings_response = client.patch(
+        "/api/v1/settings",
+        json={
+            "available_agent_models": [
+                "gpt-test",
+                "openai/gpt-4.1-mini",
+            ]
+        },
+    )
+    settings_response.raise_for_status()
+
+    thread = create_thread(client)
+    run = send_message(
+        client,
+        thread["id"],
+        "Read this CSV.",
+        files=[("notes.csv", b"date,amount\n2026-01-01,1.00", "text/csv")],
+        model_name="gpt-test",
+    )
+    assert run["status"] == "completed"
+    assert captured_messages
 
 
 def test_image_attachment_can_skip_ocr_for_vision_model(client, monkeypatch):
@@ -878,7 +941,7 @@ def test_send_message_rejects_disabling_ocr_for_non_vision_model(client, monkeyp
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Attachments require a vision-capable model."
+    assert response.json()["detail"] == "Image and PDF attachments require a vision-capable model."
 
 
 def test_pdf_attachment_includes_high_resolution_page_images(client, monkeypatch):

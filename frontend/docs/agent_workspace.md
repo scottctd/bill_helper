@@ -66,6 +66,7 @@ Supporting modules include:
 - backend tool-call payloads now include a high-signal `display_label`; the timeline uses that summary for both compact SSE snapshots and hydrated rows instead of rendering raw tool names
 - streamed `rename_thread` calls hydrate immediately so the thread rail relabels before the assistant finishes the turn
 - reasoning updates and interleaved assistant text render as plain markdown at `text-xs` / `font-medium` / foreground in the same **Public Sans** UI stack as the rest of the app (smaller than the final `text-sm` reply); tool-call rows use `font-normal` / muted labels, no chevron—click the row to expand details; live SSE `reasoning_delta` feeds that list, while `text_delta` streams the main assistant answer as normal markdown below the activity list in the same turn
+- `model_reasoning` segments collapse per step once streaming finishes: the summary reads `Thought for {seconds}s · {tokens} tokens` (seconds come from persisted `reasoning_duration_ms` on the `reasoning_update` event; token counts are estimated client-side from the stored reasoning text); click the row to expand the full reasoning markdown; user-facing `send_intermediate_update` notes (`tool_call` / `assistant_content` sources) stay as flat interleaved markdown and do not collapse
 - completed turns collapse that activity behind a centered separator (work duration plus tool/update counts); clicking the separator expands the full timeline above it; the persisted assistant message body remains the primary visible reply when collapsed
 - compact tool-call snapshots are hydrated on demand from `GET /agent/tool-calls/{tool_call_id}`
 - manually expanding or collapsing activity/tool-call details detaches the timeline from auto-follow so the clicked location stays stable until the reviewer scrolls back to bottom
@@ -102,7 +103,7 @@ Supporting modules include:
 - pinned composer surface with stacked attachment prep cards; the bottom control row is compact (icon-first attach, short Bulk label, model and approval-policy selects, send/stop)
 - composer now stays docked against the bottom edge of the agent workspace instead of leaving dead space below the input row
 - textarea and control row share one card surface instead of reading as separate color bands
-- supports picker, paste, and drag-drop for images and PDFs
+- supports picker, paste, and drag-drop for images, PDFs, and common plain-text files such as CSV
 - composer attachments upload immediately on selection, then continue through server-side preparation before send; each draft card stays on one line with the filename, a live status label, and a compact inline progress bar beside the filename
 - composer draft attachments stay removable while they are uploading or otherwise preparing so the user can drop a file before sending
 - single-send and Bulk mode both wait for all draft attachments to finish upload/parsing before the actual message request starts; once ready, the send request references persisted `attachment_ids` instead of re-uploading the same files

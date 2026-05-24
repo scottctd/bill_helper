@@ -23,6 +23,7 @@ from backend.models_files import UserFile
 from backend.models_shared import utc_now
 from backend.schemas_agent_sessions import AgentSessionRead, AgentSessionSourceRead
 from backend.services.access_scope import agent_thread_owner_filter, load_agent_thread_for_principal
+from backend.services.agent.attachment_mime_types import is_supported_agent_attachment_mime
 from backend.services.crud_policy import PolicyViolation
 from backend.services.user_files import (
     SOURCE_TYPE_AGENT_SESSION_SOURCE,
@@ -34,15 +35,6 @@ from backend.validation.agent_threads import validate_thread_title
 
 EXTERNAL_AGENT_MODEL_NAME = "external-agent"
 EXTERNAL_AGENT_RUN_SURFACE = "cli"
-
-_TEXT_MIME_TYPES = frozenset(
-    {
-        "text/csv",
-        "text/markdown",
-        "text/plain",
-        "application/json",
-    }
-)
 
 
 def list_work_sessions(db: Session, *, principal: RequestPrincipal) -> list[AgentSessionRead]:
@@ -371,9 +363,7 @@ def _normalize_source_mime_type(
 
 
 def _validate_source_mime_type(mime_type: str) -> None:
-    if mime_type == "application/pdf" or mime_type in _TEXT_MIME_TYPES:
-        return
-    if mime_type.startswith("image/") or mime_type.startswith("text/"):
+    if is_supported_agent_attachment_mime(mime_type):
         return
     raise PolicyViolation.bad_request("Only text, image, and PDF sources are supported.")
 

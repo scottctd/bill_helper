@@ -18,6 +18,7 @@ from backend.services.agent.agent_attachment_bundle import (
     pdf_pages_as_png_bytes,
     workspace_uploads_prefix_for_primary_stored_path,
 )
+from backend.services.agent.attachment_mime_types import is_text_agent_attachment
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,13 @@ def is_pdf_attachment(attachment: AgentMessageAttachment) -> bool:
     if mime_type == "application/pdf":
         return True
     return Path(attachment.file_path).suffix.lower() == ".pdf"
+
+
+def is_text_attachment(attachment: AgentMessageAttachment) -> bool:
+    return is_text_agent_attachment(
+        mime_type=attachment.mime_type or "",
+        original_filename=attachment.original_filename,
+    )
 
 
 def attachment_display_name(attachment: AgentMessageAttachment) -> str:
@@ -223,6 +231,31 @@ def _assemble_image_visual_parts(
     ]
 
 
+def _assemble_text_attachment_parts(
+    attachment: AgentMessageAttachment,
+    *,
+    attachment_name: str,
+) -> list[dict[str, Any]]:
+    path = Path(attachment.file_path)
+    if not path.is_file():
+        return [
+            {
+                "type": "text",
+                "text": (
+                    f"Attachment {attachment_name} could not be read from storage. "
+                    "Re-upload the file."
+                ),
+            }
+        ]
+    file_text = path.read_text(encoding="utf-8", errors="replace")
+    mime_type = (attachment.mime_type or "text/plain").strip() or "text/plain"
+    header = (
+        f"Attachment {attachment_name} ({mime_type}).\n"
+        f"--- file content ---\n{file_text}"
+    )
+    return [{"type": "text", "text": header}]
+
+
 def _non_bundle_reupload_parts(attachment_name: str, *, is_pdf: bool) -> list[dict[str, Any]]:
     kind = "PDF" if is_pdf else "image"
     return [
@@ -270,6 +303,14 @@ def assemble_attachment_parts(
     parts: list[dict[str, Any]] = []
     for attachment in attachments:
         attachment_name = attachment_display_name(attachment)
+        if is_text_attachment(attachment):
+            parts.extend(
+                _assemble_text_attachment_parts(
+                    attachment,
+                    attachment_name=attachment_name,
+                )
+            )
+            continue
         if is_pdf_attachment(attachment):
             if use_ocr:
                 parts.extend(

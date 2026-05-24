@@ -171,7 +171,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
               icon={
                 attachment.kind === "image"
                   ? FileImage
-                  : attachment.kind === "pdf"
+                  : attachment.kind === "pdf" || attachment.kind === "text"
                     ? FileText
                     : File
               }

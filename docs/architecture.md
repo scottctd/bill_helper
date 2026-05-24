@@ -153,7 +153,7 @@ Cross-page consistency:
 - owner-scoped finance and agent reads reuse the same principal visibility rules
 - agent threads are user-owned instead of admin-global; admins can still access everything or impersonate a user
 - review apply uses the approving reviewer principal for scoped entry resolution and owner attribution, not mutable runtime settings identity
-- only image and PDF attachments are accepted in agent messages
+- image, PDF, and plain-text attachments are accepted in agent messages; images and PDFs require a vision-capable model, while plain-text attachments are inlined as file content
 - active agent runs execute Bill Helper app operations through `run_bh`; external file work stays outside the app
 - provisioned workspaces mount only the owning user's canonical upload root at `/workspace/uploads` as read-only and do not expose `bill_helper.db`
 

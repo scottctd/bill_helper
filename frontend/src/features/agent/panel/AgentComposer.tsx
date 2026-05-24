@@ -199,7 +199,7 @@ export function AgentComposer(props: AgentComposerProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,application/pdf,.pdf"
+            accept="image/*,application/pdf,.pdf,text/*,.csv,.tsv,.txt,.md,.json,.yaml,.yml,.log,.xml"
             multiple
             onChange={onFileSelection}
             className="sr-only"

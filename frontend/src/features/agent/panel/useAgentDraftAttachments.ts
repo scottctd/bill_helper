@@ -132,8 +132,8 @@ export function useAgentDraftAttachments(args: UseAgentDraftAttachmentsArgs) {
     if (rejectedCount > 0) {
       setActionError(
         rejectedCount === 1
-          ? "Only image and PDF files are supported in agent attachments."
-          : `${rejectedCount} files were skipped. Only image and PDF files are supported in agent attachments.`
+          ? "Only image, PDF, and plain-text files are supported in agent attachments."
+          : `${rejectedCount} files were skipped. Only image, PDF, and plain-text files are supported in agent attachments.`
       );
     } else {
       setActionError(null);

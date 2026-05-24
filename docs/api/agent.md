@@ -116,14 +116,14 @@ Behavior:
 
 ### `POST /agent/draft-attachments`
 
-Upload one draft image or PDF attachment and prepare it for a later vision send.
+Upload one draft image, PDF, or plain-text attachment and prepare it for a later send.
 
 Content type: `multipart/form-data`
 
 Form fields:
 
-- `use_ocr` (legacy compatibility field; current behavior ignores it and prepares vision content)
-- `file` (required image or PDF attachment)
+- `use_ocr` (legacy compatibility field; current behavior ignores it and prepares vision content for image/PDF uploads)
+- `file` (required image, PDF, or plain-text attachment such as CSV)
 
 Behavior:
 
@@ -131,7 +131,7 @@ Behavior:
 - validates the same attachment size and mime-type limits as message-send
 - stores the canonical upload bundle under `{data_dir}/user_files/{owner_user_id}/uploads/...`
 - when the same owner uploads the same attachment bytes again, the backend reuses the existing canonical file row by content hash
-- images are stored as the original bytes; PDFs are rendered into page images for the model without text parsing or OCR
+- images are stored as the original bytes; PDFs are rendered into page images for the model without text parsing or OCR; plain-text files are stored as the original bytes for inline model input
 - PDFs with more pages than the resolved `agent_max_pdf_pages` setting are rejected before rendering
 - returns a lightweight attachment handle for later message-send requests
 
@@ -140,7 +140,7 @@ Response: `201 AgentDraftAttachmentRead`
 Errors:
 
 - `400` unsupported type or invalid payload
-- `422` attachment could not be prepared for vision
+- `422` attachment could not be prepared for send
 
 ### `DELETE /agent/draft-attachments/{attachment_id}`
 
@@ -170,7 +170,7 @@ Form fields:
 - `attachments_use_ocr` (legacy compatibility field; current hosted sends always use vision-prepared image/PDF parts)
 - `approval_policy` (`default` by default; `yolo` auto-applies pending proposals created in this run after it completes successfully, using the same approval dependency rules as manual review)
 - `surface` (`app` by default; `telegram` enables Telegram-safe prompt and reply shaping)
-- `files` (0..N image or PDF attachments uploaded inline with this request)
+- `files` (0..N image, PDF, or plain-text attachments uploaded inline with this request)
 - `attachment_ids` (0..N previously uploaded draft attachment ids)
 
 Behavior:
@@ -181,8 +181,8 @@ Behavior:
 - referenced `attachment_ids` are attached without re-uploading; they must belong to the same principal and still be unbound drafts
 - creates an `agent_runs` row with initial `status=running` and the requested `approval_policy`
 - starts bounded tool-calling execution in background
-- selected models must support vision when attachments are present
-- images are sent as direct `image_url` parts without resizing; PDFs are sent as one rendered page image per page up to `agent_max_pdf_pages`
+- selected models must support vision when image or PDF attachments are present; plain-text attachments do not require vision
+- images are sent as direct `image_url` parts without resizing; PDFs are sent as one rendered page image per page up to `agent_max_pdf_pages`; plain-text attachments are sent as inline `text` parts with the file body
 - provider routing resolves through LiteLLM using the requested `model_name` when supplied, otherwise the configured default model
 - proposal tool outputs include `proposal_id` and `proposal_short_id`
 
@@ -192,9 +192,9 @@ Errors:
 
 - `400` invalid payload
 - `400` selected `model_name` is not enabled in runtime settings
-- `400` attachments were sent with a non-vision model
+- `400` image or PDF attachments were sent with a non-vision model
 - `404` thread not found
-- `422` attachment could not be prepared for vision; no user message is persisted
+- `422` attachment could not be prepared for send; no user message is persisted
 - `503` provider credentials unavailable
 
 ### `POST /agent/threads/{thread_id}/messages/stream`
@@ -210,7 +210,7 @@ Form fields:
 - `attachments_use_ocr` (legacy compatibility field; current hosted sends always use vision-prepared image/PDF parts)
 - `approval_policy` (`default` by default; `yolo` auto-applies pending proposals created in this run after it completes successfully, using the same approval dependency rules as manual review)
 - `surface` (`app` by default; `telegram` enables Telegram-safe prompt and reply shaping)
-- `files` (0..N image or PDF attachments uploaded inline with this request)
+- `files` (0..N image, PDF, or plain-text attachments uploaded inline with this request)
 - `attachment_ids` (0..N previously uploaded draft attachment ids)
 
 Behavior:
@@ -231,6 +231,7 @@ Event contract:
   - `tool_call` is present only for tool lifecycle events and uses the compact `AgentToolCallRead` shape (`has_full_payload=false`)
   - `run_usage` is present on **live** execution and carries the run's cumulative token counters, `context_tokens`, and derived USD fields (same pricing rules as `AgentRunRead`); it is omitted when replaying persisted events for an already-finished run so the client does not apply final totals to every historical event
   - `rename_thread` starts streaming as a compact tool-call event before the final assistant message
+- `AgentRunEventRead` may include optional `reasoning_duration_ms` on persisted `reasoning_update` rows with `source = model_reasoning` (stream capture from first `reasoning_delta` through step persistence); clients estimate token counts from the stored `message` text
 
 Usage notes:
 
@@ -340,6 +341,24 @@ Behavior:
 - validates payloads with the same normalization/ownership rules used by the internal proposal handlers
 - associates the new `AgentChangeItem` with `X-Bill-Helper-Agent-Run-Id` when present, otherwise creates or reuses the session's synthetic external-agent CLI run
 - supports the full current proposal set: entry, account, snapshot, group, group-member, tag, and entity changes
+
+### `POST /agent/threads/{thread_id}/proposals/batch-entries`
+
+Create multiple review-gated entry proposals in one request. Response: `201 AgentProposalListRead`
+
+Body:
+
+- `entries`: array of entry create payloads (1-100 items), each with the same fields as a single `create_entry` proposal
+
+Behavior:
+
+- validates every entry before creating any proposals; failures include the array index (`entries[2]: ...`)
+- creates one `PENDING_REVIEW` `create_entry` proposal per entry
+- uses the same run association rules as `POST /agent/threads/{thread_id}/proposals`
+
+Errors:
+
+- `400` invalid payload, entity reference failure, or batch handler failure
 
 ### `PATCH /agent/threads/{thread_id}/proposals/{proposal_id}`
 

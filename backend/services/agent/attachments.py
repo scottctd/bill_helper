@@ -19,6 +19,12 @@ from backend.services.agent.agent_attachment_bundle import (
     ingest_agent_attachment_without_docling,
     pdf_page_count_from_bytes,
 )
+from backend.services.agent.attachment_mime_types import (
+    is_supported_agent_attachment_mime,
+    is_text_agent_attachment_mime,
+    is_visual_agent_attachment_mime,
+    resolve_agent_attachment_mime_type,
+)
 from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import ResolvedRuntimeSettings
 from backend.services.user_files import SOURCE_TYPE_AGENT_ATTACHMENT, resolve_user_file_path
@@ -39,6 +45,11 @@ def create_message_attachment(
     return attachment
 
 
+_UNSUPPORTED_ATTACHMENT_DETAIL = (
+    "Only image, PDF, and plain-text attachments are supported."
+)
+
+
 async def ingest_draft_attachment_upload(
     db: Session,
     *,
@@ -47,10 +58,13 @@ async def ingest_draft_attachment_upload(
     settings: ResolvedRuntimeSettings,
     use_ocr: bool = True,
 ) -> UserFile:
-    mime_type = (upload.content_type or "").lower()
-    if not (mime_type.startswith("image/") or mime_type == "application/pdf"):
+    mime_type = resolve_agent_attachment_mime_type(
+        mime_type=upload.content_type,
+        original_filename=upload.filename,
+    )
+    if not is_supported_agent_attachment_mime(mime_type):
         raise PolicyViolation(
-            detail="Only image and PDF attachments are supported.",
+            detail=_UNSUPPORTED_ATTACHMENT_DETAIL,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     file_bytes = await upload.read()
@@ -85,10 +99,46 @@ async def ingest_draft_attachment_upload(
             timezone_name=get_settings().current_user_timezone,
         )
     except RuntimeError as exc:
+        detail = (
+            "Attachment could not be prepared. Try a different file or format."
+            if is_text_agent_attachment_mime(mime_type)
+            else "Attachment could not be prepared for vision. Try a different file or format."
+        )
         raise PolicyViolation(
-            detail="Attachment could not be prepared for vision. Try a different file or format.",
+            detail=detail,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         ) from exc
+
+
+def message_attachments_require_vision(
+    db: Session,
+    *,
+    files: list[UploadFile],
+    attachment_ids: list[str],
+    owner_user_id: str,
+) -> bool:
+    for upload in files:
+        mime_type = resolve_agent_attachment_mime_type(
+            mime_type=upload.content_type,
+            original_filename=upload.filename,
+        )
+        if is_visual_agent_attachment_mime(mime_type):
+            return True
+
+    if not attachment_ids:
+        return False
+
+    unique_attachment_ids = list(dict.fromkeys(attachment_ids))
+    user_files = list(
+        db.scalars(
+            select(UserFile).where(
+                UserFile.id.in_(unique_attachment_ids),
+                UserFile.owner_user_id == owner_user_id,
+                UserFile.source_type == SOURCE_TYPE_AGENT_ATTACHMENT,
+            )
+        )
+    )
+    return any(is_visual_agent_attachment_mime(user_file.mime_type) for user_file in user_files)
 
 
 def load_draft_attachment_user_file(
