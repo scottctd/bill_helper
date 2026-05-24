@@ -289,7 +289,14 @@ export function DashboardPage() {
     }
   }, [month, timelineMonths, timelineYears, viewMode, yearTimelineIndex]);
 
+  const dashboardContentReady =
+    timelineQuery.isSuccess && dashboardQuery.isSuccess && dashboardQuery.data != null;
+
   useEffect(() => {
+    if (!dashboardContentReady) {
+      return;
+    }
+
     const selectedItem = timelineItemRefs.current.get(timelineSelectionKey);
     if (!selectedItem) {
       return;
@@ -298,14 +305,21 @@ export function DashboardPage() {
     const behavior = timelineScrollBehaviorRef.current;
     timelineScrollBehaviorRef.current = "auto";
 
-    const frame = requestAnimationFrame(() => {
-      alignTimelineChipToTrailingEdge(selectedItem, behavior);
+    // Double rAF: first frame after mount, second after scrollWidth/layout settle.
+    let frame2 = 0;
+    const frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => {
+        alignTimelineChipToTrailingEdge(selectedItem, behavior);
+      });
     });
 
     return () => {
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(frame1);
+      if (frame2) {
+        cancelAnimationFrame(frame2);
+      }
     };
-  }, [timelineSelectionKey, viewMode]);
+  }, [dashboardContentReady, timelineSelectionKey, viewMode]);
 
   if (timelineQuery.isLoading || dashboardQuery.isLoading) {
     return <p>Loading dashboard...</p>;
