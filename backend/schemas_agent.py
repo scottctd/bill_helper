@@ -56,6 +56,7 @@ class AgentThreadRead(AgentOrmReadSchema):
     summary: str | None = None
     created_at: datetime
     updated_at: datetime
+    initiated_by_external_agent: bool = False
 
 class AgentThreadSummaryRead(AgentThreadRead):
     last_message_preview: str | None = None

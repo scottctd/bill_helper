@@ -105,6 +105,9 @@ External agents own their cwd and local files. Bill Helper stores only what the 
 - editable session summaries
 - session-level source links to canonical `user_files` rows
 - proposals and human review history
+- a persisted system marker message when the session is created, exposed to the frontend as `initiated_by_external_agent` and included in hosted-agent LLM history when the user continues the thread in Bill Helper
+
+Creating a session via `bh sessions create` or `POST /api/v1/agent/sessions` seeds that marker immediately, even before the first proposal. The frontend timeline shows a short hint banner instead of rendering the marker as chat.
 
 `bh sessions sources add-file` uploads text, image, or PDF sources. The backend deduplicates canonical files per owner by content hash. Uploading the same file again returns the same stored source id, and attaching the same stored source to the same session is idempotent.
 

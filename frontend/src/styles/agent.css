@@ -216,6 +216,22 @@
     @apply flex min-h-0 flex-col gap-3 overflow-y-auto pr-1;
   }
 
+  .agent-external-session-hint {
+    @apply rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground;
+  }
+
+  .agent-external-session-hint p {
+    @apply m-0 leading-relaxed;
+  }
+
+  .agent-external-session-hint code {
+    @apply rounded bg-background px-1 py-0.5 font-mono text-xs text-foreground;
+  }
+
+  .agent-external-session-hint strong {
+    @apply font-medium text-foreground;
+  }
+
   .agent-scroll-to-bottom {
     @apply absolute bottom-3 left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-md border border-border bg-card text-muted-foreground shadow-[var(--shadow-sm)] transition-colors duration-150 hover:bg-background hover:text-foreground;
   }

@@ -31,10 +31,13 @@ from backend.services.user_files import (
     display_name_for_file,
     store_user_file_bytes,
 )
+from backend.services.agent.external_session import (
+    EXTERNAL_AGENT_MODEL_NAME,
+    EXTERNAL_AGENT_RUN_SURFACE,
+    ensure_external_session_marker,
+    is_external_session_system_message,
+)
 from backend.validation.agent_threads import validate_thread_title
-
-EXTERNAL_AGENT_MODEL_NAME = "external-agent"
-EXTERNAL_AGENT_RUN_SURFACE = "cli"
 
 
 def list_work_sessions(db: Session, *, principal: RequestPrincipal) -> list[AgentSessionRead]:
@@ -62,6 +65,7 @@ def create_work_session(
     )
     db.add(thread)
     db.flush()
+    ensure_external_session_marker(db, thread_id=thread.id)
     return thread
 
 
@@ -244,14 +248,19 @@ def ensure_external_agent_run(
     if existing is not None:
         return existing
 
-    message = AgentMessage(
-        thread_id=thread.id,
-        role=AgentMessageRole.SYSTEM,
-        content_markdown="External agent session actions.",
-        attachments_use_ocr=False,
+    marker = db.scalar(
+        select(AgentMessage)
+        .where(
+            AgentMessage.thread_id == thread.id,
+            AgentMessage.role == AgentMessageRole.SYSTEM,
+        )
+        .order_by(AgentMessage.created_at.asc())
+        .limit(1)
     )
-    db.add(message)
-    db.flush()
+    if marker is not None and is_external_session_system_message(marker.content_markdown):
+        message = marker
+    else:
+        message = ensure_external_session_marker(db, thread_id=thread.id)
     run = AgentRun(
         thread_id=thread.id,
         user_message_id=message.id,

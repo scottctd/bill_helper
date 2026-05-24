@@ -50,6 +50,7 @@ export interface AgentThread {
   title: string | null;
   created_at: string;
   updated_at: string;
+  initiated_by_external_agent?: boolean;
 }
 
 export interface AgentThreadSummary extends AgentThread {

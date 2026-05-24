@@ -61,6 +61,7 @@ Supporting modules include:
 - delete stays unavailable only for the specific running or deleting thread; idle sibling threads keep their delete affordance even while another thread is active
 - inline rename remains available per thread unless that same thread already has a rename mutation in flight
 - assistant turns and user bubbles share the same centered readable column; assistant content drops the outer bubble shell, while user bubbles stay right-aligned within that column and only go edge-to-edge when the panel is narrow
+- threads started by an external agent via `bh` expose `thread.initiated_by_external_agent`; the timeline shows a compact hint banner and hides the persisted system marker from the message list
 - timeline is event-driven from persisted `run.events`
 - tool rows appear as queued, then update in place through running, completed, failed, or cancelled
 - backend tool-call payloads now include a high-signal `display_label`; the timeline uses that summary for both compact SSE snapshots and hydrated rows instead of rendering raw tool names

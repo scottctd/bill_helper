@@ -22,6 +22,7 @@ from backend.database import get_session_maker
 from backend.enums_agent import (
     AgentApprovalPolicy,
     AgentChangeStatus,
+    AgentMessageRole,
     AgentRunStatus,
     SUPPORTED_AGENT_CHANGE_TYPES,
 )
@@ -48,6 +49,7 @@ from backend.services.agent.execution import (
     current_context_tokens_for_thread,
     run_agent_in_background,
 )
+from backend.services.agent.external_session import thread_initiated_by_external_agent
 from backend.services.agent.runtime import AgentRuntimeUnavailable
 from backend.services.agent.runtime import run_existing_agent_run_stream
 from backend.services.agent.serializers import (
@@ -138,7 +140,10 @@ def _thread_summary_rows(db: Session, *, principal: RequestPrincipal) -> list[Ag
     for thread in threads:
         last_message = db.scalar(
             select(AgentMessage.content_markdown)
-            .where(AgentMessage.thread_id == thread.id)
+            .where(
+                AgentMessage.thread_id == thread.id,
+                AgentMessage.role.in_((AgentMessageRole.USER, AgentMessageRole.ASSISTANT)),
+            )
             .order_by(AgentMessage.created_at.desc())
             .limit(1)
         )
@@ -160,6 +165,7 @@ def _thread_summary_rows(db: Session, *, principal: RequestPrincipal) -> list[Ag
                 last_message_preview=(last_message[:120] if last_message else None),
                 pending_change_count=pending_change_count,
                 has_running_run=thread.id in running_thread_ids,
+                initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=thread.id),
             )
         )
     return summaries
@@ -183,7 +189,10 @@ def create_thread(
     db.add(thread)
     db.commit()
     db.refresh(thread)
-    return thread_to_schema(thread)
+    return thread_to_schema(
+        thread,
+        initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=thread.id),
+    )
 
 
 @router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -224,7 +233,10 @@ def update_thread(
         result = rename_thread_by_id(db, thread_id=thread_id, title=payload.title)
     except AgentThreadNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return thread_to_schema(result.thread)
+    return thread_to_schema(
+        result.thread,
+        initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=result.thread.id),
+    )
 
 
 @router.get("/threads/{thread_id}", response_model=AgentThreadDetailRead)
@@ -264,7 +276,10 @@ def get_thread_detail(
     )
     settings = resolve_runtime_settings(db)
     return AgentThreadDetailRead(
-        thread=thread_to_schema(thread),
+        thread=thread_to_schema(
+            thread,
+            initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=thread.id),
+        ),
         messages=[message_to_schema(message, api_prefix=settings.api_prefix) for message in thread.messages],
         runs=[run_to_schema(run, include_tool_payload=False) for run in thread.runs],
         configured_model_name=settings.agent_model,

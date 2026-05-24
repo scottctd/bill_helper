@@ -116,9 +116,21 @@ export function useAgentPanelQueries({
     [threadQuery.data?.runs]
   );
   const threadUsageTotals = useMemo(() => buildThreadUsageTotals(threadQuery.data), [threadQuery.data]);
+  const initiatedByExternalAgent = threadQuery.data?.thread.initiated_by_external_agent ?? false;
+  const visibleMessages = useMemo(() => {
+    const messages = threadQuery.data?.messages;
+    if (!messages) {
+      return messages;
+    }
+    if (!initiatedByExternalAgent) {
+      return messages;
+    }
+    return messages.filter((message) => message.role !== "system");
+  }, [initiatedByExternalAgent, threadQuery.data?.messages]);
 
   return {
     displayedThreads,
+    initiatedByExternalAgent,
     pendingAssistantRuns,
     pendingAssistantRunsByUserMessageId,
     pendingReviewCount,
@@ -127,6 +139,7 @@ export function useAgentPanelQueries({
     runtimeSettingsQuery,
     threadQuery,
     threadUsageTotals,
-    threadsQuery
+    threadsQuery,
+    visibleMessages
   };
 }

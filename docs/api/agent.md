@@ -18,7 +18,7 @@ Behavior:
 
 - returns the caller's threads
 - admin callers receive all threads
-- each row includes `last_message_preview`, `pending_change_count`, and `has_running_run`
+- each row includes `last_message_preview`, `pending_change_count`, `has_running_run`, and `initiated_by_external_agent`
 
 ### `POST /agent/threads`
 
@@ -68,13 +68,14 @@ Includes:
 - per-run `change_items`
 - `configured_model_name`
 - `current_context_tokens`
+- `thread.initiated_by_external_agent` when the session was created by an external agent via `bh` / `POST /agent/sessions`
 - compact tool-call snapshots by default
 - ordered run `events[]`
 - nullable usage counters and derived pricing fields
 
 ## Sessions And Sources
 
-Sessions are the external-agent-facing shape over the same `agent_threads` review history. They add an editable summary and session-level source links without requiring Bill Helper to know the external agent's cwd or local files. Hosted app attachments are linked into these source records automatically when they are bound to a message.
+Sessions are the external-agent-facing shape over the same `agent_threads` review history. They add an editable summary and session-level source links without requiring Bill Helper to know the external agent's cwd or local files. Hosted app attachments are linked into these source records automatically when they are bound to a message. Session creation also seeds a system marker message so the frontend can show an external-session hint and the hosted agent can treat follow-up chat as continuation of external work.
 
 ### `GET /agent/sessions`
 

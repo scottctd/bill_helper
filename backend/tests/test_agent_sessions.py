@@ -67,3 +67,24 @@ def test_agent_session_proposals_can_be_created_without_run_header(client) -> No
     list_response = client.get(f"/api/v1/agent/threads/{session['id']}/proposals")
     list_response.raise_for_status()
     assert list_response.json()["total_available"] == 1
+
+
+def test_external_session_thread_exposes_marker_and_flag(client) -> None:
+    create_response = client.post("/api/v1/agent/sessions", json={"title": "External receipts"})
+    create_response.raise_for_status()
+    session = create_response.json()
+
+    detail_response = client.get(f"/api/v1/agent/threads/{session['id']}")
+    detail_response.raise_for_status()
+    detail = detail_response.json()
+
+    assert detail["thread"]["initiated_by_external_agent"] is True
+    assert len(detail["messages"]) == 1
+    assert detail["messages"][0]["role"] == "system"
+    assert detail["messages"][0]["content_markdown"].startswith("This session was started by an external agent")
+
+    list_response = client.get("/api/v1/agent/threads")
+    list_response.raise_for_status()
+    listed = next(item for item in list_response.json() if item["id"] == session["id"])
+    assert listed["initiated_by_external_agent"] is True
+    assert listed["last_message_preview"] is None

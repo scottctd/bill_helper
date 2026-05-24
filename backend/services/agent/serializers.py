@@ -274,13 +274,18 @@ def run_to_schema(
     )
 
 
-def thread_to_schema(thread: AgentThread) -> AgentThreadRead:
+def thread_to_schema(
+    thread: AgentThread,
+    *,
+    initiated_by_external_agent: bool = False,
+) -> AgentThreadRead:
     return AgentThreadRead(
         id=thread.id,
         title=thread.title,
         summary=thread.summary,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
+        initiated_by_external_agent=initiated_by_external_agent,
     )
 
 
@@ -290,6 +295,7 @@ def thread_summary_to_schema(
     last_message_preview: str | None,
     pending_change_count: int,
     has_running_run: bool,
+    initiated_by_external_agent: bool = False,
 ) -> AgentThreadSummaryRead:
     return AgentThreadSummaryRead(
         id=thread.id,
@@ -300,4 +306,5 @@ def thread_summary_to_schema(
         last_message_preview=last_message_preview,
         pending_change_count=pending_change_count,
         has_running_run=has_running_run,
+        initiated_by_external_agent=initiated_by_external_agent,
     )

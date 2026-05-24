@@ -60,6 +60,7 @@ function renderTimeline(
     selectedThreadId: "thread-1",
     isLoading: false,
     errorMessage: null,
+    initiatedByExternalAgent: false,
     messages: [],
     timelineScrollRef: createRef<HTMLDivElement>(),
     runsByAssistantMessageId: new Map(),
@@ -128,6 +129,7 @@ describe("AgentTimeline", () => {
       selectedThreadId: "thread-1",
       isLoading: false,
       errorMessage: null,
+      initiatedByExternalAgent: false,
       messages: [assistantMessage],
       timelineScrollRef: createRef<HTMLDivElement>(),
       runsByAssistantMessageId: new Map(),
@@ -179,6 +181,16 @@ describe("AgentTimeline", () => {
     expect(markdownRenderSpy).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Historical **markdown** reply")).toBeInTheDocument();
     expectArticleClasses(screen.getByText("Historical **markdown** reply"), ["agent-message", "agent-message-assistant"], ["agent-message-user"]);
+  });
+
+  it("shows an external-agent session hint when the thread was started externally", () => {
+    renderTimeline({
+      initiatedByExternalAgent: true,
+      messages: []
+    });
+
+    expect(screen.getByLabelText("External agent session")).toBeInTheDocument();
+    expect(screen.getByText(/started by an external agent via/i)).toBeInTheDocument();
   });
 
   it("keeps user messages as right-aligned bubbles", () => {

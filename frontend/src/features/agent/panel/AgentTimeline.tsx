@@ -35,6 +35,7 @@ export interface AgentTimelineProps {
   selectedThreadId: string;
   isLoading: boolean;
   errorMessage: string | null;
+  initiatedByExternalAgent: boolean;
   messages: AgentMessage[] | undefined;
   timelineScrollRef: Ref<HTMLDivElement>;
   runsByAssistantMessageId: Map<string, AgentRun[]>;
@@ -72,6 +73,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     selectedThreadId,
     isLoading,
     errorMessage,
+    initiatedByExternalAgent,
     messages,
     timelineScrollRef,
     runsByAssistantMessageId,
@@ -245,6 +247,15 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
       {selectedThreadId ? (
         <div className="agent-timeline-scroll-wrapper">
           <div className="agent-timeline-scroll" ref={timelineScrollRef}>
+          {initiatedByExternalAgent ? (
+            <aside className="agent-external-session-hint" aria-label="External agent session">
+              <p>
+                This session was started by an external agent via <code>bh</code>. Use{" "}
+                <strong>Review</strong> for pending proposals. Chat history from the external agent is not shown
+                here.
+              </p>
+            </aside>
+          ) : null}
           {(messages ?? []).map((message) => {
             const isAssistant = message.role === "assistant";
             const isUser = message.role === "user";
