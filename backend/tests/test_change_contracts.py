@@ -4,6 +4,7 @@ import pytest
 
 from backend.enums_agent import AgentChangeType
 from backend.services.agent.change_contracts import validate_change_payload
+from backend.services.agent.change_contracts.entries import BatchImportEntriesPayload
 from backend.services.agent.change_contracts.patches import validate_patch_map_paths
 
 
@@ -25,6 +26,38 @@ def test_validate_change_payload_normalizes_create_entry_contract() -> None:
     assert parsed.name == "Coffee"
     assert parsed.from_entity == "Main Checking"
     assert parsed.tags == ["cafe", "food"]
+
+
+def test_batch_import_entries_payload_requires_at_least_one_entry() -> None:
+    with pytest.raises(ValueError):
+        BatchImportEntriesPayload.model_validate({"entries": []})
+
+
+def test_batch_import_entries_payload_accepts_multiple_entries() -> None:
+    parsed = BatchImportEntriesPayload.model_validate(
+        {
+            "entries": [
+                {
+                    "kind": "EXPENSE",
+                    "date": "2026-01-10",
+                    "name": "Coffee",
+                    "amount_minor": 450,
+                    "from_entity": "Main Checking",
+                    "to_entity": "Coffee Shop",
+                },
+                {
+                    "kind": "INCOME",
+                    "date": "2026-01-11",
+                    "name": "Refund",
+                    "amount_minor": 100,
+                    "from_entity": "Store",
+                    "to_entity": "Main Checking",
+                },
+            ]
+        }
+    )
+    assert len(parsed.entries) == 2
+    assert parsed.entries[1].kind.value == "INCOME"
 
 
 def test_validate_change_payload_normalizes_create_account_contract() -> None:

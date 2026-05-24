@@ -21,6 +21,7 @@ from backend.enums_agent import (
     AgentRunStatus,
     AgentToolCallStatus,
 )
+from backend.services.agent.change_contracts.entries import BatchImportEntriesPayload
 from backend.validation.agent_threads import THREAD_TITLE_MAX_LENGTH, validate_thread_title
 
 
@@ -110,6 +111,7 @@ class AgentRunEventRead(AgentOrmReadSchema):
     message: str | None = None
     tool_call_id: str | None = None
     created_at: datetime
+    reasoning_duration_ms: int | None = None
 
 class AgentReviewActionRead(AgentOrmReadSchema):
     id: str
@@ -271,6 +273,10 @@ class AgentProposalListQuery(AgentSchema):
 class AgentProposalCreateRequest(AgentSchema):
     change_type: AgentChangeType
     payload_json: dict[str, Any]
+
+
+class AgentBatchImportEntriesRequest(BatchImportEntriesPayload):
+    """HTTP request body for batch entry proposal creation."""
 
 
 class AgentProposalUpdateRequest(AgentSchema):

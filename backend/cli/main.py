@@ -20,6 +20,8 @@ import json
 import sys
 from typing import Any
 
+from pydantic import ValidationError
+
 from backend.cli.reference import render_bh_cheat_sheet
 from backend.cli.session_commands import add_sessions_parser
 from backend.cli.create_commands import (
@@ -53,6 +55,7 @@ from backend.cli.support import (
     resolve_thread_id,
     save_cli_config,
 )
+from backend.services.agent.change_contracts.entries import BatchImportEntriesPayload
 
 
 CommandHandler = Callable[[argparse.Namespace, CliContext | None], Any]
@@ -178,6 +181,14 @@ def _build_entries_parser(subparsers) -> None:
     _add_format_option(create_parser)
     add_create_command_arguments(create_parser, ENTRY_CREATE_SPEC)
     create_parser.set_defaults(handler=_handle_create_command, render_key="proposals_detail")
+
+    import_parser = entries.add_parser(
+        "import",
+        help="Create multiple entry proposals in the current thread from one JSON document.",
+    )
+    _add_format_option(import_parser)
+    _add_json_options(import_parser, inline_flag="--payload-json", file_flag="--payload-file", dest="payload")
+    import_parser.set_defaults(handler=_handle_entries_import, render_key="proposals_list")
 
     update_parser = entries.add_parser("update", help="Create an entry-update proposal in the current thread.")
     _add_format_option(update_parser)
@@ -548,6 +559,27 @@ def _handle_entries_update(args: argparse.Namespace, context: CliContext) -> Any
 def _handle_entries_remove(args: argparse.Namespace, context: CliContext) -> Any:
     entry_id = resolve_entry_id(context, entry_id=args.entry_id)
     return _create_thread_proposal(context, change_type="delete_entry", payload_json={"entry_id": entry_id})
+
+
+def _handle_entries_import(args: argparse.Namespace, context: CliContext) -> Any:
+    raw_payload = load_json_argument(inline_json=args.payload_json, json_file=args.payload_file)
+    try:
+        validated = BatchImportEntriesPayload.model_validate(raw_payload)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            for error in exc.errors()
+        )
+        raise CliError(f"Invalid entry import payload: {details}") from exc
+    thread_id = resolve_thread_id(context)
+    _, payload = request_json(
+        context,
+        "POST",
+        f"/agent/threads/{thread_id}/proposals/batch-entries",
+        json_body=validated.model_dump(mode="json"),
+        include_run_id=True,
+    )
+    return payload
 
 
 def _handle_accounts_update(args: argparse.Namespace, context: CliContext) -> Any:

@@ -158,6 +158,14 @@ def _validate_hosted_bh_command(argv: list[str]) -> None:
         return
     if command_tokens[0] in {"instruction", "login"}:
         raise ValueError("`bh login` and `bh instruction` are for external agents; hosted runs already receive auth and app rules.")
+    if command_tokens[0] == "entries" and len(command_tokens) >= 2 and command_tokens[1] == "import":
+        _reject_hosted_file_flags(
+            command_tokens[2:],
+            file_flag_names=("--payload-file",),
+            command_label="Hosted `bh entries import`",
+            inline_hint="pass --payload-json instead.",
+        )
+        return
     if command_tokens[0] != "sessions":
         return
     if len(command_tokens) < 2 or command_tokens[1] != "update":
@@ -184,11 +192,15 @@ def _bh_command_tokens(argv: list[str]) -> list[str]:
 
 
 def _validate_hosted_session_update(tokens: list[str]) -> None:
+    _reject_hosted_file_flags(
+        tokens,
+        file_flag_names=("--summary-file",),
+        command_label="Hosted `bh sessions update`",
+        inline_hint="pass --summary text instead.",
+    )
     index = 0
     while index < len(tokens):
         token = tokens[index]
-        if token == "--summary-file" or token.startswith("--summary-file="):
-            raise ValueError("Hosted `bh sessions update` cannot read summary files; pass --summary text instead.")
         if token in {"--title", "--summary", "--format"}:
             index += 2
             continue
@@ -199,6 +211,19 @@ def _validate_hosted_session_update(tokens: list[str]) -> None:
             index += 1
             continue
         raise ValueError("Hosted `bh sessions update` can update only the current session; omit session_id.")
+
+
+def _reject_hosted_file_flags(
+    tokens: list[str],
+    *,
+    file_flag_names: tuple[str, ...],
+    command_label: str,
+    inline_hint: str,
+) -> None:
+    for token in tokens:
+        for flag_name in file_flag_names:
+            if token == flag_name or token.startswith(f"{flag_name}="):
+                raise ValueError(f"{command_label} cannot read local files; {inline_hint}")
 
 
 def _thread_id_for_run(context: ToolContext) -> str:

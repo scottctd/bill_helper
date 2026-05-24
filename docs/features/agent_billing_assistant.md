@@ -254,11 +254,24 @@ Command specifications:
   - `--tag NAME: tag name. Repeat for multiple tags.`
   - `--markdown-notes TEXT: optional markdown notes.`
 
+### `bh entries import`
+- Purpose: Create multiple entry proposals in the current thread from one JSON document.
+- Required arguments:
+  - `--payload-json JSON: inline JSON document.`
+- Optional arguments: none.
+- Notes:
+  - --payload-file is for external agents with local files and is not available to hosted runs.
+  - JSON must be an object with an entries array (1-100 items).
+  - Each entry requires: kind, date, name, amount_minor, from_entity, to_entity.
+  - Each entry may include: currency_code, tags, markdown_notes.
+  - Each entry becomes one pending review proposal.
+  - Example: bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}'
+
 ### `bh entries update <entry_id>`
 - Purpose: Create an entry-update proposal in the current thread.
 - Required arguments:
   - `<entry_id>: full entry id or unique short id prefix.`
-  - `exactly one of `--patch-json JSON` or `--patch-file PATH`.`
+  - `exactly one of --patch-json JSON or --patch-file PATH.`
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
@@ -290,7 +303,7 @@ Command specifications:
 - Purpose: Create an account-update proposal in the current thread.
 - Required arguments:
   - `<account_ref>: exact account name, full id, or unique short id prefix.`
-  - `exactly one of `--patch-json JSON` or `--patch-file PATH`.`
+  - `exactly one of --patch-json JSON or --patch-file PATH.`
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
@@ -352,7 +365,7 @@ Command specifications:
 - Purpose: Create a group-update proposal in the current thread.
 - Required arguments:
   - `<group_id>: full group id or unique short id prefix.`
-  - `exactly one of `--patch-json JSON` or `--patch-file PATH`.`
+  - `exactly one of --patch-json JSON or --patch-file PATH.`
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
@@ -367,7 +380,7 @@ Command specifications:
 ### `bh groups add-member`
 - Purpose: Create a group-membership add proposal.
 - Required arguments:
-  - `exactly one of `--payload-json JSON` or `--payload-file PATH`.`
+  - `exactly one of --payload-json JSON or --payload-file PATH.`
 - Optional arguments: none.
 - Notes:
   - Payload is nested; discriminated by `target.target_type` (`entry` vs `child_group`).
@@ -379,7 +392,7 @@ Command specifications:
 ### `bh groups remove-member`
 - Purpose: Create a group-membership removal proposal.
 - Required arguments:
-  - `exactly one of `--payload-json JSON` or `--payload-file PATH`.`
+  - `exactly one of --payload-json JSON or --payload-file PATH.`
 - Optional arguments: none.
 - Notes:
   - Remove supports **existing ids only**; proposal-id references are rejected for parent group and targets.
@@ -401,7 +414,7 @@ Command specifications:
 - Purpose: Create an entity-update proposal in the current thread.
 - Required arguments:
   - `<entity_name>: exact entity name.`
-  - `exactly one of `--patch-json JSON` or `--patch-file PATH`.`
+  - `exactly one of --patch-json JSON or --patch-file PATH.`
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
@@ -428,7 +441,7 @@ Command specifications:
 - Purpose: Create a tag-update proposal in the current thread.
 - Required arguments:
   - `<tag_name>: exact tag name.`
-  - `exactly one of `--patch-json JSON` or `--patch-file PATH`.`
+  - `exactly one of --patch-json JSON or --patch-file PATH.`
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
@@ -459,7 +472,7 @@ Command specifications:
 - Purpose: Update one pending proposal by id.
 - Required arguments:
   - `<proposal_id>: full proposal id or unique short id prefix.`
-  - `exactly one of `--patch-json JSON` or `--patch-file PATH`.`
+  - `exactly one of --patch-json JSON or --patch-file PATH.`
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
@@ -486,11 +499,13 @@ Common flows:
 - Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`
 - Create a tag proposal: `bh tags create --name grocery --type expense`
 - Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{"tags":["grocery","one_time"]}'`
+- Import multiple entry proposals: `bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}'`
 - Create an account proposal: `bh accounts create --name "Wealthsimple Cash" --currency-code CAD --inactive`
 - Create a snapshot proposal: `bh snapshots create --account-id 1a2b3c4d --snapshot-at 2026-03-15 --balance 1234.56 --note "statement balance"`
 - Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{"patch.tags":["grocery"]}'`
 - Remove a pending proposal: `bh proposals remove a1b2c3d4`
 - Create a group-membership add proposal: `bh groups add-member --payload-json '{"action":"add","group_ref":{"group_id":"a971c92e"},"target":{"target_type":"entry","entry_ref":{"entry_id":"8bf2fa83"}}}'`
+
 <!-- GENERATED:bh-cheat-sheet:end -->
 
 

@@ -65,6 +65,26 @@ _HOSTED_SESSION_UPDATE_SPEC = CommandSpec(
     ),
 )
 
+_HOSTED_ENTRIES_IMPORT_SPEC = CommandSpec(
+    "bh entries import",
+    "Create multiple entry proposals in the current thread from one JSON document.",
+    required_arguments=(
+        "--payload-json JSON: inline JSON document.",
+    ),
+    notes=(
+        "--payload-file is for external agents with local files and is not available to hosted runs.",
+        "JSON must be an object with an entries array (1-100 items).",
+        "Each entry requires: kind, date, name, amount_minor, from_entity, to_entity.",
+        "Each entry may include: currency_code, tags, markdown_notes.",
+        "Each entry becomes one pending review proposal.",
+        (
+            "Example: bh entries import --payload-json "
+            '\'{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy",'
+            '"amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}\''
+        ),
+    ),
+)
+
 
 _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("entries_list", "id|date|kind|amount_minor|currency|name|from|to|tags"),
@@ -219,11 +239,29 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         ),
     ),
     CommandSpec(
+        "bh entries import",
+        "Create multiple entry proposals in the current thread from one JSON document.",
+        required_arguments=(
+            "exactly one of --payload-json JSON or --payload-file PATH.",
+        ),
+        notes=(
+            "JSON must be an object with an entries array (1-100 items).",
+            "Each entry requires: kind, date, name, amount_minor, from_entity, to_entity.",
+            "Each entry may include: currency_code, tags, markdown_notes.",
+            "Each entry becomes one pending review proposal.",
+            (
+                "Example: bh entries import --payload-json "
+                '\'{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy",'
+                '"amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}\''
+            ),
+        ),
+    ),
+    CommandSpec(
         "bh entries update <entry_id>",
         "Create an entry-update proposal in the current thread.",
         required_arguments=(
             "<entry_id>: full entry id or unique short id prefix.",
-            "exactly one of `--patch-json JSON` or `--patch-file PATH`.",
+            "exactly one of --patch-json JSON or --patch-file PATH.",
         ),
         notes=(
             "JSON/PATH must contain a patch object.",
@@ -261,7 +299,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         "Create an account-update proposal in the current thread.",
         required_arguments=(
             "<account_ref>: exact account name, full id, or unique short id prefix.",
-            "exactly one of `--patch-json JSON` or `--patch-file PATH`.",
+            "exactly one of --patch-json JSON or --patch-file PATH.",
         ),
         notes=(
             "JSON/PATH must contain a patch object.",
@@ -335,7 +373,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         "Create a group-update proposal in the current thread.",
         required_arguments=(
             "<group_id>: full group id or unique short id prefix.",
-            "exactly one of `--patch-json JSON` or `--patch-file PATH`.",
+            "exactly one of --patch-json JSON or --patch-file PATH.",
         ),
         notes=(
             "JSON/PATH must contain a patch object.",
@@ -353,7 +391,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         "bh groups add-member",
         "Create a group-membership add proposal.",
         required_arguments=(
-            "exactly one of `--payload-json JSON` or `--payload-file PATH`.",
+            "exactly one of --payload-json JSON or --payload-file PATH.",
         ),
         notes=(
             "Payload is nested; discriminated by `target.target_type` (`entry` vs `child_group`).",
@@ -367,7 +405,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         "bh groups remove-member",
         "Create a group-membership removal proposal.",
         required_arguments=(
-            "exactly one of `--payload-json JSON` or `--payload-file PATH`.",
+            "exactly one of --payload-json JSON or --payload-file PATH.",
         ),
         notes=(
             "Remove supports **existing ids only**; proposal-id references are rejected for parent group and targets.",
@@ -393,7 +431,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         "Create an entity-update proposal in the current thread.",
         required_arguments=(
             "<entity_name>: exact entity name.",
-            "exactly one of `--patch-json JSON` or `--patch-file PATH`.",
+            "exactly one of --patch-json JSON or --patch-file PATH.",
         ),
         notes=(
             "JSON/PATH must contain a patch object.",
@@ -425,7 +463,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         "Create a tag-update proposal in the current thread.",
         required_arguments=(
             "<tag_name>: exact tag name.",
-            "exactly one of `--patch-json JSON` or `--patch-file PATH`.",
+            "exactly one of --patch-json JSON or --patch-file PATH.",
         ),
         notes=(
             "JSON/PATH must contain a patch object.",
@@ -461,7 +499,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         "Update one pending proposal by id.",
         required_arguments=(
             "<proposal_id>: full proposal id or unique short id prefix.",
-            "exactly one of `--patch-json JSON` or `--patch-file PATH`.",
+            "exactly one of --patch-json JSON or --patch-file PATH.",
         ),
         notes=(
             "JSON/PATH must contain a patch object.",
@@ -484,6 +522,12 @@ def compact_schema_for(render_key: str) -> str | None:
     return None
 
 
+def _format_spec_list_item(text: str) -> str:
+    if "`" in text:
+        return text
+    return f"`{text}`"
+
+
 def _render_command_spec(item: CommandSpec) -> str:
     lines = [
         f"### `{item.command}`",
@@ -491,12 +535,12 @@ def _render_command_spec(item: CommandSpec) -> str:
     ]
     if item.required_arguments:
         lines.append("- Required arguments:")
-        lines.extend(f"  - `{arg}`" for arg in item.required_arguments)
+        lines.extend(f"  - {_format_spec_list_item(arg)}" for arg in item.required_arguments)
     else:
         lines.append("- Required arguments: none.")
     if item.optional_arguments:
         lines.append("- Optional arguments:")
-        lines.extend(f"  - `{arg}`" for arg in item.optional_arguments)
+        lines.extend(f"  - {_format_spec_list_item(arg)}" for arg in item.optional_arguments)
     else:
         lines.append("- Optional arguments: none.")
     if item.notes:
@@ -532,6 +576,9 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
                 continue
             if item.command == "bh sessions update [session_id]":
                 visible_command_specs.append(_render_command_spec(_HOSTED_SESSION_UPDATE_SPEC))
+                continue
+            if item.command == "bh entries import":
+                visible_command_specs.append(_render_command_spec(_HOSTED_ENTRIES_IMPORT_SPEC))
                 continue
         visible_command_specs.append(_render_command_spec(item))
     command_specs = "\n\n".join(visible_command_specs)
@@ -585,6 +632,7 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
         "- Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`\n"
         "- Create a tag proposal: `bh tags create --name grocery --type expense`\n"
         "- Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{\"tags\":[\"grocery\",\"one_time\"]}'`\n"
+        "- Import multiple entry proposals: `bh entries import --payload-json '{\"entries\":[{\"kind\":\"EXPENSE\",\"date\":\"2026-03-15\",\"name\":\"Farm Boy\",\"amount_minor\":1234,\"from_entity\":\"Checking\",\"to_entity\":\"Farm Boy\"}]}'`\n"
         "- Create an account proposal: `bh accounts create --name \"Wealthsimple Cash\" --currency-code CAD --inactive`\n"
         "- Create a snapshot proposal: `bh snapshots create --account-id 1a2b3c4d --snapshot-at 2026-03-15 --balance 1234.56 --note \"statement balance\"`\n"
         "- Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{\"patch.tags\":[\"grocery\"]}'`\n"

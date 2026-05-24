@@ -40,6 +40,10 @@ class CreateEntryPayload(ChangePayloadModel):
     markdown_notes: str | None = None
 
 
+class BatchImportEntriesPayload(ChangePayloadModel):
+    entries: list[CreateEntryPayload] = Field(min_length=1, max_length=100)
+
+
 class UpdateEntryPatchPayload(NonEmptyPatchModel):
     kind: EntryKind | None = None
     date: DateValue | None = None

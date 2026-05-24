@@ -5,6 +5,7 @@ CALLING SPEC:
     list_thread_proposals(context, proposal_type=None, proposal_status=None, change_action=None, proposal_id=None, limit=10) -> dict
     get_thread_proposal(context, proposal_id=proposal_id) -> dict
     create_thread_proposal(context, change_type=change_type, payload_json=payload_json) -> dict
+    create_thread_entry_proposals_batch(context, entries=entries) -> dict
 
 Inputs:
     - principal-scoped SQLAlchemy session, thread id, run id, and validated request data
@@ -77,6 +78,7 @@ from backend.services.agent.proposals.entries import (
     propose_create_entry,
     propose_delete_entry,
     propose_update_entry,
+    validate_create_entry_entity_references,
 )
 from backend.services.agent.proposals.group_memberships import propose_update_group_membership
 from backend.services.agent.proposals.groups import (
@@ -171,6 +173,43 @@ def create_thread_proposal(
         )
     proposal_id = str(result.output_json["proposal_id"])
     return get_thread_proposal(context, proposal_id=proposal_id)
+
+
+def create_thread_entry_proposals_batch(
+    context: ToolContext,
+    *,
+    entries: list[CreateEntryPayload],
+) -> dict[str, Any]:
+    for index, entry in enumerate(entries):
+        try:
+            validate_create_entry_entity_references(
+                context,
+                from_entity=entry.from_entity,
+                to_entity=entry.to_entity,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"entries[{index}]: {exc}",
+            ) from exc
+
+    created_items: list[AgentChangeItem] = []
+    for index, entry in enumerate(entries):
+        result = propose_create_entry(context, entry)
+        if result.status != ToolExecutionStatus.OK:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"entries[{index}]: {result.output_json.get('summary', 'Proposal creation failed.')}",
+            )
+        proposal_id = str(result.output_json["proposal_id"])
+        created_items.append(_load_proposal_item(context, proposal_id=proposal_id))
+
+    records = [_public_proposal_record(item) for item in created_items]
+    return {
+        "returned_count": len(records),
+        "total_available": len(records),
+        "proposals": records,
+    }
 
 
 def update_thread_proposal(

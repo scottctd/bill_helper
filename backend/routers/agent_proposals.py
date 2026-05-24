@@ -12,6 +12,7 @@ from backend.auth.contracts import RequestPrincipal
 from backend.auth.dependencies import get_current_principal
 from backend.database import get_db
 from backend.schemas_agent import (
+    AgentBatchImportEntriesRequest,
     AgentProposalCreateRequest,
     AgentProposalListQuery,
     AgentProposalListRead,
@@ -21,6 +22,7 @@ from backend.schemas_agent import (
 from backend.services.access_scope import load_agent_thread_for_principal
 from backend.services.agent.proposal_http import (
     build_thread_tool_context,
+    create_thread_entry_proposals_batch,
     create_thread_proposal,
     delete_thread_proposal,
     get_thread_proposal,
@@ -95,6 +97,26 @@ def create_proposal_for_thread(
     )
     db.commit()
     return result
+
+
+@router.post(
+    "/threads/{thread_id}/proposals/batch-entries",
+    response_model=AgentProposalListRead,
+    status_code=201,
+)
+def create_entry_proposals_batch_for_thread(
+    thread_id: str,
+    payload: AgentBatchImportEntriesRequest,
+    run_id: str | None = Depends(_optional_agent_run_id),
+    db: Session = Depends(get_db),
+    principal: RequestPrincipal = Depends(get_current_principal),
+) -> AgentProposalListRead:
+    load_agent_thread_for_principal(db, thread_id=thread_id, principal=principal)
+    context = build_thread_tool_context(db, principal=principal, thread_id=thread_id, run_id=run_id)
+    result = create_thread_entry_proposals_batch(context, entries=payload.entries)
+    response = AgentProposalListRead.model_validate(result)
+    db.commit()
+    return response
 
 
 @router.patch("/threads/{thread_id}/proposals/{proposal_id}", response_model=AgentProposalRecordRead)

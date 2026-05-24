@@ -575,7 +575,7 @@ def test_entries_parser_without_subcommand_prints_entries_help(capsys) -> None:
 
     assert exit_code == 1
     assert "usage: " in captured.out
-    assert "entries [-h] {list,get,create,update,remove}" in captured.out
+    assert "entries [-h] {list,get,create,import,update,remove}" in captured.out
     assert "threads" not in captured.out
 
 
@@ -966,4 +966,77 @@ def test_entries_create_validation_error_is_friendly(monkeypatch, capsys) -> Non
 
     assert exit_code == 1
     assert "Invalid entry create arguments." in captured.err
+    assert "https://errors.pydantic" not in captured.err
+
+
+def test_entries_import_posts_batch_payload(monkeypatch) -> None:
+    _setup_cli_env(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    def fake_request_json(context, method, path, **kwargs):
+        captured["method"] = method
+        captured["path"] = path
+        captured["json_body"] = kwargs.get("json_body")
+        return 201, {
+            "returned_count": 1,
+            "total_available": 1,
+            "proposals": [],
+        }
+
+    monkeypatch.setattr("backend.cli.main.request_json", fake_request_json)
+
+    exit_code = cli_main.main(
+        [
+            "entries",
+            "import",
+            "--payload-json",
+            json.dumps(
+                {
+                    "entries": [
+                        {
+                            "kind": "EXPENSE",
+                            "date": "2026-03-15",
+                            "name": "Farm Boy",
+                            "amount_minor": 1234,
+                            "from_entity": "Checking",
+                            "to_entity": "Farm Boy",
+                        }
+                    ]
+                }
+            ),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/agent/threads/thread-123/proposals/batch-entries"
+    assert captured["json_body"]["entries"][0]["name"] == "Farm Boy"
+
+
+def test_entries_import_requires_exactly_one_json_source(monkeypatch, capsys) -> None:
+    _setup_cli_env(monkeypatch)
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli_main.main(["entries", "import"])
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 2
+    assert "one of the arguments --payload-json --payload-file is required" in captured.err
+
+
+def test_entries_import_validation_error_is_friendly(monkeypatch, capsys) -> None:
+    _setup_cli_env(monkeypatch)
+
+    exit_code = cli_main.main(
+        [
+            "entries",
+            "import",
+            "--payload-json",
+            json.dumps({"entries": []}),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Invalid entry import payload:" in captured.err
     assert "https://errors.pydantic" not in captured.err

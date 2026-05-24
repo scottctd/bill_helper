@@ -136,6 +136,7 @@ def test_run_bh_rejects_hosted_session_management_commands(client, monkeypatch) 
             "bh sessions sources list",
             'bh sessions update abc123 --summary "wrong target"',
             "bh sessions update --summary-file summary.md",
+            "bh entries import --payload-file imports/march.json",
         ]
         for command in rejected_commands:
             result = run_bh(context, RunBhArgs(command=command))
