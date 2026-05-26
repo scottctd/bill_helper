@@ -1,0 +1,39 @@
+{
+  "name": "my-bank-export",
+  "start_url": "https://REPLACE-WITH-YOUR-BANK-LOGIN-URL",
+  "login": {
+    "url_patterns": [
+      "secure",
+      "banking",
+      "accounts"
+    ],
+    "exclude_url_patterns": [
+      "login",
+      "signin",
+      "sign-in",
+      "auth"
+    ],
+    "selectors": [],
+    "timeout_seconds": 600,
+    "message": "Sign in to your bank in the opened Chrome window. This script resumes once the post-login URL or selector matches."
+  },
+  "steps": [
+    {
+      "label": "open statements area",
+      "action": "goto",
+      "url": "https://REPLACE-WITH-YOUR-STATEMENTS-URL"
+    },
+    {
+      "label": "open export menu",
+      "action": "click",
+      "selector": "text=Download",
+      "timeout_seconds": 30
+    },
+    {
+      "label": "download csv export",
+      "action": "wait_for_download",
+      "selector": "text=CSV",
+      "timeout_seconds": 120
+    }
+  ]
+}

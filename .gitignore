@@ -225,6 +225,11 @@ frontend/dist/
 output/playwright/
 output/bank_downloads/
 
+# Local bank download recipes (account-specific selectors; never commit)
+scripts/bank_download/recipes/*
+!scripts/bank_download/recipes/.gitkeep
+!scripts/bank_download/recipes/template.example.json
+
 # Runtime data
 .data/
 logs/

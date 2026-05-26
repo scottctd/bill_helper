@@ -37,10 +37,9 @@ scripts/
     models.py                   # Recipe JSON schema + loader
     runner.py                     # Login wait + step execution
     recipes/
-      template.json
-      scotiabank.example.json
-      scotiabank-chequing-excel.json
-      scotiabank-chequing-excel-custom-range.json
+      template.example.json   # Committed starter; copy to a local *.json recipe
+      .gitkeep
+      *.json                  # Local only (gitignored) — your bank-specific recipes
 ```
 
 Download artifacts (gitignored):
@@ -48,6 +47,7 @@ Download artifacts (gitignored):
 - `output/bank_downloads/` — explicit saves from the recipe runner
 - `~/.local/share/bill_helper/bank_downloads/` — default timestamped output when `--output-dir` is omitted
 - `~/Downloads` — where Inspector **recording** may drop files (not managed by this tool)
+- `recipes/*.json` (except `template.example.json`) — local bank recipes with account-specific selectors
 
 ## Prerequisites
 
@@ -95,13 +95,20 @@ Sessions persist in `~/.local/share/bill_helper/chrome-bank-debug` across runs.
 
 ### 3. Run a recipe
 
+Copy the starter template if you do not have a local recipe yet:
+
+```bash
+cp scripts/bank_download/recipes/template.example.json \
+  scripts/bank_download/recipes/my-bank.json
+```
+
 In **terminal B**, from the repo root:
 
 ```bash
 uv run python scripts/download_bank_statements.py \
-  --recipe scripts/bank_download/recipes/scotiabank-chequing-excel.json \
+  --recipe scripts/bank_download/recipes/my-bank.json \
   --cdp-url http://127.0.0.1:9222 \
-  --output-dir output/bank_downloads/scotiabank
+  --output-dir output/bank_downloads/my-bank
 ```
 
 On success, the terminal prints `Saved download to ...` for each file.  
@@ -137,7 +144,9 @@ pbpaste > output/bank_downloads/recorded_flow.py
 
 ### 4. Convert recording → recipe
 
-Paste the Python into a recipe under `recipes/`. Supported step actions:
+Paste the Python into a new local file under `recipes/` (for example `recipes/my-bank.json`). Recipe JSON files are **gitignored** — keep them on your machine only.
+
+Supported step actions:
 
 | Action | Fields | Notes |
 |--------|--------|-------|
@@ -184,18 +193,22 @@ Playwright codegen output like `page.get_by_role("link", name="Preferred Package
 { "action": "click", "selector": "role:link:Preferred Package ending in" }
 ```
 
-Avoid hardcoding account URLs or calendar labels like `"Friday, May First, 2026 row"` — they break quickly. Prefer `pause` for manual date selection (see custom-range recipe).
+Avoid hardcoding account URLs or calendar labels like `"Friday, May First, 2026 row"` — they break quickly. Prefer `pause` for manual date selection.
 
-## Bundled recipes
+## Local recipes
+
+Recipe JSON files are **local-only** (gitignored). The repo ships one starter:
 
 | File | Description |
 |------|-------------|
-| `recipes/template.json` | Placeholder starter |
-| `recipes/scotiabank.example.json` | Early stub; prefer the recipes below |
-| `recipes/scotiabank-chequing-excel.json` | Preferred Package chequing → all transactions → Excel |
-| `recipes/scotiabank-chequing-excel-custom-range.json` | Same account, custom date filter with a `pause` for manual dates |
+| `recipes/template.example.json` | Generic placeholder — copy and edit for your bank |
 
-**Scotiabank customization:** edit the account link selector (`role:link:Preferred Package ending in`) if your account label differs.
+Create your own files alongside it, for example:
+
+- `recipes/scotiabank-chequing-csv.json`
+- `recipes/scotiabank-scene-visa-csv.json`
+
+Never commit recipes: they often embed account labels, bank URLs, and other identifiers that belong on your machine only.
 
 ## CLI reference
 
@@ -207,7 +220,7 @@ uv run python scripts/download_bank_statements.py --help
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--recipe` | `scripts/bank_download/recipes/template.json` | Recipe JSON path |
+| `--recipe` | `scripts/bank_download/recipes/template.example.json` | Local recipe JSON path |
 | `--output-dir` | `~/.local/share/bill_helper/bank_downloads/<name>-<timestamp>/` | Where `wait_for_download` saves files |
 | `--cdp-url` | _(none)_ | Attach to running Chrome, e.g. `http://127.0.0.1:9222` |
 | `--skip-login-wait` | false | Run steps immediately (auto-enabled with `--cdp-url`) |
@@ -270,6 +283,7 @@ UI changed or account label differs. Re-run `record_bank_flow.py`, update the re
 
 ## Security notes
 
-- Recipes may embed bank-specific URLs; treat recipe edits like credentials-adjacent config.
+- Keep recipes local: `recipes/*.json` is gitignored except `template.example.json`.
+- Recipes may embed bank-specific URLs and account labels; treat them like credentials-adjacent config.
 - The debug Chrome profile (`chrome-bank-debug`) holds real bank session cookies — keep it on your local machine only (already under `~/.local/share/bill_helper/`).
 - Do not commit downloaded exports or recorded flows containing account identifiers.

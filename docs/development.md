@@ -264,10 +264,12 @@ Recommended flow (CDP attach — works around bank bot checks and Chrome CDP res
 ```bash
 uv run python scripts/record_bank_flow.py --show-launch-command
 # launch that Chrome command, log in manually, then:
+cp scripts/bank_download/recipes/template.example.json scripts/bank_download/recipes/my-bank.json
+# edit my-bank.json, then:
 uv run python scripts/download_bank_statements.py \
-  --recipe scripts/bank_download/recipes/scotiabank-chequing-excel.json \
+  --recipe scripts/bank_download/recipes/my-bank.json \
   --cdp-url http://127.0.0.1:9222 \
-  --output-dir output/bank_downloads/scotiabank
+  --output-dir output/bank_downloads/my-bank
 ```
 
 See the README for recording flows, recipe format, troubleshooting, and WIP scope.

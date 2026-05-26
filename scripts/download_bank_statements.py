@@ -24,7 +24,7 @@ from bank_download.models import load_recipe
 from bank_download.runner import run_bank_download
 
 REPO_ROOT = SCRIPTS_DIR.parent
-DEFAULT_RECIPE = SCRIPTS_DIR / "bank_download" / "recipes" / "template.json"
+DEFAULT_RECIPE = SCRIPTS_DIR / "bank_download" / "recipes" / "template.example.json"
 DEFAULT_OUTPUT_ROOT = Path.home() / ".local" / "share" / "bill_helper" / "bank_downloads"
 
 
