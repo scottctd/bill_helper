@@ -1,8 +1,8 @@
 /**
  * CALLING SPEC:
- * - Purpose: render the promoted overview charts for builtin group breakdown and filter-group trends.
- * - Inputs: period-scoped filter-group summaries, chart trend rows, currency metadata, and loading state.
- * - Outputs: dashboard overview chart cards for ranked builtin groups, per-group tag facets, and small-multiple trends.
+ * - Purpose: render the promoted overview charts for builtin group breakdown and projection.
+ * - Inputs: period-scoped filter-group summaries, currency metadata, and loading state.
+ * - Outputs: dashboard overview chart cards for ranked builtin groups and per-group tag facets.
  * - Side effects: React rendering only.
  */
 
@@ -11,8 +11,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Tooltip,
   XAxis,
   YAxis
@@ -29,26 +27,17 @@ import {
   axisTick,
   builtinGroupColor,
   dashboardBarColor,
-  formatMonthShort,
   isIncomeFilterGroupKey,
-  toMinorValue,
   tooltipAmount
 } from "./helpers";
+import { HorizontalBarValueLabels } from "./BarChartValueLabels";
 
 const MAX_TAGS_PER_GROUP = 6;
-const MAX_SMALL_MULTIPLES = 6;
 const PROJECTION_SCALE_EXPONENT = 0.5;
 const OVERVIEW_BUILTIN_GROUP_ORDER = ["day_to_day", "one_time", "transfers", "fixed", "untagged"] as const;
 
-type TrendRow = Record<string, unknown>;
-
 type RankedGroupRow = DashboardFilterGroupSummary & {
   chart_color: string;
-};
-
-type SmallMultiplePoint = {
-  label: string;
-  value: number;
 };
 
 type OverviewCardState = {
@@ -60,11 +49,6 @@ type OverviewCardState = {
 
 type DashboardOverviewGroupBreakdownCardProps = OverviewCardState & {
   filterGroups: DashboardFilterGroupSummary[];
-};
-
-type DashboardOverviewTrendSmallMultiplesCardProps = OverviewCardState & {
-  filterGroups: DashboardFilterGroupSummary[];
-  trendChartData: TrendRow[];
 };
 
 type DashboardProjectionChartProps = {
@@ -101,7 +85,7 @@ export function DashboardOverviewGroupBreakdownCard({
               <div className="h-[24rem] min-w-0">
                 <DashboardChartContainer>
                   {({ width, height }) => (
-                    <BarChart width={width} height={height} data={buildRankedChartRows(builtinGroups)} layout="vertical" margin={{ left: 24, right: 12 }}>
+                    <BarChart width={width} height={height} data={buildRankedChartRows(builtinGroups)} layout="vertical" margin={{ left: 24, right: 44, top: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.18} />
                       <XAxis type="number" tickFormatter={axisTick} scale="sqrt" domain={[0, "dataMax"]} />
                       <YAxis dataKey="name" type="category" width={108} tick={{ fontSize: 12 }} />
@@ -110,6 +94,7 @@ export function DashboardOverviewGroupBreakdownCard({
                         {builtinGroups.map((group) => (
                           <Cell key={group.key} fill={group.chart_color} />
                         ))}
+                        <HorizontalBarValueLabels dataKey="total_minor" />
                       </Bar>
                     </BarChart>
                   )}
@@ -147,12 +132,14 @@ export function DashboardOverviewGroupBreakdownCard({
                     <div className="h-48 min-w-0">
                       <DashboardChartContainer>
                         {({ width, height }) => (
-                          <BarChart width={width} height={height} data={chartData} layout="vertical" margin={{ left: 8, right: 8 }}>
+                          <BarChart width={width} height={height} data={chartData} layout="vertical" margin={{ left: 8, right: 40, top: 4 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.15} />
                             <XAxis type="number" tickFormatter={axisTick} scale="sqrt" domain={[0, "dataMax"]} hide />
                             <YAxis dataKey="tag" type="category" width={88} tick={{ fontSize: 11 }} />
                             <Tooltip formatter={(value) => tooltipAmount(currencyCode, value)} />
-                            <Bar dataKey="total_minor" name="Amount" fill={group.chart_color} radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="total_minor" name="Amount" fill={group.chart_color} radius={[0, 4, 4, 0]}>
+                              <HorizontalBarValueLabels dataKey="total_minor" />
+                            </Bar>
                           </BarChart>
                         )}
                       </DashboardChartContainer>
@@ -262,88 +249,6 @@ export function DashboardProjectionChart({ projection, filterGroups, currencyCod
   );
 }
 
-export function DashboardOverviewTrendSmallMultiplesCard({
-  titlePrefix,
-  filterGroups,
-  trendChartData,
-  currencyCode,
-  yearlyQueriesLoading,
-  yearlyQueryError
-}: DashboardOverviewTrendSmallMultiplesCardProps) {
-  const groupsToShow = buildExpenseRankedGroups(filterGroups).slice(0, MAX_SMALL_MULTIPLES);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{titlePrefix}Small-Multiple Trends</CardTitle>
-
-      </CardHeader>
-      <CardContent>
-        {yearlyQueriesLoading ? (
-          <p className="muted text-sm">Loading filter-group trends...</p>
-        ) : yearlyQueryError ? (
-          <p className="error">Failed to load filter-group trends: {yearlyQueryError.message}</p>
-        ) : groupsToShow.length === 0 ? (
-          <p className="muted text-sm">No trend data for this scope.</p>
-        ) : (
-          <div className="grid gap-3 xl:grid-cols-2">
-            {groupsToShow.map((group) => {
-              const series = buildGroupTrendSeries(group.key, trendChartData);
-              const latest = series[series.length - 1]?.value ?? 0;
-              const first = series[0]?.value ?? 0;
-              const delta = latest - first;
-              return (
-                <div key={group.key} className="rounded-xl border border-border/70 bg-muted/15 p-3">
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium">{group.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Latest: {formatMinor(latest, currencyCode)}
-                        {series.length > 1 ? ` (${formatTrendDelta(delta, currencyCode)})` : ""}
-                      </p>
-                    </div>
-                    <Badge variant="outline" style={{ borderColor: group.chart_color, color: group.chart_color }}>
-                      {formatMinor(group.total_minor, currencyCode)}
-                    </Badge>
-                  </div>
-                  <div className="h-24 min-w-0">
-                    {series.length === 0 ? (
-                      <p className="muted text-xs">No trend points.</p>
-                    ) : (
-                      <DashboardChartContainer>
-                        {({ width, height }) => (
-                          <LineChart width={width} height={height} data={series} margin={{ top: 8, right: 4, left: 4, bottom: 4 }}>
-                            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.12} />
-                            <XAxis dataKey="label" hide />
-                            <YAxis hide domain={[0, "dataMax"]} />
-                            <Tooltip formatter={(value) => tooltipAmount(currencyCode, value)} />
-                            <Line
-                              type="monotone"
-                              dataKey="value"
-                              stroke={group.chart_color}
-                              strokeWidth={2.25}
-                              dot={false}
-                              activeDot={{ r: 4 }}
-                            />
-                          </LineChart>
-                        )}
-                      </DashboardChartContainer>
-                    )}
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <span>{series[0]?.label ?? "Start"}</span>
-                    <span>{series[series.length - 1]?.label ?? "End"}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 function buildRankedChartRows(groups: RankedGroupRow[]) {
   return groups.map((group) => ({
     name: group.name,
@@ -364,32 +269,6 @@ function buildBuiltinRankedGroups(filterGroups: DashboardFilterGroupSummary[]): 
         OVERVIEW_BUILTIN_GROUP_ORDER.indexOf(left.key as (typeof OVERVIEW_BUILTIN_GROUP_ORDER)[number]) -
         OVERVIEW_BUILTIN_GROUP_ORDER.indexOf(right.key as (typeof OVERVIEW_BUILTIN_GROUP_ORDER)[number])
     );
-}
-
-function buildExpenseRankedGroups(filterGroups: DashboardFilterGroupSummary[]): RankedGroupRow[] {
-  return filterGroups
-    .filter((group) => !isIncomeFilterGroupKey(group.key) && group.total_minor > 0)
-    .map((group, index) => ({
-      ...group,
-      chart_color: resolveGroupColor(group, index)
-    }))
-    .sort((left, right) => {
-      if (right.total_minor !== left.total_minor) {
-        return right.total_minor - left.total_minor;
-      }
-      const leftBuiltinIndex = BUILTIN_FILTER_GROUP_ORDER.indexOf(left.key as (typeof BUILTIN_FILTER_GROUP_ORDER)[number]);
-      const rightBuiltinIndex = BUILTIN_FILTER_GROUP_ORDER.indexOf(right.key as (typeof BUILTIN_FILTER_GROUP_ORDER)[number]);
-      if (leftBuiltinIndex !== rightBuiltinIndex) {
-        if (leftBuiltinIndex === -1) {
-          return 1;
-        }
-        if (rightBuiltinIndex === -1) {
-          return -1;
-        }
-        return leftBuiltinIndex - rightBuiltinIndex;
-      }
-      return left.name.localeCompare(right.name);
-    });
 }
 
 function resolveGroupColor(group: DashboardFilterGroupSummary, index: number): string {
@@ -415,27 +294,8 @@ function buildFacetChartRows(group: DashboardFilterGroupSummary) {
   ];
 }
 
-function buildGroupTrendSeries(groupKey: string, trendChartData: TrendRow[]): SmallMultiplePoint[] {
-  return trendChartData.map((row) => ({
-    label: normalizeTrendLabel(String(row.month ?? "")),
-    value: toMinorValue(row[groupKey])
-  }));
-}
-
-function normalizeTrendLabel(label: string): string {
-  if (/^\d{4}-\d{2}$/.test(label)) {
-    return formatMonthShort(label);
-  }
-  return label;
-}
-
 function formatShare(share: number): string {
   return `${(share * 100).toFixed(0)}%`;
-}
-
-function formatTrendDelta(deltaMinor: number, currencyCode: string): string {
-  const prefix = deltaMinor >= 0 ? "+" : "-";
-  return `${prefix}${formatMinor(Math.abs(deltaMinor), currencyCode)}`;
 }
 
 function buildProjectionRows(

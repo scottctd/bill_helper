@@ -21,7 +21,7 @@ import {
   DashboardInsightsPanel,
   DashboardOverviewPanel
 } from "../features/dashboard/DashboardPanels";
-import { DashboardTimelineStrip } from "../features/dashboard/DashboardTimelineStrip";
+import { DashboardPeriodControls, TIMELINE_ITEM_KEY } from "../features/dashboard/DashboardPeriodControls";
 import { usePrefetchDashboard } from "../features/dashboard/usePrefetchDashboard";
 import {
   CHART_COLORS,
@@ -46,7 +46,6 @@ import {
   mergeBreakdownItems,
   takeLastTrendMonthPoints,
   pickTimelineMonthForYear,
-  shiftMonthKey,
   sortByBuiltinOrder,
   sortByIncomeBarOrder,
   sortByIncomeTrendOrder,
@@ -60,6 +59,7 @@ import { queryKeys } from "../lib/queryKeys";
 import type { Dashboard } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+import { STACKED_BAR_CHART_MARGINS, STACKED_BAR_SQRT_Y_AXIS, STACKED_BAR_Y_AXIS_WIDTH, stackedTrendBarLayout, stackTopBarLabel } from "../features/dashboard/BarChartValueLabels";
 
 const LazyAgentCostDashboard = lazy(async () => {
   const module = await import("../features/dashboard/AgentCostDashboard");
@@ -84,15 +84,30 @@ type IncomeTrendChartProps = {
 
 function IncomeTrendChart({ data: chartData, trendGroups, incomeTrendGroups, currencyCode }: IncomeTrendChartProps) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const incomeStackKeys = incomeTrendGroups.map((group) => group.key);
+  const expenseStackKeys = trendGroups.map((group) => group.key);
+  const barLayout = stackedTrendBarLayout(chartData.length);
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="min-h-0 flex-1">
         <DashboardChartContainer>
           {({ width, height }) => (
-            <BarChart width={width} height={height} data={chartData} barCategoryGap="20%" barGap={4}>
+            <BarChart
+              width={width}
+              height={height}
+              data={chartData}
+              barCategoryGap={barLayout.barCategoryGap}
+              barGap={barLayout.barGap}
+              margin={STACKED_BAR_CHART_MARGINS}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={axisTick} />
+              <YAxis
+                tickFormatter={axisTick}
+                width={STACKED_BAR_Y_AXIS_WIDTH}
+                tickMargin={6}
+                {...STACKED_BAR_SQRT_Y_AXIS}
+              />
               <Tooltip
                 content={({ payload, label }) => {
                   const active = payload?.find((p) => p.dataKey === hoveredKey) ?? payload?.[0];
@@ -112,7 +127,9 @@ function IncomeTrendChart({ data: chartData, trendGroups, incomeTrendGroups, cur
                   name={group.name}
                   stackId="income"
                   fill={builtinIncomeGroupColor(group.key)}
+                  isAnimationActive={false}
                   onMouseEnter={() => setHoveredKey(group.key)}
+                  label={stackTopBarLabel({ stackKeys: incomeStackKeys, segmentKey: group.key })}
                 />
               ))}
               {trendGroups.map((group) => (
@@ -122,7 +139,9 @@ function IncomeTrendChart({ data: chartData, trendGroups, incomeTrendGroups, cur
                   name={group.name}
                   stackId="expense-trend"
                   fill={builtinGroupColor(group.key)}
+                  isAnimationActive={false}
                   onMouseEnter={() => setHoveredKey(group.key)}
+                  label={stackTopBarLabel({ stackKeys: expenseStackKeys, segmentKey: group.key })}
                 />
               ))}
             </BarChart>
@@ -175,7 +194,8 @@ export function DashboardPage() {
   const [viewMode, setViewMode] = useState<DashboardViewMode>("month");
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const timelineItemRefs = useRef(new Map<string, HTMLButtonElement>());
-  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const yearScrollRef = useRef<HTMLDivElement>(null);
+  const monthScrollRef = useRef<HTMLDivElement>(null);
   const timelineScrollBehaviorRef = useRef<ScrollBehavior>("auto");
 
   const timelineQuery = useQuery({
@@ -212,14 +232,6 @@ export function DashboardPage() {
     enabled: viewMode === "year"
   });
 
-  const previousMonthKey = shiftMonthKey(month, -1);
-  const previousMonthQuery = useQuery({
-    queryKey: queryKeys.dashboard.month(previousMonthKey),
-    queryFn: () => getDashboard(previousMonthKey),
-    staleTime: 60_000,
-    enabled: viewMode === "month" && activeTab === "breakdowns"
-  });
-
   useEffect(() => {
     if (!yearBatchQuery.data) {
       return;
@@ -229,7 +241,6 @@ export function DashboardPage() {
     }
   }, [queryClient, yearBatchQuery.data]);
 
-  const timelineSelectionKey = viewMode === "month" ? month : String(selectedYear);
   const monthTimelineIndex = timelineMonths.indexOf(month);
   const yearTimelineIndex = timelineYears.indexOf(String(selectedYear));
 
@@ -241,9 +252,12 @@ export function DashboardPage() {
     setMonth(nextMonth);
   }
 
-  /** Align the selected chip’s trailing edge with the strip’s trailing edge (newest months live on the right). */
-  function alignTimelineChipToTrailingEdge(selectedItem: HTMLButtonElement, behavior: ScrollBehavior = "auto") {
-    const scroller = timelineScrollRef.current;
+  /** Align the selected chip’s trailing edge with the strip’s trailing edge (newest items live on the right). */
+  function alignTimelineChipToTrailingEdge(
+    scroller: HTMLDivElement | null,
+    selectedItem: HTMLButtonElement,
+    behavior: ScrollBehavior = "auto"
+  ) {
     if (!scroller) {
       return;
     }
@@ -268,19 +282,7 @@ export function DashboardPage() {
     timelineItemRefs.current.set(key, node);
   }
 
-  function shiftSelection(step: number) {
-    if (viewMode === "month") {
-      if (timelineMonths.length === 0) {
-        return;
-      }
-      const currentIndex = monthTimelineIndex >= 0 ? monthTimelineIndex : timelineMonths.length - 1;
-      const nextMonth = timelineMonths[Math.max(0, Math.min(timelineMonths.length - 1, currentIndex + step))];
-      if (nextMonth && nextMonth !== month) {
-        setTimelineMonth(nextMonth);
-      }
-      return;
-    }
-
+  function shiftYearSelection(step: number) {
     if (timelineYears.length === 0) {
       return;
     }
@@ -292,15 +294,43 @@ export function DashboardPage() {
     }
   }
 
-  function handleTimelineKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  function shiftMonthSelection(step: number) {
+    if (viewMode !== "month") {
+      return;
+    }
+    const yearMonths = buildYearMonthKeys(selectedYear).filter((monthKey) => timelineMonths.includes(monthKey));
+    if (yearMonths.length === 0) {
+      return;
+    }
+    const currentIndex = yearMonths.indexOf(month);
+    const resolvedIndex = currentIndex >= 0 ? currentIndex : yearMonths.length - 1;
+    const nextMonth = yearMonths[Math.max(0, Math.min(yearMonths.length - 1, resolvedIndex + step))];
+    if (nextMonth && nextMonth !== month) {
+      setTimelineMonth(nextMonth);
+    }
+  }
+
+  function handleYearKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowDown" || event.key === "ArrowRight") {
       event.preventDefault();
-      shiftSelection(1);
+      shiftYearSelection(1);
       return;
     }
     if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
       event.preventDefault();
-      shiftSelection(-1);
+      shiftYearSelection(-1);
+    }
+  }
+
+  function handleMonthKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      event.preventDefault();
+      shiftMonthSelection(1);
+      return;
+    }
+    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      event.preventDefault();
+      shiftMonthSelection(-1);
     }
   }
 
@@ -333,19 +363,24 @@ export function DashboardPage() {
       return;
     }
 
-    const selectedItem = timelineItemRefs.current.get(timelineSelectionKey);
-    if (!selectedItem) {
-      return;
-    }
-
     const behavior = timelineScrollBehaviorRef.current;
     timelineScrollBehaviorRef.current = "auto";
+
+    const scrollTargets: Array<[HTMLDivElement | null, string]> = [
+      [yearScrollRef.current, TIMELINE_ITEM_KEY.year(String(selectedYear))],
+      ...(viewMode === "month" ? [[monthScrollRef.current, TIMELINE_ITEM_KEY.month(month)] as [HTMLDivElement | null, string]] : [])
+    ];
 
     // Double rAF: first frame after mount, second after scrollWidth/layout settle.
     let frame2 = 0;
     const frame1 = requestAnimationFrame(() => {
       frame2 = requestAnimationFrame(() => {
-        alignTimelineChipToTrailingEdge(selectedItem, behavior);
+        for (const [scroller, key] of scrollTargets) {
+          const selectedItem = timelineItemRefs.current.get(key);
+          if (selectedItem) {
+            alignTimelineChipToTrailingEdge(scroller, selectedItem, behavior);
+          }
+        }
       });
     });
 
@@ -355,7 +390,7 @@ export function DashboardPage() {
         cancelAnimationFrame(frame2);
       }
     };
-  }, [dashboardContentReady, timelineSelectionKey, viewMode]);
+  }, [dashboardContentReady, month, selectedYear, viewMode]);
 
   if (dashboardQuery.isLoading || !dashboardQuery.data) {
     return (
@@ -425,8 +460,6 @@ export function DashboardPage() {
   const insightsLargestExpenses =
     viewMode === "year" ? buildYearLargestExpenses(selectedYearMonths, yearlyDashboardsByMonth) : data.largest_expenses;
   const groupNamesByKey = filterGroupNamesByKey(data);
-  const previousMonthDashboard =
-    viewMode === "month" ? previousMonthQuery.data : yearlyDashboardsByMonth.get(previousMonthKey);
   const primaryFilterGroup = data.filter_groups.find((group) => group.key === "day_to_day") ?? data.filter_groups[0] ?? null;
   const selectedYearExpenseTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "expense_total_minor");
   const selectedYearIncomeTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "income_total_minor");
@@ -481,7 +514,7 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>{trendTitle}</CardTitle>
           </CardHeader>
-          <CardContent className="h-72 min-w-0">
+          <CardContent className="h-80 min-w-0">
             {viewMode === "year" && yearlyQueriesLoading ? (
               <p className="muted text-sm">Loading yearly trend...</p>
             ) : viewMode === "month" && needsTrendAnchorQuery && trendAnchorDashboardQuery.isLoading ? (
@@ -527,38 +560,50 @@ export function DashboardPage() {
               </div>
             </div>
             {timelineQuery.isLoading ? (
-              <div className="field dashboard-toolbar-period dashboard-timeline-strip-field">
-                <span>Period</span>
-                <div className="dashboard-skeleton-timeline" aria-hidden="true">
-                  {Array.from({ length: 8 }, (_, index) => (
-                    <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
-                  ))}
+              <>
+                <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
+                  <span>Year</span>
+                  <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                    {Array.from({ length: 5 }, (_, index) => (
+                      <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
+                    ))}
+                  </div>
                 </div>
-              </div>
+                <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
+                  <span>Month</span>
+                  <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                    {Array.from({ length: 12 }, (_, index) => (
+                      <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
+                    ))}
+                  </div>
+                </div>
+              </>
             ) : timelineErrorMessage ? (
-              <div className="field dashboard-toolbar-period dashboard-timeline-strip-field">
-                <span>Period</span>
-                <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
-              </div>
+              <>
+                <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
+                  <span>Year</span>
+                  <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
+                </div>
+                <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
+                  <span>Month</span>
+                  <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
+                </div>
+              </>
             ) : (
-              <DashboardTimelineStrip
+              <DashboardPeriodControls
                 viewMode={viewMode}
                 month={month}
                 selectedYear={selectedYear}
                 timelineMonths={timelineMonths}
                 timelineYears={timelineYears}
-                timelineScrollRef={timelineScrollRef}
+                yearScrollRef={yearScrollRef}
+                monthScrollRef={monthScrollRef}
                 registerTimelineItem={registerTimelineItem}
                 setTimelineMonth={setTimelineMonth}
-                onKeyDown={handleTimelineKeyDown}
+                onYearKeyDown={handleYearKeyDown}
+                onMonthKeyDown={handleMonthKeyDown}
               />
             )}
-            <div className="field dashboard-toolbar-currency">
-              <span>Currency</span>
-              <p className="box-border flex h-10 min-h-10 w-full items-center rounded-md border border-input bg-muted/30 px-3 text-sm font-medium leading-none">
-                {data.currency_code}
-              </p>
-            </div>
           </WorkspaceToolbar>
 
           <div className="dashboard-tab-list" role="tablist" aria-label="Dashboard sections">
@@ -586,7 +631,6 @@ export function DashboardPage() {
             selectedYear={selectedYear}
             data={data}
             overviewFilterGroups={overviewFilterGroups}
-            trendChartData={trendChartData}
             primaryFilterGroup={primaryFilterGroup}
             yearlyQueriesLoading={yearlyQueriesLoading}
             yearlyQueryError={yearlyQueryError}
@@ -627,13 +671,7 @@ export function DashboardPage() {
 
         {activeTab === "breakdowns" ? (
           <Suspense fallback={<DashboardTabFallback />}>
-            <LazyDashboardBreakdownsPanel
-              viewMode={viewMode}
-              month={month}
-              data={data}
-              previousMonthDashboard={previousMonthDashboard}
-              previousMonthLoading={viewMode === "month" && previousMonthQuery.isLoading}
-            />
+            <LazyDashboardBreakdownsPanel viewMode={viewMode} month={month} data={data} />
           </Suspense>
         ) : null}
 

@@ -377,7 +377,7 @@ Current sections include:
 - `month`
 - `currency_code`
 - `kpis`
-- `filter_groups[]` (each item includes `tag_totals` and expense-only `tag_from_breakdowns[]` with ranked `from_items`)
+- `filter_groups[]` (each item includes `tag_totals` and expense-only `tag_to_breakdowns[]` with ranked `to_items[]` and nested entry rows)
 - `daily_spending[]`
 - `monthly_trend[]`
 - `spending_by_from[]`

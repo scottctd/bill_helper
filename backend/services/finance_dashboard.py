@@ -19,6 +19,7 @@ from backend.auth.contracts import RequestPrincipal
 from backend.enums_finance import EntryKind
 from backend.models_finance import Account, Entry
 from backend.schemas_finance import (
+    DashboardBreakdownEntryItem,
     DashboardBreakdownItem,
     DashboardDailySpendingPoint,
     DashboardFilterGroupSummary,
@@ -31,6 +32,7 @@ from backend.schemas_finance import (
     DashboardWeekdaySpendingPoint,
 )
 from backend.services.access_scope import account_owner_filter, entry_owner_filter
+from backend.services.finance_dashboard_tag_breakdowns import build_tag_to_breakdowns
 from backend.services.filter_groups import (
     FilterGroupDefinition,
     INCOME_FILTER_GROUP_KEYS,
@@ -56,6 +58,9 @@ class _ExpenseAnalyticsRollup:
     filter_group_totals_by_date: dict[date, dict[str, int]]
     filter_group_totals: dict[str, int]
     spending_by_tag_per_filter_group: dict[str, dict[str, int]]
+    spending_by_to_per_tag_per_filter_group: dict[str, dict[str, dict[str, int]]]
+    entries_by_to_per_tag_per_filter_group: dict[str, dict[str, dict[str, list[DashboardBreakdownEntryItem]]]]
+    entry_count_per_tag_per_filter_group: dict[str, dict[str, int]]
     spending_by_from: dict[str, int]
     spending_by_to: dict[str, int]
     spending_by_tag: dict[str, int]
@@ -298,6 +303,15 @@ def _rollup_expense_entries(
     spending_by_tag_per_filter_group: dict[str, dict[str, int]] = defaultdict(
         lambda: defaultdict(int)
     )
+    spending_by_to_per_tag_per_filter_group: dict[str, dict[str, dict[str, int]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(int))
+    )
+    entries_by_to_per_tag_per_filter_group: dict[
+        str, dict[str, dict[str, list[DashboardBreakdownEntryItem]]]
+    ] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    entry_count_per_tag_per_filter_group: dict[str, dict[str, int]] = defaultdict(
+        lambda: defaultdict(int)
+    )
     spending_by_from: dict[str, int] = defaultdict(int)
     spending_by_to: dict[str, int] = defaultdict(int)
     spending_by_tag: dict[str, int] = defaultdict(int)
@@ -338,6 +352,20 @@ def _rollup_expense_entries(
             else:
                 spending_by_tag_per_filter_group[fg_key]["(untagged)"] += amount_minor
 
+        entry_tags = normalized_tags if normalized_tags else ["(untagged)"]
+        to_label = _normalize_breakdown_label(entry.to_entity)
+        entry_item = DashboardBreakdownEntryItem(
+            id=entry.id,
+            occurred_at=entry.occurred_at,
+            name=entry.name,
+            amount_minor=amount_minor,
+        )
+        for fg_key in entry_fg_keys:
+            for tag in entry_tags:
+                spending_by_to_per_tag_per_filter_group[fg_key][tag][to_label] += amount_minor
+                entry_count_per_tag_per_filter_group[fg_key][tag] += 1
+                entries_by_to_per_tag_per_filter_group[fg_key][tag][to_label].append(entry_item)
+
         largest_expenses.append(
             DashboardLargestExpenseItem(
                 id=entry.id,
@@ -354,6 +382,9 @@ def _rollup_expense_entries(
         filter_group_totals_by_date=filter_group_totals_by_date,
         filter_group_totals=filter_group_totals,
         spending_by_tag_per_filter_group=spending_by_tag_per_filter_group,
+        spending_by_to_per_tag_per_filter_group=spending_by_to_per_tag_per_filter_group,
+        entries_by_to_per_tag_per_filter_group=entries_by_to_per_tag_per_filter_group,
+        entry_count_per_tag_per_filter_group=entry_count_per_tag_per_filter_group,
         spending_by_from=spending_by_from,
         spending_by_to=spending_by_to,
         spending_by_tag=spending_by_tag,
@@ -691,6 +722,17 @@ def build_dashboard_analytics(
                         rollup.spending_by_tag_per_filter_group.get(filter_group.key, {}).items(),
                         key=lambda item: -item[1],
                     )[:12]
+                ),
+                tag_to_breakdowns=(
+                    build_tag_to_breakdowns(
+                        filter_group_key=filter_group.key,
+                        tag_totals_by_group=rollup.spending_by_tag_per_filter_group,
+                        spending_by_to_per_tag=rollup.spending_by_to_per_tag_per_filter_group,
+                        entries_by_to_per_tag=rollup.entries_by_to_per_tag_per_filter_group,
+                        entry_count_per_tag=rollup.entry_count_per_tag_per_filter_group,
+                    )
+                    if filter_group.key not in INCOME_FILTER_GROUP_KEYS
+                    else []
                 ),
             )
             for filter_group in active_filter_groups

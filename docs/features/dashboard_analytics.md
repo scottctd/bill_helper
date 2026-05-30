@@ -73,8 +73,8 @@ Default groups other than `untagged` can have their rules edited, but their name
   - explicit `Month` / `Year` mode toggle
   - period strip sits in the dashboard workspace toolbar row between the Month/Year toggle and Currency (middle column grows with available width); scroll left for older months or years, newest toward the right; vertical wheel on the strip scrolls horizontally; click to select; keyboard arrows step selection when the strip is focused
   - timeline only lists months and years that have visible expense activity in the dashboard currency
-  - monthly mode: KPI cards, an `Income vs Expense Trend` bar chart that always uses the last six calendar months ending at the **real** current month (`YYYY-MM` from the client clock), independent of the timeline selection; stacked income segments (salary, other income) plus stacked expense segments by filter group (bottom to top: fixed, transfers, one-time, day-to-day, untagged as applicable; tooltip shows segment name and amount on hover); a two-part legend lists income segments then expense segments in the same stack order as the bars; a promoted builtin-only grouped spend breakdown card that keeps builtin groups in the same sequence as the main trend view, pairs each one with per-group tag facets, and labels both ranked bars and facet bars as sqrt-scaled; refined small-multiple trend cards for expense groups; and a projection card with solid spent bars plus translucent projected extensions on a labeled sqrt scale
-  - yearly mode: yearly KPI cards, monthly income vs expense bars for the selected year with stacked income segments (salary, other income) and stacked filter-group expense segments, the same income/expense legend under the chart, the same promoted builtin-only grouped spend breakdown card using year-aggregated totals/tag sums with sqrt-scaled ranked and facet bars, and refined small-multiple trend cards fed by the selected year's monthly points
+  - monthly mode: KPI cards, an `Income vs Expense Trend` bar chart that always uses the last six calendar months ending at the **real** current month (`YYYY-MM` from the client clock), independent of the timeline selection; stacked income segments (salary, other income) plus stacked expense segments by filter group (bottom to top: fixed, transfers, one-time, day-to-day, untagged as applicable; tooltip shows segment name and amount on hover); a two-part legend lists income segments then expense segments in the same stack order as the bars; a promoted builtin-only grouped spend breakdown card that keeps builtin groups in the same sequence as the main trend view, pairs each one with per-group tag facets, and labels both ranked bars and facet bars as sqrt-scaled; and a projection card with solid spent bars plus translucent projected extensions on a labeled sqrt scale
+  - yearly mode: yearly KPI cards, monthly income vs expense bars for the selected year with stacked income segments (salary, other income) and stacked filter-group expense segments, the same income/expense legend under the chart, and the same promoted builtin-only grouped spend breakdown card using year-aggregated totals/tag sums with sqrt-scaled ranked and facet bars
 - `Income` tab:
   - KPI cards for total income, salary, other income, and net
   - horizontal bar chart for `income_by_from[]` (payer/source breakdown)
@@ -84,9 +84,8 @@ Default groups other than `untagged` can have their rules edited, but their name
   - monthly mode: average/median day-to-day spend metrics and a day-to-day daily bar chart with mean/median reference lines
   - yearly mode: average/median expense-month metrics and stacked monthly filter-group bars for the selected year
 - `Breakdowns` tab:
-  - monthly spend by filter group with delta-to-last-month values
-  - tag pie
-  - destination/source bar charts
+  - summary row: tag pie plus destination and source bar charts
+  - drill-down tree: filter-group → tag → destination with inline entry rows
   - when yearly mode is active, this tab explicitly stays anchored to the selected month
 - `Insights` tab:
   - largest expenses table with matching group badges

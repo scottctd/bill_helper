@@ -26,8 +26,7 @@ import type { Dashboard } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import {
   DashboardProjectionChart,
-  DashboardOverviewGroupBreakdownCard,
-  DashboardOverviewTrendSmallMultiplesCard
+  DashboardOverviewGroupBreakdownCard
 } from "./DashboardOverviewCharts";
 import {
   CHART_COLORS,
@@ -42,13 +41,13 @@ import {
   tooltipAmount,
   tooltipAmountWithName
 } from "./helpers";
+import { HorizontalBarValueLabels, STACKED_BAR_CHART_MARGINS, STACKED_BAR_Y_AXIS_WIDTH, stackedBarYAxisDomain, stackTopBarLabel, VerticalBarValueLabels } from "./BarChartValueLabels";
 
 type DashboardOverviewPanelProps = {
   viewMode: DashboardViewMode;
   selectedYear: number;
   data: Dashboard;
   overviewFilterGroups: Dashboard["filter_groups"];
-  trendChartData: Array<Record<string, unknown>>;
   primaryFilterGroup: Dashboard["filter_groups"][number] | null;
   yearlyQueriesLoading: boolean;
   yearlyQueryError?: Error;
@@ -63,7 +62,6 @@ export function DashboardOverviewPanel({
   selectedYear,
   data,
   overviewFilterGroups,
-  trendChartData,
   primaryFilterGroup,
   yearlyQueriesLoading,
   yearlyQueryError,
@@ -89,15 +87,6 @@ export function DashboardOverviewPanel({
           <DashboardOverviewGroupBreakdownCard
             titlePrefix=""
             filterGroups={overviewFilterGroups}
-            currencyCode={data.currency_code}
-            yearlyQueriesLoading={false}
-            yearlyQueryError={undefined}
-          />
-
-          <DashboardOverviewTrendSmallMultiplesCard
-            titlePrefix=""
-            filterGroups={data.filter_groups}
-            trendChartData={trendChartData}
             currencyCode={data.currency_code}
             yearlyQueriesLoading={false}
             yearlyQueryError={undefined}
@@ -161,15 +150,6 @@ export function DashboardOverviewPanel({
             yearlyQueriesLoading={yearlyQueriesLoading}
             yearlyQueryError={yearlyQueryError}
           />
-
-          <DashboardOverviewTrendSmallMultiplesCard
-            titlePrefix={`${selectedYear} `}
-            filterGroups={data.filter_groups}
-            trendChartData={trendChartData}
-            currencyCode={data.currency_code}
-            yearlyQueriesLoading={yearlyQueriesLoading}
-            yearlyQueryError={yearlyQueryError}
-          />
         </>
       )}
     </section>
@@ -219,7 +199,7 @@ export function DashboardDailyPanel({
                 <div className="h-80 min-w-0">
                   <DashboardChartContainer>
                     {({ width, height }) => (
-                      <BarChart width={width} height={height} data={dailyChartData}>
+                      <BarChart width={width} height={height} data={dailyChartData} margin={{ top: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
                     <XAxis dataKey="date" tickFormatter={(v) => formatDayFromDate(String(v ?? ""))} />
                     <YAxis tickFormatter={axisTick} />
@@ -250,7 +230,9 @@ export function DashboardDailyPanel({
                         fontWeight: 600
                       }}
                     />
-                    <Bar dataKey="day_to_day" name="Day-to-Day" fill={dayToDayColor} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="day_to_day" name="Day-to-Day" fill={dayToDayColor} radius={[4, 4, 0, 0]}>
+                      <VerticalBarValueLabels dataKey="day_to_day" />
+                    </Bar>
                   </BarChart>
                 )}
               </DashboardChartContainer>
@@ -310,13 +292,18 @@ export function DashboardDailyPanel({
               ) : (
                 <DashboardChartContainer>
                   {({ width, height }) => (
-                    <BarChart width={width} height={height} data={yearlyOverviewData}>
+                    <BarChart width={width} height={height} data={yearlyOverviewData} margin={STACKED_BAR_CHART_MARGINS}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
                       <XAxis dataKey="month" />
-                      <YAxis tickFormatter={axisTick} />
+                      <YAxis
+                        tickFormatter={axisTick}
+                        width={STACKED_BAR_Y_AXIS_WIDTH}
+                        tickMargin={6}
+                        domain={stackedBarYAxisDomain}
+                      />
                       <Tooltip formatter={(value, name) => tooltipAmountWithName(data.currency_code, value, name)} />
                       <Legend />
-                      {data.filter_groups.map((group, index) => (
+                      {data.filter_groups.map((group, index, groups) => (
                         <Bar
                           key={group.key}
                           dataKey={group.key}
@@ -324,6 +311,11 @@ export function DashboardDailyPanel({
                           stackId="yearly-group-spend"
                           fill={dashboardBarColor(index)}
                           radius={[4, 4, 0, 0]}
+                          isAnimationActive={false}
+                          label={stackTopBarLabel({
+                            stackKeys: groups.map((item) => item.key),
+                            segmentKey: group.key
+                          })}
                         />
                       ))}
                     </BarChart>
@@ -395,12 +387,14 @@ export function DashboardIncomePanel({
           ) : (
             <DashboardChartContainer>
               {({ width, height }) => (
-                <BarChart width={width} height={height} data={incomeByFrom} layout="vertical" margin={{ left: 24 }}>
+                <BarChart width={width} height={height} data={incomeByFrom} layout="vertical" margin={{ left: 24, right: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
                   <XAxis type="number" tickFormatter={axisTick} />
                   <YAxis dataKey="label" type="category" width={140} />
                   <Tooltip formatter={(value) => tooltipAmount(currencyCode, value)} />
-                  <Bar dataKey="total_minor" name="Total" fill={CHART_COLORS.income} radius={[0, 6, 6, 0]} />
+                  <Bar dataKey="total_minor" name="Total" fill={CHART_COLORS.income} radius={[0, 6, 6, 0]}>
+                    <HorizontalBarValueLabels dataKey="total_minor" />
+                  </Bar>
                 </BarChart>
               )}
             </DashboardChartContainer>

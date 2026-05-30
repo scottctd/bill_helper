@@ -52,19 +52,25 @@ export function DashboardPageSkeleton({
               <span>View</span>
               <SkeletonBlock className="dashboard-skeleton-control" />
             </div>
-            <div className="field dashboard-toolbar-period dashboard-timeline-strip-field">
-              <span>Period</span>
+            <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
+              <span>Year</span>
               {timelineLoading ? (
                 <div className="dashboard-skeleton-timeline" aria-hidden="true">
-                  {Array.from({ length: 8 }, (_, index) => (
+                  {Array.from({ length: 5 }, (_, index) => (
                     <SkeletonBlock key={index} className="dashboard-skeleton-chip" />
                   ))}
                 </div>
               ) : null}
             </div>
-            <div className="field dashboard-toolbar-currency">
-              <span>Currency</span>
-              <SkeletonBlock className="dashboard-skeleton-control" />
+            <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
+              <span>Month</span>
+              {timelineLoading ? (
+                <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                  {Array.from({ length: 12 }, (_, index) => (
+                    <SkeletonBlock key={index} className="dashboard-skeleton-chip" />
+                  ))}
+                </div>
+              ) : null}
             </div>
           </WorkspaceToolbar>
 

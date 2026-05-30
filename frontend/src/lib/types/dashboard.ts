@@ -31,6 +31,33 @@ export interface DashboardKpis {
   median_day_to_day_minor: number;
 }
 
+export interface DashboardBreakdownItem {
+  label: string;
+  total_minor: number;
+  share: number;
+}
+
+export interface DashboardBreakdownEntryItem {
+  id: string;
+  occurred_at: string;
+  name: string;
+  amount_minor: number;
+}
+
+export interface DashboardToBreakdownItem {
+  label: string;
+  total_minor: number;
+  share: number;
+  entries: DashboardBreakdownEntryItem[];
+}
+
+export interface DashboardTagToBreakdown {
+  tag: string;
+  total_minor: number;
+  entry_count: number;
+  to_items: DashboardToBreakdownItem[];
+}
+
 export interface DashboardFilterGroupSummary {
   filter_group_id: string;
   key: string;
@@ -39,6 +66,7 @@ export interface DashboardFilterGroupSummary {
   total_minor: number;
   share: number;
   tag_totals: Record<string, number>;
+  tag_to_breakdowns: DashboardTagToBreakdown[];
 }
 
 export interface DashboardDailySpendingPoint {
@@ -53,12 +81,6 @@ export interface DashboardMonthlyTrendPoint {
   income_total_minor: number;
   filter_group_totals: Record<string, number>;
   income_filter_group_totals?: Record<string, number>;
-}
-
-export interface DashboardBreakdownItem {
-  label: string;
-  total_minor: number;
-  share: number;
 }
 
 export interface DashboardWeekdaySpendingPoint {

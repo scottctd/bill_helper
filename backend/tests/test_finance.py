@@ -337,6 +337,21 @@ def test_dashboard_monthly_aggregations(client):
     assert payload["largest_expenses"][0]["name"] == "Coffee"
     assert payload["largest_expenses"][0]["matching_filter_group_keys"] == ["day_to_day"]
 
+    day_to_day_breakdowns = filter_groups["day_to_day"]["tag_to_breakdowns"]
+    coffee_tag = next(item for item in day_to_day_breakdowns if item["tag"] == "coffee_snacks")
+    assert coffee_tag["total_minor"] == 1200
+    assert coffee_tag["entry_count"] == 1
+    assert any(
+        item["label"] == "Coffee Shop" and item["total_minor"] == 1200
+        for item in coffee_tag["to_items"]
+    )
+    assert coffee_tag["to_items"][0]["entries"][0]["name"] == "Coffee"
+
+    one_time_breakdowns = filter_groups["one_time"]["tag_to_breakdowns"]
+    education_tag = next(item for item in one_time_breakdowns if item["tag"] == "education")
+    assert education_tag["to_items"][0]["label"] == "University"
+    assert education_tag["to_items"][0]["entries"][0]["name"] == "Tuition"
+
 
 def test_dashboard_keeps_generic_entities_even_when_categorized_as_account(client):
     account = create_account(client)

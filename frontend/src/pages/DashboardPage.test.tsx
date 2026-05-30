@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardPage } from "./DashboardPage";
-import type { Dashboard, DashboardTagFromBreakdown } from "../lib/types";
+import type { Dashboard } from "../lib/types";
 
 const getDashboardMock = vi.fn<(month: string) => Promise<Dashboard>>();
 const getDashboardTimelineMock = vi.fn<() => Promise<{ months: string[] }>>();
@@ -47,13 +47,20 @@ function monthSeries(startYear: number, startMonth: number, count: number): stri
   });
 }
 
-function buildTagFromBreakdowns(tagTotals: Record<string, number>, fromLabel = "Chequing"): DashboardTagFromBreakdown[] {
+function buildTagToBreakdowns(tagTotals: Record<string, number>, toLabel = "Metro") {
   return Object.entries(tagTotals).map(([tag, total_minor]) => ({
     tag,
     total_minor,
     entry_count: 1,
-    from_items: [{ label: fromLabel, total_minor, share: 1 }]
+    to_items: [{ label: toLabel, total_minor, share: 1, entries: [] }]
   }));
+}
+
+function withTagBreakdowns<T extends { tag_totals: Record<string, number> }>(group: T) {
+  return {
+    ...group,
+    tag_to_breakdowns: buildTagToBreakdowns(group.tag_totals)
+  };
 }
 
 function buildDashboard(month: string): Dashboard {
@@ -86,12 +93,7 @@ function buildDashboard(month: string): Dashboard {
           groceries: base / 3,
           coffee: 1_800,
           lunch: 1_500
-        },
-        tag_from_breakdowns: buildTagFromBreakdowns({
-          groceries: base / 3,
-          coffee: 1_800,
-          lunch: 1_500
-        })
+        }
       },
       {
         filter_group_id: "fg-fixed",
@@ -103,11 +105,7 @@ function buildDashboard(month: string): Dashboard {
         tag_totals: {
           rent: base / 4,
           utilities: 1_900
-        },
-        tag_from_breakdowns: buildTagFromBreakdowns({
-          rent: base / 4,
-          utilities: 1_900
-        })
+        }
       },
       {
         filter_group_id: "fg-one-time",
@@ -119,11 +117,7 @@ function buildDashboard(month: string): Dashboard {
         tag_totals: {
           gifts: 1_700,
           travel: 1_200
-        },
-        tag_from_breakdowns: buildTagFromBreakdowns({
-          gifts: 1_700,
-          travel: 1_200
-        })
+        }
       },
       {
         filter_group_id: "fg-transfers",
@@ -134,8 +128,7 @@ function buildDashboard(month: string): Dashboard {
         share: 0.12,
         tag_totals: {
           savings: 1_100
-        },
-        tag_from_breakdowns: buildTagFromBreakdowns({ savings: 1_100 })
+        }
       },
       {
         filter_group_id: "fg-untagged",
@@ -144,8 +137,7 @@ function buildDashboard(month: string): Dashboard {
         color: null,
         total_minor: base + 900,
         share: 0.08,
-        tag_totals: {},
-        tag_from_breakdowns: []
+        tag_totals: {}
       },
       {
         filter_group_id: "fg-custom",
@@ -157,11 +149,7 @@ function buildDashboard(month: string): Dashboard {
         tag_totals: {
           lunch: 2_000,
           dinner: 1_300
-        },
-        tag_from_breakdowns: buildTagFromBreakdowns({
-          lunch: 2_000,
-          dinner: 1_300
-        })
+        }
       },
       {
         filter_group_id: "fg-salary",
@@ -170,8 +158,7 @@ function buildDashboard(month: string): Dashboard {
         color: null,
         total_minor: 0,
         share: 0,
-        tag_totals: {},
-        tag_from_breakdowns: []
+        tag_totals: {}
       },
       {
         filter_group_id: "fg-other-income",
@@ -180,10 +167,9 @@ function buildDashboard(month: string): Dashboard {
         color: null,
         total_minor: 0,
         share: 0,
-        tag_totals: {},
-        tag_from_breakdowns: []
+        tag_totals: {}
       }
-    ],
+    ].map((group) => withTagBreakdowns(group)),
     daily_spending: [
       {
         date: `${month}-01`,
@@ -317,19 +303,7 @@ describe("DashboardPage", () => {
     expect(getDashboardBatchMock.mock.calls[0]?.[0]).toHaveLength(24);
   });
 
-  it("fetches previous month only when breakdowns tab is active in month view", async () => {
-    renderDashboardPage();
-
-    await screen.findByText("Builtin Filter Groups by Spend");
-    const sectionTabs = screen.getByRole("tablist", { name: "Dashboard sections" });
-    await userEvent.click(within(sectionTabs).getByRole("tab", { name: "Breakdowns" }));
-
-    await waitFor(() => {
-      expect(getDashboardMock.mock.calls.some((call) => call[0] === "2026-02")).toBe(true);
-    });
-  });
-
-  it("promotes the overview charts and keeps breakdown month table under the renamed tabs", async () => {
+  it("renders breakdown summary charts and drill-down tree together", async () => {
     renderDashboardPage();
 
     expect(await screen.findByText("Builtin Filter Groups by Spend")).toBeInTheDocument();
@@ -340,18 +314,17 @@ describe("DashboardPage", () => {
     expect(screen.queryByRole("tab", { name: "Experimental Codex" })).not.toBeInTheDocument();
 
     expect(screen.getByText("Income vs Expense Trend")).toBeInTheDocument();
-    expect(screen.getByText("Small-Multiple Trends")).toBeInTheDocument();
+    expect(screen.getByText("Builtin Filter Groups by Spend")).toBeInTheDocument();
+    expect(screen.queryByText("Small-Multiple Trends")).not.toBeInTheDocument();
 
     await userEvent.click(within(sectionTabs).getByRole("tab", { name: "Breakdowns" }));
 
-    expect(await screen.findByRole("tablist", { name: "Breakdown experiments" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Classic" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Exp 1" })).toBeInTheDocument();
-    expect(await screen.findByText("Monthly Spend by Filter Group")).toBeInTheDocument();
-    expect(screen.getByText("Spending by Tags")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("tab", { name: "Exp 1" }));
-    expect(await screen.findByText("Expense Breakdown Tree")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Breakdown views" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Spending by Tags")).toBeInTheDocument();
+    expect(screen.getByText("Spending by Destination")).toBeInTheDocument();
+    expect(screen.getByText("Spending by Source (`from`)")).toBeInTheDocument();
+    expect(screen.getByText("Expense Breakdown Tree")).toBeInTheDocument();
+    expect(screen.queryByText("Monthly Spend by Filter Group")).not.toBeInTheDocument();
   });
 
   it("renders the income tab with source breakdown chart", async () => {

@@ -39,6 +39,7 @@ import {
   dashboardBarColor,
   dashboardPieColor
 } from "./helpers";
+import { VerticalBarValueLabels } from "./BarChartValueLabels";
 
 const RANGE_OPTIONS: Array<{ key: AgentDashboardRangeKey; label: string }> = [
   { key: "7d", label: "7D" },
@@ -63,6 +64,12 @@ function formatPercent(value: number): string {
 function formatUsdTick(value: number | string): string {
   const numericValue = typeof value === "number" ? value : Number(value);
   return formatUsd(Number.isFinite(numericValue) ? numericValue : 0);
+}
+
+function formatUsdBarLabel(value: unknown): string {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return "";
+  return formatUsdTick(numericValue);
 }
 
 function toggleValue(values: string[], nextValue: string): string[] {
@@ -307,7 +314,7 @@ export function AgentCostDashboard() {
               <CardContent className="h-80 min-w-0">
                 <DashboardChartContainer>
                   {({ width, height }) => (
-                    <BarChart width={width} height={height} data={surfaceChartData}>
+                    <BarChart width={width} height={height} data={surfaceChartData} margin={{ top: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.18} />
                       <XAxis dataKey="surface" />
                       <YAxis tickFormatter={formatUsdTick} />
@@ -320,7 +327,9 @@ export function AgentCostDashboard() {
                           name={modelName}
                           fill={dashboardBarColor(index)}
                           radius={[4, 4, 0, 0]}
-                        />
+                        >
+                          <VerticalBarValueLabels dataKey={modelName} formatter={formatUsdBarLabel} />
+                        </Bar>
                       ))}
                     </BarChart>
                   )}

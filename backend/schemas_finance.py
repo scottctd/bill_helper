@@ -517,11 +517,25 @@ class DashboardKpisRead(BaseModel):
     median_day_to_day_minor: int = 0
 
 
-class DashboardTagFromBreakdown(BaseModel):
+class DashboardBreakdownEntryItem(BaseModel):
+    id: str
+    occurred_at: date
+    name: str
+    amount_minor: int
+
+
+class DashboardToBreakdownItem(BaseModel):
+    label: str
+    total_minor: int
+    share: float
+    entries: list[DashboardBreakdownEntryItem] = Field(default_factory=list)
+
+
+class DashboardTagToBreakdown(BaseModel):
     tag: str
     total_minor: int
     entry_count: int = 0
-    from_items: list["DashboardBreakdownItem"] = Field(default_factory=list)
+    to_items: list[DashboardToBreakdownItem] = Field(default_factory=list)
 
 
 class DashboardFilterGroupSummary(BaseModel):
@@ -532,7 +546,7 @@ class DashboardFilterGroupSummary(BaseModel):
     total_minor: int
     share: float
     tag_totals: dict[str, int] = Field(default_factory=dict)
-    tag_from_breakdowns: list[DashboardTagFromBreakdown] = Field(default_factory=list)
+    tag_to_breakdowns: list[DashboardTagToBreakdown] = Field(default_factory=list)
 
 
 class DashboardDailySpendingPoint(BaseModel):
