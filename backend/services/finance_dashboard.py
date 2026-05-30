@@ -48,6 +48,7 @@ from backend.services.finance_reconciliation import (
 from backend.services.runtime_settings import resolve_runtime_settings
 
 DASHBOARD_DEFAULT_CURRENCY_CODE = "CAD"
+DASHBOARD_DESTINATION_BREAKDOWN_LIMIT = 20
 WEEKDAY_LABELS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 DashboardFilter = ColumnElement[bool]
 
@@ -740,7 +741,7 @@ def build_dashboard_analytics(
         "daily_spending": daily_spending,
         "monthly_trend": monthly_trend,
         "spending_by_from": _build_breakdown_items(rollup.spending_by_from),
-        "spending_by_to": _build_breakdown_items(rollup.spending_by_to),
+        "spending_by_to": _build_breakdown_items(rollup.spending_by_to, limit=DASHBOARD_DESTINATION_BREAKDOWN_LIMIT),
         "spending_by_tag": _build_breakdown_items(rollup.spending_by_tag),
         "income_by_from": _build_breakdown_items(income_by_from),
         "weekday_spending": weekday_spending,

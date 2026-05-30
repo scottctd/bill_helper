@@ -18,15 +18,13 @@ import {
 } from "recharts";
 
 import { StatBlock } from "../../components/layout/StatBlock";
-import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { formatMinor } from "../../lib/format";
-import type { Dashboard } from "../../lib/types";
-import { cn } from "../../lib/utils";
+import type { Dashboard, DashboardBreakdownItem } from "../../lib/types";
 import {
+  DashboardExpenseGroupBreakdownCard,
   DashboardProjectionChart,
-  DashboardOverviewGroupBreakdownCard
+  DashboardSpendingByDestinationCard
 } from "./DashboardOverviewCharts";
 import {
   CHART_COLORS,
@@ -36,61 +34,126 @@ import {
   builtinGroupColor,
   dashboardBarColor,
   formatDayFromDate,
-  formatDelta,
-  formatMonthLong,
   tooltipAmount,
   tooltipAmountWithName
 } from "./helpers";
-import { HorizontalBarValueLabels, STACKED_BAR_CHART_MARGINS, STACKED_BAR_Y_AXIS_WIDTH, stackedBarYAxisDomain, stackTopBarLabel, VerticalBarValueLabels } from "./BarChartValueLabels";
+import {
+  HorizontalBarValueLabels,
+  STACKED_BAR_CHART_MARGINS,
+  STACKED_BAR_Y_AXIS_WIDTH,
+  stackedBarYAxisDomain,
+  stackTopBarLabel,
+  VerticalBarValueLabels
+} from "./BarChartValueLabels";
 
-type DashboardOverviewPanelProps = {
+type DashboardSpendingPanelProps = {
   viewMode: DashboardViewMode;
   selectedYear: number;
   data: Dashboard;
-  overviewFilterGroups: Dashboard["filter_groups"];
-  primaryFilterGroup: Dashboard["filter_groups"][number] | null;
+  spendingFilterGroups: Dashboard["filter_groups"];
+  spendingByDestination: DashboardBreakdownItem[];
+  dailyChartData: Array<Record<string, unknown>>;
   yearlyQueriesLoading: boolean;
   yearlyQueryError?: Error;
-  selectedYearExpenseTotalMinor: number;
-  selectedYearIncomeTotalMinor: number;
-  selectedYearNetTotalMinor: number;
-  yearlyPrimaryFilterGroupTotalMinor: number;
+  yearlyOverviewData: Array<Record<string, unknown>>;
+  yearlyAverageExpenseMonthMinor: number;
+  yearlyMedianExpenseMonthMinor: number;
 };
 
-export function DashboardOverviewPanel({
+export function DashboardSpendingPanel({
   viewMode,
   selectedYear,
   data,
-  overviewFilterGroups,
-  primaryFilterGroup,
+  spendingFilterGroups,
+  spendingByDestination,
+  dailyChartData,
   yearlyQueriesLoading,
   yearlyQueryError,
-  selectedYearExpenseTotalMinor,
-  selectedYearIncomeTotalMinor,
-  selectedYearNetTotalMinor,
-  yearlyPrimaryFilterGroupTotalMinor
-}: DashboardOverviewPanelProps) {
+  yearlyOverviewData,
+  yearlyAverageExpenseMonthMinor,
+  yearlyMedianExpenseMonthMinor
+}: DashboardSpendingPanelProps) {
+  const titlePrefix = viewMode === "year" ? `${selectedYear} ` : "";
+  const dayToDayColor = builtinGroupColor("day_to_day");
+
   return (
-    <section className="stack-lg" role="tabpanel" id="dashboard-panel-overview" aria-labelledby="dashboard-tab-overview">
+    <section className="stack-lg" role="tabpanel" id="dashboard-panel-spending" aria-labelledby="dashboard-tab-spending">
+      <DashboardExpenseGroupBreakdownCard
+        titlePrefix={titlePrefix}
+        filterGroups={spendingFilterGroups}
+        currencyCode={data.currency_code}
+        yearlyQueriesLoading={yearlyQueriesLoading}
+        yearlyQueryError={yearlyQueryError}
+      />
+
+      <DashboardSpendingByDestinationCard
+        titlePrefix={titlePrefix}
+        items={spendingByDestination}
+        currencyCode={data.currency_code}
+        yearlyQueriesLoading={yearlyQueriesLoading}
+        yearlyQueryError={yearlyQueryError}
+      />
+
       {viewMode === "month" ? (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatBlock label="Expense" value={formatMinor(data.kpis.expense_total_minor, data.currency_code)} tone="warning" />
-            <StatBlock label="Income" value={formatMinor(data.kpis.income_total_minor, data.currency_code)} tone="success" />
-            <StatBlock label="Net" value={formatMinor(data.kpis.net_total_minor, data.currency_code)} />
-            <StatBlock
-              label={primaryFilterGroup ? primaryFilterGroup.name : "Primary group"}
-              value={primaryFilterGroup ? formatMinor(primaryFilterGroup.total_minor, data.currency_code) : "-"}
-            />
-          </section>
-
-          <DashboardOverviewGroupBreakdownCard
-            titlePrefix=""
-            filterGroups={overviewFilterGroups}
-            currencyCode={data.currency_code}
-            yearlyQueriesLoading={false}
-            yearlyQueryError={undefined}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Daily Spending (Day-to-Day)</CardTitle>
+            </CardHeader>
+            <CardContent className="min-w-0 overflow-hidden">
+              <div className="flex min-w-0 flex-col">
+                <div className="h-80 min-w-0">
+                  <DashboardChartContainer>
+                    {({ width, height }) => (
+                      <BarChart width={width} height={height} data={dailyChartData} margin={{ top: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
+                        <XAxis dataKey="date" tickFormatter={(v) => formatDayFromDate(String(v ?? ""))} />
+                        <YAxis tickFormatter={axisTick} />
+                        <Tooltip formatter={(value) => tooltipAmount(data.currency_code, value)} />
+                        <ReferenceLine
+                          y={data.kpis.average_day_to_day_minor ?? 0}
+                          stroke={dashboardBarColor(1)}
+                          strokeWidth={3}
+                          strokeDasharray="6 4"
+                        />
+                        <ReferenceLine
+                          y={data.kpis.median_day_to_day_minor ?? 0}
+                          stroke={dashboardBarColor(2)}
+                          strokeWidth={3}
+                          strokeDasharray="2 4"
+                        />
+                        <Bar dataKey="day_to_day" name="Day-to-Day" fill={dayToDayColor} radius={[4, 4, 0, 0]}>
+                          <VerticalBarValueLabels dataKey="day_to_day" />
+                        </Bar>
+                      </BarChart>
+                    )}
+                  </DashboardChartContainer>
+                </div>
+                <div className="mt-3 flex w-full min-w-0 flex-wrap gap-4 overflow-hidden text-sm" role="list" aria-label="Daily spending legend">
+                  <span className="flex min-w-0 max-w-full shrink items-center gap-2">
+                    <span className="inline-block size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: dayToDayColor }} aria-hidden />
+                    <span className="truncate">Day-to-Day</span>
+                  </span>
+                  <span className="flex min-w-0 max-w-full shrink items-center gap-2">
+                    <svg width={20} height={4} aria-hidden="true" className="shrink-0">
+                      <line x1={0} y1={2} x2={20} y2={2} stroke={dashboardBarColor(1)} strokeWidth={2} strokeDasharray="6 4" />
+                    </svg>
+                    <span className="truncate">
+                      Mean: {formatMinor(data.kpis.average_day_to_day_minor ?? 0, data.currency_code)}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <svg width={20} height={4} aria-hidden="true" className="shrink-0">
+                      <line x1={0} y1={2} x2={20} y2={2} stroke={dashboardBarColor(2)} strokeWidth={2} strokeDasharray="2 4" />
+                    </svg>
+                    <span className="truncate">
+                      Median: {formatMinor(data.kpis.median_day_to_day_minor ?? 0, data.currency_code)}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -130,147 +193,6 @@ export function DashboardOverviewPanel({
               </div>
             </CardContent>
           </Card>
-        </>
-      ) : (
-        <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatBlock label={`${selectedYear} expense`} value={formatMinor(selectedYearExpenseTotalMinor, data.currency_code)} tone="warning" />
-            <StatBlock label={`${selectedYear} income`} value={formatMinor(selectedYearIncomeTotalMinor, data.currency_code)} tone="success" />
-            <StatBlock label={`${selectedYear} net`} value={formatMinor(selectedYearNetTotalMinor, data.currency_code)} />
-            <StatBlock
-              label={primaryFilterGroup ? `${primaryFilterGroup.name} (${selectedYear})` : "Primary group"}
-              value={primaryFilterGroup ? formatMinor(yearlyPrimaryFilterGroupTotalMinor, data.currency_code) : "-"}
-            />
-          </section>
-
-          <DashboardOverviewGroupBreakdownCard
-            titlePrefix={`${selectedYear} `}
-            filterGroups={overviewFilterGroups}
-            currencyCode={data.currency_code}
-            yearlyQueriesLoading={yearlyQueriesLoading}
-            yearlyQueryError={yearlyQueryError}
-          />
-        </>
-      )}
-    </section>
-  );
-}
-
-type DashboardDailyPanelProps = {
-  viewMode: DashboardViewMode;
-  selectedYear: number;
-  data: Dashboard;
-  dailyChartData: Array<Record<string, unknown>>;
-  yearlyQueriesLoading: boolean;
-  yearlyQueryError?: Error;
-  yearlyOverviewData: Array<Record<string, unknown>>;
-  yearlyAverageExpenseMonthMinor: number;
-  yearlyMedianExpenseMonthMinor: number;
-};
-
-export function DashboardDailyPanel({
-  viewMode,
-  selectedYear,
-  data,
-  dailyChartData,
-  yearlyQueriesLoading,
-  yearlyQueryError,
-  yearlyOverviewData,
-  yearlyAverageExpenseMonthMinor,
-  yearlyMedianExpenseMonthMinor
-}: DashboardDailyPanelProps) {
-  const dayToDayColor = builtinGroupColor("day_to_day");
-  return (
-    <section className="stack-lg" role="tabpanel" id="dashboard-panel-daily" aria-labelledby="dashboard-tab-daily">
-      {viewMode === "month" ? (
-        <>
-          <section className="grid gap-4 md:grid-cols-3">
-            <StatBlock label="Average Daily Spend (Day-to-Day)" value={formatMinor(data.kpis.average_day_to_day_minor ?? 0, data.currency_code)} />
-            <StatBlock label="Median Daily Spend (Day-to-Day)" value={formatMinor(data.kpis.median_day_to_day_minor ?? 0, data.currency_code)} />
-            <StatBlock label="Tracked groups" value={data.filter_groups.length} />
-          </section>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Daily Spending (Day-to-Day)</CardTitle>
-            </CardHeader>
-            <CardContent className="min-w-0 overflow-hidden">
-              <div className="flex min-w-0 flex-col">
-                <div className="h-80 min-w-0">
-                  <DashboardChartContainer>
-                    {({ width, height }) => (
-                      <BarChart width={width} height={height} data={dailyChartData} margin={{ top: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
-                    <XAxis dataKey="date" tickFormatter={(v) => formatDayFromDate(String(v ?? ""))} />
-                    <YAxis tickFormatter={axisTick} />
-                    <Tooltip formatter={(value) => tooltipAmount(data.currency_code, value)} />
-                    <ReferenceLine
-                      y={data.kpis.average_day_to_day_minor ?? 0}
-                      stroke={dashboardBarColor(1)}
-                      strokeWidth={3}
-                      strokeDasharray="6 4"
-                      label={{
-                        value: "Mean",
-                        position: "right",
-                        fill: dashboardBarColor(1),
-                        fontSize: 13,
-                        fontWeight: 600
-                      }}
-                    />
-                    <ReferenceLine
-                      y={data.kpis.median_day_to_day_minor ?? 0}
-                      stroke={dashboardBarColor(2)}
-                      strokeWidth={3}
-                      strokeDasharray="2 4"
-                      label={{
-                        value: "Median",
-                        position: "right",
-                        fill: dashboardBarColor(2),
-                        fontSize: 13,
-                        fontWeight: 600
-                      }}
-                    />
-                    <Bar dataKey="day_to_day" name="Day-to-Day" fill={dayToDayColor} radius={[4, 4, 0, 0]}>
-                      <VerticalBarValueLabels dataKey="day_to_day" />
-                    </Bar>
-                  </BarChart>
-                )}
-              </DashboardChartContainer>
-                </div>
-              <div className="mt-3 flex w-full min-w-0 flex-wrap gap-4 overflow-hidden text-sm" role="list" aria-label="Reference line legend">
-                <span className="flex min-w-0 max-w-full shrink items-center gap-2">
-                  <svg width={20} height={4} aria-hidden="true" className="shrink-0">
-                    <line
-                      x1={0}
-                      y1={2}
-                      x2={20}
-                      y2={2}
-                      stroke={dashboardBarColor(1)}
-                      strokeWidth={2}
-                      strokeDasharray="6 4"
-                    />
-                  </svg>
-                  <span className="truncate">Mean</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <svg width={20} height={4} aria-hidden="true" className="shrink-0">
-                    <line
-                      x1={0}
-                      y1={2}
-                      x2={20}
-                      y2={2}
-                      stroke={dashboardBarColor(2)}
-                      strokeWidth={2}
-                      strokeDasharray="2 4"
-                    />
-                  </svg>
-                  <span className="truncate">Median</span>
-                </span>
-              </div>
-              </div>
-            </CardContent>
-          </Card>
-
         </>
       ) : (
         <>
@@ -335,10 +257,8 @@ type DashboardIncomePanelProps = {
   selectedYear: number;
   currencyCode: string;
   incomeByFrom: Dashboard["income_by_from"];
-  totalIncomeMinor: number;
   salaryTotalMinor: number;
   otherIncomeTotalMinor: number;
-  netTotalMinor: number;
   yearlyQueriesLoading: boolean;
 };
 
@@ -347,10 +267,8 @@ export function DashboardIncomePanel({
   selectedYear,
   currencyCode,
   incomeByFrom,
-  totalIncomeMinor,
   salaryTotalMinor,
   otherIncomeTotalMinor,
-  netTotalMinor,
   yearlyQueriesLoading
 }: DashboardIncomePanelProps) {
   return (
@@ -361,18 +279,9 @@ export function DashboardIncomePanel({
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatBlock
-          label={viewMode === "year" ? `${selectedYear} income` : "Income"}
-          value={formatMinor(totalIncomeMinor, currencyCode)}
-          tone="success"
-        />
+      <section className="grid gap-4 md:grid-cols-2">
         <StatBlock label="Salary" value={formatMinor(salaryTotalMinor, currencyCode)} tone="success" />
         <StatBlock label="Other income" value={formatMinor(otherIncomeTotalMinor, currencyCode)} tone="success" />
-        <StatBlock
-          label={viewMode === "year" ? `${selectedYear} net` : "Net"}
-          value={formatMinor(netTotalMinor, currencyCode)}
-        />
       </section>
 
       <Card>
@@ -398,79 +307,6 @@ export function DashboardIncomePanel({
                 </BarChart>
               )}
             </DashboardChartContainer>
-          )}
-        </CardContent>
-      </Card>
-    </section>
-  );
-}
-
-type DashboardInsightsPanelProps = {
-  viewMode: DashboardViewMode;
-  selectedYear: number;
-  month: string;
-  data: Dashboard;
-  insightsLargestExpenses: Dashboard["largest_expenses"];
-  groupNamesByKey: Map<string, string>;
-};
-
-export function DashboardInsightsPanel({
-  viewMode,
-  selectedYear,
-  month,
-  data,
-  insightsLargestExpenses,
-  groupNamesByKey
-}: DashboardInsightsPanelProps) {
-  const title = viewMode === "year" ? "Largest Expenses (Year)" : "Largest Expenses";
-  const emptyText = viewMode === "year" ? "No expense entries in this selected year." : "No expense entries in this month.";
-  const scopeMonth = viewMode === "year" ? selectedYear : formatMonthLong(month);
-
-  return (
-    <section className="stack-lg" role="tabpanel" id="dashboard-panel-insights" aria-labelledby="dashboard-tab-insights">
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {insightsLargestExpenses.length === 0 ? (
-            <p className="muted">{emptyText}</p>
-          ) : (
-            <>
-              <p className="muted mb-4 text-sm">Scope: {scopeMonth}</p>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Groups</TableHead>
-                    <TableHead>Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {insightsLargestExpenses.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>{entry.occurred_at}</TableCell>
-                      <TableCell>{entry.name}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {entry.matching_filter_group_keys.length > 0 ? (
-                            entry.matching_filter_group_keys.map((key) => (
-                              <Badge key={key} variant="outline">
-                                {groupNamesByKey.get(key) ?? key}
-                              </Badge>
-                            ))
-                          ) : (
-                            <Badge variant="outline">Unmatched</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatMinor(entry.amount_minor, data.currency_code)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </>
           )}
         </CardContent>
       </Card>

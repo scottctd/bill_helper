@@ -2,7 +2,7 @@
  * CALLING SPEC:
  * - Purpose: render the promoted overview charts for builtin group breakdown and projection.
  * - Inputs: period-scoped filter-group summaries, currency metadata, and loading state.
- * - Outputs: dashboard overview chart cards for ranked builtin groups and per-group tag facets.
+ * - Outputs: dashboard overview chart cards for ranked expense groups and day-to-day tag facets.
  * - Side effects: React rendering only.
  */
 
@@ -24,17 +24,21 @@ import {
   BUILTIN_FILTER_GROUP_ORDER,
   CHART_COLORS,
   DashboardChartContainer,
+  DESTINATION_BREAKDOWN_LIMIT,
   axisTick,
   builtinGroupColor,
   dashboardBarColor,
   isIncomeFilterGroupKey,
+  splitItemsIntoColumns,
   tooltipAmount
 } from "./helpers";
+import { expenseFilterGroups, sortExpenseFilterGroups } from "./breakdown/breakdownHelpers";
 import { HorizontalBarValueLabels } from "./BarChartValueLabels";
 
 const MAX_TAGS_PER_GROUP = 6;
 const PROJECTION_SCALE_EXPONENT = 0.5;
-const OVERVIEW_BUILTIN_GROUP_ORDER = ["day_to_day", "one_time", "transfers", "fixed", "untagged"] as const;
+const FIXED_FACET_CHART_HEIGHT = "12rem";
+const DAY_TO_DAY_FILTER_GROUP_KEY = "day_to_day";
 
 type RankedGroupRow = DashboardFilterGroupSummary & {
   chart_color: string;
@@ -47,51 +51,64 @@ type OverviewCardState = {
   yearlyQueryError?: Error;
 };
 
-type DashboardOverviewGroupBreakdownCardProps = OverviewCardState & {
+type DashboardExpenseGroupBreakdownCardProps = OverviewCardState & {
   filterGroups: DashboardFilterGroupSummary[];
 };
 
+type DashboardSpendingByDestinationCardProps = {
+  titlePrefix: string;
+  items: Array<{ label: string; total_minor: number; share: number }>;
+  currencyCode: string;
+  yearlyQueriesLoading: boolean;
+  yearlyQueryError?: Error;
+};
+
 type DashboardProjectionChartProps = {
-  projection: Dashboard["projection"];
+  projection: import("../../lib/types").Dashboard["projection"];
   filterGroups: DashboardFilterGroupSummary[];
   currencyCode: string;
 };
 
-export function DashboardOverviewGroupBreakdownCard({
+export function DashboardExpenseGroupBreakdownCard({
   titlePrefix,
   filterGroups,
   currencyCode,
   yearlyQueriesLoading,
   yearlyQueryError
-}: DashboardOverviewGroupBreakdownCardProps) {
-  const builtinGroups = buildBuiltinRankedGroups(filterGroups);
+}: DashboardExpenseGroupBreakdownCardProps) {
+  const expenseGroups = buildFixedExpenseRankedGroups(filterGroups);
+  const dayToDayGroup = expenseGroups.find((group) => group.key === DAY_TO_DAY_FILTER_GROUP_KEY) ?? null;
+  const dayToDayChartData = dayToDayGroup ? buildFacetChartRows(dayToDayGroup) : [];
+  const dayToDayHasTags = dayToDayChartData.length > 0;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{titlePrefix}Builtin Filter Groups by Spend</CardTitle>
-        <p className="text-xs text-muted-foreground">Sqrt scale on ranked and tag bars.</p>
+        <CardTitle>{titlePrefix}Expense by Filter Group</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Ranked groups on the left; day-to-day tag breakdown on the right. Sqrt scale on bars.
+        </p>
       </CardHeader>
       <CardContent>
         {yearlyQueriesLoading ? (
           <p className="muted text-sm">Loading grouped spend breakdown...</p>
         ) : yearlyQueryError ? (
           <p className="error">Failed to load grouped spend breakdown: {yearlyQueryError.message}</p>
-        ) : builtinGroups.length === 0 ? (
-          <p className="muted text-sm">No builtin expense-group activity for this scope.</p>
+        ) : expenseGroups.length === 0 ? (
+          <p className="muted text-sm">No expense filter groups configured.</p>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+          <div className="dashboard-expense-breakdown-grid">
             <div className="space-y-4">
-              <div className="h-[24rem] min-w-0">
+              <div className="dashboard-expense-breakdown-ranked h-[24rem] min-w-0">
                 <DashboardChartContainer>
                   {({ width, height }) => (
-                    <BarChart width={width} height={height} data={buildRankedChartRows(builtinGroups)} layout="vertical" margin={{ left: 24, right: 44, top: 8 }}>
+                    <BarChart width={width} height={height} data={buildRankedChartRows(expenseGroups)} layout="vertical" margin={{ left: 24, right: 44, top: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.18} />
                       <XAxis type="number" tickFormatter={axisTick} scale="sqrt" domain={[0, "dataMax"]} />
                       <YAxis dataKey="name" type="category" width={108} tick={{ fontSize: 12 }} />
                       <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.18)" }} formatter={(value) => tooltipAmount(currencyCode, value)} />
                       <Bar dataKey="total_minor" radius={[0, 8, 8, 0]}>
-                        {builtinGroups.map((group) => (
+                        {expenseGroups.map((group) => (
                           <Cell key={group.key} fill={group.chart_color} />
                         ))}
                         <HorizontalBarValueLabels dataKey="total_minor" />
@@ -101,7 +118,7 @@ export function DashboardOverviewGroupBreakdownCard({
                 </DashboardChartContainer>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                {builtinGroups.map((group, index) => (
+                {expenseGroups.map((group, index) => (
                   <div key={group.key} className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-2 font-medium">
@@ -116,38 +133,131 @@ export function DashboardOverviewGroupBreakdownCard({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              {builtinGroups.map((group) => {
-                const chartData = buildFacetChartRows(group);
-                return (
-                  <div key={group.key} className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">{group.name}</p>
-                      </div>
-                      <Badge variant="outline" style={{ borderColor: group.chart_color, color: group.chart_color }}>
-                        {formatMinor(group.total_minor, currencyCode)}
-                      </Badge>
+            <div className="dashboard-expense-breakdown-facets">
+              {dayToDayGroup ? (
+                <div className="dashboard-expense-facet-card rounded-xl border border-border/70 bg-muted/10 p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{dayToDayGroup.name} by Tag</p>
                     </div>
-                    <div className="h-48 min-w-0">
+                    <Badge variant="outline" style={{ borderColor: dayToDayGroup.chart_color, color: dayToDayGroup.chart_color }}>
+                      {formatMinor(dayToDayGroup.total_minor, currencyCode)}
+                    </Badge>
+                  </div>
+                  <div className="dashboard-expense-facet-chart min-w-0" style={{ height: FIXED_FACET_CHART_HEIGHT }}>
+                    {dayToDayHasTags ? (
                       <DashboardChartContainer>
                         {({ width, height }) => (
-                          <BarChart width={width} height={height} data={chartData} layout="vertical" margin={{ left: 8, right: 40, top: 4 }}>
+                          <BarChart width={width} height={height} data={dayToDayChartData} layout="vertical" margin={{ left: 8, right: 40, top: 4 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.15} />
                             <XAxis type="number" tickFormatter={axisTick} scale="sqrt" domain={[0, "dataMax"]} hide />
                             <YAxis dataKey="tag" type="category" width={88} tick={{ fontSize: 11 }} />
                             <Tooltip formatter={(value) => tooltipAmount(currencyCode, value)} />
-                            <Bar dataKey="total_minor" name="Amount" fill={group.chart_color} radius={[0, 4, 4, 0]}>
+                            <Bar dataKey="total_minor" name="Amount" fill={dayToDayGroup.chart_color} radius={[0, 4, 4, 0]}>
                               <HorizontalBarValueLabels dataKey="total_minor" />
                             </Bar>
                           </BarChart>
                         )}
                       </DashboardChartContainer>
-                    </div>
+                    ) : (
+                      <p className="flex h-full items-center justify-center text-sm text-muted-foreground">No tagged spend</p>
+                    )}
                   </div>
-                );
-              })}
+                </div>
+              ) : (
+                <p className="muted text-sm">Day-to-day filter group is not configured.</p>
+              )}
             </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+type DestinationBreakdownItem = DashboardSpendingByDestinationCardProps["items"][number];
+
+type DestinationColumnChartProps = {
+  items: DestinationBreakdownItem[];
+  currencyCode: string;
+  maxTotalMinor: number;
+  width: number;
+  height: number;
+  showXAxisTicks?: boolean;
+};
+
+function DestinationColumnChart({
+  items,
+  currencyCode,
+  maxTotalMinor,
+  width,
+  height,
+  showXAxisTicks = true
+}: DestinationColumnChartProps) {
+  return (
+    <BarChart width={width} height={height} data={items} layout="vertical" margin={{ left: 8, right: 36, top: 4, bottom: 4 }}>
+      <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
+      <XAxis
+        type="number"
+        tickFormatter={axisTick}
+        scale="sqrt"
+        domain={[0, maxTotalMinor > 0 ? maxTotalMinor : "dataMax"]}
+        hide={!showXAxisTicks}
+        tick={{ fontSize: 10 }}
+      />
+      <YAxis dataKey="label" type="category" width={84} tick={{ fontSize: 10 }} />
+      <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.18)" }} formatter={(value) => tooltipAmount(currencyCode, value)} />
+      <Bar dataKey="total_minor" name="Total" fill={CHART_COLORS.destination} radius={[0, 6, 6, 0]}>
+        <HorizontalBarValueLabels dataKey="total_minor" />
+      </Bar>
+    </BarChart>
+  );
+}
+
+export function DashboardSpendingByDestinationCard({
+  titlePrefix,
+  items,
+  currencyCode,
+  yearlyQueriesLoading,
+  yearlyQueryError
+}: DashboardSpendingByDestinationCardProps) {
+  const displayItems = items.slice(0, DESTINATION_BREAKDOWN_LIMIT);
+  const destinationColumns = splitItemsIntoColumns(displayItems, 2);
+  const maxTotalMinor = displayItems.reduce((max, item) => Math.max(max, item.total_minor), 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{titlePrefix}Spending by Destination</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Two columns, up to {DESTINATION_BREAKDOWN_LIMIT} destinations. Sqrt scale on destination bars.
+        </p>
+      </CardHeader>
+      <CardContent className="h-80 min-w-0">
+        {yearlyQueriesLoading ? (
+          <p className="muted text-sm">Loading destination breakdown...</p>
+        ) : yearlyQueryError ? (
+          <p className="error">Failed to load destination breakdown: {yearlyQueryError.message}</p>
+        ) : displayItems.length === 0 ? (
+          <p className="muted">No destination breakdown yet.</p>
+        ) : (
+          <div className="dashboard-destination-columns grid h-full min-h-0 grid-cols-2 gap-3">
+            {destinationColumns.map((columnItems, columnIndex) => (
+              <div key={columnIndex} className="min-h-0 min-w-0">
+                <DashboardChartContainer>
+                  {({ width, height }) => (
+                    <DestinationColumnChart
+                      items={columnItems}
+                      currencyCode={currencyCode}
+                      maxTotalMinor={maxTotalMinor}
+                      width={width}
+                      height={height}
+                      showXAxisTicks={columnIndex === destinationColumns.length - 1}
+                    />
+                  )}
+                </DashboardChartContainer>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
@@ -257,18 +367,12 @@ function buildRankedChartRows(groups: RankedGroupRow[]) {
   }));
 }
 
-function buildBuiltinRankedGroups(filterGroups: DashboardFilterGroupSummary[]): RankedGroupRow[] {
-  return filterGroups
-    .filter((group) => OVERVIEW_BUILTIN_GROUP_ORDER.includes(group.key as (typeof OVERVIEW_BUILTIN_GROUP_ORDER)[number]) && group.total_minor > 0)
-    .map((group, index) => ({
-      ...group,
-      chart_color: builtinGroupColor(group.key) || dashboardBarColor(index)
-    }))
-    .sort(
-      (left, right) =>
-        OVERVIEW_BUILTIN_GROUP_ORDER.indexOf(left.key as (typeof OVERVIEW_BUILTIN_GROUP_ORDER)[number]) -
-        OVERVIEW_BUILTIN_GROUP_ORDER.indexOf(right.key as (typeof OVERVIEW_BUILTIN_GROUP_ORDER)[number])
-    );
+function buildFixedExpenseRankedGroups(filterGroups: DashboardFilterGroupSummary[]): RankedGroupRow[] {
+  const expenseGroups = sortExpenseFilterGroups(expenseFilterGroups(filterGroups));
+  return expenseGroups.map((group, index) => ({
+    ...group,
+    chart_color: resolveGroupColor(group, index)
+  }));
 }
 
 function resolveGroupColor(group: DashboardFilterGroupSummary, index: number): string {

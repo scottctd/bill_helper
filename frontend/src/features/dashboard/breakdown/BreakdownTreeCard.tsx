@@ -12,7 +12,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { formatMinor } from "../../../lib/format";
-import type { Dashboard, DashboardFilterGroupSummary } from "../../../lib/types";
+import type { DashboardFilterGroupSummary } from "../../../lib/types";
 import { cn } from "../../../lib/utils";
 import { CHART_COLORS } from "../helpers";
 import {
@@ -32,8 +32,10 @@ import {
 import { BreakdownTagLabel } from "./shared/BreakdownTagLabel";
 
 export type BreakdownTreeCardProps = {
-  data: Dashboard;
-  month: string;
+  filterGroups: DashboardFilterGroupSummary[];
+  currencyCode: string;
+  expenseTotalMinor: number;
+  scopeLabel: string;
 };
 
 type TagRow = {
@@ -77,10 +79,10 @@ function nextSortToggle(sort: BreakdownTagSort): BreakdownTagSort {
   return sort === "amount_desc" ? "amount_asc" : "amount_desc";
 }
 
-export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
+export function BreakdownTreeCard({ filterGroups, currencyCode, expenseTotalMinor, scopeLabel }: BreakdownTreeCardProps) {
   const expenseGroups = useMemo(
-    () => sortExpenseFilterGroups(expenseFilterGroups(data.filter_groups)),
-    [data.filter_groups]
+    () => sortExpenseFilterGroups(expenseFilterGroups(filterGroups)),
+    [filterGroups]
   );
   const defaultGroupKey = useMemo(() => firstGroupWithSpendKey(expenseGroups), [expenseGroups]);
 
@@ -98,14 +100,14 @@ export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
     setExpandedTags(new Set());
     setExpandedTos(new Set());
     setSearchQuery("");
-  }, [month, expenseGroups]);
+  }, [scopeLabel, expenseGroups]);
 
   const visibleRows = useMemo(
     () => filterGroupsForSearch(expenseGroups, searchQuery, tagSort),
     [expenseGroups, searchQuery, tagSort]
   );
 
-  const monthExpenseMinor = data.kpis.expense_total_minor;
+  const monthExpenseMinor = expenseTotalMinor;
 
   const expandAll = () => {
     setExpandedGroups(new Set(visibleRows.map((row) => row.group.key)));
@@ -158,7 +160,7 @@ export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
       <CardHeader className="gap-4">
         <CardTitle>Expense Breakdown Tree</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Expand tags to see ranked destinations (`to`), then expand a destination to see matching entries for {month}.
+          Expand tags to see ranked destinations (`to`), then expand a destination to see matching entries for {scopeLabel}.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={expandAll}>
@@ -186,7 +188,7 @@ export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
         {visibleRows.length === 0 ? (
           <p className="muted text-sm">No expense groups match this search.</p>
         ) : (
-          <div role="tree" aria-label={`Expense breakdown tree for ${month}`} className="space-y-2">
+          <div role="tree" aria-label={`Expense breakdown tree for ${scopeLabel}`} className="space-y-2">
             {visibleRows.map(({ group, tags }) => {
               const groupExpanded = expandedGroups.has(group.key);
               const groupShare = monthExpenseMinor > 0 ? group.total_minor / monthExpenseMinor : 0;
@@ -206,7 +208,7 @@ export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
                     )}
                     <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: groupColor }} aria-hidden />
                     <span className="min-w-0 flex-1 truncate font-medium">{group.name}</span>
-                    <span className="shrink-0 tabular-nums">{formatMinor(group.total_minor, data.currency_code)}</span>
+                    <span className="shrink-0 tabular-nums">{formatMinor(group.total_minor, currencyCode)}</span>
                     <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{formatBreakdownShare(groupShare)}</span>
                   </button>
 
@@ -248,7 +250,7 @@ export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
                                   <span className="inline-block h-4 w-4 shrink-0" aria-hidden />
                                 )}
                                 <BreakdownTagLabel tag={tagRow.tag} className="min-w-0 flex-1 font-medium" />
-                                <span className="shrink-0 tabular-nums">{formatMinor(tagRow.totalMinor, data.currency_code)}</span>
+                                <span className="shrink-0 tabular-nums">{formatMinor(tagRow.totalMinor, currencyCode)}</span>
                                 <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                                   {formatBreakdownShare(tagRow.shareOfGroup)}
                                 </span>
@@ -288,7 +290,7 @@ export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
                                           )}
                                           <span className="w-5 shrink-0 text-xs tabular-nums text-muted-foreground">{toIndex + 1}.</span>
                                           <span className="min-w-0 flex-1 truncate font-medium">{toItem.label}</span>
-                                          <span className="shrink-0 tabular-nums">{formatMinor(toItem.total_minor, data.currency_code)}</span>
+                                          <span className="shrink-0 tabular-nums">{formatMinor(toItem.total_minor, currencyCode)}</span>
                                           <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                                             {formatBreakdownShare(toItem.share)}
                                           </span>
@@ -319,7 +321,7 @@ export function BreakdownTreeCard({ data, month }: BreakdownTreeCardProps) {
                                                     </td>
                                                     <td className="max-w-[12rem] truncate px-3 py-1.5">{entry.name}</td>
                                                     <td className="px-3 py-1.5 text-right tabular-nums">
-                                                      {formatMinor(entry.amount_minor, data.currency_code)}
+                                                      {formatMinor(entry.amount_minor, currencyCode)}
                                                     </td>
                                                   </tr>
                                                 ))}

@@ -32,47 +32,56 @@ export function DashboardPageSkeleton({
   trendLoading = true,
   panelLoading = true
 }: DashboardPageSkeletonProps) {
+  const showFinanceChrome = activeTab !== "agent";
+
   return (
     <div className="dashboard-page-layout">
       <div className="stack-lg min-w-0">
         <PageHeader title="Dashboard" description="Month and year ledger trends." />
 
-        <Card>
-          <CardHeader>
-            <SkeletonBlock className="dashboard-skeleton-title" />
-          </CardHeader>
-          <CardContent className="h-72 min-w-0">
-            {trendLoading ? <SkeletonBlock className="dashboard-skeleton-chart h-full" /> : null}
-          </CardContent>
-        </Card>
+        {showFinanceChrome ? (
+          <>
+            <SkeletonBlock className="dashboard-skeleton-hero" />
+            <Card>
+              <CardHeader>
+                <SkeletonBlock className="dashboard-skeleton-title" />
+              </CardHeader>
+              <CardContent className="h-72 min-w-0">
+                {trendLoading ? <SkeletonBlock className="dashboard-skeleton-chart h-full" /> : null}
+              </CardContent>
+            </Card>
+          </>
+        ) : null}
 
         <WorkspaceSection>
-          <WorkspaceToolbar className="dashboard-toolbar">
-            <div className="field dashboard-toolbar-view">
-              <span>View</span>
-              <SkeletonBlock className="dashboard-skeleton-control" />
-            </div>
-            <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
-              <span>Year</span>
-              {timelineLoading ? (
-                <div className="dashboard-skeleton-timeline" aria-hidden="true">
-                  {Array.from({ length: 5 }, (_, index) => (
-                    <SkeletonBlock key={index} className="dashboard-skeleton-chip" />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
-              <span>Month</span>
-              {timelineLoading ? (
-                <div className="dashboard-skeleton-timeline" aria-hidden="true">
-                  {Array.from({ length: 12 }, (_, index) => (
-                    <SkeletonBlock key={index} className="dashboard-skeleton-chip" />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </WorkspaceToolbar>
+          {showFinanceChrome ? (
+            <WorkspaceToolbar className="dashboard-toolbar">
+              <div className="field dashboard-toolbar-view">
+                <span>View</span>
+                <SkeletonBlock className="dashboard-skeleton-control" />
+              </div>
+              <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
+                <span>Year</span>
+                {timelineLoading ? (
+                  <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                    {Array.from({ length: 5 }, (_, index) => (
+                      <SkeletonBlock key={index} className="dashboard-skeleton-chip" />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
+                <span>Month</span>
+                {timelineLoading ? (
+                  <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                    {Array.from({ length: 12 }, (_, index) => (
+                      <SkeletonBlock key={index} className="dashboard-skeleton-chip" />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </WorkspaceToolbar>
+          ) : null}
 
           <div className="dashboard-tab-list" role="tablist" aria-label="Dashboard sections">
             {DASHBOARD_TABS.map((tab) => (
@@ -95,11 +104,6 @@ export function DashboardPageSkeleton({
 
         {panelLoading ? (
           <section className="stack-lg" aria-busy="true" aria-live="polite">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {Array.from({ length: 4 }, (_, index) => (
-                <SkeletonBlock key={index} className="dashboard-skeleton-stat" />
-              ))}
-            </div>
             <SkeletonBlock className="dashboard-skeleton-card h-64" />
             <SkeletonBlock className="dashboard-skeleton-card h-72" />
           </section>

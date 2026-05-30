@@ -6,11 +6,19 @@
  * - Side effects: none.
  */
 
-import type { DashboardFilterGroupSummary } from "../../../lib/types";
+import type {
+  Dashboard,
+  DashboardFilterGroupSummary,
+  DashboardTagToBreakdown,
+  DashboardToBreakdownItem
+} from "../../../lib/types";
 import {
   BUILTIN_FILTER_GROUP_ORDER,
+  buildYearFilterGroupTagTotals,
   isIncomeFilterGroupKey,
-  sortByBuiltinOrder
+  sortByBuiltinOrder,
+  sumDashboardKpiForMonths,
+  sumFilterGroupForMonths
 } from "../helpers";
 
 export type BreakdownTagSort = "amount_desc" | "amount_asc" | "alpha" | "share_desc";
@@ -144,4 +152,95 @@ export function formatBreakdownEntryRelativeAge(dateStr: string, referenceDate: 
   const weekLabel = weeks === 1 ? "1 week" : `${weeks} weeks`;
   const dayLabel = days === 1 ? "1 day" : `${days} days`;
   return `${monthLabel} ${weekLabel} ${dayLabel} ago`;
+}
+
+function mergeToBreakdownItems(items: DashboardToBreakdownItem[]): DashboardToBreakdownItem[] {
+  const byLabel = new Map<string, DashboardToBreakdownItem>();
+  for (const item of items) {
+    const existing = byLabel.get(item.label);
+    if (!existing) {
+      byLabel.set(item.label, {
+        label: item.label,
+        total_minor: item.total_minor,
+        share: item.share,
+        entries: [...item.entries]
+      });
+      continue;
+    }
+    existing.total_minor += item.total_minor;
+    existing.entries.push(...item.entries);
+  }
+
+  return [...byLabel.values()]
+    .map((item) => ({
+      ...item,
+      entries: [...item.entries].sort((left, right) => {
+        if (right.amount_minor !== left.amount_minor) {
+          return right.amount_minor - left.amount_minor;
+        }
+        return right.occurred_at.localeCompare(left.occurred_at);
+      })
+    }))
+    .sort((left, right) => right.total_minor - left.total_minor || left.label.localeCompare(right.label));
+}
+
+function mergeTagToBreakdowns(breakdowns: DashboardTagToBreakdown[]): DashboardTagToBreakdown[] {
+  const byTag = new Map<string, DashboardTagToBreakdown>();
+  for (const breakdown of breakdowns) {
+    const existing = byTag.get(breakdown.tag);
+    if (!existing) {
+      byTag.set(breakdown.tag, {
+        tag: breakdown.tag,
+        total_minor: breakdown.total_minor,
+        entry_count: breakdown.entry_count,
+        to_items: mergeToBreakdownItems(breakdown.to_items)
+      });
+      continue;
+    }
+    existing.total_minor += breakdown.total_minor;
+    existing.entry_count += breakdown.entry_count;
+    existing.to_items = mergeToBreakdownItems([...existing.to_items, ...breakdown.to_items]);
+  }
+
+  return [...byTag.values()]
+    .map((breakdown) => {
+      const tagTotal = breakdown.total_minor;
+      return {
+        ...breakdown,
+        to_items: breakdown.to_items.map((item) => ({
+          ...item,
+          share: tagTotal > 0 ? item.total_minor / tagTotal : 0
+        }))
+      };
+    })
+    .sort((left, right) => right.total_minor - left.total_minor || left.tag.localeCompare(right.tag));
+}
+
+/** Aggregate filter groups across a year for the breakdown tree drill-down. */
+export function mergeFilterGroupsForYearTree(
+  filterGroups: DashboardFilterGroupSummary[],
+  monthKeys: string[],
+  dashboardsByMonth: Map<string, Dashboard>
+): DashboardFilterGroupSummary[] {
+  const yearExpenseTotalMinor = sumDashboardKpiForMonths(monthKeys, dashboardsByMonth, "expense_total_minor");
+  const expenseGroups = sortExpenseFilterGroups(expenseFilterGroups(filterGroups));
+
+  return expenseGroups.map((baseGroup) => {
+    const totalMinor = sumFilterGroupForMonths(monthKeys, dashboardsByMonth, baseGroup.key);
+    const tagTotals = buildYearFilterGroupTagTotals(baseGroup.key, monthKeys, dashboardsByMonth);
+    const tagToBreakdowns = mergeTagToBreakdowns(
+      monthKeys.flatMap((monthKey) => {
+        const group = dashboardsByMonth.get(monthKey)?.filter_groups.find((item) => item.key === baseGroup.key);
+        return group?.tag_to_breakdowns ?? [];
+      })
+    );
+
+    return {
+      ...baseGroup,
+      total_minor: totalMinor,
+      share: yearExpenseTotalMinor > 0 ? totalMinor / yearExpenseTotalMinor : 0,
+      tag_totals: tagTotals,
+      tag_to_breakdowns: tagToBreakdowns
+    };
+  });
 }

@@ -69,28 +69,23 @@ Default groups other than `untagged` can have their rules edited, but their name
 
 `frontend/src/pages/DashboardPage.tsx`:
 
-- `Overview` tab:
-  - explicit `Month` / `Year` mode toggle
-  - period strip sits in the dashboard workspace toolbar row between the Month/Year toggle and Currency (middle column grows with available width); scroll left for older months or years, newest toward the right; vertical wheel on the strip scrolls horizontally; click to select; keyboard arrows step selection when the strip is focused
-  - timeline only lists months and years that have visible expense activity in the dashboard currency
-  - monthly mode: KPI cards, an `Income vs Expense Trend` bar chart that always uses the last six calendar months ending at the **real** current month (`YYYY-MM` from the client clock), independent of the timeline selection; stacked income segments (salary, other income) plus stacked expense segments by filter group (bottom to top: fixed, transfers, one-time, day-to-day, untagged as applicable; tooltip shows segment name and amount on hover); a two-part legend lists income segments then expense segments in the same stack order as the bars; a promoted builtin-only grouped spend breakdown card that keeps builtin groups in the same sequence as the main trend view, pairs each one with per-group tag facets, and labels both ranked bars and facet bars as sqrt-scaled; and a projection card with solid spent bars plus translucent projected extensions on a labeled sqrt scale
-  - yearly mode: yearly KPI cards, monthly income vs expense bars for the selected year with stacked income segments (salary, other income) and stacked filter-group expense segments, the same income/expense legend under the chart, and the same promoted builtin-only grouped spend breakdown card using year-aggregated totals/tag sums with sqrt-scaled ranked and facet bars
-- `Income` tab:
-  - KPI cards for total income, salary, other income, and net
-  - horizontal bar chart for `income_by_from[]` (payer/source breakdown)
-  - month mode uses the selected month payload
-  - year mode aggregates `income_by_from[]` across the selected year and shows a scope note
-- `Daily Expense` tab:
-  - monthly mode: average/median day-to-day spend metrics and a day-to-day daily bar chart with mean/median reference lines
+- Persistent finance chrome (hidden on the `Agent` tab):
+  - unified Income / Expense / Net summary hero with color-coded values
+  - `Income vs Expense Trend` bar chart that always uses the last six calendar months ending at the **real** current month (`YYYY-MM` from the client clock), independent of the timeline selection; stacked income segments (salary, other income) plus stacked expense segments by filter group
+  - explicit `Month` / `Year` mode toggle and timeline strip in the dashboard workspace toolbar
+- `Spending` tab:
+  - expense-by-filter-group card with ranked group bars and a day-to-day tag facet on the right
+  - spending-by-destination horizontal bar chart in two columns (up to twenty destinations, shared sqrt scale)
+  - monthly mode: daily day-to-day bar chart with mean/median reference lines and formatted legend values, plus projection card for the current month only
   - yearly mode: average/median expense-month metrics and stacked monthly filter-group bars for the selected year
-- `Breakdowns` tab:
-  - summary row: tag pie plus destination and source bar charts
-  - drill-down tree: filter-group → tag → destination with inline entry rows
-  - when yearly mode is active, this tab explicitly stays anchored to the selected month
-- `Insights` tab:
-  - largest expenses table with matching group badges
+- `Breakdown` tab:
+  - expense breakdown tree: filter-group → tag → destination with inline entry rows
   - month mode uses the selected month payload
-  - year mode aggregates the largest-expense rows across the selected year's month payloads
+  - year mode aggregates tag/destination/entry drill-down data across the selected year
+- `Income` tab:
+  - salary and other-income KPI cards
+  - horizontal bar chart for `income_by_from[]` (payer/source breakdown)
+  - year mode aggregates `income_by_from[]` across the selected year and shows a scope note
 - `Agent` tab:
   - separate agent spend controls for `7d` / `30d` / `90d` / `all`
   - model and surface toggle filters backed by `GET /api/v1/agent/dashboard`

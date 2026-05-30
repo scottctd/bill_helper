@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardPage } from "./DashboardPage";
-import type { Dashboard } from "../lib/types";
+import type { Dashboard, DashboardFilterGroupSummary } from "../lib/types";
 
 const getDashboardMock = vi.fn<(month: string) => Promise<Dashboard>>();
 const getDashboardTimelineMock = vi.fn<() => Promise<{ months: string[] }>>();
@@ -56,7 +56,9 @@ function buildTagToBreakdowns(tagTotals: Record<string, number>, toLabel = "Metr
   }));
 }
 
-function withTagBreakdowns<T extends { tag_totals: Record<string, number> }>(group: T) {
+function withTagBreakdowns(
+  group: Omit<Dashboard["filter_groups"][number], "tag_to_breakdowns">
+): Dashboard["filter_groups"][number] {
   return {
     ...group,
     tag_to_breakdowns: buildTagToBreakdowns(group.tag_totals)
@@ -169,7 +171,7 @@ function buildDashboard(month: string): Dashboard {
         share: 0,
         tag_totals: {}
       }
-    ].map((group) => withTagBreakdowns(group)),
+    ].map((group) => withTagBreakdowns(group as Omit<DashboardFilterGroupSummary, "tag_to_breakdowns">)),
     daily_spending: [
       {
         date: `${month}-01`,
@@ -285,7 +287,8 @@ describe("DashboardPage", () => {
   it("loads only timeline and selected month on initial month view", async () => {
     renderDashboardPage();
 
-    expect(await screen.findByText("Builtin Filter Groups by Spend")).toBeInTheDocument();
+    expect(await screen.findByText("Expense by Filter Group")).toBeInTheDocument();
+    expect(screen.getByLabelText(/This month income and expense summary/i)).toBeInTheDocument();
     expect(getDashboardTimelineMock).toHaveBeenCalledTimes(1);
     expect(getDashboardBatchMock).not.toHaveBeenCalled();
     expect(getDashboardMock.mock.calls.map((call) => call[0])).toEqual(["2026-03"]);
@@ -294,7 +297,7 @@ describe("DashboardPage", () => {
   it("loads year dashboards through the batch endpoint in year view", async () => {
     renderDashboardPage();
 
-    await screen.findByText("Builtin Filter Groups by Spend");
+    await screen.findByText("Expense by Filter Group");
     await userEvent.click(screen.getByRole("tab", { name: "Year" }));
 
     await waitFor(() => {
@@ -303,34 +306,32 @@ describe("DashboardPage", () => {
     expect(getDashboardBatchMock.mock.calls[0]?.[0]).toHaveLength(24);
   });
 
-  it("renders breakdown summary charts and drill-down tree together", async () => {
+  it("renders spending tab content and breakdown tree without removed charts", async () => {
     renderDashboardPage();
 
-    expect(await screen.findByText("Builtin Filter Groups by Spend")).toBeInTheDocument();
+    expect(await screen.findByText("Expense by Filter Group")).toBeInTheDocument();
     const sectionTabs = screen.getByRole("tablist", { name: "Dashboard sections" });
+    expect(within(sectionTabs).getByRole("tab", { name: "Breakdown" })).toBeInTheDocument();
     expect(within(sectionTabs).getByRole("tab", { name: "Income" })).toBeInTheDocument();
-    expect(within(sectionTabs).getByRole("tab", { name: "Daily Expense" })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Experimental MiMo" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Experimental Codex" })).not.toBeInTheDocument();
+    expect(within(sectionTabs).queryByRole("tab", { name: "Insights" })).not.toBeInTheDocument();
+    expect(within(sectionTabs).queryByRole("tab", { name: "Daily Expense" })).not.toBeInTheDocument();
 
     expect(screen.getByText("Income vs Expense Trend")).toBeInTheDocument();
-    expect(screen.getByText("Builtin Filter Groups by Spend")).toBeInTheDocument();
-    expect(screen.queryByText("Small-Multiple Trends")).not.toBeInTheDocument();
-
-    await userEvent.click(within(sectionTabs).getByRole("tab", { name: "Breakdowns" }));
-
-    expect(screen.queryByRole("tablist", { name: "Breakdown views" })).not.toBeInTheDocument();
-    expect(await screen.findByText("Spending by Tags")).toBeInTheDocument();
     expect(screen.getByText("Spending by Destination")).toBeInTheDocument();
-    expect(screen.getByText("Spending by Source (`from`)")).toBeInTheDocument();
-    expect(screen.getByText("Expense Breakdown Tree")).toBeInTheDocument();
-    expect(screen.queryByText("Monthly Spend by Filter Group")).not.toBeInTheDocument();
+    expect(screen.getByText("Projection (Current Month)")).toBeInTheDocument();
+    expect(screen.queryByText("Spending by Tags")).not.toBeInTheDocument();
+    expect(screen.queryByText("Spending by Source (`from`)")).not.toBeInTheDocument();
+
+    await userEvent.click(within(sectionTabs).getByRole("tab", { name: "Breakdown" }));
+
+    expect(await screen.findByText("Expense Breakdown Tree")).toBeInTheDocument();
+    expect(screen.queryByText("Spending by Tags")).not.toBeInTheDocument();
   });
 
   it("renders the income tab with source breakdown chart", async () => {
     renderDashboardPage();
 
-    await screen.findByText("Builtin Filter Groups by Spend");
+    await screen.findByText("Expense by Filter Group");
     const sectionTabs = screen.getByRole("tablist", { name: "Dashboard sections" });
     await userEvent.click(within(sectionTabs).getByRole("tab", { name: "Income" }));
 
@@ -338,5 +339,18 @@ describe("DashboardPage", () => {
     const panel = screen.getByRole("tabpanel", { name: "Income" });
     expect(within(panel).getByText("Salary")).toBeInTheDocument();
     expect(within(panel).getByText("Other income")).toBeInTheDocument();
+    expect(within(panel).queryByRole("heading", { name: "Income" })).not.toBeInTheDocument();
+  });
+
+  it("hides finance chrome on the agent tab", async () => {
+    renderDashboardPage();
+
+    await screen.findByText("Expense by Filter Group");
+    const sectionTabs = screen.getByRole("tablist", { name: "Dashboard sections" });
+    await userEvent.click(within(sectionTabs).getByRole("tab", { name: "Agent" }));
+
+    expect(screen.queryByText("Income vs Expense Trend")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/This month income and expense summary/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Year" })).not.toBeInTheDocument();
   });
 });

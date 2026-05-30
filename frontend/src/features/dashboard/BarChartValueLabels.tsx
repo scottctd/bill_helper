@@ -83,7 +83,7 @@ export const STACKED_BAR_Y_AXIS_WIDTH = 72;
 /** Room for 5-digit Y-axis ticks (e.g. 14,901) without clipping the leading digit. */
 export const STACKED_BAR_CHART_MARGINS = { top: 32, right: 20, left: 8, bottom: 8 } as const;
 
-export function stackedBarYAxisDomain([, dataMax]: [number, number]): [number, number] {
+export function stackedBarYAxisDomain([, dataMax]: readonly [number, number]): [number, number] {
   if (!Number.isFinite(dataMax) || dataMax <= 0) {
     return [0, 0];
   }

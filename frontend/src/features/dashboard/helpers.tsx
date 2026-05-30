@@ -11,7 +11,7 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import { formatMinor } from "../../lib/format";
 import type { Dashboard, DashboardBreakdownItem } from "../../lib/types";
 
-export type DashboardTab = "overview" | "income" | "daily" | "breakdowns" | "insights" | "agent";
+export type DashboardTab = "spending" | "breakdown" | "income" | "agent";
 export type DashboardViewMode = "month" | "year";
 
 export const BUILTIN_FILTER_GROUP_ORDER = ["day_to_day", "fixed", "one_time", "transfers", "untagged"] as const;
@@ -76,11 +76,9 @@ export function sortByIncomeTrendOrder<T extends { key: string }>(groups: T[]): 
 }
 
 export const DASHBOARD_TABS: Array<{ id: DashboardTab; label: string }> = [
-  { id: "overview", label: "Overview" },
+  { id: "spending", label: "Spending" },
+  { id: "breakdown", label: "Breakdown" },
   { id: "income", label: "Income" },
-  { id: "daily", label: "Daily Expense" },
-  { id: "breakdowns", label: "Breakdowns" },
-  { id: "insights", label: "Insights" },
   { id: "agent", label: "Agent" }
 ];
 
@@ -212,8 +210,21 @@ export function filterGroupTotalForMonth(dashboard: Dashboard | undefined, filte
   return dashboard?.filter_groups.find((group) => group.key === filterGroupKey)?.total_minor ?? 0;
 }
 
-/** Merge monthly breakdown rows by label, recompute shares, and keep the top eight rows. */
-export function mergeBreakdownItems(breakdownSets: DashboardBreakdownItem[][]): DashboardBreakdownItem[] {
+export const DESTINATION_BREAKDOWN_LIMIT = 20;
+
+/** Split a list into near-equal columns for side-by-side chart layouts. */
+export function splitItemsIntoColumns<T>(items: T[], columnCount = 2): T[][] {
+  if (items.length === 0 || columnCount <= 1) {
+    return items.length > 0 ? [items] : [];
+  }
+  const columnSize = Math.ceil(items.length / columnCount);
+  return Array.from({ length: columnCount }, (_, index) =>
+    items.slice(index * columnSize, (index + 1) * columnSize)
+  ).filter((column) => column.length > 0);
+}
+
+/** Merge monthly breakdown rows by label, recompute shares, and keep the top rows. */
+export function mergeBreakdownItems(breakdownSets: DashboardBreakdownItem[][], limit = 8): DashboardBreakdownItem[] {
   const totals = new Map<string, number>();
   for (const items of breakdownSets) {
     for (const item of items) {
@@ -227,7 +238,7 @@ export function mergeBreakdownItems(breakdownSets: DashboardBreakdownItem[][]): 
 
   return [...totals.entries()]
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, 8)
+    .slice(0, limit)
     .map(([label, total_minor]) => ({
       label,
       total_minor,
@@ -320,25 +331,6 @@ export function buildYearFilterGroupTotals(
     ...group,
     total_minor: sumFilterGroupForMonths(monthKeys, dashboardsByMonth, group.key)
   }));
-}
-
-export function buildYearLargestExpenses(
-  monthKeys: string[],
-  dashboardsByMonth: Map<string, Dashboard>,
-  limit = 8
-): Dashboard["largest_expenses"] {
-  return monthKeys
-    .flatMap((monthKey) => dashboardsByMonth.get(monthKey)?.largest_expenses ?? [])
-    .sort((left, right) => {
-      if (right.amount_minor !== left.amount_minor) {
-        return right.amount_minor - left.amount_minor;
-      }
-      if (right.occurred_at !== left.occurred_at) {
-        return right.occurred_at.localeCompare(left.occurred_at);
-      }
-      return right.name.localeCompare(left.name);
-    })
-    .slice(0, limit);
 }
 
 export function median(values: number[]): number {
@@ -437,10 +429,6 @@ export function takeLastTrendMonthPoints<T>(points: T[], count = TREND_CHART_MON
     return [];
   }
   return points.slice(-count);
-}
-
-export function filterGroupNamesByKey(data: Dashboard) {
-  return new Map(data.filter_groups.map((group) => [group.key, group.name]));
 }
 
 /** Aggregate tag_totals across all year months for a single filter group key. */

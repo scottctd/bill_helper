@@ -127,8 +127,9 @@
 
 ### `frontend/src/pages/DashboardPage.tsx`
 
-- tabbed analytics surface with `Overview`, `Daily Expense`, `Breakdowns`, `Insights`, and `Agent`; tab buttons have no secondary description line under the row
-- route shell now uses the shared page header, a shared control surface, and `StatBlock` summaries instead of bespoke metric cards for the top-line KPIs
+- tabbed analytics surface with `Spending`, `Breakdown`, `Income`, and `Agent`; tab buttons have no secondary description line under the row
+- persistent finance chrome above the tabs (hidden on `Agent`): unified Income / Expense / Net summary hero plus the `Income vs Expense Trend` chart
+- route shell uses the shared page header, a shared control surface, and the summary hero instead of separate top-line KPI stat blocks
 - includes an explicit `Month` / `Year` mode toggle
 - month and year scope use separate horizontal strips in the workspace toolbar: **View** (Month/Year toggle), **Year** (scrollable year chips), and **Month** (Jan–Dec for the selected year, scrollable, disabled in year view); on small screens those stack full-width; year chips are oldest-to-newest left-to-right with the newest toward the trailing edge; month chips always show all twelve calendar months for the selected year and disable months without ledger data; vertical wheel on a strip maps to horizontal scrolling; click to select; arrow keys step selection when a strip is focused
 - only expense-bearing months/years appear in the timeline feed from the API
@@ -138,12 +139,11 @@
 - monthly classification is driven by saved filter groups; year mode loads month-scoped dashboard reads through `GET /api/v1/dashboard/batch` for the selected and previous calendar years instead of fanning out per-month requests on initial page load
 - month view loads only the timeline, the selected month, and (when the Breakdowns tab is active) the previous month for month-over-month comparison; year mode is deferred until the user selects `Year`, with optional prefetch on hover/focus of the year toggle
 - initial dashboard paint uses a progressive skeleton shell (header, toolbar placeholders, stat/chart blocks) instead of a full-page loading gate; the sidebar prefetches the dashboard route chunk plus timeline/current-month queries on hover/focus
-- heavy tabs (`Breakdowns`, `Agent`) are lazy-loaded on first activation
+- heavy tabs (`Agent`) are lazy-loaded on first activation
 - the monthly and yearly `Income vs Expense Trend` charts stack income segments and expense filter-group segments (two stacks per month) on a sqrt Y axis so outlier months do not flatten the rest of the series; month view fixes the trend window to the last six months ending at the client’s current calendar month (not the timeline-selected month), and both modes show a grouped legend (Income, then Expense) with swatches in stack order
-- `Overview` replaces the old Sankey with a builtin-only grouped spend card that keeps builtin groups in the same sequence as the main trend view, combines each group with per-group tag facets, and marks both the ranked bars and facet bars as sqrt-scaled
+- `Spending` shows a ranked expense-by-filter-group card plus a day-to-day tag facet, spending-by-destination bars, daily day-to-day chart plus projection in month view, and monthly filter-group trend in year view
 - the current-month projection area uses stacked horizontal bars: solid spent-so-far segments with translucent projected growth extensions on a labeled sqrt scale
-- `Breakdowns` shows summary tag/destination/source charts above the filter-group → tag → destination drill-down tree from `filter_groups[].tag_to_breakdowns[]`; the destination chart uses the same sqrt horizontal-bar scale as overview ranked spend
-- `Insights` is intentionally reduced to the largest-expenses table only; month mode shows the current month while year mode aggregates the selected year's largest expenses
+- `Breakdown` shows the filter-group → tag → destination drill-down tree from `filter_groups[].tag_to_breakdowns[]`; year mode aggregates drill-down data across the selected year
 
 ## Filters
 

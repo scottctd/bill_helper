@@ -1,30 +1,45 @@
 /**
  * CALLING SPEC:
- * - Purpose: render the breakdowns tab panel with summary charts and drill-down tree.
- * - Inputs: scoped dashboard read model for the selected month.
- * - Outputs: breakdowns tab panel React element.
+ * - Purpose: render the breakdown tab panel with the expense drill-down tree.
+ * - Inputs: scoped filter groups, scope label, and loading state for year aggregation.
+ * - Outputs: breakdown tab panel React element.
  * - Side effects: React rendering only.
  */
 
-import type { Dashboard } from "../../lib/types";
-import { formatMonthLong, type DashboardViewMode } from "./helpers";
-import { BreakdownsPanel } from "./breakdown/BreakdownsPanel";
+import type { DashboardFilterGroupSummary } from "../../lib/types";
+import { BreakdownTreeCard } from "./breakdown/BreakdownTreeCard";
 
-type DashboardBreakdownsPanelProps = {
-  viewMode: DashboardViewMode;
-  month: string;
-  data: Dashboard;
+type DashboardBreakdownPanelProps = {
+  scopeLabel: string;
+  filterGroups: DashboardFilterGroupSummary[];
+  currencyCode: string;
+  expenseTotalMinor: number;
+  yearlyQueriesLoading?: boolean;
+  yearlyQueryError?: Error;
 };
 
-export function DashboardBreakdownsPanel({ viewMode, month, data }: DashboardBreakdownsPanelProps) {
+export function DashboardBreakdownPanel({
+  scopeLabel,
+  filterGroups,
+  currencyCode,
+  expenseTotalMinor,
+  yearlyQueriesLoading = false,
+  yearlyQueryError
+}: DashboardBreakdownPanelProps) {
   return (
-    <section className="stack-lg" role="tabpanel" id="dashboard-panel-breakdowns" aria-labelledby="dashboard-tab-breakdowns">
-      {viewMode === "year" ? (
-        <div className="dashboard-scope-note">
-          Breakdowns remain anchored to <strong>{formatMonthLong(month)}</strong>. Use `Overview` and `Daily Expense` for year-level trend charts.
-        </div>
-      ) : null}
-      <BreakdownsPanel month={month} data={data} />
+    <section className="stack-lg" role="tabpanel" id="dashboard-panel-breakdown" aria-labelledby="dashboard-tab-breakdown">
+      {yearlyQueriesLoading ? (
+        <p className="muted text-sm">Loading yearly breakdown tree...</p>
+      ) : yearlyQueryError ? (
+        <p className="error">Failed to load yearly breakdown tree: {yearlyQueryError.message}</p>
+      ) : (
+        <BreakdownTreeCard
+          filterGroups={filterGroups}
+          currencyCode={currencyCode}
+          expenseTotalMinor={expenseTotalMinor}
+          scopeLabel={scopeLabel}
+        />
+      )}
     </section>
   );
 }

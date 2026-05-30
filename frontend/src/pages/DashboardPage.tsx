@@ -14,35 +14,28 @@ import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { WorkspaceToolbar } from "../components/layout/WorkspaceToolbar";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { DashboardBreakdownPanel } from "../features/dashboard/DashboardBreakdownsPanel";
 import { DashboardPageSkeleton } from "../features/dashboard/DashboardPageSkeleton";
-import {
-  DashboardDailyPanel,
-  DashboardIncomePanel,
-  DashboardInsightsPanel,
-  DashboardOverviewPanel
-} from "../features/dashboard/DashboardPanels";
+import { DashboardIncomePanel, DashboardSpendingPanel } from "../features/dashboard/DashboardPanels";
 import { DashboardPeriodControls, TIMELINE_ITEM_KEY } from "../features/dashboard/DashboardPeriodControls";
+import { DashboardSummaryHero } from "../features/dashboard/DashboardSummaryHero";
+import { DashboardTrendChart } from "../features/dashboard/DashboardTrendChart";
+import { mergeFilterGroupsForYearTree } from "../features/dashboard/breakdown/breakdownHelpers";
 import { usePrefetchDashboard } from "../features/dashboard/usePrefetchDashboard";
 import {
-  CHART_COLORS,
   DASHBOARD_TABS,
   type DashboardTab,
   type DashboardViewMode,
-  DashboardChartContainer,
-  axisTick,
   buildDailyChartData,
   buildMonthlyChartData,
   buildTimelineYears,
-  buildYearLargestExpenses,
   buildYearMonthKeys,
   buildYearlyFilterGroupsWithTagTotals,
   buildYearlyOverviewData,
-  builtinGroupColor,
-  builtinIncomeGroupColor,
-  filterGroupNamesByKey,
   filterGroupTotalForMonth,
   isIncomeFilterGroupKey,
   median,
+  DESTINATION_BREAKDOWN_LIMIT,
   mergeBreakdownItems,
   takeLastTrendMonthPoints,
   pickTimelineMonthForYear,
@@ -51,140 +44,21 @@ import {
   sortByIncomeTrendOrder,
   sumDashboardKpiForMonths,
   sumFilterGroupForMonths,
-  tooltipAmount
+  formatMonthLong
 } from "../features/dashboard/helpers";
 import { getDashboard, getDashboardBatch, getDashboardTimeline } from "../lib/api";
 import { currentMonth } from "../lib/format";
 import { queryKeys } from "../lib/queryKeys";
 import type { Dashboard } from "../lib/types";
 import { cn } from "../lib/utils";
-import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
-import { STACKED_BAR_CHART_MARGINS, STACKED_BAR_SQRT_Y_AXIS, STACKED_BAR_Y_AXIS_WIDTH, stackedTrendBarLayout, stackTopBarLabel } from "../features/dashboard/BarChartValueLabels";
 
 const LazyAgentCostDashboard = lazy(async () => {
   const module = await import("../features/dashboard/AgentCostDashboard");
   return { default: module.AgentCostDashboard };
 });
 
-const LazyDashboardBreakdownsPanel = lazy(async () => {
-  const module = await import("../features/dashboard/DashboardBreakdownsPanel");
-  return { default: module.DashboardBreakdownsPanel };
-});
-
 function DashboardTabFallback() {
   return <p className="muted text-sm">Loading tab...</p>;
-}
-
-type IncomeTrendChartProps = {
-  data: Array<Record<string, unknown>>;
-  trendGroups: Array<{ key: string; name: string }>;
-  incomeTrendGroups: Array<{ key: string; name: string }>;
-  currencyCode: string;
-};
-
-function IncomeTrendChart({ data: chartData, trendGroups, incomeTrendGroups, currencyCode }: IncomeTrendChartProps) {
-  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
-  const incomeStackKeys = incomeTrendGroups.map((group) => group.key);
-  const expenseStackKeys = trendGroups.map((group) => group.key);
-  const barLayout = stackedTrendBarLayout(chartData.length);
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="min-h-0 flex-1">
-        <DashboardChartContainer>
-          {({ width, height }) => (
-            <BarChart
-              width={width}
-              height={height}
-              data={chartData}
-              barCategoryGap={barLayout.barCategoryGap}
-              barGap={barLayout.barGap}
-              margin={STACKED_BAR_CHART_MARGINS}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.2} />
-              <XAxis dataKey="month" />
-              <YAxis
-                tickFormatter={axisTick}
-                width={STACKED_BAR_Y_AXIS_WIDTH}
-                tickMargin={6}
-                {...STACKED_BAR_SQRT_Y_AXIS}
-              />
-              <Tooltip
-                content={({ payload, label }) => {
-                  const active = payload?.find((p) => p.dataKey === hoveredKey) ?? payload?.[0];
-                  if (!active) return null;
-                  return (
-                    <div className="rounded-md border border-border bg-popover px-3 py-2 text-sm shadow-md">
-                      <p className="text-muted-foreground mb-1">{String(label)}</p>
-                      <p className="font-medium">{String(active.name)}: {tooltipAmount(currencyCode, active.value)}</p>
-                    </div>
-                  );
-                }}
-              />
-              {incomeTrendGroups.map((group) => (
-                <Bar
-                  key={group.key}
-                  dataKey={group.key}
-                  name={group.name}
-                  stackId="income"
-                  fill={builtinIncomeGroupColor(group.key)}
-                  isAnimationActive={false}
-                  onMouseEnter={() => setHoveredKey(group.key)}
-                  label={stackTopBarLabel({ stackKeys: incomeStackKeys, segmentKey: group.key })}
-                />
-              ))}
-              {trendGroups.map((group) => (
-                <Bar
-                  key={group.key}
-                  dataKey={group.key}
-                  name={group.name}
-                  stackId="expense-trend"
-                  fill={builtinGroupColor(group.key)}
-                  isAnimationActive={false}
-                  onMouseEnter={() => setHoveredKey(group.key)}
-                  label={stackTopBarLabel({ stackKeys: expenseStackKeys, segmentKey: group.key })}
-                />
-              ))}
-            </BarChart>
-          )}
-        </DashboardChartContainer>
-      </div>
-      <div
-        className="flex shrink-0 flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground"
-        aria-label="Income and expense segment legend"
-      >
-        <div className="space-y-1">
-          <p className="text-[0.7rem] font-medium uppercase tracking-wide text-foreground">Income</p>
-          <ul className="flex flex-wrap gap-x-3 gap-y-1">
-            {incomeTrendGroups.map((group) => (
-              <li key={group.key} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block size-2.5 shrink-0 rounded-sm"
-                  style={{ backgroundColor: builtinIncomeGroupColor(group.key) }}
-                  aria-hidden
-                />
-                <span>{group.name}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="space-y-1">
-          <p className="text-[0.7rem] font-medium uppercase tracking-wide text-foreground">Expense</p>
-          <ul className="flex flex-wrap gap-x-3 gap-y-1">
-            {trendGroups.map((group) => (
-              <li key={group.key} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block size-2.5 shrink-0 rounded-sm"
-                  style={{ backgroundColor: builtinGroupColor(group.key) }}
-                  aria-hidden
-                />
-                <span>{group.name}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export function DashboardPage() {
@@ -192,7 +66,7 @@ export function DashboardPage() {
   const { prefetchYearDashboard } = usePrefetchDashboard();
   const [month, setMonth] = useState(currentMonth());
   const [viewMode, setViewMode] = useState<DashboardViewMode>("month");
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("spending");
   const timelineItemRefs = useRef(new Map<string, HTMLButtonElement>());
   const yearScrollRef = useRef<HTMLDivElement>(null);
   const monthScrollRef = useRef<HTMLDivElement>(null);
@@ -252,7 +126,6 @@ export function DashboardPage() {
     setMonth(nextMonth);
   }
 
-  /** Align the selected chip’s trailing edge with the strip’s trailing edge (newest items live on the right). */
   function alignTimelineChipToTrailingEdge(
     scroller: HTMLDivElement | null,
     selectedItem: HTMLButtonElement,
@@ -371,7 +244,6 @@ export function DashboardPage() {
       ...(viewMode === "month" ? [[monthScrollRef.current, TIMELINE_ITEM_KEY.month(month)] as [HTMLDivElement | null, string]] : [])
     ];
 
-    // Double rAF: first frame after mount, second after scrollWidth/layout settle.
     let frame2 = 0;
     const frame1 = requestAnimationFrame(() => {
       frame2 = requestAnimationFrame(() => {
@@ -438,18 +310,15 @@ export function DashboardPage() {
       : monthlyChartData;
   const trendGroupSourcePoints = viewMode === "month" ? monthViewTrendChartData : monthlyChartData;
 
-  // Trend chart: expense groups (exclude income groups) and income groups
   const sortedFilterGroups = sortByBuiltinOrder(data.filter_groups);
   const expenseGroups = sortedFilterGroups.filter((g) => !isIncomeFilterGroupKey(g.key));
   const incomeGroups = sortedFilterGroups.filter((g) => isIncomeFilterGroupKey(g.key));
   const monthlyExpenseTrendGroups = expenseGroups.filter((group) =>
     trendGroupSourcePoints.some((point) => Number((point as Record<string, unknown>)[group.key] ?? 0) > 0)
   );
-  const expenseTrendGroups = monthlyExpenseTrendGroups.length > 0 ? monthlyExpenseTrendGroups : expenseGroups;
   const yearlyExpenseTrendGroupsRaw = expenseGroups.filter((group) =>
     yearlyOverviewData.some((point) => Number((point as Record<string, unknown>)[group.key] ?? 0) > 0)
   );
-  const yearlyExpenseTrendGroups = yearlyExpenseTrendGroupsRaw.length > 0 ? yearlyExpenseTrendGroupsRaw : expenseGroups;
   const monthlyIncomeTrendGroups = incomeGroups.filter((group) =>
     trendGroupSourcePoints.some((point) => Number((point as Record<string, unknown>)[group.key] ?? 0) > 0)
   );
@@ -457,16 +326,9 @@ export function DashboardPage() {
     monthlyIncomeTrendGroups.length > 0 ? monthlyIncomeTrendGroups : incomeGroups
   );
 
-  const insightsLargestExpenses =
-    viewMode === "year" ? buildYearLargestExpenses(selectedYearMonths, yearlyDashboardsByMonth) : data.largest_expenses;
-  const groupNamesByKey = filterGroupNamesByKey(data);
-  const primaryFilterGroup = data.filter_groups.find((group) => group.key === "day_to_day") ?? data.filter_groups[0] ?? null;
   const selectedYearExpenseTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "expense_total_minor");
   const selectedYearIncomeTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "income_total_minor");
   const selectedYearNetTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "net_total_minor");
-  const yearlyPrimaryFilterGroupTotalMinor = primaryFilterGroup
-    ? sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, primaryFilterGroup.key)
-    : 0;
   const yearlyExpenseMonths = yearlyOverviewData.map((point) => point.expense_total_minor);
   const yearlyAverageExpenseMonthMinor =
     yearlyExpenseMonths.length > 0 ? Math.round(selectedYearExpenseTotalMinor / yearlyExpenseMonths.length) : 0;
@@ -485,10 +347,29 @@ export function DashboardPage() {
         );
   const trendGroups = sortByIncomeTrendOrder(viewMode === "month" ? expenseTrendGroupsFiltered : expenseTrendGroupsFiltered);
   const trendTitle = viewMode === "month" ? "Income vs Expense Trend" : `${selectedYear} Income vs Expense Trend`;
-  const overviewFilterGroups =
+
+  const spendingFilterGroups =
     viewMode === "year"
       ? buildYearlyFilterGroupsWithTagTotals(data.filter_groups, selectedYearMonths, yearlyDashboardsByMonth)
       : data.filter_groups;
+
+  const spendingByDestination =
+    viewMode === "year"
+      ? mergeBreakdownItems(
+          selectedYearMonths.map((monthKey) => yearlyDashboardsByMonth.get(monthKey)?.spending_by_to ?? []),
+          DESTINATION_BREAKDOWN_LIMIT
+        )
+      : data.spending_by_to;
+
+  const breakdownFilterGroups =
+    viewMode === "year"
+      ? mergeFilterGroupsForYearTree(data.filter_groups, selectedYearMonths, yearlyDashboardsByMonth)
+      : data.filter_groups;
+
+  const breakdownScopeLabel = viewMode === "year" ? String(selectedYear) : formatMonthLong(month);
+  const breakdownExpenseTotalMinor =
+    viewMode === "year" ? selectedYearExpenseTotalMinor : data.kpis.expense_total_minor;
+
   const incomeByFromItems =
     viewMode === "year"
       ? mergeBreakdownItems(
@@ -503,108 +384,128 @@ export function DashboardPage() {
     viewMode === "year"
       ? sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, "other_income")
       : filterGroupTotalForMonth(data, "other_income");
-  const incomePanelTotalMinor = viewMode === "year" ? selectedYearIncomeTotalMinor : data.kpis.income_total_minor;
-  const incomePanelNetTotalMinor = viewMode === "year" ? selectedYearNetTotalMinor : data.kpis.net_total_minor;
+
+  const heroIncomeTotalMinor = viewMode === "year" ? selectedYearIncomeTotalMinor : data.kpis.income_total_minor;
+  const heroExpenseTotalMinor = viewMode === "year" ? selectedYearExpenseTotalMinor : data.kpis.expense_total_minor;
+  const heroNetTotalMinor = viewMode === "year" ? selectedYearNetTotalMinor : data.kpis.net_total_minor;
+
+  const showFinanceChrome = activeTab !== "agent";
+
   return (
     <div className="dashboard-page-layout">
       <div className="stack-lg min-w-0">
         <PageHeader title="Dashboard" description="Month and year ledger trends." />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{trendTitle}</CardTitle>
-          </CardHeader>
-          <CardContent className="h-80 min-w-0">
-            {viewMode === "year" && yearlyQueriesLoading ? (
-              <p className="muted text-sm">Loading yearly trend...</p>
-            ) : viewMode === "month" && needsTrendAnchorQuery && trendAnchorDashboardQuery.isLoading ? (
-              <p className="muted text-sm">Loading trend...</p>
-            ) : viewMode === "month" && needsTrendAnchorQuery && trendAnchorDashboardQuery.isError ? (
-              <p className="error">Failed to load trend: {(trendAnchorDashboardQuery.error as Error).message}</p>
-            ) : (
-              <IncomeTrendChart
-                data={trendChartData}
-                trendGroups={trendGroups}
-                incomeTrendGroups={incomeTrendGroups}
-                currencyCode={data.currency_code}
-              />
-            )}
-          </CardContent>
-        </Card>
+        {showFinanceChrome ? (
+          <>
+            <DashboardSummaryHero
+              viewMode={viewMode}
+              selectedYear={selectedYear}
+              currencyCode={data.currency_code}
+              incomeTotalMinor={heroIncomeTotalMinor}
+              expenseTotalMinor={heroExpenseTotalMinor}
+              netTotalMinor={heroNetTotalMinor}
+            />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{trendTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="h-80 min-w-0">
+                {viewMode === "year" && yearlyQueriesLoading ? (
+                  <p className="muted text-sm">Loading yearly trend...</p>
+                ) : viewMode === "month" && needsTrendAnchorQuery && trendAnchorDashboardQuery.isLoading ? (
+                  <p className="muted text-sm">Loading trend...</p>
+                ) : viewMode === "month" && needsTrendAnchorQuery && trendAnchorDashboardQuery.isError ? (
+                  <p className="error">Failed to load trend: {(trendAnchorDashboardQuery.error as Error).message}</p>
+                ) : (
+                  <DashboardTrendChart
+                    data={trendChartData}
+                    trendGroups={trendGroups}
+                    incomeTrendGroups={incomeTrendGroups}
+                    currencyCode={data.currency_code}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </>
+        ) : null}
 
         <WorkspaceSection>
-          <WorkspaceToolbar className="dashboard-toolbar">
-            <div className="field dashboard-toolbar-view">
-              <span>View</span>
-              <div className="dashboard-view-toggle" role="tablist" aria-label="Dashboard period view">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={viewMode === "month"}
-                  className={cn("dashboard-view-toggle-button", viewMode === "month" && "dashboard-view-toggle-button-active")}
-                  onClick={() => setViewMode("month")}
-                >
-                  Month
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={viewMode === "year"}
-                  className={cn("dashboard-view-toggle-button", viewMode === "year" && "dashboard-view-toggle-button-active")}
-                  onClick={() => setViewMode("year")}
-                  onMouseEnter={() => prefetchYearDashboard(yearlyMonthKeys)}
-                  onFocus={() => prefetchYearDashboard(yearlyMonthKeys)}
-                >
-                  Year
-                </button>
+          {showFinanceChrome ? (
+            <WorkspaceToolbar className="dashboard-toolbar">
+              <div className="field dashboard-toolbar-view">
+                <span>View</span>
+                <div className="dashboard-view-toggle" role="tablist" aria-label="Dashboard period view">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={viewMode === "month"}
+                    className={cn("dashboard-view-toggle-button", viewMode === "month" && "dashboard-view-toggle-button-active")}
+                    onClick={() => setViewMode("month")}
+                  >
+                    Month
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={viewMode === "year"}
+                    className={cn("dashboard-view-toggle-button", viewMode === "year" && "dashboard-view-toggle-button-active")}
+                    onClick={() => setViewMode("year")}
+                    onMouseEnter={() => prefetchYearDashboard(yearlyMonthKeys)}
+                    onFocus={() => prefetchYearDashboard(yearlyMonthKeys)}
+                  >
+                    Year
+                  </button>
+                </div>
               </div>
-            </div>
-            {timelineQuery.isLoading ? (
-              <>
-                <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
-                  <span>Year</span>
-                  <div className="dashboard-skeleton-timeline" aria-hidden="true">
-                    {Array.from({ length: 5 }, (_, index) => (
-                      <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
-                    ))}
+              {timelineQuery.isLoading ? (
+                <>
+                  <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
+                    <span>Year</span>
+                    <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
-                  <span>Month</span>
-                  <div className="dashboard-skeleton-timeline" aria-hidden="true">
-                    {Array.from({ length: 12 }, (_, index) => (
-                      <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
-                    ))}
+                  <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
+                    <span>Month</span>
+                    <div className="dashboard-skeleton-timeline" aria-hidden="true">
+                      {Array.from({ length: 12 }, (_, index) => (
+                        <div key={index} className="dashboard-skeleton-chip dashboard-skeleton-block" />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </>
-            ) : timelineErrorMessage ? (
-              <>
-                <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
-                  <span>Year</span>
-                  <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
-                </div>
-                <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
-                  <span>Month</span>
-                  <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
-                </div>
-              </>
-            ) : (
-              <DashboardPeriodControls
-                viewMode={viewMode}
-                month={month}
-                selectedYear={selectedYear}
-                timelineMonths={timelineMonths}
-                timelineYears={timelineYears}
-                yearScrollRef={yearScrollRef}
-                monthScrollRef={monthScrollRef}
-                registerTimelineItem={registerTimelineItem}
-                setTimelineMonth={setTimelineMonth}
-                onYearKeyDown={handleYearKeyDown}
-                onMonthKeyDown={handleMonthKeyDown}
-              />
-            )}
-          </WorkspaceToolbar>
+                </>
+              ) : timelineErrorMessage ? (
+                <>
+                  <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
+                    <span>Year</span>
+                    <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
+                  </div>
+                  <div className="field dashboard-toolbar-month dashboard-timeline-strip-field">
+                    <span>Month</span>
+                    <p className="error text-sm">Failed to load dashboard timeline: {timelineErrorMessage}</p>
+                  </div>
+                </>
+              ) : (
+                <DashboardPeriodControls
+                  viewMode={viewMode}
+                  month={month}
+                  selectedYear={selectedYear}
+                  timelineMonths={timelineMonths}
+                  timelineYears={timelineYears}
+                  yearScrollRef={yearScrollRef}
+                  monthScrollRef={monthScrollRef}
+                  registerTimelineItem={registerTimelineItem}
+                  setTimelineMonth={setTimelineMonth}
+                  onYearKeyDown={handleYearKeyDown}
+                  onMonthKeyDown={handleMonthKeyDown}
+                />
+              )}
+            </WorkspaceToolbar>
+          ) : null}
 
           <div className="dashboard-tab-list" role="tablist" aria-label="Dashboard sections">
             {DASHBOARD_TABS.map((tab) => (
@@ -625,41 +526,13 @@ export function DashboardPage() {
           </div>
         </WorkspaceSection>
 
-        {activeTab === "overview" ? (
-          <DashboardOverviewPanel
+        {activeTab === "spending" ? (
+          <DashboardSpendingPanel
             viewMode={viewMode}
             selectedYear={selectedYear}
             data={data}
-            overviewFilterGroups={overviewFilterGroups}
-            primaryFilterGroup={primaryFilterGroup}
-            yearlyQueriesLoading={yearlyQueriesLoading}
-            yearlyQueryError={yearlyQueryError}
-            selectedYearExpenseTotalMinor={selectedYearExpenseTotalMinor}
-            selectedYearIncomeTotalMinor={selectedYearIncomeTotalMinor}
-            selectedYearNetTotalMinor={selectedYearNetTotalMinor}
-            yearlyPrimaryFilterGroupTotalMinor={yearlyPrimaryFilterGroupTotalMinor}
-          />
-        ) : null}
-
-        {activeTab === "income" ? (
-          <DashboardIncomePanel
-            viewMode={viewMode}
-            selectedYear={selectedYear}
-            currencyCode={data.currency_code}
-            incomeByFrom={incomeByFromItems}
-            totalIncomeMinor={incomePanelTotalMinor}
-            salaryTotalMinor={salaryTotalMinor}
-            otherIncomeTotalMinor={otherIncomeTotalMinor}
-            netTotalMinor={incomePanelNetTotalMinor}
-            yearlyQueriesLoading={yearlyQueriesLoading}
-          />
-        ) : null}
-
-        {activeTab === "daily" ? (
-          <DashboardDailyPanel
-            viewMode={viewMode}
-            selectedYear={selectedYear}
-            data={data}
+            spendingFilterGroups={spendingFilterGroups}
+            spendingByDestination={spendingByDestination}
             dailyChartData={dailyChartData}
             yearlyQueriesLoading={yearlyQueriesLoading}
             yearlyQueryError={yearlyQueryError}
@@ -669,20 +542,26 @@ export function DashboardPage() {
           />
         ) : null}
 
-        {activeTab === "breakdowns" ? (
-          <Suspense fallback={<DashboardTabFallback />}>
-            <LazyDashboardBreakdownsPanel viewMode={viewMode} month={month} data={data} />
-          </Suspense>
+        {activeTab === "breakdown" ? (
+          <DashboardBreakdownPanel
+            scopeLabel={breakdownScopeLabel}
+            filterGroups={breakdownFilterGroups}
+            currencyCode={data.currency_code}
+            expenseTotalMinor={breakdownExpenseTotalMinor}
+            yearlyQueriesLoading={yearlyQueriesLoading}
+            yearlyQueryError={yearlyQueryError}
+          />
         ) : null}
 
-        {activeTab === "insights" ? (
-          <DashboardInsightsPanel
+        {activeTab === "income" ? (
+          <DashboardIncomePanel
             viewMode={viewMode}
             selectedYear={selectedYear}
-            month={month}
-            data={data}
-            insightsLargestExpenses={insightsLargestExpenses}
-            groupNamesByKey={groupNamesByKey}
+            currencyCode={data.currency_code}
+            incomeByFrom={incomeByFromItems}
+            salaryTotalMinor={salaryTotalMinor}
+            otherIncomeTotalMinor={otherIncomeTotalMinor}
+            yearlyQueriesLoading={yearlyQueriesLoading}
           />
         ) : null}
 
