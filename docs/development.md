@@ -3,6 +3,7 @@
 ## Prerequisites
 
 - `uv` for Python environment, scripts, and tests
+- dependency resolution ignores PyPI releases newer than 7 days (`[tool.uv] exclude-newer` in `pyproject.toml`) as a supply-chain cooldown; use `[tool.uv] exclude-newer-package` to exempt a specific package when you need a fresher release
 - `node` + `npm` for the frontend
 - `docker` only for the legacy opt-in workspace/IDE surface and Docker-backed workspace tests
 - PyMuPDF dependencies for PDF page rendering in agent vision attachments
