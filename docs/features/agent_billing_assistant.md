@@ -37,7 +37,7 @@ The old read/proposal/review modules still exist internally, but no longer as di
 | Message history              | `backend/services/agent/message_history.py`, `backend/services/agent/message_history_content.py`, `backend/services/agent/attachment_content.py`                                              | Thread history shaping, attachment extraction, PDF/image handling, and review/interruption prefixing                                                |
 | Runtime-visible tool catalog | `backend/services/agent/tool_runtime_support/catalog.py`, `backend/services/agent/tool_runtime_support/catalog_session.py`, `backend/services/agent/tool_runtime_support/catalog_terminal.py` | Exact tool schemas exposed to the model                                                                                                             |
 | CLI execution                | `backend/services/agent/terminal.py`, `backend/services/agent/work_sessions.py`, `backend/services/docker_cli.py`, `backend/services/agent_workspace.py`                                      | Hosted `bh` execution, short-lived session injection, source/session persistence, output truncation, secret scrubbing, and legacy workspace support |
-| CLI                          | `backend/cli/main.py`, `backend/cli/support.py`, `backend/cli/rendering.py`, `backend/cli/reference.py`                                                                                       | Thin HTTP client, compact/text rendering, and prompt/doc reference metadata                                                                         |
+| CLI                          | `backend/cli/main.py`, `backend/cli/support.py`, `backend/cli/rendering.py`, `backend/cli/reference.py`, `backend/cli/dashboard_commands.py` | Thin HTTP client, compact/text rendering, dashboard analytics reads, and prompt/doc reference metadata |
 | Internal domain helpers      | `backend/services/agent/read_tools/`, `backend/services/agent/proposals/`, `backend/services/agent/proposal_http.py`, `backend/services/agent/proposal_patching.py`                           | Lookup helpers plus proposal normalization, metadata, and patching reused behind APIs and review/apply                                              |
 | Review/apply                 | `backend/services/agent/reviews/`, `backend/services/agent/apply/`, `backend/routers/agent.py`, `backend/routers/agent_proposals.py`                                                          | Proposal inspection, approve/reject/reopen transitions, reviewer overrides, and canonical mutations                                                 |
 | Frontend agent UI            | `frontend/src/features/agent/`                                                                                                                                                                | Thread list, composer, run timeline, tool blocks, and review modal                                                                                  |
@@ -189,6 +189,7 @@ Compact output is line-oriented and token-efficient:
 
 
 <!-- GENERATED:bh-cheat-sheet:start -->
+
 Use `bh` for Bill Helper app reads and current-session proposal creation and proposal mutation.
 
 - Agent calls should expect `compact` output by default; use `--format text` or `--format json` only when needed.
@@ -200,6 +201,8 @@ Use `bh` for Bill Helper app reads and current-session proposal creation and pro
 - Mutating proposal commands use the injected current session. `BH_RUN_ID` is present for hosted runs and should not be supplied manually.
 - The app owns hosted session creation, selection, and attachment linking. Hosted runs may update only the current session with `bh sessions update`; do not use session navigation or source-management commands.
 - Inspect before mutating: read entries/tags/accounts/entities/groups/proposals first, then create resource-scoped proposals.
+- For spending/income questions, prefer `bh dashboard finance get` before scanning raw entries.
+- For agent spend questions, use `bh dashboard agent get`.
 - `bh proposals update` and `bh proposals remove` only work for pending proposals in the current session/thread.
 
 Command specifications:
@@ -483,19 +486,67 @@ Command specifications:
   - `<proposal_id>: full proposal id or unique short id prefix.`
 - Optional arguments: none.
 
+### `bh dashboard timeline`
+- Purpose: List dashboard expense months in ascending YYYY-MM order.
+- Required arguments: none.
+- Optional arguments: none.
+- Notes:
+  - Returns months with expense activity in the dashboard currency.
+  - Use before `--year` batch reads or to pick a valid `--month` value.
+
+### `bh dashboard finance get`
+- Purpose: Read personal finance dashboard analytics for one month or a batch.
+- Required arguments: none.
+- Optional arguments:
+  - `exactly one of --month YYYY-MM, --year YYYY, or --months LIST.`
+  - `--month YYYY-MM: single month. Defaults to the current calendar month.`
+  - `--year YYYY: batch all expense-active months in that year.`
+  - `--months LIST: comma-separated YYYY-MM list (backend max 24).`
+  - `--sections NAME: section filter. Repeat or comma-separate. Default: all.`
+  - `--breakdown-depth {summary,tags,destinations,entries}: filter-group drill-down depth.`
+  - `Sections: meta, kpis, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.`
+- Notes:
+  - Dashboard currency only; internal account-to-account transfers are excluded from expense analytics.
+  - Use `--format json --sections filter_groups` for the full group -> tag -> destination -> entry tree.
+  - Example: bh dashboard finance get --month 2026-05 --sections kpis,filter_groups,largest_expenses
+  - Example: bh dashboard finance get --year 2026 --sections kpis,monthly_trend --format json
+
+### `bh dashboard agent get`
+- Purpose: Read agent usage and cost dashboard analytics.
+- Required arguments: none.
+- Optional arguments:
+  - `--range {7d,30d,90d,all}: rolling window. Default 30d.`
+  - `--model NAME: model filter. Repeat for multiple models.`
+  - `--surface NAME: surface filter. Repeat for multiple surfaces.`
+  - `--sections NAME: section filter. Repeat or comma-separate. Default: all.`
+  - `Sections: meta, metrics, cost_series, token_distribution, model_breakdown, surface_breakdown, top_runs, all.`
+- Notes:
+  - Costs are USD floats from finished agent runs.
+  - Example: bh dashboard agent get --range 30d --sections metrics
+  - Example: bh dashboard agent get --range 90d --sections model_breakdown,top_runs --format json
+
 Compact output schemas:
 - `entries_list` -> `id|date|kind|amount_minor|currency|name|from|to|tags`
-- `accounts_list` -> `id|name|currency|active`
+- `accounts_list` -> `id|name|currency|active|balance_minor|balance_as_of`
 - `snapshots_list` -> `id|date|balance_minor|note`
 - `groups_list` -> `id|type|name|descendants|first_date|last_date`
 - `entities_list` -> `name|category`
 - `tags_list` -> `name|type|description`
 - `sessions_detail` -> `id|title|pending|running|updated_at`
 - `proposals_list` -> `id|status|change_type|summary`
+- `dashboard_timeline` -> `month`
+- `dashboard_kpis` -> `expense_minor|income_minor|net_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor`
+- `dashboard_filter_groups` -> `key|name|total_minor|share`
+- `dashboard_breakdown` -> `kind|label|total_minor|share`
+- `dashboard_agent_metrics` -> `total_cost_usd|total_tokens|total_runs|completed_runs|failed_runs|avg_cost_usd|avg_tokens|cache_hit_rate|most_used_model|failure_rate`
 
 Common flows:
 - Update the current session summary: `bh sessions update --summary "Reviewed May receipts and proposed 3 entries."`
 - Inspect recent matching entries: `bh entries list --source "farm boy" --limit 10`
+- Read monthly dashboard KPIs: `bh dashboard finance get --sections kpis`
+- Read expense breakdown tree: `bh dashboard finance get --month 2026-05 --sections filter_groups --format json`
+- Compare yearly trend: `bh dashboard finance get --year 2026 --sections monthly_trend`
+- Read agent cost KPIs: `bh dashboard agent get --range 30d --sections metrics`
 - Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`
 - Create a tag proposal: `bh tags create --name grocery --type expense`
 - Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{"tags":["grocery","one_time"]}'`

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # CALLING SPEC:
-# - Purpose: render a fully expanded agent system prompt snapshot from the current database state.
-# - Inputs: CLI args for output path, surface, date, timezone, and optional user selection.
+# - Purpose: render a fully expanded agent system prompt snapshot for committed docs.
+# - Inputs: CLI args for output path, surface, date, and timezone.
 # - Outputs: writes a markdown snapshot doc to disk and prints the output path.
-# - Side effects: reads the configured database and writes one markdown file.
+# - Side effects: writes one markdown file; does not read the database.
 from __future__ import annotations
 
 import argparse
@@ -11,19 +11,14 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-from sqlalchemy import select
-
-from backend.database import open_session
-from backend.models_finance import User
-from backend.services.agent.message_history_content import build_entity_category_context
 from backend.services.agent.prompts import SystemPromptContext, system_prompt
-from backend.services.agent.user_context import build_current_user_context
-# Safe placeholder items for the committed snapshot doc. Never load real user_memory from the DB.
-SNAPSHOT_USER_MEMORY: list[str] = [
-    "Prefers terse answers.",
-    "Always mention CAD explicitly.",
-    "When importing statement transactions, use the transaction date instead of the post date when both are shown.",
-]
+
+# Placeholders for git-tracked snapshot output. Never embed DB-derived user context.
+SNAPSHOT_OMITTED = "<omitted>"
+_AGENT_MEMORY_INTRO = (
+    "Treat the following as persistent user-provided background and preferences.\n"
+    "Follow it when it does not conflict with the rules above."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,10 +26,6 @@ class RenderInputs:
     response_surface: str
     current_date: date
     timezone_name: str
-    selected_user_name: str
-    account_context: str
-    entity_category_context: str | None
-    user_memory: list[str] | None
     rendered_prompt: str
 
 
@@ -57,11 +48,6 @@ def _parse_args() -> argparse.Namespace:
         help="Timezone name to inject. Defaults to America/Toronto.",
     )
     parser.add_argument(
-        "--user-name",
-        default="admin",
-        help="User name whose account/entity context should be rendered. Defaults to admin.",
-    )
-    parser.add_argument(
         "--output",
         default=None,
         help="Output markdown path. Defaults to docs/features/system_prompt_example.md",
@@ -75,42 +61,45 @@ def _resolve_date(date_text: str | None) -> date:
     return date.fromisoformat(date_text)
 
 
-def _load_render_inputs(*, user_name: str, current_date: date, timezone_name: str, response_surface: str) -> RenderInputs:
-    with open_session() as db:
-        selected_user = db.scalar(select(User).where(User.name == user_name))
-        if selected_user is None:
-            selected_user = db.scalar(select(User).order_by(User.created_at.asc()))
-        resolved_user_name = selected_user.name if selected_user is not None else "(none)"
-        resolved_user_id = selected_user.id if selected_user is not None else None
-        account_context = build_current_user_context(
-            db,
-            user_id=resolved_user_id,
-            user_name=resolved_user_name,
-        )
-        entity_category_context = build_entity_category_context(
-            db,
-            owner_user_id=resolved_user_id,
-        )
-        rendered_prompt = system_prompt(
-            SystemPromptContext(
-                current_user_context=account_context,
-                entity_category_context=entity_category_context,
-                user_memory=SNAPSHOT_USER_MEMORY,
-                current_date=current_date,
-                current_timezone=timezone_name,
-                response_surface=response_surface,
-            )
-        )
-        return RenderInputs(
-            response_surface=response_surface,
+def _load_render_inputs(*, current_date: date, timezone_name: str, response_surface: str) -> RenderInputs:
+    rendered_prompt = _render_snapshot_system_prompt(
+        current_date=current_date,
+        timezone_name=timezone_name,
+        response_surface=response_surface,
+    )
+    return RenderInputs(
+        response_surface=response_surface,
+        current_date=current_date,
+        timezone_name=timezone_name,
+        rendered_prompt=rendered_prompt,
+    )
+
+
+def _render_snapshot_system_prompt(
+    *,
+    current_date: date,
+    timezone_name: str,
+    response_surface: str,
+) -> str:
+    rendered_prompt = system_prompt(
+        SystemPromptContext(
+            current_user_context=SNAPSHOT_OMITTED,
+            entity_category_context=SNAPSHOT_OMITTED,
+            user_memory=None,
             current_date=current_date,
-            timezone_name=timezone_name,
-            selected_user_name=resolved_user_name,
-            account_context=account_context,
-            entity_category_context=entity_category_context,
-            user_memory=SNAPSHOT_USER_MEMORY,
-            rendered_prompt=rendered_prompt,
+            current_timezone=timezone_name,
+            response_surface=response_surface,
         )
+    )
+    return _replace_agent_memory_body(rendered_prompt)
+
+
+def _replace_agent_memory_body(rendered_prompt: str) -> str:
+    marker = f"### Agent Memory\n{_AGENT_MEMORY_INTRO}\n"
+    if marker not in rendered_prompt:
+        return rendered_prompt
+    prefix = rendered_prompt[: rendered_prompt.index(marker) + len(marker)]
+    return f"{prefix}{SNAPSHOT_OMITTED}\n"
 
 
 def _build_snapshot_markdown(inputs: RenderInputs) -> str:
@@ -123,17 +112,16 @@ def _build_snapshot_markdown(inputs: RenderInputs) -> str:
         "`backend/services/agent/prompt_includes/`, and "
         "`backend/services/agent/prompts.py`; the embedded `bh` cheat sheet comes from "
         "`backend/cli/reference.py`.\n\n"
-        f"This doc snapshots the fully rendered agent system prompt from the current local database state for the "
+        f"This doc snapshots the fully rendered agent system prompt for the "
         f"`{inputs.response_surface}` response surface on `{inputs.current_date.isoformat()}`.\n\n"
         "It is a rendered snapshot, not the canonical source of truth for prompt text.\n\n"
         "Rendered with:\n"
         f"- response surface: `{inputs.response_surface}`\n"
         f"- timezone: `{inputs.timezone_name}`\n"
         f"- current date: `{inputs.current_date.isoformat()}`\n"
-        f"- selected user: `{inputs.selected_user_name}`\n"
-        "- current user context: derived from the current local database\n"
-        "- entity category context: derived from the current local database\n"
-        "- user memory: placeholder examples (not loaded from the local database)\n\n"
+        "- entity category context: placeholder `<omitted>` (not loaded from the local database)\n"
+        "- account context: placeholder `<omitted>` (not loaded from the local database)\n"
+        "- agent memory: placeholder `<omitted>` (not loaded from the local database)\n\n"
         "```md\n"
         f"{inputs.rendered_prompt}"
         "```\n"
@@ -146,7 +134,6 @@ def main() -> int:
     current_date = _resolve_date(args.date_text)
     output_path = Path(args.output) if args.output is not None else _default_output_path()
     inputs = _load_render_inputs(
-        user_name=args.user_name,
         current_date=current_date,
         timezone_name=args.timezone,
         response_surface=args.surface,

@@ -106,6 +106,17 @@ Interactive charting is powered by Recharts.
 ## Tests
 
 - `backend/tests/test_finance.py` validates filter-group provisioning, dashboard payload shape, overlap behavior for custom groups, and exclusion of internal account-to-account transfers.
+- `backend/tests/test_cli_dashboard.py` and `backend/tests/test_cli_dashboard_support.py` validate `bh dashboard` scope, section filtering, and API wiring.
+
+## Agent CLI
+
+Agents can read dashboard analytics without re-aggregating entries manually:
+
+- `bh dashboard timeline` lists expense-active months.
+- `bh dashboard finance get` wraps `GET /dashboard` and `GET /dashboard/batch` with section filters and filter-group drill-down depth control.
+- `bh dashboard agent get` wraps `GET /agent/dashboard` with range/model/surface filters.
+
+Use `--format json --sections filter_groups` when the agent needs the full filter-group → tag → destination → entry tree. See `backend/cli/reference.py` and `bh dashboard finance get --help` for the full section list.
 
 ## Operational Notes
 

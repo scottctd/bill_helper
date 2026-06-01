@@ -23,6 +23,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from backend.services.agent.prompts import external_agent_prompt
+from backend.cli.dashboard_commands import add_dashboard_parser
 from backend.cli.session_commands import add_sessions_parser
 from backend.cli.create_commands import (
     ACCOUNT_CREATE_SPEC,
@@ -119,6 +120,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _build_entities_parser(subparsers)
     _build_tags_parser(subparsers)
     _build_proposals_parser(subparsers)
+    add_dashboard_parser(subparsers, _add_format_option)
     return parser
 
 

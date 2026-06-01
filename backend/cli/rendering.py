@@ -17,6 +17,14 @@ import json
 from typing import Any
 
 from backend.cli.reference import compact_schema_for
+from backend.cli.dashboard_rendering import (
+    render_dashboard_agent_compact,
+    render_dashboard_agent_text,
+    render_dashboard_finance_compact,
+    render_dashboard_finance_text,
+    render_dashboard_timeline_compact,
+    render_dashboard_timeline_text,
+)
 from backend.cli.rendering_support import (
     bool_text,
     compact_row,
@@ -645,6 +653,9 @@ _COMPACT_RENDERERS = {
     "tags_list": _render_tags_list_compact,
     "proposals_list": _render_proposals_list_compact,
     "proposals_detail": _render_proposal_detail_compact,
+    "dashboard_timeline": render_dashboard_timeline_compact,
+    "dashboard_finance": render_dashboard_finance_compact,
+    "dashboard_agent": render_dashboard_agent_compact,
 }
 
 _TEXT_RENDERERS = {
@@ -664,4 +675,7 @@ _TEXT_RENDERERS = {
     "tags_list": _render_tags_list_text,
     "proposals_list": _render_proposals_list_text,
     "proposals_detail": _render_proposal_detail_text,
+    "dashboard_timeline": render_dashboard_timeline_text,
+    "dashboard_finance": render_dashboard_finance_text,
+    "dashboard_agent": render_dashboard_agent_text,
 }

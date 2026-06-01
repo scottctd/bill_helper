@@ -106,6 +106,31 @@ _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("source_detail", "source_id|name|mime_type|size_bytes|sha256"),
     CompactSchema("proposals_list", "id|status|change_type|summary"),
     CompactSchema("proposals_detail", "id|status|proposal_type|change_action|change_type|summary|applied_resource"),
+    CompactSchema("dashboard_timeline", "month"),
+    CompactSchema(
+        "dashboard_kpis",
+        "expense_minor|income_minor|net_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor",
+    ),
+    CompactSchema("dashboard_filter_groups", "key|name|total_minor|share"),
+    CompactSchema("dashboard_breakdown", "kind|label|total_minor|share"),
+    CompactSchema("dashboard_daily_spending", "date|expense_minor|filter_group_totals_json"),
+    CompactSchema("dashboard_monthly_trend", "month|expense_minor|income_minor"),
+    CompactSchema("dashboard_weekday_spending", "weekday|total_minor"),
+    CompactSchema("dashboard_largest_expenses", "id|date|name|to|amount_minor|groups"),
+    CompactSchema("dashboard_projection", "days_elapsed|days_remaining|spent_minor|projected_total_minor|projected_remaining_minor"),
+    CompactSchema(
+        "dashboard_reconciliation",
+        "account|currency|snapshot_at|tracked_change_minor|last_delta_minor|mismatched|reconciled",
+    ),
+    CompactSchema(
+        "dashboard_agent_metrics",
+        "total_cost_usd|total_tokens|total_runs|completed_runs|failed_runs|avg_cost_usd|avg_tokens|cache_hit_rate|most_used_model|failure_rate",
+    ),
+    CompactSchema("dashboard_agent_cost_series", "bucket|cost_usd|runs"),
+    CompactSchema("dashboard_agent_token_slice", "label|tokens|share"),
+    CompactSchema("dashboard_agent_model", "model|runs|input_tokens|output_tokens|cache_reads|total_tokens|total_cost_usd|avg_cost_usd"),
+    CompactSchema("dashboard_agent_surface", "surface|runs|tokens|cost_usd"),
+    CompactSchema("dashboard_agent_top_runs", "run_id|thread_id|title|model|surface|status|tokens|cost_usd"),
 )
 
 
@@ -512,6 +537,49 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
             "<proposal_id>: full proposal id or unique short id prefix.",
         ),
     ),
+    CommandSpec(
+        "bh dashboard timeline",
+        "List dashboard expense months in ascending YYYY-MM order.",
+        notes=(
+            "Returns months with expense activity in the dashboard currency.",
+            "Use before `--year` batch reads or to pick a valid `--month` value.",
+        ),
+    ),
+    CommandSpec(
+        "bh dashboard finance get",
+        "Read personal finance dashboard analytics for one month or a batch.",
+        optional_arguments=(
+            "exactly one of --month YYYY-MM, --year YYYY, or --months LIST.",
+            "--month YYYY-MM: single month. Defaults to the current calendar month.",
+            "--year YYYY: batch all expense-active months in that year.",
+            "--months LIST: comma-separated YYYY-MM list (backend max 24).",
+            "--sections NAME: section filter. Repeat or comma-separate. Default: all.",
+            "--breakdown-depth {summary,tags,destinations,entries}: filter-group drill-down depth.",
+            "Sections: meta, kpis, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.",
+        ),
+        notes=(
+            "Dashboard currency only; internal account-to-account transfers are excluded from expense analytics.",
+            "Use `--format json --sections filter_groups` for the full group -> tag -> destination -> entry tree.",
+            "Example: bh dashboard finance get --month 2026-05 --sections kpis,filter_groups,largest_expenses",
+            "Example: bh dashboard finance get --year 2026 --sections kpis,monthly_trend --format json",
+        ),
+    ),
+    CommandSpec(
+        "bh dashboard agent get",
+        "Read agent usage and cost dashboard analytics.",
+        optional_arguments=(
+            "--range {7d,30d,90d,all}: rolling window. Default 30d.",
+            "--model NAME: model filter. Repeat for multiple models.",
+            "--surface NAME: surface filter. Repeat for multiple surfaces.",
+            "--sections NAME: section filter. Repeat or comma-separate. Default: all.",
+            "Sections: meta, metrics, cost_series, token_distribution, model_breakdown, surface_breakdown, top_runs, all.",
+        ),
+        notes=(
+            "Costs are USD floats from finished agent runs.",
+            "Example: bh dashboard agent get --range 30d --sections metrics",
+            "Example: bh dashboard agent get --range 90d --sections model_breakdown,top_runs --format json",
+        ),
+    ),
 )
 
 
@@ -558,6 +626,11 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
         "entities_list",
         "tags_list",
         "proposals_list",
+        "dashboard_timeline",
+        "dashboard_kpis",
+        "dashboard_filter_groups",
+        "dashboard_breakdown",
+        "dashboard_agent_metrics",
     }
     if include_source_commands:
         compact_schema_keys.add("sessions_list")
@@ -618,6 +691,8 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
         f"{proposal_scope_guidance}"
         f"{source_guidance}"
         "- Inspect before mutating: read entries/tags/accounts/entities/groups/proposals first, then create resource-scoped proposals.\n"
+        "- For spending/income questions, prefer `bh dashboard finance get` before scanning raw entries.\n"
+        "- For agent spend questions, use `bh dashboard agent get`.\n"
         "- `bh proposals update` and `bh proposals remove` only work for pending proposals in the current session/thread.\n"
         "\n"
         "Command specifications:\n\n"
@@ -629,6 +704,10 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
         "Common flows:\n"
         f"{session_and_source_flows}"
         "- Inspect recent matching entries: `bh entries list --source \"farm boy\" --limit 10`\n"
+        "- Read monthly dashboard KPIs: `bh dashboard finance get --sections kpis`\n"
+        "- Read expense breakdown tree: `bh dashboard finance get --month 2026-05 --sections filter_groups --format json`\n"
+        "- Compare yearly trend: `bh dashboard finance get --year 2026 --sections monthly_trend`\n"
+        "- Read agent cost KPIs: `bh dashboard agent get --range 30d --sections metrics`\n"
         "- Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`\n"
         "- Create a tag proposal: `bh tags create --name grocery --type expense`\n"
         "- Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{\"tags\":[\"grocery\",\"one_time\"]}'`\n"
