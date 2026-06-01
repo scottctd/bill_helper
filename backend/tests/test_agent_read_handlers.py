@@ -91,12 +91,13 @@ def test_snapshot_read_tools_return_interval_reconciliation(client) -> None:
     entry_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "EXPENSE",
             "occurred_at": "2026-01-15",
             "name": "Coffee",
             "amount_minor": 1200,
             "currency_code": "USD",
+            "from_entity_id": account_id,
+            "to_entity": "Coffee Shop",
             "tags": ["food"],
         },
     )

@@ -7,10 +7,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from datetime import date
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from backend.models_finance import Account, Entity, Tag
+from backend.services.account_balances import compute_account_balances
 from backend.services.agent.read_tools.common import (
     account_to_record,
     effective_entity_category,
@@ -106,12 +109,20 @@ def list_accounts(context: ToolContext, args: ListAccountsArgs) -> ToolExecution
             )
         )
 
+    balances = compute_account_balances(
+        context.db,
+        account_ids=[account.id for account in accounts],
+        as_of=date.today(),
+    )
     ranked: list[tuple[tuple[int, str], dict[str, Any]]] = []
     for account in accounts:
         name_rank, name_ok = string_match_rank(account.name, args.name)
         if not name_ok:
             continue
-        record = account_to_record(account)
+        record = account_to_record(
+            account,
+            balance_minor=balances[account.id].balance_minor,
+        )
         ranked.append(((name_rank, account.name.lower()), record))
 
     ranked.sort(key=lambda pair: pair[0])

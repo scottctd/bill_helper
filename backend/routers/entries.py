@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -112,7 +113,6 @@ def _user_ref_patch_or_none(
 
 def _entry_create_command_from_request(payload: EntryCreate) -> EntryCreateCommand:
     return EntryCreateCommand(
-        account_id=payload.account_id,
         kind=payload.kind,
         occurred_at=payload.occurred_at,
         name=payload.name,
@@ -227,7 +227,12 @@ def list_entries(
     if filters.currency is not None:
         conditions.append(Entry.currency_code == filters.currency.upper())
     if filters.account_id is not None:
-        conditions.append(Entry.account_id == filters.account_id)
+        conditions.append(
+            or_(
+                Entry.from_entity_id == filters.account_id,
+                Entry.to_entity_id == filters.account_id,
+            )
+        )
     if filters.source is not None:
         pattern = f"%{filters.source}%"
         conditions.append(
@@ -237,6 +242,28 @@ def list_entries(
                 Entry.to_entity.ilike(pattern),
             )
         )
+    if filters.from_entity:
+        normalized_from = [value.strip() for value in filters.from_entity if value.strip()]
+        if normalized_from:
+            conditions.append(
+                or_(
+                    *[
+                        func.lower(Entry.from_entity) == value.lower()
+                        for value in normalized_from
+                    ]
+                )
+            )
+    if filters.to_entity:
+        normalized_to = [value.strip() for value in filters.to_entity if value.strip()]
+        if normalized_to:
+            conditions.append(
+                or_(
+                    *[
+                        func.lower(Entry.to_entity) == value.lower()
+                        for value in normalized_to
+                    ]
+                )
+            )
 
     stmt = (
         select(Entry)

@@ -44,7 +44,6 @@ def create_entry(
     headers: dict[str, str] | None = None,
 ) -> dict:
     payload = {
-        "account_id": account_id,
         "kind": kind,
         "occurred_at": occurred_at,
         "name": name,
@@ -52,6 +51,15 @@ def create_entry(
         "currency_code": "USD",
         "tags": ["food"],
     }
+    if kind == "EXPENSE":
+        payload["from_entity_id"] = account_id
+        payload["to_entity"] = "Counterparty"
+    elif kind == "INCOME":
+        payload["to_entity_id"] = account_id
+        payload["from_entity"] = "Counterparty"
+    else:
+        payload["from_entity_id"] = account_id
+        payload["to_entity"] = "Other account"
     if direct_group_id is not None:
         payload["direct_group_id"] = direct_group_id
     if direct_group_member_role is not None:
@@ -98,12 +106,57 @@ def test_entry_filters_and_tags(client):
     assert "status" not in payload["items"][0]
 
 
+def test_entry_filters_by_from_and_to_entity(client):
+    account_id = create_account(client, name="Main Checking")
+    coffee = client.post(
+        "/api/v1/entries",
+        json={
+            "from_entity_id": account_id,
+            "to_entity": "Cafe",
+            "kind": "EXPENSE",
+            "occurred_at": "2026-01-04",
+            "name": "Coffee",
+            "amount_minor": 500,
+            "currency_code": "USD",
+        },
+    )
+    coffee.raise_for_status()
+    rent = client.post(
+        "/api/v1/entries",
+        json={
+            "from_entity_id": account_id,
+            "to_entity": "Landlord",
+            "kind": "EXPENSE",
+            "occurred_at": "2026-01-05",
+            "name": "Rent",
+            "amount_minor": 120000,
+            "currency_code": "USD",
+        },
+    )
+    rent.raise_for_status()
+
+    from_response = client.get(
+        "/api/v1/entries",
+        params=[("from_entity", "Main Checking")],
+    )
+    from_response.raise_for_status()
+    assert {item["name"] for item in from_response.json()["items"]} == {"Coffee", "Rent"}
+
+    to_response = client.get(
+        "/api/v1/entries",
+        params=[("to_entity", "Cafe")],
+    )
+    to_response.raise_for_status()
+    assert [item["name"] for item in to_response.json()["items"]] == ["Coffee"]
+
+
 def test_entry_filters_by_filter_group(client):
     account_id = create_account(client)
     coffee = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "from_entity_id": account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-04",
             "name": "Coffee",
@@ -116,7 +169,8 @@ def test_entry_filters_by_filter_group(client):
     rent = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "from_entity_id": account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-05",
             "name": "Rent",
@@ -156,7 +210,8 @@ def test_entry_filters_by_computed_untagged_filter_group(client):
     client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "from_entity_id": account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-04",
             "name": "No tag cash expense",
@@ -168,7 +223,8 @@ def test_entry_filters_by_computed_untagged_filter_group(client):
     client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "from_entity_id": account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-05",
             "name": "Misc expense",
@@ -298,7 +354,6 @@ def test_update_entry_resolves_entity_labels_from_ids(client):
     create_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "TRANSFER",
             "occurred_at": "2026-02-14",
             "name": "Transfer to savings",
@@ -348,7 +403,8 @@ def test_entry_group_assignment_validates_split_role_requirements(client):
     create_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "from_entity_id": account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-02",
             "name": "Dinner",
@@ -419,7 +475,8 @@ def test_split_group_validation_and_graph(client):
     child_income = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "to_entity_id": account_id,
+            "from_entity": "Counterparty",
             "kind": "INCOME",
             "occurred_at": "2026-01-03",
             "name": "Alice paid back",
@@ -432,7 +489,8 @@ def test_split_group_validation_and_graph(client):
     other_child_income = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "to_entity_id": account_id,
+            "from_entity": "Counterparty",
             "kind": "INCOME",
             "occurred_at": "2026-01-04",
             "name": "Bob paid back",
@@ -484,7 +542,8 @@ def test_recurring_group_validation_and_graph(client):
     invalid_income = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "to_entity_id": account_id,
+            "from_entity": "Counterparty",
             "kind": "INCOME",
             "occurred_at": "2026-04-01",
             "name": "Refund",
@@ -688,7 +747,6 @@ def test_entry_accepts_entity_ids_and_owner_user_id(client):
     response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "EXPENSE",
             "occurred_at": "2026-01-09",
             "name": "Coffee",
@@ -724,7 +782,6 @@ def test_entity_update_syncs_denormalized_entry_labels(client):
     create_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "EXPENSE",
             "occurred_at": "2026-01-10",
             "name": "Rent",
@@ -796,7 +853,6 @@ def test_delete_entity_preserves_denormalized_entry_labels(client):
     create_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "EXPENSE",
             "occurred_at": "2026-01-12",
             "name": "Rent",
@@ -843,7 +899,6 @@ def test_delete_account_preserves_entries_and_deletes_snapshots(client):
     create_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "TRANSFER",
             "occurred_at": "2026-01-13",
             "name": "Move funds",
@@ -873,7 +928,7 @@ def test_delete_account_preserves_entries_and_deletes_snapshots(client):
     detail_response = client.get(f"/api/v1/entries/{entry['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
-    assert detail["account_id"] is None
+    assert detail["from_entity_id"] is None
     assert detail["from_entity"] == "Checking"
     assert detail["from_entity_id"] is None
     assert detail["from_entity_missing"] is True
@@ -919,7 +974,8 @@ def test_tag_management_and_currency_catalog(client):
     create_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "to_entity_id": account_id,
+            "from_entity": "Counterparty",
             "kind": "INCOME",
             "occurred_at": "2026-01-11",
             "name": "Freelance",
@@ -932,7 +988,8 @@ def test_tag_management_and_currency_catalog(client):
     custom_currency_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
+            "from_entity_id": account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-11",
             "name": "Special expense",
@@ -1008,7 +1065,8 @@ def test_currencies_are_scoped_by_principal(client, auth_headers):
     admin_entry_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": admin_account_id,
+            "from_entity_id": admin_account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-12",
             "name": "Admin EUR expense",
@@ -1024,7 +1082,8 @@ def test_currencies_are_scoped_by_principal(client, auth_headers):
     alice_entry_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": alice_account_id,
+            "from_entity_id": alice_account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-13",
             "name": "Alice special expense",
@@ -1054,7 +1113,8 @@ def test_catalog_reads_are_scoped_by_principal(client, auth_headers):
     admin_entry_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": admin_account_id,
+            "from_entity_id": admin_account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-14",
             "name": "Admin vendor expense",
@@ -1072,7 +1132,8 @@ def test_catalog_reads_are_scoped_by_principal(client, auth_headers):
     alice_entry_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": alice_account_id,
+            "from_entity_id": alice_account_id,
+            "to_entity": "Counterparty",
             "kind": "EXPENSE",
             "occurred_at": "2026-01-15",
             "name": "Alice vendor expense",
@@ -1126,13 +1187,12 @@ def test_entities_list_includes_same_currency_net_amounts(client):
     expense_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "EXPENSE",
             "occurred_at": "2026-01-10",
             "name": "Coffee run",
             "amount_minor": 1200,
             "currency_code": "USD",
-            "from_entity": "Main Checking",
+            "from_entity_id": account_id,
             "to_entity_id": cafe["id"],
             "tags": [],
         },
@@ -1142,14 +1202,13 @@ def test_entities_list_includes_same_currency_net_amounts(client):
     income_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "INCOME",
             "occurred_at": "2026-01-11",
             "name": "Refund",
             "amount_minor": 300,
             "currency_code": "USD",
             "from_entity_id": cafe["id"],
-            "to_entity": "Main Checking",
+            "to_entity_id": account_id,
             "tags": [],
         },
     )
@@ -1172,13 +1231,12 @@ def test_entities_list_marks_mixed_currency_net_amounts(client):
     usd_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "EXPENSE",
             "occurred_at": "2026-01-10",
             "name": "Seat upgrade",
             "amount_minor": 1200,
             "currency_code": "USD",
-            "from_entity": "Main Checking",
+            "from_entity_id": account_id,
             "to_entity_id": airline["id"],
             "tags": [],
         },
@@ -1188,13 +1246,12 @@ def test_entities_list_marks_mixed_currency_net_amounts(client):
     eur_response = client.post(
         "/api/v1/entries",
         json={
-            "account_id": account_id,
             "kind": "EXPENSE",
             "occurred_at": "2026-01-11",
             "name": "Airport snack",
             "amount_minor": 600,
             "currency_code": "EUR",
-            "from_entity": "Main Checking",
+            "from_entity_id": account_id,
             "to_entity_id": airline["id"],
             "tags": [],
         },

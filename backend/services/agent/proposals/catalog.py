@@ -379,7 +379,6 @@ def propose_delete_account(context: ToolContext, args: ProposeDeleteAccountArgs)
                 Entry.is_deleted.is_(False),
                 Entry.owner_user_id == principal.user_id,
                 or_(
-                    Entry.account_id == existing.id,
                     Entry.from_entity_id == existing.id,
                     Entry.to_entity_id == existing.id,
                 ),

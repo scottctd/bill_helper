@@ -17,7 +17,6 @@ export interface EntryGroupRef {
 
 export interface Entry {
   id: string;
-  account_id: string | null;
   kind: EntryKind;
   occurred_at: string;
   name: string;

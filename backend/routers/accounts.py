@@ -28,6 +28,8 @@ from backend.services.access_scope import (
     get_account_for_principal_or_404,
 )
 from backend.services.accounts import (
+    build_account_read,
+    build_account_reads,
     create_account as create_account_service,
     delete_account_and_entity_root,
     update_account as update_account_service,
@@ -57,7 +59,7 @@ def create_account(
     db.commit()
     db.refresh(account)
     db.refresh(account, attribute_names=["entity"])
-    return AccountRead.model_validate(account)
+    return build_account_read(db, account)
 
 
 @router.get("", response_model=list[AccountRead])
@@ -74,7 +76,7 @@ def list_accounts(
             .order_by(Entity.name.asc(), Account.created_at.asc())
         )
     )
-    return [AccountRead.model_validate(account) for account in accounts]
+    return build_account_reads(db, accounts)
 
 
 @router.patch("/{account_id}", response_model=AccountRead)
@@ -94,7 +96,7 @@ def update_account(
     db.commit()
     db.refresh(account)
     db.refresh(account, attribute_names=["entity"])
-    return AccountRead.model_validate(account)
+    return build_account_read(db, account)
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)

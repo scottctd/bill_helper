@@ -35,7 +35,6 @@ def apply_create_entry(
     to_entity = ensure_entity_by_name(db, payload.to_entity, owner_user_id=principal.user_id)
 
     entry = Entry(
-        account_id=None,
         kind=payload.kind,
         occurred_at=payload.date,
         name=payload.name,

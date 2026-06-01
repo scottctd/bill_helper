@@ -12,6 +12,7 @@ import { queryKeys } from "./queryKeys";
 
 export function invalidateEntryReadModels(queryClient: QueryClient, entryId?: string): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.entries.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.properties.tags });

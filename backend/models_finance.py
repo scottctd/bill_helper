@@ -207,7 +207,6 @@ class Account(Base):
     snapshots: Mapped[list[AccountSnapshot]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
     )
-    entries: Mapped[list[Entry]] = relationship(back_populates="account")
     owner_user: Mapped[User] = relationship(back_populates="accounts")
     entity: Mapped[Entity] = relationship(back_populates="account")
 
@@ -450,9 +449,6 @@ class Entry(Base):
     __tablename__ = "entries"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    account_id: Mapped[str | None] = mapped_column(
-        ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True
-    )
     kind: Mapped[EntryKind] = mapped_column(Enum(EntryKind), nullable=False, index=True)
     occurred_at: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -493,7 +489,6 @@ class Entry(Base):
         nullable=False,
     )
 
-    account: Mapped[Account | None] = relationship(back_populates="entries")
     from_entity_ref: Mapped[Entity | None] = relationship(
         back_populates="as_source_entries",
         foreign_keys=[from_entity_id],

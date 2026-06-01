@@ -55,7 +55,6 @@ final class DashboardEntriesFeatureTests: XCTestCase {
 
     private static let sampleEntry = Entry(
         id: "entry-1",
-        accountId: nil,
         kind: .expense,
         occurredAt: "2026-03-07",
         name: "Groceries",

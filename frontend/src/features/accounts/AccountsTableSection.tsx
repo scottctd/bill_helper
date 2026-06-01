@@ -5,22 +5,17 @@
  * - Outputs: React components and UI helpers exported by `AccountsTableSection`.
  * - Side effects: React rendering and user event wiring.
  */
-import { Plus } from "lucide-react";
-
 import { DeleteIconButton } from "../../components/DeleteIconButton";
 import type { Account } from "../../lib/types";
 import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import { formatMinor } from "../../lib/format";
 import { toDateLabel } from "./helpers";
 
 interface AccountsTableSectionProps {
-  accountSearch: string;
-  onAccountSearchChange: (value: string) => void;
-  onOpenCreateDialog: () => void;
   accounts: Account[] | undefined;
   filteredAccounts: Account[];
+  accountSearch: string;
   selectedAccountId: string;
   onSelectAccount: (accountId: string) => void;
   onEditAccount: (accountId: string) => void;
@@ -32,11 +27,9 @@ interface AccountsTableSectionProps {
 
 export function AccountsTableSection(props: AccountsTableSectionProps) {
   const {
-    accountSearch,
-    onAccountSearchChange,
-    onOpenCreateDialog,
     accounts,
     filteredAccounts,
+    accountSearch,
     selectedAccountId,
     onSelectAccount,
     onEditAccount,
@@ -48,36 +41,18 @@ export function AccountsTableSection(props: AccountsTableSectionProps) {
 
   return (
     <div className="table-shell">
-      <div className="table-toolbar filter-row">
-        <div className="table-toolbar-filters">
-          <label className="field min-w-[240px] grow">
-            <span>Search</span>
-            <Input
-              value={accountSearch}
-              onChange={(event) => onAccountSearchChange(event.target.value)}
-              placeholder="Name, owner, or currency"
-            />
-          </label>
-        </div>
-        <div className="table-toolbar-action filter-action">
-          <Button type="button" size="icon" variant="outline" aria-label="Create account" onClick={onOpenCreateDialog}>
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      {isLoading ? <p>Loading accounts...</p> : null}
+      {errorMessage ? <p className="error">{errorMessage}</p> : null}
 
-      <div className="table-shell">
-        {isLoading ? <p>Loading accounts...</p> : null}
-        {errorMessage ? <p className="error">{errorMessage}</p> : null}
-
-        {accounts ? (
-          filteredAccounts.length ? (
-            <Table>
+      {accounts ? (
+        filteredAccounts.length ? (
+          <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Currency</TableHead>
+                  <TableHead>Balance</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead className="icon-action-column">
@@ -97,6 +72,7 @@ export function AccountsTableSection(props: AccountsTableSectionProps) {
                     <TableCell className="font-medium">{account.name}</TableCell>
                     <TableCell>{ownerNameForId(account.owner_user_id)}</TableCell>
                     <TableCell>{account.currency_code}</TableCell>
+                    <TableCell>{formatMinor(account.balance_minor, account.currency_code)}</TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
@@ -126,11 +102,10 @@ export function AccountsTableSection(props: AccountsTableSectionProps) {
                 ))}
               </TableBody>
             </Table>
-          ) : (
-            <p className="muted">{accountSearch.trim() ? "No accounts match this search." : "No accounts yet."}</p>
-          )
-        ) : null}
-      </div>
+        ) : (
+          <p className="muted">{accountSearch.trim() ? "No accounts match this search." : "No accounts yet."}</p>
+        )
+      ) : null}
     </div>
   );
 }

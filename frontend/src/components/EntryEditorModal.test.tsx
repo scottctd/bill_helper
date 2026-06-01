@@ -22,7 +22,6 @@ vi.mock("./MarkdownBlockEditor", () => ({
 
 const entryFixture: Entry = {
   id: "entry-1",
-  account_id: "acc-1",
   kind: "EXPENSE",
   occurred_at: "2026-03-05",
   name: "Coffee",

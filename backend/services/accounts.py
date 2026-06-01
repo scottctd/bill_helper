@@ -5,11 +5,15 @@
 # - Side effects: module-defined persistence, validation, or orchestration behavior.
 from __future__ import annotations
 
-from sqlalchemy import func, select, update
+from datetime import date
+
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from backend.auth.contracts import RequestPrincipal
 from backend.models_finance import Account, Entity, Entry, User
+from backend.schemas_finance import AccountRead
+from backend.services.account_balances import compute_account_balance, compute_account_balances
 from backend.services.access_scope import ensure_principal_can_assign_user
 from backend.services.crud_policy import (
     PolicyViolation,
@@ -25,6 +29,59 @@ from backend.services.entities import (
 )
 from backend.services.finance_contracts import AccountCreateCommand, AccountPatch
 from backend.validation.finance_names import normalize_entity_name
+
+
+def build_account_read(
+    db: Session,
+    account: Account,
+    *,
+    as_of: date | None = None,
+) -> AccountRead:
+    effective_as_of = as_of or date.today()
+    balance = compute_account_balance(db, account_id=account.id, as_of=effective_as_of)
+    return AccountRead(
+        id=account.id,
+        owner_user_id=account.owner_user_id,
+        name=account.name,
+        markdown_body=account.markdown_body,
+        currency_code=account.currency_code,
+        is_active=account.is_active,
+        created_at=account.created_at,
+        updated_at=account.updated_at,
+        balance_minor=balance.balance_minor,
+        balance_as_of=balance.balance_as_of,
+        latest_snapshot_at=balance.latest_snapshot_at,
+    )
+
+
+def build_account_reads(
+    db: Session,
+    accounts: list[Account],
+    *,
+    as_of: date | None = None,
+) -> list[AccountRead]:
+    effective_as_of = as_of or date.today()
+    balances = compute_account_balances(
+        db,
+        account_ids=[account.id for account in accounts],
+        as_of=effective_as_of,
+    )
+    return [
+        AccountRead(
+            id=account.id,
+            owner_user_id=account.owner_user_id,
+            name=account.name,
+            markdown_body=account.markdown_body,
+            currency_code=account.currency_code,
+            is_active=account.is_active,
+            created_at=account.created_at,
+            updated_at=account.updated_at,
+            balance_minor=balances[account.id].balance_minor,
+            balance_as_of=balances[account.id].balance_as_of,
+            latest_snapshot_at=balances[account.id].latest_snapshot_at,
+        )
+        for account in accounts
+    ]
 
 
 def validate_account_owner_user_id(
@@ -166,7 +223,12 @@ def update_account_root(
         account.entity.owner_user_id = new_owner_user_id
         db.execute(
             update(Entry)
-            .where(Entry.account_id == account.id)
+            .where(
+                or_(
+                    Entry.from_entity_id == account.id,
+                    Entry.to_entity_id == account.id,
+                )
+            )
             .values(owner_user_id=new_owner_user_id, owner=owner_user.name)
         )
 
@@ -231,11 +293,6 @@ def delete_account_and_entity_root(db: Session, *, account: Account) -> None:
     if account.entity is None:
         raise ValueError("Account entity not found")
 
-    db.execute(
-        update(Entry)
-        .where(Entry.account_id == account.id)
-        .values(account_id=None)
-    )
     detach_entity_references_preserve_labels(db, entity=account.entity)
     clear_entity_category(db, account.entity)
     db.delete(account)

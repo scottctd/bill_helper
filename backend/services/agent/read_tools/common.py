@@ -72,14 +72,17 @@ def format_entry_record(record: dict[str, Any]) -> str:
     )
 
 
-def account_to_record(account: Account) -> dict[str, Any]:
-    return {
+def account_to_record(account: Account, *, balance_minor: int | None = None) -> dict[str, Any]:
+    record = {
         "account_id": account.id,
         "name": account.name,
         "currency_code": account.currency_code,
         "is_active": account.is_active,
         "markdown_body": normalize_account_markdown_for_context(account.markdown_body),
     }
+    if balance_minor is not None:
+        record["balance_minor"] = balance_minor
+    return record
 
 
 def format_account_record(record: dict[str, Any]) -> str:
@@ -87,9 +90,14 @@ def format_account_record(record: dict[str, Any]) -> str:
     if isinstance(notes, str):
         notes = " / ".join(line.strip() for line in notes.splitlines() if line.strip())
     notes_text = f"; notes: {notes}" if notes else ""
+    balance_text = (
+        f"; balance_minor={record.get('balance_minor')}"
+        if record.get("balance_minor") is not None
+        else ""
+    )
     return (
         f"account_id={record.get('account_id')} {record.get('name')} ({record.get('currency_code')}; "
-        f"{'active' if record.get('is_active') else 'inactive'}{notes_text})"
+        f"{'active' if record.get('is_active') else 'inactive'}{balance_text}{notes_text})"
     )
 
 

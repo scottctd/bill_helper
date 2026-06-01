@@ -16,7 +16,6 @@ from backend.enums_finance import EntryKind, GroupMemberRole
 from backend.models_finance import Entity, Entry, EntryGroup, EntryGroupMember, Tag
 from backend.services.access_scope import (
     ensure_principal_can_assign_user,
-    load_account_for_principal,
     load_entry_for_principal,
     load_group_for_principal,
     load_user_for_principal,
@@ -76,7 +75,6 @@ class UserRefPatch(BaseModel):
 class EntryCreateCommand(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    account_id: str | None = None
     kind: EntryKind
     occurred_at: date
     name: str
@@ -100,7 +98,6 @@ class EntryCreateCommand(BaseModel):
 class EntryUpdateCommand(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    account_id: str | None = None
     kind: EntryKind | None = None
     occurred_at: date | None = None
     name: str | None = None
@@ -283,8 +280,6 @@ def create_entry_from_command(
     principal: RequestPrincipal,
 ) -> Entry:
     target_group = _load_target_group(db, group_id=command.direct_group_id, principal=principal)
-    if command.account_id is not None:
-        load_account_for_principal(db, account_id=command.account_id, principal=principal)
 
     if command.owner_ref is None:
         owner_user_id = principal.user_id
@@ -314,7 +309,6 @@ def create_entry_from_command(
     )
 
     entry = Entry(
-        account_id=command.account_id,
         kind=command.kind,
         occurred_at=command.occurred_at,
         name=command.name,
@@ -358,9 +352,6 @@ def update_entry_from_command(
     tags = update_data.pop("tags", None)
     group_value = update_data.pop("direct_group_id", Ellipsis)
     role_value = update_data.pop("direct_group_member_role", Ellipsis)
-
-    if "account_id" in update_data and update_data["account_id"] is not None:
-        load_account_for_principal(db, account_id=update_data["account_id"], principal=principal)
 
     if "currency_code" in update_data and update_data["currency_code"] is not None:
         update_data["currency_code"] = update_data["currency_code"].upper()

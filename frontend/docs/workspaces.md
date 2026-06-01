@@ -2,11 +2,14 @@
 
 # Shared Page Chrome
 
-- the main ledger workspaces now share the same page vocabulary:
-  - `PageHeader` for the route-level title and summary
+- the main ledger workspaces share the same page vocabulary:
+  - sidebar nav labels are the canonical route titles; visible page headers were removed to avoid repeating them
+  - an sr-only route `<h1>` in the app shell preserves page landmarks for screen readers
   - `WorkspaceSection` for the primary table/form surface
-  - `WorkspaceToolbar` for filters, search, and compact actions
+  - `WorkspaceToolbar` with `workspace-table-toolbar` for filters, search, and compact actions
   - `StatBlock` for dense metric summaries where a card grid would be too decorative
+- table workspaces use `workspace-table-body` on `WorkspaceSection` so toolbars sit flush to the card top and tables share the same inset padding
+- list workspaces share a compact filter toolbar pattern: text search plus one or more fine-grained controls (`TagMultiSelect` with `displayMode="compact"` for enum-like dimensions, or `NativeSelect` for small fixed sets); shared helpers live in `frontend/src/lib/workspaceFilters.ts`
 - the shared app scroll container reserves vertical scrollbar gutter space even when a page does not overflow, so route-level content edges stay aligned across pages like `Agent`, `Filters`, and `Entries`; the route scrollbar thumb stays visually hidden at rest and only appears during active page scrolling
 - settings remains the exception in structure because its sticky toolbar is still the primary page header pattern
 
@@ -15,9 +18,16 @@
 ### `frontend/src/pages/EntriesPage.tsx`
 
 - lists, filters, edits, and deletes entries
-- route shell now uses the shared page header plus one primary workspace section instead of wrapping the title in a card
-- create action is a compact `+` beside the `Source text` filter
-- `Tag` and `Currency` filters use chip-based multi-select controls whose menus float above the workspace card instead of being clipped by empty or short table states
+- route shell uses one primary workspace section without a redundant route title above the card
+- filter toolbar is a deliberate three-row layout in `frontend/src/features/entries/EntriesFilterToolbar.tsx`:
+  - row 1: `From date` / `To date`, `Kind`, `Filter group`, and the compact `+` add action
+  - row 2: compact `From entity` and `To entity` multi-selects
+  - row 3: `Source text`, compact `Tags`, and compact `Currencies` popovers
+- `From date` / `To date` map to the backend `start_date` / `end_date` query params and sync to the URL for shareable links
+- `From entity` / `To entity` map to repeated `from_entity` / `to_entity` query params and filter server-side on the preserved entry labels
+- invalid date ranges (`From` after `To`) show an inline error and skip the entries fetch until corrected
+- `Tag` and `Currency` filters use compact multi-select triggers (`displayMode="compact"`) so selected values stay on one line; chip selection happens inside the floating menu
+- tag and currency filtering still happens client-side on loaded rows only; the toolbar status line calls out active filters and offers `Clear filters`
 - a `Filter group` selector syncs with the `filter_group_id` URL search param so deep links can open the entries list already scoped to one saved group
 - entry rows are loaded incrementally in backend-sized pages; reaching the bottom of the table auto-loads the next slice and a fallback `Load more` button remains visible while more rows exist
 - date column is fixed-width and no-wrap
@@ -54,6 +64,7 @@
 - route shell now uses the shared page header plus one primary workspace section
 - generic entity management stays focused on non-account counterparties; account-backed entity roots remain managed from `Accounts`
 - table shows `Name`, `Category`, a net-money aggregate column, and icon-only row actions
+- toolbar includes name search plus compact category multi-select filtering
 - rows open the edit dialog on double-click and keep delete isolated behind the compact trash action
 - create and edit dialogs reuse entity-category taxonomy terms plus existing category values as suggestions
 - net-money values only render as an amount when the entity's visible entries share one currency; mixed-currency entities show a fallback label instead of a misleading sum
@@ -66,6 +77,7 @@
 - dedicated first-class group workspace at `/groups`
 - route shell now uses the shared page header plus one primary workspace section
 - organized around a broad searchable groups table first, with each row opening a dedicated group-detail modal on double-click and a fallback `View` action
+- toolbar includes name search plus compact group-type multi-select filtering
 - browser table data comes from `GET /groups`
 - group detail modal content comes from `GET /groups/{group_id}`
 - supports create, rename, delete, add-entry, add-child-group, and remove-member flows
@@ -81,9 +93,11 @@
 
 - page is a thin orchestrator; domain state lives in `frontend/src/features/accounts/useAccountsPageModel.ts`
 - route shell now uses the shared page header plus one primary workspace section
+- toolbar includes name search plus compact currency and owner multi-select filters and an active/inactive status select
 - UI is split into `AccountsTableSection`, `ReconciliationSection`, `SnapshotHistoryTable`, `SnapshotCreatePanel`, and `AccountDialogs`
 - create, edit, and delete flows are dialog-driven
 - account rows single-select on click and open edit on double-click; delete remains the only explicit row action and is rendered as a compact icon button
+- the accounts table shows a computed `Balance` column from `Account.balance_minor` (tracked balance as of `balance_as_of`)
 - account ids are shared entity-root ids; generic entity management does not expose them as editable entity rows
 - account creation edits `Name`, `Currency`, and `Notes`; owner is implicit from the authenticated user's current scope
 - the account edit modal is untabbed and fixed-height: a pinned footer holds `Save changes` / `Cancel`, while a scrollable body carries account details plus reconciliation and snapshot history
@@ -101,6 +115,7 @@
 - route shell now uses the shared page header plus one primary workspace section
 - section navigation and content rendering are split into dedicated components
 - section state, form state, queries, and filtered data live in focused hooks
+- tags toolbar includes search plus compact tag-type multi-select filtering; currencies toolbar includes search plus built-in/placeholder status filtering
 - editable sections use modal-driven create and edit flows
 - editable sections now cover tags plus taxonomy term tables; user CRUD moved to `/admin`
 - taxonomy term tables expose `Entity Categories` and `Tag Types`

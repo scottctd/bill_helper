@@ -132,7 +132,10 @@ function arrangeBaseMocks() {
       currency_code: "CAD",
       is_active: true,
       created_at: "2026-02-15T00:00:00Z",
-      updated_at: "2026-02-15T00:00:00Z"
+      updated_at: "2026-02-15T00:00:00Z",
+      balance_minor: 418_000,
+      balance_as_of: "2026-02-16",
+      latest_snapshot_at: "2026-02-01"
     }
   ]);
   vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 0, is_placeholder: false }]);
@@ -156,12 +159,15 @@ describe("AccountsPage", () => {
       currency_code: "CAD",
       is_active: true,
       created_at: "2026-02-15T00:00:00Z",
-      updated_at: "2026-02-15T00:00:00Z"
+      updated_at: "2026-02-15T00:00:00Z",
+      balance_minor: 0,
+      balance_as_of: "2026-02-16",
+      latest_snapshot_at: null
     });
 
     renderWithQueryClient(<AccountsPage />);
 
-    await screen.findByText("Accounts");
+    await screen.findByRole("button", { name: "Create account" });
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
 
     const createDialog = await screen.findByRole("dialog", { name: "Create Account" });
@@ -194,7 +200,10 @@ describe("AccountsPage", () => {
       currency_code: "CAD",
       is_active: true,
       created_at: "2026-02-15T00:00:00Z",
-      updated_at: "2026-02-15T00:00:00Z"
+      updated_at: "2026-02-15T00:00:00Z",
+      balance_minor: 418_000,
+      balance_as_of: "2026-02-16",
+      latest_snapshot_at: "2026-02-01"
     });
     vi.mocked(deleteAccount).mockResolvedValue(undefined);
 

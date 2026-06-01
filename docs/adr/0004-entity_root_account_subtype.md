@@ -27,7 +27,7 @@ Model accounts as an entity-root subtype table with a shared primary key:
 
 Deletion rules are standardized around that model:
 
-- `DELETE /api/v1/accounts/{account_id}` deletes the shared account/entity root, deletes snapshots, clears `entries.account_id`, and detaches `from_entity_id` or `to_entity_id` while preserving denormalized label text
+- `DELETE /api/v1/accounts/{account_id}` deletes the shared account/entity root, deletes snapshots, and detaches `from_entity_id` or `to_entity_id` while preserving denormalized label text
 - generic entity routes may not mutate or delete account-backed roots and return `409` instead
 - generic entity deletion preserves visible entry labels and nulls the entity foreign keys
 - tag deletion always succeeds, clears taxonomy-backed tag type state, and removes `entry_tags` rows through database cascade behavior

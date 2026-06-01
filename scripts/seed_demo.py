@@ -203,7 +203,6 @@ def _seed_demo_rows(
             to_entity = credit_entity
 
         entry = Entry(
-            account_id=credit_account.id,
             kind=kind,
             occurred_at=date.fromisoformat(row["Date"]),
             name=_title_case(description),

@@ -35,7 +35,7 @@ Delete semantics:
 
 ## Reconciliation Semantics
 
-Reconciliation is computed server-side in `backend/services/finance.py` as interval history.
+Reconciliation is computed server-side in `backend/services/finance_reconciliation.py` as interval history.
 
 - Snapshots partition the timeline into `(start_snapshot_date, end_snapshot_date]` intervals.
 - Closed intervals compare:
@@ -45,10 +45,12 @@ Reconciliation is computed server-side in `backend/services/finance.py` as inter
 - The most recent snapshot always produces one open interval from that snapshot to `as_of`.
 - The open interval exposes tracked activity only; it has no bank change or delta because there is no closing checkpoint yet.
 - Entries that occur on a snapshot date belong to the interval ending at that snapshot.
-- Account-linked entry effects are resolved from the account entity root first:
+- Account-linked entry effects use the account entity root id:
   - `from_entity_id == account.id` subtracts `amount_minor`
   - `to_entity_id == account.id` adds `amount_minor`
-  - legacy rows that only set `account_id == account.id` fall back to entry-kind signing (`INCOME` positive, other kinds negative)
+  - both equal `account.id` yields `0` for self-transfers
+
+Tracked balance on `AccountRead` reuses the same entry-effect rules: latest snapshot plus open-interval change when a snapshot exists, otherwise the cumulative ledger effect through `balance_as_of`.
 
 The `as_of` date still defaults to the server's current day when the query parameter is omitted.
 
@@ -58,7 +60,8 @@ The `as_of` date still defaults to the server's current day when the query param
 - `backend/services/account_snapshots.py`: shared snapshot create/list/delete persistence workflows.
 - `backend/services/agent/message_history.py`: current-user account context assembly for agent system prompt (includes account notes).
 - `backend/services/accounts.py`: shared account/entity-root create, update, and delete behavior.
-- `backend/services/finance.py`: interval reconciliation builders plus dashboard reconciliation summaries.
+- `backend/services/finance_reconciliation.py`: interval reconciliation builders plus dashboard reconciliation summaries.
+- `backend/services/account_balances.py`: tracked balance computation for account list/detail responses.
 - `backend/schemas_finance.py`: `Account*`, `Snapshot*`, `ReconciliationIntervalRead`, and `ReconciliationRead` contracts.
 
 ## Frontend Modules

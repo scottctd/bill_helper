@@ -90,9 +90,9 @@ _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("entries_list", "id|date|kind|amount_minor|currency|name|from|to|tags"),
     CompactSchema(
         "entries_detail",
-        "id|date|kind|amount_minor|currency|name|from|to|tags|account_id|direct_group_id|direct_group_role",
+        "id|date|kind|amount_minor|currency|name|from|to|tags|direct_group_id|direct_group_role",
     ),
-    CompactSchema("accounts_list", "id|name|currency|active"),
+    CompactSchema("accounts_list", "id|name|currency|active|balance_minor|balance_as_of"),
     CompactSchema("snapshots_list", "id|date|balance_minor|note"),
     CompactSchema("snapshots_reconciliation", "start|end|open|tracked_change_minor|bank_change_minor|delta_minor|entry_count"),
     CompactSchema("groups_list", "id|type|name|descendants|first_date|last_date"),

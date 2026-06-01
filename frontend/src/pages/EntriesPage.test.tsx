@@ -81,7 +81,6 @@ const runtimeSettingsFixture: RuntimeSettings = {
 
 const entryFixture: Entry = {
   id: "entry-1",
-  account_id: "acc-1",
   kind: "EXPENSE",
   occurred_at: "2026-03-05",
   name: "Coffee",
@@ -211,6 +210,42 @@ describe("EntriesPage", () => {
     expect(screen.getByRole("columnheader", { name: "Actions" })).toHaveClass("entries-actions-column");
     expect(screen.queryByRole("columnheader", { name: "Kind" })).not.toBeInTheDocument();
     expect(screen.getByText("coffee")).toHaveClass("entries-tag-pill-label");
+  });
+
+  it("passes date filters from the URL through to the entries query", async () => {
+    mockEntriesPageData(entryFixture);
+
+    renderWithQueryClient(
+      <MemoryRouter initialEntries={["/entries?start_date=2026-01-01&end_date=2026-03-31"]}>
+        <EntriesPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Coffee");
+    expect(listEntries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        start_date: "2026-01-01",
+        end_date: "2026-03-31"
+      })
+    );
+  });
+
+  it("passes entity filters from the URL through to the entries query", async () => {
+    mockEntriesPageData(entryFixture);
+
+    renderWithQueryClient(
+      <MemoryRouter initialEntries={["/entries?from_entity=Checking&to_entity=Cafe"]}>
+        <EntriesPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Coffee");
+    expect(listEntries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from_entity: ["Checking"],
+        to_entity: ["Cafe"]
+      })
+    );
   });
 
   it("passes the selected filter group through to the entries query", async () => {

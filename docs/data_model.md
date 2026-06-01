@@ -166,7 +166,6 @@ Operational rules:
 ## `entries`
 
 - `id` (PK)
-- `account_id` (nullable FK -> `accounts.id`)
 - `kind`, `occurred_at`, `name`, `amount_minor`, `currency_code`
 - `from_entity_id`, `to_entity_id` (nullable FK -> `entities.id`)
 - `owner_user_id` (FK -> `users.id`)
@@ -177,7 +176,6 @@ Operational rules:
 
 Deletion semantics:
 
-- `account_id` uses `ON DELETE SET NULL`
 - `from_entity_id` / `to_entity_id` use `ON DELETE SET NULL`
 - when an entity or account root is deleted, the denormalized `from_entity` / `to_entity` text is intentionally preserved so historical labels remain visible
 - API serializers derive `from_entity_missing` / `to_entity_missing` when preserved text remains but the linked entity FK is now `NULL`
@@ -280,7 +278,7 @@ Deletion semantics:
 
 ## Current Delete Rules
 
-- deleting an account deletes the shared account/entity root, cascades account snapshots, sets `entries.account_id = NULL`, and detaches `from_entity_id` / `to_entity_id` references that pointed at that root while preserving label text
+- deleting an account deletes the shared account/entity root, cascades account snapshots, and detaches `from_entity_id` / `to_entity_id` references that pointed at that root while preserving label text
 - deleting a generic entity detaches `from_entity_id` / `to_entity_id` and preserves label text
 - deleting an account-backed entity through generic entity routes is blocked; account-backed roots are managed through `/accounts`
 - soft-deleting an entry removes its direct `entry_group_members` row if one exists
@@ -485,7 +483,7 @@ Fields:
 - approving `create_account` creates both the account row and its shared entity root (`accounts.id == entities.id`).
 - `delete_tag` is allowed only when the tag has no non-deleted entry references.
 - `delete_entity` nulls/detaches entity references from entries/accounts before deleting the entity.
-- `delete_account` deletes snapshots, clears `entries.account_id`, and detaches account-root entity refs while preserving denormalized labels.
+- `delete_account` deletes snapshots and detaches account-root entity refs while preserving denormalized labels.
 - resolved runtime settings drive current-user attribution defaults, dashboard currency, and agent runtime limits/model selection.
 
 ## Currency Catalog (Current)

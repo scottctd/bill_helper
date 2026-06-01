@@ -158,6 +158,9 @@ class AccountRead(AccountBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    balance_minor: int
+    balance_as_of: date
+    latest_snapshot_at: date | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -216,7 +219,6 @@ class DashboardReconciliationRead(BaseModel):
 
 
 class EntryBase(BaseModel):
-    account_id: str | None = None
     kind: EntryKind
     occurred_at: date
     name: str = Field(min_length=1, max_length=255)
@@ -244,7 +246,6 @@ class EntryCreate(EntryBase):
 
 
 class EntryUpdate(BaseModel):
-    account_id: str | None = None
     kind: EntryKind | None = None
     occurred_at: date | None = None
     name: str | None = Field(default=None, min_length=1, max_length=255)
@@ -264,7 +265,6 @@ class EntryUpdate(BaseModel):
 
 class EntryRead(BaseModel):
     id: str
-    account_id: str | None = None
     kind: EntryKind
     occurred_at: date
     name: str

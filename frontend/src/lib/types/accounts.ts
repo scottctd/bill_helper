@@ -15,6 +15,9 @@ export interface Account {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  balance_minor: number;
+  balance_as_of: string;
+  latest_snapshot_at: string | null;
 }
 
 export interface Snapshot {

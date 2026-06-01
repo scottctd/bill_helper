@@ -14,19 +14,22 @@ Body:
 - `currency_code` (required)
 - `is_active` (optional, default `true`)
 
-Response: `AccountRead`
+Response: `AccountRead` (includes computed `balance_minor`, `balance_as_of`, and optional `latest_snapshot_at`)
 
 Behavior:
 
 - account id is the shared entity-root id
 - use `/accounts`, not `/entities`, for all new account-like records
 - response no longer includes `entity_id`
+- `balance_minor` is tracked balance as of `balance_as_of` (server date when omitted elsewhere):
+  - with a latest snapshot: `snapshot.balance_minor + net entry effects since that snapshot date`
+  - without a snapshot: net entry effects from the beginning through `balance_as_of`
 
 ### `GET /accounts`
 
 List accounts. Response: `AccountRead[]`
 
-Behavior: results are principal-scoped by account owner.
+Behavior: results are principal-scoped by account owner; each row includes the computed balance fields above.
 
 ### `PATCH /accounts/{account_id}`
 
@@ -56,7 +59,6 @@ Behavior:
 
 - account lookup and delete are principal-scoped
 - deletes account snapshots
-- sets `entries.account_id = NULL` for linked entries
 - clears `from` or `to` account FKs while preserving visible label text
 
 ### Snapshot And Reconciliation Endpoints
@@ -75,7 +77,6 @@ Behavior:
 - `tracked_change_minor` is the net balance effect for the account in that interval:
   - `from_entity_id == account.id` subtracts `amount_minor`
   - `to_entity_id == account.id` adds `amount_minor`
-  - legacy rows with only `account_id == account.id` fall back to entry-kind signing
 - each response includes:
   - `intervals[]`
   - `start_snapshot`
@@ -93,7 +94,6 @@ Create entry.
 
 Body:
 
-- `account_id` (optional)
 - `kind` (`EXPENSE` | `INCOME` | `TRANSFER`)
 - `occurred_at`
 - `name`
@@ -131,6 +131,8 @@ Query params:
 - `start_date`, `end_date`
 - `kind`, `tag`, `currency`
 - `source`
+- `from_entity` (repeatable; case-insensitive exact match on the entry's preserved `from_entity` label)
+- `to_entity` (repeatable; case-insensitive exact match on the entry's preserved `to_entity` label)
 - `account_id`
 - `filter_group_id`
 - `limit` (default `50`, max `200`)

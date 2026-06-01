@@ -46,20 +46,27 @@ def create_tagged_entry(
     to_entity: str | None = None,
     markdown_body: str | None = None,
 ) -> dict:
+    payload = {
+        "kind": kind,
+        "occurred_at": occurred_at,
+        "name": name,
+        "amount_minor": amount_minor,
+        "currency_code": currency_code,
+        "from_entity": from_entity,
+        "to_entity": to_entity,
+        "markdown_body": markdown_body,
+        "tags": tags,
+    }
+    if kind == "EXPENSE":
+        payload["from_entity_id"] = account_id
+    elif kind == "INCOME":
+        payload["to_entity_id"] = account_id
+    else:
+        payload["from_entity_id"] = account_id
+
     response = client.post(
         "/api/v1/entries",
-        json={
-            "account_id": account_id,
-            "kind": kind,
-            "occurred_at": occurred_at,
-            "name": name,
-            "amount_minor": amount_minor,
-            "currency_code": currency_code,
-            "from_entity": from_entity,
-            "to_entity": to_entity,
-            "markdown_body": markdown_body,
-            "tags": tags,
-        },
+        json=payload,
     )
     response.raise_for_status()
     return response.json()

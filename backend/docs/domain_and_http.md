@@ -41,7 +41,8 @@ Current behavior:
 Important read models:
 
 - `UserRead` for visible-user selectors and admin user lists
-- `AccountRead` and `EntryRead` with non-null `owner_user_id`
+- `AccountRead` with computed `balance_minor`, `balance_as_of`, optional `latest_snapshot_at`, and non-null `owner_user_id`
+- `EntryRead` with non-null `owner_user_id` (no legacy `account_id` field)
 - `RuntimeSettingsRead` without identity fields
 - `AuthSessionRead` / `AuthLoginResponse` for session-backed auth
 
@@ -54,7 +55,8 @@ Important read models:
 - `backend/services/taxonomy.py`
 - `backend/services/groups.py`
 - `backend/services/filter_groups.py`
-- `backend/services/finance.py`
+- `backend/services/account_balances.py`
+- `backend/services/finance_reconciliation.py`
 - `backend/services/users.py`
 - `backend/services/access_scope.py`
 - `backend/services/runtime_settings.py`

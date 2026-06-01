@@ -22,6 +22,8 @@ export function listEntries(params: {
   tag?: string;
   currency?: string;
   source?: string;
+  from_entity?: string[];
+  to_entity?: string[];
   account_id?: string;
   filter_group_id?: string;
   limit?: number;
@@ -29,15 +31,23 @@ export function listEntries(params: {
 }): Promise<EntryListResponse> {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "") {
-      search.set(key, String(value));
+    if (value === undefined || value === "") {
+      continue;
     }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== "") {
+          search.append(key, String(item));
+        }
+      }
+      continue;
+    }
+    search.set(key, String(value));
   }
   return request<EntryListResponse>(`/api/v1/entries?${search.toString()}`);
 }
 
 export function createEntry(payload: {
-  account_id?: string;
   kind: string;
   occurred_at: string;
   name: string;

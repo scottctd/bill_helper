@@ -34,7 +34,6 @@ struct EntryGroupRef: Codable, Equatable {
 
 struct Entry: Codable, Equatable {
     let id: String
-    let accountId: String?
     let kind: EntryKind
     let occurredAt: String
     let name: String

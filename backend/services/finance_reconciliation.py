@@ -8,12 +8,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy.sql.elements import ColumnElement
 
 from backend.auth.contracts import RequestPrincipal
-from backend.enums_finance import EntryKind
 from backend.models_finance import Account, AccountSnapshot, Entity, Entry
 from backend.schemas_finance import (
     DashboardReconciliationRead,
@@ -22,13 +20,7 @@ from backend.schemas_finance import (
     SnapshotSummaryRead,
 )
 from backend.services.access_scope import account_owner_filter
-
-
-def _signed_entry_amount() -> ColumnElement[int]:
-    return case(
-        (Entry.kind == EntryKind.INCOME, Entry.amount_minor),
-        else_=-Entry.amount_minor,
-    )
+from backend.services.account_balances import account_entry_effect_case, account_entry_filter
 
 
 def _snapshot_summary(snapshot: AccountSnapshot) -> SnapshotSummaryRead:
@@ -68,25 +60,7 @@ def _interval_entry_rollup(
     if end_inclusive < start_exclusive:
         return 0, 0
 
-    signed_amount = _signed_entry_amount()
-    account_effect = case(
-        (
-            and_(
-                Entry.from_entity_id == account_id,
-                Entry.to_entity_id == account_id,
-            ),
-            0,
-        ),
-        (Entry.from_entity_id == account_id, -Entry.amount_minor),
-        (Entry.to_entity_id == account_id, Entry.amount_minor),
-        (Entry.account_id == account_id, signed_amount),
-        else_=None,
-    )
-    account_entry_filter = or_(
-        Entry.from_entity_id == account_id,
-        Entry.to_entity_id == account_id,
-        Entry.account_id == account_id,
-    )
+    account_effect = account_entry_effect_case(account_id)
     totals = db.execute(
         select(
             func.coalesce(func.sum(account_effect), 0),
@@ -95,7 +69,7 @@ def _interval_entry_rollup(
             Entry.is_deleted.is_(False),
             Entry.occurred_at > start_exclusive,
             Entry.occurred_at <= end_inclusive,
-            account_entry_filter,
+            account_entry_filter(account_id),
         )
     ).one()
     return int(totals[0] or 0), int(totals[1] or 0)

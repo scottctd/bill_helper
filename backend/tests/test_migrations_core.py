@@ -951,3 +951,100 @@ def test_head_migration_includes_agent_run_approval_policy(tmp_path):
     run_columns = {column["name"] for column in inspector.get_columns("agent_runs")}
 
     assert "approval_policy" in run_columns
+
+
+def test_migration_0042_backfills_account_links_and_drops_account_id(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0042.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0041_add_agent_run_event_reasoning_duration_ms")
+
+    engine = create_engine(database_url, future=True)
+    now = datetime.now(timezone.utc)
+    user_id = str(uuid4())
+    user_name = f"migration-user-{user_id[:8]}"
+    account_entity_id = str(uuid4())
+    entry_id = str(uuid4())
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO users (id, name, password_hash, is_admin, created_at, updated_at)
+                VALUES (:id, :name, :password_hash, 0, :created_at, :updated_at)
+                """
+            ),
+            {
+                "id": user_id,
+                "name": user_name,
+                "password_hash": "test",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO entities (id, owner_user_id, name, category, created_at, updated_at)
+                VALUES (:id, :owner_user_id, :name, 'account', :created_at, :updated_at)
+                """
+            ),
+            {
+                "id": account_entity_id,
+                "owner_user_id": user_id,
+                "name": "Checking",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO accounts (id, owner_user_id, currency_code, is_active, created_at, updated_at)
+                VALUES (:id, :owner_user_id, 'USD', 1, :created_at, :updated_at)
+                """
+            ),
+            {
+                "id": account_entity_id,
+                "owner_user_id": user_id,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO entries
+                  (
+                    id, account_id, kind, occurred_at, name, amount_minor, currency_code,
+                    from_entity_id, to_entity_id, owner_user_id, from_entity, to_entity, owner,
+                    markdown_body, is_deleted, deleted_at, created_at, updated_at
+                  )
+                VALUES
+                  (
+                    :id, :account_id, 'EXPENSE', '2026-01-10', 'Coffee', 500, 'USD',
+                    NULL, NULL, :owner_user_id, NULL, NULL, :owner, NULL, 0, NULL, :created_at, :updated_at
+                  )
+                """
+            ),
+            {
+                "id": entry_id,
+                "account_id": account_entity_id,
+                "owner_user_id": user_id,
+                "owner": user_name,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+
+    command.upgrade(cfg, "head")
+
+    inspector = inspect(engine)
+    entry_columns = {column["name"] for column in inspector.get_columns("entries")}
+    assert "account_id" not in entry_columns
+
+    with engine.begin() as connection:
+        from_entity_id = connection.execute(
+            text("SELECT from_entity_id FROM entries WHERE id = :id"),
+            {"id": entry_id},
+        ).scalar_one()
+        assert str(from_entity_id) == account_entity_id

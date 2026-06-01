@@ -77,13 +77,12 @@ def test_create_entry_from_command_assigns_tags_and_direct_group() -> None:
         entry = create_entry_from_command(
             db,
             command=EntryCreateCommand(
-                account_id=account.id,
                 kind=EntryKind.EXPENSE,
                 occurred_at=date(2026, 1, 1),
                 name="Hydro Bill",
                 amount_minor=1234,
                 currency_code="usd",
-                from_ref=EntityRef(name="Checking"),
+                from_ref=EntityRef(entity_id=account.id, name="Checking"),
                 owner_ref=UserRef(user_id=admin.id),
                 tags=["Food"],
                 direct_group_id=group.id,
@@ -116,12 +115,13 @@ def test_update_entry_from_command_uses_policy_violation_for_cross_principal_own
         entry = create_entry_from_command(
             db,
             command=EntryCreateCommand(
-                account_id=account.id,
                 kind=EntryKind.EXPENSE,
                 occurred_at=date(2026, 1, 2),
                 name="Coffee",
                 amount_minor=600,
                 currency_code="USD",
+                from_ref=EntityRef(entity_id=account.id),
+                to_ref=EntityRef(name="Counterparty"),
                 tags=["food"],
             ),
             principal=principal,

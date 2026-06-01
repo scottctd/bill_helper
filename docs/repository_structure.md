@@ -59,6 +59,7 @@
 - `versions/0039_add_agent_run_approval_policy.py`: adds `agent_runs.approval_policy` (`default` vs `yolo`) for optional post-run auto-approval.
 - `versions/0040_add_agent_session_sources.py`: adds external-agent session summaries, session-source links, and the runtime PDF page limit.
 - `versions/0041_add_agent_run_event_reasoning_duration_ms.py`: adds optional `reasoning_duration_ms` on `agent_run_events` for collapsed model-reasoning summaries.
+- `versions/0042_remove_entry_account_id.py`: backfills missing `from_entity_id` / `to_entity_id` links from legacy `entries.account_id`, then drops the column.
 - `versions/__init__.py`: package marker.
 
 ## Backend (`/backend`)

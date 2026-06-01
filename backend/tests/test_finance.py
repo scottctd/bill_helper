@@ -49,19 +49,36 @@ def create_entry(
     to_entity: str | None = None,
     headers: dict[str, str] | None = None,
 ):
+    payload: dict = {
+        "kind": kind,
+        "occurred_at": occurred_at,
+        "name": name or f"{kind.lower()}-{occurred_at}",
+        "amount_minor": amount_minor,
+        "currency_code": currency_code,
+        "tags": tags or [],
+    }
+    if from_entity is not None and kind != "EXPENSE":
+        payload["from_entity"] = from_entity
+    if to_entity is not None and kind != "INCOME":
+        payload["to_entity"] = to_entity
+    if kind == "EXPENSE":
+        payload["from_entity_id"] = account_id
+        if to_entity is None:
+            payload["to_entity"] = "Counterparty"
+    elif kind == "INCOME":
+        payload["to_entity_id"] = account_id
+        if from_entity is None:
+            payload["from_entity"] = "Counterparty"
+        elif from_entity is not None:
+            payload["from_entity"] = from_entity
+    elif kind == "TRANSFER":
+        payload["from_entity_id"] = account_id
+        if to_entity is None:
+            payload["to_entity"] = "Other account"
+
     response = client.post(
         "/api/v1/entries",
-        json={
-            "account_id": account_id,
-            "kind": kind,
-            "occurred_at": occurred_at,
-            "name": name or f"{kind.lower()}-{occurred_at}",
-            "amount_minor": amount_minor,
-            "currency_code": currency_code,
-            "from_entity": from_entity,
-            "to_entity": to_entity,
-            "tags": tags or [],
-        },
+        json=payload,
         headers=headers,
     )
     response.raise_for_status()
@@ -130,7 +147,35 @@ def test_reconciliation_math(client):
     ]
 
 
-def test_reconciliation_uses_account_entity_links_when_account_id_is_missing(client):
+def test_account_balance_with_snapshot(client):
+    account = create_account(client)
+
+    client.post(
+        f"/api/v1/accounts/{account['id']}/snapshots",
+        json={"snapshot_at": "2026-02-01", "balance_minor": 420000, "note": "Month-end balance"},
+    ).raise_for_status()
+    create_entry(client, account["id"], "EXPENSE", 2000, "2026-02-10")
+
+    listed = client.get("/api/v1/accounts")
+    listed.raise_for_status()
+    row = next(item for item in listed.json() if item["id"] == account["id"])
+    assert row["balance_minor"] == 418000
+    assert row["latest_snapshot_at"] == "2026-02-01"
+
+
+def test_account_balance_without_snapshot(client):
+    account = create_account(client, name="No Snapshot Account")
+    create_entry(client, account["id"], "INCOME", 15000, "2026-01-05")
+    create_entry(client, account["id"], "EXPENSE", 5000, "2026-01-10")
+
+    listed = client.get("/api/v1/accounts")
+    listed.raise_for_status()
+    row = next(item for item in listed.json() if item["id"] == account["id"])
+    assert row["balance_minor"] == 10000
+    assert row["latest_snapshot_at"] is None
+
+
+def test_reconciliation_uses_account_entity_links(client):
     account = create_account(client)
     source_account = create_account(client, name="Savings")
 
@@ -327,7 +372,7 @@ def test_dashboard_monthly_aggregations(client):
     assert january["filter_group_totals"]["day_to_day"] == 1200
     assert january["filter_group_totals"]["one_time"] == 500
 
-    assert any(item["label"] == "Main Checking" and item["total_minor"] == 1700 for item in payload["spending_by_from"])
+    assert any(item["label"] == "Checking" and item["total_minor"] == 1700 for item in payload["spending_by_from"])
     assert any(item["label"] == "Employer" and item["total_minor"] == 10000 for item in payload["income_by_from"])
     assert any(item["label"] == "Coffee Shop" and item["total_minor"] == 1200 for item in payload["spending_by_to"])
     assert not any(item["label"] == "Travel Card" for item in payload["spending_by_to"])

@@ -43,7 +43,6 @@ def entry_to_schema(entry: Entry) -> EntryRead:
     direct_group = group_path[-1] if group_path else None
     return EntryRead(
         id=entry.id,
-        account_id=entry.account_id,
         kind=entry.kind,
         occurred_at=entry.occurred_at,
         name=entry.name,

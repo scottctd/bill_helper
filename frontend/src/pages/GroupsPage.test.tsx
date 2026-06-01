@@ -131,7 +131,6 @@ const runtimeSettingsFixture: RuntimeSettings = {
 
 const entryFixture: Entry = {
   id: "entry-1",
-  account_id: "account-1",
   kind: "EXPENSE",
   occurred_at: "2026-03-06",
   name: "OpenAI ChatGPT Subscription",
@@ -277,13 +276,31 @@ function mockGroupsPageData() {
 }
 
 describe("GroupsPage", () => {
+  it("filters groups by selected type", async () => {
+    mockGroupsPageData();
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<GroupsPage />);
+
+    expect(await screen.findByText("OpenAI ChatGPT Plus Subscription")).toBeInTheDocument();
+    expect(screen.getByText("Payroll Deposit")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Group type filter" }));
+    await user.click(await screen.findByRole("button", { name: /BUNDLE/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("OpenAI ChatGPT Plus Subscription")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("January Subscriptions")).toBeInTheDocument();
+  });
+
   it("uses a double-click groups browser without raw ids or the direct structure column", async () => {
     mockGroupsPageData();
     const user = userEvent.setup();
 
     renderWithQueryClient(<GroupsPage />);
 
-    expect(await screen.findByText("Entry Groups")).toBeInTheDocument();
+    expect(await screen.findByText("OpenAI ChatGPT Plus Subscription")).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: "Group" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Hierarchy" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Level" })).not.toBeInTheDocument();
