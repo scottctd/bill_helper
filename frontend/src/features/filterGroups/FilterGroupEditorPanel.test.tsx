@@ -41,6 +41,10 @@ function ControlledEditor({ filterGroup }: { filterGroup: FilterGroup }) {
         preferredTagName={tags[0]?.name}
         isDirty={JSON.stringify(session.formState) !== JSON.stringify(session.baselineState)}
         isPending={false}
+        canSubmit={false}
+        submitLabel="Save changes"
+        submitPendingLabel="Saving..."
+        onSubmit={() => {}}
         onChange={(nextFormState) => setSession((current) => updateSessionFormState(current, nextFormState))}
       />
     </MemoryRouter>
@@ -48,7 +52,7 @@ function ControlledEditor({ filterGroup }: { filterGroup: FilterGroup }) {
 }
 
 describe("FilterGroupEditorPanel", () => {
-  it("uses the shared tag multi-select and no longer renders the footer save button", async () => {
+  it("uses the shared tag multi-select and renders save in the panel header", async () => {
     const user = userEvent.setup();
     const filterGroup = createFilterGroup({
       include: {
@@ -64,7 +68,7 @@ describe("FilterGroupEditorPanel", () => {
     expect(screen.queryByText("All conditions")).not.toBeInTheDocument();
     expect(screen.queryByText("Any condition")).not.toBeInTheDocument();
     expect(screen.getAllByRole("option", { name: "AND" }).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
 
     await user.click(screen.getByLabelText("Rule tags"));
     await user.type(screen.getByLabelText("Rule tags"), "coffee");
@@ -97,6 +101,6 @@ describe("FilterGroupEditorPanel", () => {
 
     expect(screen.getByRole("button", { name: "Guided" })).toBeDisabled();
     expect(screen.getByText(/guided mode stays locked/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
   });
 });

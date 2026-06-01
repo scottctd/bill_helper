@@ -7,10 +7,13 @@
  */
 import { KeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ChevronDown } from "lucide-react";
 
 import { useFloatingMenuPosition } from "../hooks/useFloatingMenuPosition";
 import { resolveTagColor } from "../lib/tagColors";
 import type { Tag } from "../lib/types";
+
+type TagMultiSelectDisplayMode = "inline" | "compact";
 
 interface TagMultiSelectProps {
   options: Tag[];
@@ -21,6 +24,20 @@ interface TagMultiSelectProps {
   ariaLabel?: string;
   allowCreate?: boolean;
   createLabelPrefix?: string;
+  displayMode?: TagMultiSelectDisplayMode;
+}
+
+export function compactTagMultiSelectLabel(
+  selectedNames: string[],
+  placeholder: string
+): { text: string; isPlaceholder: boolean } {
+  if (selectedNames.length === 0) {
+    return { text: placeholder, isPlaceholder: true };
+  }
+  if (selectedNames.length === 1) {
+    return { text: selectedNames[0], isPlaceholder: false };
+  }
+  return { text: `${selectedNames[0]} +${selectedNames.length - 1}`, isPlaceholder: false };
 }
 
 function normalizeTagName(value: string) {
@@ -128,24 +145,35 @@ export function TagMultiSelect({
   disabled = false,
   ariaLabel,
   allowCreate = true,
-  createLabelPrefix = "Create"
+  createLabelPrefix = "Create",
+  displayMode = "inline"
 }: TagMultiSelectProps) {
+  const isCompact = displayMode === "compact";
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const controlRef = useRef<HTMLDivElement | null>(null);
+  const compactControlRef = useRef<HTMLButtonElement | null>(null);
+  const inlineControlRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const menuAnchorRef = isCompact ? compactControlRef : inlineControlRef;
   const normalizedValue = useMemo(() => normalizeTagList(value), [value]);
   const [selectedValues, setSelectedValues] = useState<string[]>(normalizedValue);
   const selectedValuesRef = useRef<string[]>(selectedValues);
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const { menuRef, menuStyle } = useFloatingMenuPosition({
-    anchorRef: controlRef,
+    anchorRef: menuAnchorRef,
     open: isOpen
   });
 
   useEffect(() => {
     selectedValuesRef.current = selectedValues;
   }, [selectedValues]);
+
+  useEffect(() => {
+    if (!isCompact || !isOpen) {
+      return;
+    }
+    inputRef.current?.focus();
+  }, [isCompact, isOpen]);
 
   useEffect(() => {
     if (areTagArraysEqual(selectedValuesRef.current, normalizedValue)) {
@@ -251,12 +279,31 @@ export function TagMultiSelect({
     onChange(next);
   }
 
+  const compactLabel = useMemo(
+    () => compactTagMultiSelectLabel(
+      selected.map((tag) => tag.name),
+      placeholder
+    ),
+    [placeholder, selected]
+  );
+
   function focusInput() {
     if (disabled) {
       return;
     }
+    if (isCompact) {
+      setIsOpen(true);
+      return;
+    }
     inputRef.current?.focus();
     setIsOpen(true);
+  }
+
+  function toggleCompactMenu() {
+    if (disabled) {
+      return;
+    }
+    setIsOpen((open) => !open);
   }
 
   function addTag(tagName: string) {
@@ -358,47 +405,86 @@ export function TagMultiSelect({
   }
 
   return (
-    <div className={`tag-multiselect ${disabled ? "is-disabled" : ""}`} ref={rootRef}>
-      <div className="tag-multiselect-control" onClick={focusInput} ref={controlRef}>
-        {selected.map((tag, index) => (
-          <span key={tag.key} className="tag-chip" style={{ borderColor: tag.color ?? undefined }}>
-            <span className="tag-chip-color" style={{ backgroundColor: tag.color || "hsl(var(--muted))" }} />
-            <span>{tag.name}</span>
-            <button
-              type="button"
-              className="tag-chip-remove"
-              onPointerDown={(event) => {
-                onOptionPointerDown(event, () => {
-                  removeTagAt(index);
-                });
-              }}
-              onKeyDown={(event) => onActionKeyDown(event, () => removeTagAt(index))}
-              disabled={disabled}
-              aria-label={`Remove tag ${tag.name}`}
-            >
-              <span className="tag-chip-close">×</span>
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          className="tag-multiselect-input !h-full !rounded-none !border-0 !bg-transparent !px-1 !py-0.5 !shadow-none focus-visible:!ring-0"
-          aria-label={ariaLabel}
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          onKeyDown={onKeyDown}
-          placeholder={selected.length === 0 ? placeholder : ""}
+    <div
+      className={`tag-multiselect ${isCompact ? "tag-multiselect-compact" : ""} ${disabled ? "is-disabled" : ""}`}
+      ref={rootRef}
+    >
+      {isCompact ? (
+        <button
+          type="button"
+          className="tag-multiselect-control tag-multiselect-compact-trigger"
+          onClick={toggleCompactMenu}
+          ref={compactControlRef}
           disabled={disabled}
-        />
-      </div>
+          aria-label={ariaLabel}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+        >
+          <span
+            className={`tag-multiselect-compact-value ${compactLabel.isPlaceholder ? "is-placeholder" : ""}`}
+          >
+            {compactLabel.text}
+          </span>
+          <ChevronDown className="tag-multiselect-compact-caret" aria-hidden="true" />
+        </button>
+      ) : (
+        <div className="tag-multiselect-control" onClick={focusInput} ref={inlineControlRef}>
+          {selected.map((tag, index) => (
+            <span key={tag.key} className="tag-chip" style={{ borderColor: tag.color ?? undefined }}>
+              <span className="tag-chip-color" style={{ backgroundColor: tag.color || "hsl(var(--muted))" }} />
+              <span>{tag.name}</span>
+              <button
+                type="button"
+                className="tag-chip-remove"
+                onPointerDown={(event) => {
+                  onOptionPointerDown(event, () => {
+                    removeTagAt(index);
+                  });
+                }}
+                onKeyDown={(event) => onActionKeyDown(event, () => removeTagAt(index))}
+                disabled={disabled}
+                aria-label={`Remove tag ${tag.name}`}
+              >
+                <span className="tag-chip-close">×</span>
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            className="tag-multiselect-input !h-full !rounded-none !border-0 !bg-transparent !px-1 !py-0.5 !shadow-none focus-visible:!ring-0"
+            aria-label={ariaLabel}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            onKeyDown={onKeyDown}
+            placeholder={selected.length === 0 ? placeholder : ""}
+            disabled={disabled}
+          />
+        </div>
+      )}
 
       {isOpen && typeof document !== "undefined"
         ? createPortal(
             <div className="tag-multiselect-menu" ref={menuRef} style={menuStyle}>
+              {isCompact ? (
+                <div className="tag-multiselect-menu-search">
+                  <input
+                    ref={inputRef}
+                    className="tag-multiselect-menu-search-input"
+                    aria-label={ariaLabel ? `${ariaLabel} search` : "Search tags"}
+                    value={query}
+                    onChange={(event) => {
+                      setQuery(event.target.value);
+                    }}
+                    onKeyDown={onKeyDown}
+                    placeholder="Search..."
+                    disabled={disabled}
+                  />
+                </div>
+              ) : null}
               {filteredOptions.length === 0 && !creatableTag ? <p className="tag-multiselect-empty">No matching tags.</p> : null}
               {filteredOptions.map((tag) => {
                 const key = normalizeTagName(tag.name);

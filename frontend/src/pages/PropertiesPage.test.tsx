@@ -84,11 +84,34 @@ function mockBasePropertiesApi() {
 }
 
 describe("PropertiesPage", () => {
+  it("filters tags by selected type", async () => {
+    mockBasePropertiesApi();
+    vi.mocked(listTags).mockResolvedValue([
+      { id: 1, name: "groceries", color: "#22aa66", type: "Food", entry_count: 2 },
+      { id: 2, name: "flight", color: "#2266aa", type: "Travel", entry_count: 1 }
+    ]);
+    const user = userEvent.setup();
+    renderWithQueryClient(<PropertiesPage />);
+
+    await screen.findByRole("button", { name: "Tags" });
+
+    expect(await screen.findByText("groceries")).toBeInTheDocument();
+    expect(screen.getByText("flight")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Tag type filter" }));
+    await user.click(await screen.findByRole("button", { name: /Travel/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("groceries")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("flight")).toBeInTheDocument();
+  });
+
   it("creates tag taxonomy terms from the taxonomy section", async () => {
     mockBasePropertiesApi();
     renderWithQueryClient(<PropertiesPage />);
 
-    await screen.findByText("Property Databases");
+    await screen.findByRole("button", { name: "Tag Types" });
     await userEvent.click(screen.getByRole("button", { name: "Tag Types" }));
     await userEvent.click(screen.getByRole("button", { name: "Add term" }));
 
@@ -107,7 +130,7 @@ describe("PropertiesPage", () => {
     mockBasePropertiesApi();
     renderWithQueryClient(<PropertiesPage />);
 
-    await screen.findByText("Property Databases");
+    await screen.findByRole("button", { name: "Tags" });
     await userEvent.click(screen.getByRole("button", { name: "Tags" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Delete tag groceries" }));
@@ -126,7 +149,7 @@ describe("PropertiesPage", () => {
     mockBasePropertiesApi();
     renderWithQueryClient(<PropertiesPage />);
 
-    await screen.findByText("Property Databases");
+    await screen.findByRole("button", { name: "Tags" });
     await userEvent.click(screen.getByRole("button", { name: "Tags" }));
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
 

@@ -19,10 +19,9 @@
 
 - lists, filters, edits, and deletes entries
 - route shell uses one primary workspace section without a redundant route title above the card
-- filter toolbar is a deliberate three-row layout in `frontend/src/features/entries/EntriesFilterToolbar.tsx`:
-  - row 1: `From date` / `To date`, `Kind`, `Filter group`, and the compact `+` add action
-  - row 2: compact `From entity` and `To entity` multi-selects
-  - row 3: `Source text`, compact `Tags`, and compact `Currencies` popovers
+- filter toolbar is a deliberate two-row layout in `frontend/src/features/entries/EntriesFilterToolbar.tsx`:
+  - row 1: `From date` / `To date`, compact `From entity` / `To entity`, and `Filter group`
+  - row 2: `Kind`, `Source text`, compact `Tags`, compact `Currencies`, and the compact `+` add action
 - `From date` / `To date` map to the backend `start_date` / `end_date` query params and sync to the URL for shareable links
 - `From entity` / `To entity` map to repeated `from_entity` / `to_entity` query params and filter server-side on the preserved entry labels
 - invalid date ranges (`From` after `To`) show an inline error and skip the entries fetch until corrected

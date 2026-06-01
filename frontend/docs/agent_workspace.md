@@ -105,7 +105,7 @@ Supporting modules include:
 ## Composer
 
 - pinned composer surface with stacked attachment prep cards; the bottom control row is compact (icon-first attach, short Bulk label, model and approval-policy selects, send/stop)
-- composer now stays docked against the bottom edge of the agent workspace instead of leaving dead space below the input row
+- composer now stays docked against the bottom edge of the agent workspace instead of leaving dead space below the input row; the agent route caps workspace height to the viewport so the timeline scrolls internally and the composer does not fall below the fold
 - textarea and control row share one card surface instead of reading as separate color bands
 - supports picker, paste, and drag-drop for images, PDFs, and common plain-text files such as CSV
 - composer attachments upload immediately on selection, then continue through server-side preparation before send; each draft card stays on one line with the filename, a live status label, and a compact inline progress bar beside the filename

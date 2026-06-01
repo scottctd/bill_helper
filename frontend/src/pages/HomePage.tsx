@@ -5,17 +5,12 @@
  * - Outputs: React components and UI helpers exported by `HomePage`.
  * - Side effects: React rendering and user event wiring.
  */
-import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { AgentPanel } from "../features/agent/AgentPanel";
 
 export function HomePage() {
   return (
-    <div className="page stack-lg agent-page">
-      <PageHeader
-        title="Agent Sessions"
-        description="Sessions, sources, and review."
-      />
+    <div className="page agent-page">
       <WorkspaceSection className="agent-workspace-shell" contentClassName="agent-workspace-shell-body">
         <AgentPanel isOpen embedded />
       </WorkspaceSection>

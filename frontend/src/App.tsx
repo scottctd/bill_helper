@@ -9,6 +9,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import { Sidebar } from "./components/Sidebar";
+import { RoutePageTitle } from "./components/layout/RoutePageTitle";
 import { useAuth } from "./features/auth";
 import { useResizablePanel } from "./hooks/useResizablePanel";
 
@@ -150,6 +151,7 @@ function ProtectedShell() {
 
       <main ref={appMainRef} className={appMainClassName}>
         <div className={appContentClassName}>
+          <RoutePageTitle />
           {auth.session.is_admin_impersonation ? (
             <div className="impersonation-banner">
               Impersonating {auth.session.user.name}. Log out when you want to end this session.

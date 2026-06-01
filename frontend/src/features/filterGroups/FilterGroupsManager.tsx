@@ -21,10 +21,7 @@ export function FilterGroupsManager({ model }: FilterGroupsManagerProps) {
   return (
     <>
       <div className="grid gap-4">
-        <p className="muted text-sm">
-          These rules drive dashboard classification and the saved group shortcut in entries. Pick a group on the left, edit it on the
-          right, and use advanced mode only when you need nested logic.
-        </p>
+        <p className="muted m-0 text-sm">Pick a group on the left, edit it on the right.</p>
 
         {model.filterGroupsQuery.isError ? (
           <p className="error">Failed to load filter groups: {(model.filterGroupsQuery.error as Error).message}</p>
@@ -54,6 +51,10 @@ export function FilterGroupsManager({ model }: FilterGroupsManagerProps) {
                   preferredTagName={model.preferredTagName}
                   isDirty={model.isDirty}
                   isPending={model.isPending}
+                  canSubmit={model.canSubmit}
+                  submitLabel={model.submitLabel}
+                  submitPendingLabel={model.submitPendingLabel}
+                  onSubmit={model.handleSubmit}
                   mutationError={model.mutationError}
                   tagLoadError={model.tagsQuery.isError ? (model.tagsQuery.error as Error).message : null}
                   onChange={model.updateFormState}

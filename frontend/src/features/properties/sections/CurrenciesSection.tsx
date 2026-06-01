@@ -6,12 +6,17 @@
  * - Side effects: React rendering and user event wiring.
  */
 import type { Currency } from "../../../lib/types";
+import { WorkspaceToolbar } from "../../../components/layout/WorkspaceToolbar";
 import { Input } from "../../../components/ui/input";
+import { NativeSelect } from "../../../components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
+import type { CurrencyStatusFilter } from "../types";
 
 interface CurrenciesSectionProps {
   search: string;
   onSearchChange: (value: string) => void;
+  statusFilter: CurrencyStatusFilter;
+  onStatusFilterChange: (value: CurrencyStatusFilter) => void;
   currencies: Currency[] | undefined;
   hasAnyCurrencies: boolean;
   isLoading: boolean;
@@ -20,7 +25,8 @@ interface CurrenciesSectionProps {
 }
 
 export function CurrenciesSection(props: CurrenciesSectionProps) {
-  const { search, onSearchChange, currencies, hasAnyCurrencies, isLoading, isError, queryErrorMessage } = props;
+  const { search, onSearchChange, statusFilter, onStatusFilterChange, currencies, hasAnyCurrencies, isLoading, isError, queryErrorMessage } =
+    props;
 
   return (
     <div className="table-shell">
@@ -30,14 +36,22 @@ export function CurrenciesSection(props: CurrenciesSectionProps) {
           <p className="table-shell-subtitle">Read-only catalog used by entries and accounts.</p>
         </div>
       </div>
-      <div className="table-toolbar">
+      <WorkspaceToolbar className="workspace-table-toolbar filter-row">
         <div className="table-toolbar-filters">
           <label className="field min-w-[220px] grow">
             <span>Search</span>
             <Input placeholder="Filter by code or name" value={search} onChange={(event) => onSearchChange(event.target.value)} />
           </label>
+          <label className="field min-w-[130px]">
+            <span>Status</span>
+            <NativeSelect value={statusFilter} onChange={(event) => onStatusFilterChange(event.target.value as CurrencyStatusFilter)}>
+              <option value="">All</option>
+              <option value="built-in">Built-in</option>
+              <option value="placeholder">Placeholder</option>
+            </NativeSelect>
+          </label>
         </div>
-      </div>
+      </WorkspaceToolbar>
 
       {isLoading ? <p>Loading currencies...</p> : null}
       {isError ? <p className="error">{queryErrorMessage}</p> : null}

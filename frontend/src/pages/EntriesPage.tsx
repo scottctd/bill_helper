@@ -7,21 +7,24 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 import { DeleteIconButton } from "../components/DeleteIconButton";
 import { EntryEditorModal, type EntryEditorSubmitPayload } from "../components/EntryEditorModal";
-import { TagMultiSelect } from "../components/TagMultiSelect";
-import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
-import { WorkspaceToolbar } from "../components/layout/WorkspaceToolbar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { NativeSelect } from "../components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { useAuth } from "../features/auth";
+import { EntriesFilterToolbar } from "../features/entries/EntriesFilterToolbar";
+import {
+  EMPTY_ENTRY_LIST_FILTERS,
+  countActiveEntryListFilters,
+  entryListDateRangeError,
+  entryListFiltersFromSearchParams,
+  entryListFiltersToSearchParams,
+  type EntryListFilters
+} from "../features/entries/entriesFilters";
 import {
   createEntry,
   deleteEntry,
@@ -40,6 +43,7 @@ import { formatMinorCompact } from "../lib/format";
 import { resolveTagColor } from "../lib/tagColors";
 import { invalidateEntryReadModels } from "../lib/queryInvalidation";
 import { queryKeys } from "../lib/queryKeys";
+import { stringOptionsAsTags } from "../lib/workspaceFilters";
 
 type EditorState = { mode: "create" } | { mode: "edit"; entryId: string } | null;
 const ENTRY_FLOW_LABEL_MAX_LENGTH = 18;
@@ -107,15 +111,10 @@ export function EntriesPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const initialFilterGroupId = searchParams.get("filter_group_id") ?? "";
-  const [filters, setFilters] = useState({
-    kind: "",
-    tags: [] as string[],
-    currencies: [] as string[],
-    source: "",
-    filterGroupId: initialFilterGroupId
-  });
+  const [filters, setFilters] = useState<EntryListFilters>(() => entryListFiltersFromSearchParams(searchParams));
   const [editorState, setEditorState] = useState<EditorState>(null);
+  const dateRangeError = entryListDateRangeError(filters);
+  const activeFilterCount = countActiveEntryListFilters(filters);
 
   const currenciesQuery = useQuery({ queryKey: queryKeys.properties.currencies, queryFn: listCurrencies });
   const runtimeSettingsQuery = useQuery({ queryKey: queryKeys.settings.runtime, queryFn: getRuntimeSettings });
@@ -135,13 +134,26 @@ export function EntriesPage() {
     () => ({
       kind: filters.kind || undefined,
       source: filters.source || undefined,
-      filter_group_id: filters.filterGroupId || undefined
+      filter_group_id: filters.filterGroupId || undefined,
+      start_date: filters.startDate || undefined,
+      end_date: filters.endDate || undefined,
+      from_entity: filters.fromEntities.length > 0 ? filters.fromEntities : undefined,
+      to_entity: filters.toEntities.length > 0 ? filters.toEntities : undefined
     }),
-    [filters.filterGroupId, filters.kind, filters.source]
+    [
+      filters.endDate,
+      filters.filterGroupId,
+      filters.fromEntities,
+      filters.kind,
+      filters.source,
+      filters.startDate,
+      filters.toEntities
+    ]
   );
   const entriesQuery = useInfiniteQuery({
     queryKey: queryKeys.entries.list(entryListFilters),
     initialPageParam: 0,
+    enabled: dateRangeError === null,
     queryFn: ({ pageParam }) =>
       listEntries({
         ...entryListFilters,
@@ -210,6 +222,22 @@ export function EntriesPage() {
     [filterCurrencies]
   );
 
+  const entityFilterOptions = useMemo(() => {
+    const names = new Set<string>();
+    (entitiesQuery.data ?? []).forEach((entity) => names.add(entity.name));
+    loadedEntries.forEach((entry) => {
+      const fromEntity = normalizedEntityLabel(entry.from_entity);
+      const toEntity = normalizedEntityLabel(entry.to_entity);
+      if (fromEntity) {
+        names.add(fromEntity);
+      }
+      if (toEntity) {
+        names.add(toEntity);
+      }
+    });
+    return stringOptionsAsTags(Array.from(names).sort((left, right) => left.localeCompare(right)));
+  }, [entitiesQuery.data, loadedEntries]);
+
   const filteredEntries = useMemo(() => {
     const selectedTagSet = new Set(filters.tags.map((tagName) => tagName.trim().toLowerCase()).filter(Boolean));
     const selectedCurrencySet = new Set(filters.currencies.map((currencyCode) => currencyCode.trim().toUpperCase()).filter(Boolean));
@@ -259,18 +287,45 @@ export function EntriesPage() {
   }, [entriesQuery.fetchNextPage, entriesQuery.hasNextPage, entriesQuery.isFetchingNextPage]);
 
   useEffect(() => {
-    const nextFilterGroupId = searchParams.get("filter_group_id") ?? "";
-    setFilters((state) => (state.filterGroupId === nextFilterGroupId ? state : { ...state, filterGroupId: nextFilterGroupId }));
+    setFilters((state) => {
+      const next = entryListFiltersFromSearchParams(searchParams);
+      if (
+        state.startDate === next.startDate &&
+        state.endDate === next.endDate &&
+        state.filterGroupId === next.filterGroupId &&
+        state.fromEntities.join("\u0000") === next.fromEntities.join("\u0000") &&
+        state.toEntities.join("\u0000") === next.toEntities.join("\u0000")
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        startDate: next.startDate,
+        endDate: next.endDate,
+        filterGroupId: next.filterGroupId,
+        fromEntities: next.fromEntities,
+        toEntities: next.toEntities
+      };
+    });
   }, [searchParams]);
 
-  function updateFilterGroupSelection(nextFilterGroupId: string) {
-    setFilters((state) => ({ ...state, filterGroupId: nextFilterGroupId }));
+  function updateFilters(update: Partial<EntryListFilters>) {
+    setFilters((state) => {
+      const next = { ...state, ...update };
+      const nextSearchParams = entryListFiltersToSearchParams(next, searchParams);
+      setSearchParams(nextSearchParams);
+      return next;
+    });
+  }
+
+  function clearFilters() {
+    setFilters({ ...EMPTY_ENTRY_LIST_FILTERS });
     const nextSearchParams = new URLSearchParams(searchParams);
-    if (nextFilterGroupId) {
-      nextSearchParams.set("filter_group_id", nextFilterGroupId);
-    } else {
-      nextSearchParams.delete("filter_group_id");
-    }
+    nextSearchParams.delete("filter_group_id");
+    nextSearchParams.delete("start_date");
+    nextSearchParams.delete("end_date");
+    nextSearchParams.delete("from_entity");
+    nextSearchParams.delete("to_entity");
     setSearchParams(nextSearchParams);
   }
 
@@ -309,71 +364,28 @@ export function EntriesPage() {
   const editorLoadError = editingEntryQuery.isError ? (editingEntryQuery.error as Error).message : null;
 
   return (
-    <div className="page stack-lg">
-      <PageHeader title="Entries" description="Search and edit ledger rows." />
-
-      <WorkspaceSection>
-        <WorkspaceToolbar className="filter-row">
-            <div className="table-toolbar-filters">
-              <label className="field min-w-[160px]">
-                <span>Kind</span>
-                <NativeSelect value={filters.kind} onChange={(event) => setFilters((state) => ({ ...state, kind: event.target.value }))}>
-                  <option value="">All</option>
-                  <option value="EXPENSE">- Expense</option>
-                  <option value="INCOME">+ Income</option>
-                  <option value="TRANSFER">~ Transfer</option>
-                </NativeSelect>
-              </label>
-              <label className="field min-w-[180px]">
-                <span>Tags</span>
-                <TagMultiSelect
-                  options={tagsQuery.data ?? []}
-                  value={filters.tags}
-                  ariaLabel="Tag filter"
-                  placeholder="All tags"
-                  allowCreate={false}
-                  onChange={(nextTags) => setFilters((state) => ({ ...state, tags: nextTags }))}
-                />
-              </label>
-              <label className="field min-w-[150px]">
-                <span>Currencies</span>
-                <TagMultiSelect
-                  options={currencyFilterOptions}
-                  value={filters.currencies}
-                  ariaLabel="Currency filter"
-                  placeholder="All currencies"
-                  allowCreate={false}
-                  onChange={(nextCurrencies) => setFilters((state) => ({ ...state, currencies: nextCurrencies }))}
-                />
-              </label>
-              <label className="field min-w-[260px] grow">
-                <span>Source text</span>
-                <Input value={filters.source} onChange={(event) => setFilters((state) => ({ ...state, source: event.target.value }))} />
-              </label>
-              <label className="field min-w-[180px]">
-                <span>Filter group</span>
-                <NativeSelect value={filters.filterGroupId} onChange={(event) => updateFilterGroupSelection(event.target.value)}>
-                  <option value="">All groups</option>
-                  {(filterGroupsQuery.data ?? []).map((filterGroup) => (
-                    <option key={filterGroup.id} value={filterGroup.id}>
-                      {filterGroup.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </label>
-            </div>
-            <div className="table-toolbar-action filter-action">
-              <Button type="button" size="icon" variant="outline" aria-label="Add entry" onClick={() => setEditorState({ mode: "create" })}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-        </WorkspaceToolbar>
+    <div className="page">
+      <WorkspaceSection contentClassName="workspace-table-body">
+        <EntriesFilterToolbar
+          filters={filters}
+          tagOptions={tagsQuery.data ?? []}
+          currencyOptions={currencyFilterOptions}
+          entityOptions={entityFilterOptions}
+          filterGroups={filterGroupsQuery.data ?? []}
+          dateRangeError={dateRangeError}
+          activeFilterCount={activeFilterCount}
+          visibleEntryCount={filteredEntries.length}
+          totalEntryCount={totalEntries}
+          onFiltersChange={updateFilters}
+          onClearFilters={clearFilters}
+          onAddEntry={() => setEditorState({ mode: "create" })}
+        />
 
         <div className="table-shell">
-          {entriesQuery.isLoading ? <p>Loading entries...</p> : null}
-          {entriesQuery.isError ? <p className="error">{(entriesQuery.error as Error).message}</p> : null}
+          {!dateRangeError && entriesQuery.isLoading ? <p>Loading entries...</p> : null}
+          {!dateRangeError && entriesQuery.isError ? <p className="error">{(entriesQuery.error as Error).message}</p> : null}
 
-          {entriesQuery.data ? (
+          {!dateRangeError && entriesQuery.data ? (
             <>
               <Table className="entries-table table-fixed">
                 <TableHeader>

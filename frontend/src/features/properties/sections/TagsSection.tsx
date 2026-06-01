@@ -8,6 +8,8 @@
 import type { FormEvent } from "react";
 import { Plus } from "lucide-react";
 
+import { TagMultiSelect } from "../../../components/TagMultiSelect";
+import { WorkspaceToolbar } from "../../../components/layout/WorkspaceToolbar";
 import { DeleteIconButton } from "../../../components/DeleteIconButton";
 import type { Tag } from "../../../lib/types";
 import { DeleteConfirmDialog } from "../../../components/DeleteConfirmDialog";
@@ -28,6 +30,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 interface TagsSectionProps {
   search: string;
   onSearchChange: (value: string) => void;
+  tagTypeFilterOptions: Tag[];
+  selectedTagTypes: string[];
+  onTagTypesChange: (nextTagTypes: string[]) => void;
   createPanelOpen: boolean;
   onToggleCreatePanel: () => void;
   onCloseCreatePanel: () => void;
@@ -74,6 +79,9 @@ export function TagsSection(props: TagsSectionProps) {
   const {
     search,
     onSearchChange,
+    tagTypeFilterOptions,
+    selectedTagTypes,
+    onTagTypesChange,
     createPanelOpen,
     onToggleCreatePanel,
     onCloseCreatePanel,
@@ -124,7 +132,7 @@ export function TagsSection(props: TagsSectionProps) {
           <p className="table-shell-subtitle">Manage tags, colors, and taxonomy-backed types.</p>
         </div>
       </div>
-      <div className="table-toolbar">
+      <WorkspaceToolbar className="workspace-table-toolbar filter-row">
         <div className="table-toolbar-filters">
           <label className="field min-w-[220px] grow">
             <span>Search</span>
@@ -134,13 +142,25 @@ export function TagsSection(props: TagsSectionProps) {
               onChange={(event) => onSearchChange(event.target.value)}
             />
           </label>
+          <label className="field min-w-[180px]">
+            <span>Types</span>
+            <TagMultiSelect
+              options={tagTypeFilterOptions}
+              value={selectedTagTypes}
+              ariaLabel="Tag type filter"
+              placeholder="All types"
+              allowCreate={false}
+              displayMode="compact"
+              onChange={onTagTypesChange}
+            />
+          </label>
         </div>
-        <div className="table-toolbar-action">
+        <div className="table-toolbar-action filter-action">
           <Button type="button" size="icon" variant="outline" aria-label="Add tag" onClick={onToggleCreatePanel}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-      </div>
+      </WorkspaceToolbar>
 
       {isLoading ? <p>Loading tags...</p> : null}
       {isError ? <p className="error">{queryErrorMessage}</p> : null}

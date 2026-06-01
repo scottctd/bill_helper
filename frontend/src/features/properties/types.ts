@@ -7,12 +7,18 @@
  */
 export type PropertiesSectionId = "tags" | "currencies" | "entityCategories" | "tagCategories";
 
+export type CurrencyStatusFilter = "" | "built-in" | "placeholder";
+
 export const SECTION_SEARCH_DEFAULTS: Record<PropertiesSectionId, string> = {
   tags: "",
   currencies: "",
   entityCategories: "",
   tagCategories: ""
 };
+
+export const SECTION_TAG_TYPE_FILTER_DEFAULTS: string[] = [];
+
+export const SECTION_CURRENCY_STATUS_FILTER_DEFAULT: CurrencyStatusFilter = "";
 
 export const SECTION_CREATE_PANEL_DEFAULTS: Record<PropertiesSectionId, boolean> = {
   tags: false,

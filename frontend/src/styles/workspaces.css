@@ -281,6 +281,81 @@
     @apply block truncate font-medium text-foreground;
   }
 
+  .workspace-table-body {
+    @apply gap-0 p-0 pt-0;
+  }
+
+  .workspace-table-body .table-shell {
+    @apply gap-4 px-5 pb-5 pt-4;
+  }
+
+  .workspace-table-toolbar {
+    @apply border-b border-border/75 px-5 py-3;
+  }
+
+  .entries-filter-toolbar {
+    @apply flex-col items-stretch gap-2.5 border-b border-border/75 px-5 py-3;
+  }
+
+  .entries-filter-toolbar-grid {
+    @apply grid w-full gap-3;
+  }
+
+  .entries-filter-toolbar-row {
+    @apply grid w-full items-end gap-3;
+  }
+
+  .entries-filter-toolbar-row-scope {
+    grid-template-columns:
+      minmax(8rem, 9rem)
+      minmax(8rem, 9rem)
+      minmax(9rem, 11rem)
+      minmax(9rem, 11rem)
+      minmax(10rem, 12rem);
+  }
+
+  .entries-filter-toolbar-row-refine {
+    @apply flex items-end gap-3;
+  }
+
+  .entries-filter-toolbar-refine-filters {
+    @apply grid min-w-0 flex-1 items-end gap-3;
+    grid-template-columns:
+      minmax(7.5rem, 8.5rem)
+      minmax(0, 1.25fr)
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+  }
+
+  .entries-filter-toolbar-action {
+    @apply flex shrink-0 items-end justify-end;
+  }
+
+  .entries-filter-date-field,
+  .entries-filter-kind-field,
+  .entries-filter-group-field,
+  .entries-filter-entity-field,
+  .entries-filter-tags-field,
+  .entries-filter-currencies-field {
+    @apply min-w-0;
+  }
+
+  .entries-filter-source-field {
+    @apply min-w-0;
+  }
+
+  .entries-filter-date-error {
+    @apply m-0 px-0;
+  }
+
+  .entries-filter-toolbar-status {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .entries-filter-status-label {
+    @apply m-0;
+  }
+
   .entries-table thead th {
     @apply h-10 py-2.5;
   }

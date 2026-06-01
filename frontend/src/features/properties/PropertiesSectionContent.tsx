@@ -25,6 +25,9 @@ export function PropertiesSectionContent({ model }: PropertiesSectionContentProp
         <TagsSection
           search={model.sectionSearch.tags}
           onSearchChange={(value) => model.actions.setSectionSearchValue("tags", value)}
+          tagTypeFilterOptions={model.tagTypeFilterOptions}
+          selectedTagTypes={model.selectedTagTypes}
+          onTagTypesChange={model.setSelectedTagTypes}
           createPanelOpen={model.createPanelOpen.tags}
           onToggleCreatePanel={() => model.actions.toggleCreatePanel("tags")}
           onCloseCreatePanel={() => model.actions.closeCreatePanel("tags")}
@@ -72,6 +75,8 @@ export function PropertiesSectionContent({ model }: PropertiesSectionContentProp
         <CurrenciesSection
           search={model.sectionSearch.currencies}
           onSearchChange={(value) => model.actions.setSectionSearchValue("currencies", value)}
+          statusFilter={model.currencyStatusFilter}
+          onStatusFilterChange={model.setCurrencyStatusFilter}
           currencies={model.filtered.currencies}
           hasAnyCurrencies={(model.queries.currenciesQuery.data ?? []).length > 0}
           isLoading={model.queries.currenciesQuery.isLoading}

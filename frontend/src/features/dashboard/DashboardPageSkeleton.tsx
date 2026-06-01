@@ -6,7 +6,6 @@
  * - Side effects: React rendering only.
  */
 
-import { PageHeader } from "../../components/layout/PageHeader";
 import { WorkspaceSection } from "../../components/layout/WorkspaceSection";
 import { WorkspaceToolbar } from "../../components/layout/WorkspaceToolbar";
 import { Button } from "../../components/ui/button";
@@ -37,8 +36,6 @@ export function DashboardPageSkeleton({
   return (
     <div className="dashboard-page-layout">
       <div className="stack-lg min-w-0">
-        <PageHeader title="Dashboard" description="Month and year ledger trends." />
-
         {showFinanceChrome ? (
           <>
             <SkeletonBlock className="dashboard-skeleton-hero" />

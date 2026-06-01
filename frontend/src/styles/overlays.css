@@ -323,6 +323,31 @@
     @apply m-2 text-xs text-muted-foreground;
   }
 
+  .tag-multiselect-compact-trigger {
+    @apply flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none transition-colors hover:bg-secondary/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60;
+    cursor: pointer;
+  }
+
+  .tag-multiselect-compact-value {
+    @apply min-w-0 truncate text-left text-foreground;
+  }
+
+  .tag-multiselect-compact-value.is-placeholder {
+    @apply text-muted-foreground;
+  }
+
+  .tag-multiselect-compact-caret {
+    @apply h-4 w-4 shrink-0 text-muted-foreground;
+  }
+
+  .tag-multiselect-menu-search {
+    @apply sticky top-0 z-10 border-b border-border bg-popover p-2;
+  }
+
+  .tag-multiselect-menu-search-input {
+    @apply h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
   .tooltip-root {
     @apply relative inline-flex;
   }

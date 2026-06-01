@@ -201,11 +201,15 @@
   }
 
   .agent-thread-main {
-    @apply mr-auto h-full w-full max-w-[74rem] px-5 pt-5;
+    @apply mr-auto h-full min-h-0 w-full max-w-[74rem] overflow-hidden px-5 pb-5 pt-5;
+  }
+
+  .agent-timeline-pane {
+    @apply flex h-full min-h-0 flex-1 flex-col overflow-hidden;
   }
 
   .agent-timeline-scroll-wrapper {
-    @apply relative flex min-h-0 flex-1 flex-col;
+    @apply relative flex min-h-0 flex-1 flex-col overflow-hidden;
   }
 
   .agent-timeline-empty {
@@ -213,7 +217,7 @@
   }
 
   .agent-timeline-scroll {
-    @apply flex min-h-0 flex-col gap-3 overflow-y-auto pr-1;
+    @apply min-h-0 flex-1 overflow-y-auto pr-1;
   }
 
   .agent-external-session-hint {
@@ -1118,21 +1122,19 @@
   }
 
   .agent-page {
-    @apply h-full min-h-0 overflow-hidden;
-    grid-template-rows: auto minmax(0, 1fr);
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
   }
 
   .agent-workspace-shell {
-    @apply grid min-h-0 overflow-hidden border-border/90;
-    grid-template-rows: minmax(0, 1fr);
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden border-border/90;
   }
 
   .agent-workspace-shell-body {
-    @apply h-full min-h-0 !p-0 !pt-0;
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden !p-0 !pt-0;
   }
 
   .agent-composer {
-    @apply grid gap-2 pb-0 pt-2;
+    @apply grid shrink-0 gap-2 border-t border-border/75 bg-card pb-0 pt-2;
   }
 
   .agent-composer-drop-active {

@@ -7,6 +7,7 @@
  */
 import { type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import {
   createTag,
@@ -15,9 +16,15 @@ import {
   updateTag,
   updateTaxonomyTerm
 } from "../../lib/api";
-import { ENTITY_CATEGORY_TAXONOMY_KEY, TAG_TYPE_TAXONOMY_KEY } from "../../lib/catalogs";
+import {
+  ENTITY_CATEGORY_TAXONOMY_KEY,
+  TAG_TYPE_TAXONOMY_KEY,
+  taxonomyTermNames,
+  uniqueOptionValues
+} from "../../lib/catalogs";
 import { invalidateTagReadModels, invalidateTaxonomyReadModels } from "../../lib/queryInvalidation";
 import type { Tag, TaxonomyTerm } from "../../lib/types";
+import { stringOptionsAsTags, UNCATEGORIZED_FILTER_LABEL } from "../../lib/workspaceFilters";
 import { usePropertiesFilteredData } from "./usePropertiesFilteredData";
 import { usePropertiesFormState } from "./usePropertiesFormState";
 import { usePropertiesQueries } from "./usePropertiesQueries";
@@ -35,11 +42,24 @@ export function usePropertiesPageModel() {
 
   const filtered = usePropertiesFilteredData({
     sectionSearch: sectionState.sectionSearch,
+    selectedTagTypes: sectionState.selectedTagTypes,
+    currencyStatusFilter: sectionState.currencyStatusFilter,
     tags: queries.tagsQuery.data,
     currencies: queries.currenciesQuery.data,
     entityCategoryTerms: queries.entityCategoryTermsQuery.data,
     tagTypeTerms: queries.tagTypeTermsQuery.data
   });
+
+  const tagTypeFilterOptions = useMemo(() => {
+    const typeNames = uniqueOptionValues([
+      ...taxonomyTermNames(queries.tagTypeTermsQuery.data),
+      ...(queries.tagsQuery.data ?? []).map((tag) => tag.type)
+    ]);
+    if ((queries.tagsQuery.data ?? []).some((tag) => !tag.type?.trim())) {
+      typeNames.push(UNCATEGORIZED_FILTER_LABEL);
+    }
+    return stringOptionsAsTags(typeNames);
+  }, [queries.tagTypeTermsQuery.data, queries.tagsQuery.data]);
 
   const createTagMutation = useMutation({
     mutationFn: createTag,
@@ -283,6 +303,11 @@ export function usePropertiesPageModel() {
     activeSection: sectionState.activeSection,
     setActiveSection: sectionState.setActiveSection,
     sectionSearch: sectionState.sectionSearch,
+    selectedTagTypes: sectionState.selectedTagTypes,
+    setSelectedTagTypes: sectionState.setSelectedTagTypes,
+    currencyStatusFilter: sectionState.currencyStatusFilter,
+    setCurrencyStatusFilter: sectionState.setCurrencyStatusFilter,
+    tagTypeFilterOptions,
     createPanelOpen: sectionState.createPanelOpen,
     coreSections,
     taxonomySections,

@@ -5,9 +5,9 @@
  * - Outputs: React components and UI helpers exported by `EntitiesPage`.
  * - Side effects: React rendering and user event wiring.
  */
-import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { EntitiesTableSection } from "../features/entities/EntitiesTableSection";
+import { EntitiesTableToolbar } from "../features/entities/EntitiesTableToolbar";
 import { useEntitiesPageModel } from "../features/entities/useEntitiesPageModel";
 
 export function EntitiesPage() {
@@ -18,17 +18,19 @@ export function EntitiesPage() {
   const deleteError = model.mutations.deleteEntityMutation.isError ? (model.mutations.deleteEntityMutation.error as Error).message : null;
 
   return (
-    <div className="page stack-lg">
-      <PageHeader
-        title="Entities"
-        description="Counterparties and categories."
-      />
-
-      <WorkspaceSection>
-        <EntitiesTableSection
+    <div className="page">
+      <WorkspaceSection contentClassName="workspace-table-body">
+        <EntitiesTableToolbar
           search={model.search}
+          categoryOptions={model.categoryFilterOptions}
+          selectedCategories={model.selectedCategories}
           onSearchChange={model.setSearch}
-          createPanelOpen={model.createPanelOpen}
+          onCategoriesChange={model.setSelectedCategories}
+          onToggleCreatePanel={() => model.setCreatePanelOpen((open) => !open)}
+        />
+        <div className="table-shell">
+          <EntitiesTableSection
+            createPanelOpen={model.createPanelOpen}
           onToggleCreatePanel={() => model.setCreatePanelOpen((open) => !open)}
           onCloseCreatePanel={model.closeCreatePanel}
           newEntityName={model.forms.newEntityName}
@@ -61,6 +63,7 @@ export function EntitiesPage() {
           isUpdating={model.mutations.updateEntityMutation.isPending}
           isDeleting={model.mutations.deleteEntityMutation.isPending}
         />
+        </div>
       </WorkspaceSection>
     </div>
   );

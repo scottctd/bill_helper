@@ -17,15 +17,22 @@ import {
 } from "../../lib/catalogs";
 import { invalidateEntityReadModels } from "../../lib/queryInvalidation";
 import { queryKeys } from "../../lib/queryKeys";
-import type { Entity } from "../../lib/types";
+import { includesFilter } from "../../lib/catalogs";
+import { stringOptionsAsTags, matchesSelectedValues, normalizeFilterValue, UNCATEGORIZED_FILTER_LABEL } from "../../lib/workspaceFilters";
+import type { Entity, Tag } from "../../lib/types";
 
 function matchesEntitySearch(entity: Entity, search: string) {
-  return includesFilter(entity.name, search) || includesFilter(entity.category, search);
+  return includesFilter(entity.name, search);
+}
+
+function matchesEntityCategoryFilter(entity: Entity, selectedCategories: string[]): boolean {
+  return matchesSelectedValues(entity.category, selectedCategories, UNCATEGORIZED_FILTER_LABEL);
 }
 
 export function useEntitiesPageModel() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [createPanelOpen, setCreatePanelOpen] = useState(false);
   const [newEntityName, setNewEntityName] = useState("");
   const [newEntityCategory, setNewEntityCategory] = useState("");
@@ -83,9 +90,25 @@ export function useEntitiesPageModel() {
     [entitiesQuery.data, entityCategoryTermsQuery.data]
   );
 
+  const categoryFilterOptions = useMemo(() => {
+    const categoryNames = uniqueOptionValues([
+      ...taxonomyTermNames(entityCategoryTermsQuery.data),
+      ...(entitiesQuery.data ?? []).map((entity) => entity.category)
+    ]);
+    const nonAccountEntities = (entitiesQuery.data ?? []).filter((entity) => !entity.is_account);
+    if (nonAccountEntities.some((entity) => !entity.category?.trim())) {
+      categoryNames.push(UNCATEGORIZED_FILTER_LABEL);
+    }
+
+    return stringOptionsAsTags(categoryNames);
+  }, [entitiesQuery.data, entityCategoryTermsQuery.data]);
+
   const filteredEntities = useMemo(
-    () => (entitiesQuery.data ?? []).filter((entity) => !entity.is_account && matchesEntitySearch(entity, search)),
-    [entitiesQuery.data, search]
+    () =>
+      (entitiesQuery.data ?? []).filter(
+        (entity) => !entity.is_account && matchesEntitySearch(entity, search) && matchesEntityCategoryFilter(entity, selectedCategories)
+      ),
+    [entitiesQuery.data, search, selectedCategories]
   );
 
   const deletingEntity = useMemo(
@@ -150,6 +173,9 @@ export function useEntitiesPageModel() {
   return {
     search,
     setSearch,
+    selectedCategories,
+    setSelectedCategories,
+    categoryFilterOptions,
     createPanelOpen,
     setCreatePanelOpen,
     closeCreatePanel,

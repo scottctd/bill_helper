@@ -5,7 +5,6 @@
  * - Outputs: React components and UI helpers exported by `PropertiesPage`.
  * - Side effects: React rendering and user event wiring.
  */
-import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { PropertiesSectionContent } from "../features/properties/PropertiesSectionContent";
 import { PropertiesSectionNavigation } from "../features/properties/PropertiesSectionNavigation";
@@ -16,11 +15,6 @@ export function PropertiesPage() {
 
   return (
     <div className="page stack-lg">
-      <PageHeader
-        title="Property Databases"
-        description="Users, currencies, tags, and taxonomy."
-      />
-
       <WorkspaceSection>
         {model.queries.taxonomiesQuery.isError ? <p className="error">{(model.queries.taxonomiesQuery.error as Error).message}</p> : null}
 

@@ -6,7 +6,6 @@
  * - Side effects: React rendering and user event wiring.
  */
 import type { FormEvent } from "react";
-import { Plus } from "lucide-react";
 
 import { DeleteConfirmDialog } from "../../components/DeleteConfirmDialog";
 import { DeleteIconButton } from "../../components/DeleteIconButton";
@@ -27,8 +26,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import type { Entity } from "../../lib/types";
 
 interface EntitiesTableSectionProps {
-  search: string;
-  onSearchChange: (value: string) => void;
   createPanelOpen: boolean;
   onToggleCreatePanel: () => void;
   onCloseCreatePanel: () => void;
@@ -65,8 +62,6 @@ interface EntitiesTableSectionProps {
 
 export function EntitiesTableSection(props: EntitiesTableSectionProps) {
   const {
-    search,
-    onSearchChange,
     createPanelOpen,
     onToggleCreatePanel,
     onCloseCreatePanel,
@@ -112,21 +107,7 @@ export function EntitiesTableSection(props: EntitiesTableSectionProps) {
   }
 
   return (
-    <div className="table-shell">
-      <div className="table-toolbar">
-        <div className="table-toolbar-filters">
-          <label className="field min-w-[220px] grow">
-            <span>Search</span>
-            <Input placeholder="Filter by entity or category" value={search} onChange={(event) => onSearchChange(event.target.value)} />
-          </label>
-        </div>
-        <div className="table-toolbar-action">
-          <Button type="button" size="icon" variant="outline" aria-label="Add entity" onClick={onToggleCreatePanel}>
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
+    <>
       {isLoading ? <p>Loading entities...</p> : null}
       {isError ? <p className="error">{queryErrorMessage}</p> : null}
 
@@ -280,6 +261,6 @@ export function EntitiesTableSection(props: EntitiesTableSectionProps) {
         }
         onConfirm={onConfirmDeleteEntity}
       />
-    </div>
+    </>
   );
 }

@@ -7,20 +7,19 @@
  */
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 
 import { EntryEditorModal, type EntryEditorSubmitPayload } from "../components/EntryEditorModal";
 import { GroupDetailModal } from "../components/GroupDetailModal";
 import { GroupEditorModal } from "../components/GroupEditorModal";
 import { GroupMemberEditorModal } from "../components/GroupMemberEditorModal";
-import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
-import { WorkspaceToolbar } from "../components/layout/WorkspaceToolbar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { GroupsTableToolbar } from "../features/groups/GroupsTableToolbar";
 import { useAuth } from "../features/auth";
+import { includesFilter } from "../lib/catalogs";
+import { stringOptionsAsTags, matchesSelectedValues } from "../lib/workspaceFilters";
 import {
   addGroupMember,
   createGroup,
@@ -77,6 +76,7 @@ export function GroupsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [groupSearch, setGroupSearch] = useState("");
+  const [selectedGroupTypes, setSelectedGroupTypes] = useState<string[]>([]);
   const deferredGroupSearch = useDeferredValue(groupSearch);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -212,19 +212,24 @@ export function GroupsPage() {
     }
   });
 
+  const groupTypeFilterOptions = useMemo(
+    () =>
+      stringOptionsAsTags(
+        Array.from(new Set((groupsQuery.data ?? []).map((group) => group.group_type))).sort((left, right) =>
+          left.localeCompare(right)
+        )
+      ),
+    [groupsQuery.data]
+  );
+
   const filteredGroups = useMemo(() => {
-    const normalizedSearch = deferredGroupSearch.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return groupsQuery.data ?? [];
-    }
     return (groupsQuery.data ?? []).filter((group) => {
-      return (
-        group.name.toLowerCase().includes(normalizedSearch) ||
-        group.group_type.toLowerCase().includes(normalizedSearch) ||
-        group.id.toLowerCase().includes(normalizedSearch)
-      );
+      if (!includesFilter(group.name, deferredGroupSearch) && !includesFilter(group.id, deferredGroupSearch)) {
+        return false;
+      }
+      return matchesSelectedValues(group.group_type, selectedGroupTypes);
     });
-  }, [deferredGroupSearch, groupsQuery.data]);
+  }, [deferredGroupSearch, groupsQuery.data, selectedGroupTypes]);
 
   const groupsById = useMemo(() => {
     return new Map((groupsQuery.data ?? []).map((group) => [group.id, group]));
@@ -294,27 +299,18 @@ export function GroupsPage() {
   }
 
   return (
-    <div className="page stack-lg">
-      <PageHeader
-        title="Entry Groups"
-        description="Group topology and member details."
-      />
+    <div className="page">
+      <WorkspaceSection className="groups-browser-card" contentClassName="workspace-table-body">
+        <GroupsTableToolbar
+          search={groupSearch}
+          groupTypeOptions={groupTypeFilterOptions}
+          selectedGroupTypes={selectedGroupTypes}
+          onSearchChange={setGroupSearch}
+          onGroupTypesChange={setSelectedGroupTypes}
+          onAddGroup={() => setIsCreateGroupOpen(true)}
+        />
 
-      <WorkspaceSection className="groups-browser-card">
-        <WorkspaceToolbar className="filter-row">
-            <div className="table-toolbar-filters">
-              <label className="field min-w-[280px] grow">
-                <span>Search groups</span>
-                <Input value={groupSearch} onChange={(event) => setGroupSearch(event.target.value)} placeholder="Search by name or type" />
-              </label>
-            </div>
-            <div className="table-toolbar-action filter-action">
-              <Button type="button" size="icon" variant="outline" aria-label="Add group" onClick={() => setIsCreateGroupOpen(true)}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-        </WorkspaceToolbar>
-
+        <div className="table-shell">
         {groupsQuery.isLoading ? <p>Loading groups...</p> : null}
         {groupsError ? <p className="error">{groupsError}</p> : null}
 
@@ -382,6 +378,7 @@ export function GroupsPage() {
             </Table>
           </div>
         ) : null}
+        </div>
       </WorkspaceSection>
 
       <GroupDetailModal

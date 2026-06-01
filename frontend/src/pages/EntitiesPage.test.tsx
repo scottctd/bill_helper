@@ -118,6 +118,23 @@ describe("EntitiesPage", () => {
     });
   });
 
+  it("filters entities by selected categories", async () => {
+    mockEntitiesPageApi();
+    const user = userEvent.setup();
+    renderWithQueryClient(<EntitiesPage />);
+
+    expect(await screen.findByText("Grocer")).toBeInTheDocument();
+    expect(screen.getByText("Airline")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Category filter" }));
+    await user.click(await screen.findByRole("button", { name: /Travel/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Grocer")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("Airline")).toBeInTheDocument();
+  });
+
   it("opens entity editing on row double-click and keeps delete isolated", async () => {
     mockEntitiesPageApi();
     renderWithQueryClient(<EntitiesPage />);

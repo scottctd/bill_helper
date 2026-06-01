@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -210,11 +209,44 @@ def create_entry(
     return entry_to_schema(_get_entry_or_404(db, entry.id, principal))
 
 
+def _entry_entity_filter_conditions(
+    *,
+    from_entity: list[str] | None,
+    to_entity: list[str] | None,
+) -> list:
+    conditions = []
+    if from_entity:
+        normalized_from = [value.strip() for value in from_entity if value.strip()]
+        if normalized_from:
+            conditions.append(
+                or_(
+                    *[
+                        func.lower(Entry.from_entity) == value.lower()
+                        for value in normalized_from
+                    ]
+                )
+            )
+    if to_entity:
+        normalized_to = [value.strip() for value in to_entity if value.strip()]
+        if normalized_to:
+            conditions.append(
+                or_(
+                    *[
+                        func.lower(Entry.to_entity) == value.lower()
+                        for value in normalized_to
+                    ]
+                )
+            )
+    return conditions
+
+
 @router.get("", response_model=EntryListResponse)
 def list_entries(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
     filters: EntryListQueryParams = Depends(),
+    from_entity: list[str] | None = Query(default=None),
+    to_entity: list[str] | None = Query(default=None),
 ) -> EntryListResponse:
     conditions = [Entry.is_deleted.is_(False), entry_owner_filter(principal)]
 
@@ -242,28 +274,7 @@ def list_entries(
                 Entry.to_entity.ilike(pattern),
             )
         )
-    if filters.from_entity:
-        normalized_from = [value.strip() for value in filters.from_entity if value.strip()]
-        if normalized_from:
-            conditions.append(
-                or_(
-                    *[
-                        func.lower(Entry.from_entity) == value.lower()
-                        for value in normalized_from
-                    ]
-                )
-            )
-    if filters.to_entity:
-        normalized_to = [value.strip() for value in filters.to_entity if value.strip()]
-        if normalized_to:
-            conditions.append(
-                or_(
-                    *[
-                        func.lower(Entry.to_entity) == value.lower()
-                        for value in normalized_to
-                    ]
-                )
-            )
+    conditions.extend(_entry_entity_filter_conditions(from_entity=from_entity, to_entity=to_entity))
 
     stmt = (
         select(Entry)

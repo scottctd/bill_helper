@@ -9,7 +9,10 @@ import { useState } from "react";
 
 import {
   SECTION_CREATE_PANEL_DEFAULTS,
+  SECTION_CURRENCY_STATUS_FILTER_DEFAULT,
   SECTION_SEARCH_DEFAULTS,
+  SECTION_TAG_TYPE_FILTER_DEFAULTS,
+  type CurrencyStatusFilter,
   type PropertiesSectionId
 } from "./types";
 
@@ -18,6 +21,10 @@ export function usePropertiesSectionState() {
   const [sectionSearch, setSectionSearch] = useState<Record<PropertiesSectionId, string>>({
     ...SECTION_SEARCH_DEFAULTS
   });
+  const [selectedTagTypes, setSelectedTagTypes] = useState<string[]>([...SECTION_TAG_TYPE_FILTER_DEFAULTS]);
+  const [currencyStatusFilter, setCurrencyStatusFilter] = useState<CurrencyStatusFilter>(
+    SECTION_CURRENCY_STATUS_FILTER_DEFAULT
+  );
   const [createPanelOpen, setCreatePanelOpen] = useState<Record<PropertiesSectionId, boolean>>({
     ...SECTION_CREATE_PANEL_DEFAULTS
   });
@@ -38,6 +45,10 @@ export function usePropertiesSectionState() {
     activeSection,
     setActiveSection,
     sectionSearch,
+    selectedTagTypes,
+    setSelectedTagTypes,
+    currencyStatusFilter,
+    setCurrencyStatusFilter,
     createPanelOpen,
     actions: {
       setSectionSearchValue,

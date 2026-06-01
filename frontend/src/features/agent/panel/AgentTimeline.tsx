@@ -237,7 +237,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
   }
 
   return (
-    <>
+    <div className="agent-timeline-pane">
       {!selectedThreadId ? (
         <p className="muted agent-timeline-empty">Select a thread or send a message to start a new one.</p>
       ) : null}
@@ -246,7 +246,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
 
       {selectedThreadId ? (
         <div className="agent-timeline-scroll-wrapper">
-          <div className="agent-timeline-scroll" ref={timelineScrollRef}>
+          <div className="agent-timeline-scroll flex flex-col gap-3" ref={timelineScrollRef}>
           {initiatedByExternalAgent ? (
             <aside className="agent-external-session-hint" aria-label="External agent session">
               <p>
@@ -527,7 +527,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
           ) : null}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 

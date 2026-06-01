@@ -167,6 +167,10 @@
     @apply mx-0 max-w-none px-0 py-0;
   }
 
+  .app-content:has(.agent-page) {
+    @apply h-full min-h-0 overflow-hidden;
+  }
+
   .page {
     @apply min-w-0;
   }

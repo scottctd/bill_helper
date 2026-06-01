@@ -7,25 +7,13 @@
  */
 import type { CSSProperties } from "react";
 import { NavLink } from "react-router-dom";
-import { Bot, Building2, CreditCard, FolderKanban, Home, Layers3, Network, PanelLeft, PanelLeftClose, Settings2, Shield, SlidersHorizontal } from "lucide-react";
+import { PanelLeft, PanelLeftClose } from "lucide-react";
 
 import { AuthSessionCard, useAuth } from "../features/auth";
 import { usePrefetchDashboard } from "../features/dashboard/usePrefetchDashboard";
+import { APP_ADMIN_NAV_ITEM, APP_NAV_ITEMS, APP_SETTINGS_NAV_ITEM } from "../lib/appNavigation";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
-
-const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: Home },
-  { to: "/", label: "Agent", icon: Bot },
-  { to: "/accounts", label: "Accounts", icon: CreditCard },
-  { to: "/entries", label: "Entries", icon: Layers3 },
-  { to: "/groups", label: "Groups", icon: Network },
-  { to: "/filters", label: "Filters", icon: SlidersHorizontal },
-  { to: "/entities", label: "Entities", icon: Building2 },
-  { to: "/properties", label: "Properties", icon: FolderKanban },
-] as const;
-
-const settingsItem = { to: "/settings", label: "Settings", icon: Settings2 } as const;
 
 interface SidebarProps {
   collapsed: boolean;
@@ -55,13 +43,13 @@ export function Sidebar({ collapsed, width, onToggle }: SidebarProps) {
       </div>
 
       <nav className="sidebar-nav">
-        {navItems.map((item) => {
+        {APP_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           return (
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === "/"}
+              end={item.end}
               className={({ isActive }) => cn("sidebar-link", isActive && "sidebar-link-active")}
               title={collapsed ? item.label : undefined}
               onMouseEnter={item.to === "/dashboard" ? () => prefetchCoreDashboard() : undefined}
@@ -76,23 +64,23 @@ export function Sidebar({ collapsed, width, onToggle }: SidebarProps) {
 
       <div className="sidebar-footer">
         <NavLink
-          to={settingsItem.to}
-          end
+          to={APP_SETTINGS_NAV_ITEM.to}
+          end={APP_SETTINGS_NAV_ITEM.end}
           className={({ isActive }) => cn("sidebar-link", isActive && "sidebar-link-active")}
-          title={collapsed ? settingsItem.label : undefined}
+          title={collapsed ? APP_SETTINGS_NAV_ITEM.label : undefined}
         >
-          <Settings2 className="sidebar-link-icon" />
-          {!collapsed ? <span className="sidebar-link-label">{settingsItem.label}</span> : null}
+          <APP_SETTINGS_NAV_ITEM.icon className="sidebar-link-icon" />
+          {!collapsed ? <span className="sidebar-link-label">{APP_SETTINGS_NAV_ITEM.label}</span> : null}
         </NavLink>
         {auth.status === "authenticated" && auth.session?.user.is_admin ? (
           <NavLink
-            to="/admin"
-            end
+            to={APP_ADMIN_NAV_ITEM.to}
+            end={APP_ADMIN_NAV_ITEM.end}
             className={({ isActive }) => cn("sidebar-link", isActive && "sidebar-link-active")}
-            title={collapsed ? "Admin" : undefined}
+            title={collapsed ? APP_ADMIN_NAV_ITEM.label : undefined}
           >
-            <Shield className="sidebar-link-icon" />
-            {!collapsed ? <span className="sidebar-link-label">Admin</span> : null}
+            <APP_ADMIN_NAV_ITEM.icon className="sidebar-link-icon" />
+            {!collapsed ? <span className="sidebar-link-label">{APP_ADMIN_NAV_ITEM.label}</span> : null}
           </NavLink>
         ) : null}
         <AuthSessionCard collapsed={collapsed} />

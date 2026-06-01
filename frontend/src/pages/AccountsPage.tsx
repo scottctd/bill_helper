@@ -5,10 +5,10 @@
  * - Outputs: React components and UI helpers exported by `AccountsPage`.
  * - Side effects: React rendering and user event wiring.
  */
-import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { AccountDialogs } from "../features/accounts/AccountDialogs";
 import { AccountsTableSection } from "../features/accounts/AccountsTableSection";
+import { AccountsTableToolbar } from "../features/accounts/AccountsTableToolbar";
 import { useAccountsPageModel } from "../features/accounts/useAccountsPageModel";
 import { DeleteConfirmDialog } from "../components/DeleteConfirmDialog";
 
@@ -27,19 +27,25 @@ export function AccountsPage() {
   const snapshotsError = model.queries.snapshotsQuery.isError ? (model.queries.snapshotsQuery.error as Error).message : null;
 
   return (
-    <div className="page stack-lg">
-      <PageHeader
-        title="Accounts"
-        description="Accounts, snapshots, and reconciliation."
-      />
-
-      <WorkspaceSection>
-        <AccountsTableSection
+    <div className="page">
+      <WorkspaceSection contentClassName="workspace-table-body">
+        <AccountsTableToolbar
           accountSearch={model.accountSearch}
+          currencyOptions={model.currencyFilterOptions}
+          ownerOptions={model.ownerFilterOptions}
+          selectedCurrencies={model.selectedCurrencies}
+          selectedOwners={model.selectedOwners}
+          statusFilter={model.statusFilter}
           onAccountSearchChange={model.setAccountSearch}
+          onCurrenciesChange={model.setSelectedCurrencies}
+          onOwnersChange={model.setSelectedOwners}
+          onStatusFilterChange={model.setStatusFilter}
           onOpenCreateDialog={model.actions.openCreateDialog}
+        />
+        <AccountsTableSection
           accounts={model.queries.accountsQuery.data}
           filteredAccounts={model.filteredAccounts}
+          accountSearch={model.accountSearch}
           selectedAccountId={model.selectedAccountId}
           onSelectAccount={model.setSelectedAccountId}
           onEditAccount={model.actions.editAccount}

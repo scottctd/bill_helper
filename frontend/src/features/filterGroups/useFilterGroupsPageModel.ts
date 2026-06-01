@@ -225,7 +225,6 @@ export function useFilterGroupsPageModel() {
     isPending: Boolean(isPending),
     isSystemUntagged,
     canSubmit: Boolean(session) && !isSystemUntagged && Boolean(session?.formState.name.trim()) && isDirty && !isPending,
-    showHeaderSubmit: Boolean(session) && !isSystemUntagged,
     submitLabel: session?.kind === "new" ? "Create group" : "Save changes",
     submitPendingLabel: session?.kind === "new" ? "Creating..." : "Saving...",
     requestTarget,

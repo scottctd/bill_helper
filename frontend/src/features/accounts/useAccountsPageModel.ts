@@ -24,7 +24,9 @@ import {
 } from "../../lib/api";
 import { invalidateAccountReadModels } from "../../lib/queryInvalidation";
 import { queryKeys } from "../../lib/queryKeys";
-import type { Account } from "../../lib/types";
+import type { AccountStatusFilter } from "./AccountsTableToolbar";
+import { includesFilter } from "../../lib/catalogs";
+import { stringOptionsAsTags, matchesSelectedValues, normalizeFilterValue } from "../../lib/workspaceFilters";
 import { buildEditForm, buildSnapshotDeletionImpact, normalizeNullableMarkdown, normalizeOptionalText } from "./helpers";
 import { ACCOUNT_FORM_DEFAULTS, TODAY_ISO, type AccountFormState, type SnapshotFormState } from "./types";
 
@@ -39,6 +41,9 @@ export function useAccountsPageModel() {
 
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [accountSearch, setAccountSearch] = useState("");
+  const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<AccountStatusFilter>("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
@@ -77,18 +82,42 @@ export function useAccountsPageModel() {
     return Array.from(codes).sort();
   }, [accountsQuery.data, createForm.currency_code, currenciesQuery.data, editForm.currency_code]);
 
+  const currencyFilterOptions = useMemo(() => stringOptionsAsTags(currencies), [currencies]);
+
+  const ownerFilterOptions = useMemo(
+    () => stringOptionsAsTags(Array.from(ownerNamesById.values()).sort((left, right) => left.localeCompare(right))),
+    [ownerNamesById]
+  );
+
   const filteredAccounts = useMemo(() => {
-    const query = accountSearch.trim().toLowerCase();
     const accounts = accountsQuery.data ?? [];
-    if (!query) {
-      return accounts;
-    }
+    const selectedCurrencySet = new Set(selectedCurrencies.map((currency) => normalizeFilterValue(currency)));
+    const selectedOwnerSet = new Set(selectedOwners.map((owner) => normalizeFilterValue(owner)));
 
     return accounts.filter((account) => {
+      if (!includesFilter(account.name, accountSearch)) {
+        return false;
+      }
+
+      if (selectedCurrencySet.size > 0 && !selectedCurrencySet.has(normalizeFilterValue(account.currency_code))) {
+        return false;
+      }
+
       const ownerName = ownerNamesById.get(account.owner_user_id) ?? "";
-      return [account.name, account.currency_code, ownerName].join(" ").toLowerCase().includes(query);
+      if (selectedOwnerSet.size > 0 && !selectedOwnerSet.has(normalizeFilterValue(ownerName))) {
+        return false;
+      }
+
+      if (statusFilter === "active" && !account.is_active) {
+        return false;
+      }
+      if (statusFilter === "inactive" && account.is_active) {
+        return false;
+      }
+
+      return true;
     });
-  }, [accountSearch, accountsQuery.data, ownerNamesById]);
+  }, [accountSearch, accountsQuery.data, ownerNamesById, selectedCurrencies, selectedOwners, statusFilter]);
 
   useEffect(() => {
     const accounts = accountsQuery.data ?? [];
@@ -347,6 +376,14 @@ export function useAccountsPageModel() {
     setSelectedAccountId,
     accountSearch,
     setAccountSearch,
+    selectedCurrencies,
+    setSelectedCurrencies,
+    selectedOwners,
+    setSelectedOwners,
+    statusFilter,
+    setStatusFilter,
+    currencyFilterOptions,
+    ownerFilterOptions,
     createDialogOpen,
     setCreateDialogOpen,
     editingAccountId,

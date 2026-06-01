@@ -11,7 +11,6 @@ import { Link, useParams } from "react-router-dom";
 
 import { EntryEditorModal, type EntryEditorSubmitPayload } from "../components/EntryEditorModal";
 import { GroupGraphView } from "../components/GroupGraphView";
-import { PageHeader } from "../components/layout/PageHeader";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -100,12 +99,13 @@ export function EntryDetailPage() {
   }
 
   const entry = entryQuery.data;
+  const entrySummary = `${entry.occurred_at} | ${kindLabel(entry.kind)} ${kindSymbol(entry.kind)} | ${formatMinor(entry.amount_minor, entry.currency_code)}`;
 
   return (
     <div className="page stack-lg">
-      <PageHeader
+      <WorkspaceSection
         title={entry.name}
-        description={`${entry.occurred_at} | ${kindLabel(entry.kind)} ${kindSymbol(entry.kind)} | ${formatMinor(entry.amount_minor, entry.currency_code)}`}
+        description={entrySummary}
         actions={
           <div className="table-actions">
             <Button asChild variant="outline" size="sm">
@@ -116,9 +116,7 @@ export function EntryDetailPage() {
             </Button>
           </div>
         }
-      />
-
-      <WorkspaceSection title="Entry Details">
+      >
         <div className="grid gap-3 text-sm">
           <div>
             <strong>From:</strong> {entry.from_entity || "(unspecified)"}

@@ -23,6 +23,10 @@ interface FilterGroupEditorPanelProps {
   preferredTagName?: string;
   isDirty: boolean;
   isPending: boolean;
+  canSubmit: boolean;
+  submitLabel: string;
+  submitPendingLabel: string;
+  onSubmit: () => void;
   mutationError?: string | null;
   tagLoadError?: string | null;
   onChange: (nextFormState: FilterGroupEditorFormState) => void;
@@ -35,6 +39,10 @@ export function FilterGroupEditorPanel({
   preferredTagName,
   isDirty,
   isPending,
+  canSubmit,
+  submitLabel,
+  submitPendingLabel,
+  onSubmit,
   mutationError,
   tagLoadError,
   onChange,
@@ -60,11 +68,16 @@ export function FilterGroupEditorPanel({
               {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
             </div>
           </div>
-          {session.kind === "existing" ? (
-            <Button asChild type="button" variant="outline" size="sm">
-              <Link to={`/entries?filter_group_id=${session.filterGroupId}`}>View matching entries</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {session.kind === "existing" ? (
+              <Button asChild type="button" variant="outline" size="sm">
+                <Link to={`/entries?filter_group_id=${session.filterGroupId}`}>View matching entries</Link>
+              </Button>
+            ) : null}
+            <Button type="button" size="sm" disabled={!canSubmit || isPending} onClick={onSubmit}>
+              {isPending ? submitPendingLabel : submitLabel}
             </Button>
-          ) : null}
+          </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),180px]">
