@@ -234,6 +234,9 @@ scripts/bank_download/recipes/*
 .data/
 logs/
 
+# Local backups
+backups/
+
 # OS files
 .DS_Store
 
