@@ -1,0 +1,12 @@
+/* Import job review dialog — shell overrides; layout uses shared review-panel styles */
+.import-job-review-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(96vw, 80rem);
+  height: min(94vh, 52rem);
+  max-width: none;
+  max-height: 94vh;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}

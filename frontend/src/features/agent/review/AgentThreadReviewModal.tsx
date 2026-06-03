@@ -5,8 +5,7 @@
  * - Outputs: React components and UI helpers exported by `AgentThreadReviewModal`.
  * - Side effects: React rendering and user event wiring.
  */
-import { Dialog, DialogContent } from "../../../components/ui/dialog";
-import { cn } from "../../../lib/utils";
+import { ReviewPanel } from "../../review/ReviewPanel";
 import { ReviewTocSection } from "./ReviewEditors";
 import { ReviewActiveItemCard } from "./ReviewActiveItemCard";
 import { ReviewModalControls } from "./ReviewModalControls";
@@ -23,41 +22,31 @@ export function AgentThreadReviewModal(props: AgentThreadReviewModalProps) {
   }
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="agent-review-modal-content h-[96vh] w-[96vw] max-w-none overflow-hidden bg-card p-0 sm:w-[94vw] md:w-[92vw] lg:h-[94vh] lg:w-[88vw] xl:w-[78rem]">
-        <div className="agent-review-modal-layout">
-          <ReviewModalHeader controller={controller} />
-
-          <div className={cn("agent-review-shell", controller.isSidebarCollapsed && "is-sidebar-collapsed")}>
-            <ReviewModalControls controller={controller} isBusy={props.isBusy} />
-
-            {!controller.isSidebarCollapsed ? (
-              <aside id="agent-review-sidebar" className="agent-review-sidebar">
-                <div className="agent-review-sidebar-scroll">
-                  <ReviewTocSection
-                    title="Pending"
-                    items={controller.pendingItems}
-                    activeItemId={controller.activeItemId}
-                    onSelect={controller.setActiveItemId}
-                  />
-                  <ReviewTocSection
-                    title="Reviewed / Failed"
-                    items={controller.resolvedItems}
-                    activeItemId={controller.activeItemId}
-                    onSelect={controller.setActiveItemId}
-                  />
-                </div>
-              </aside>
-            ) : null}
-
-            <section className="agent-review-card-column">
-              <ReviewActiveItemCard controller={controller} isBusy={props.isBusy} />
-            </section>
-          </div>
-
-          <ReviewModalFooter controller={controller} />
-        </div>
-      </DialogContent>
-    </Dialog>
+    <ReviewPanel
+      open={props.open}
+      embedded={props.embedded}
+      onOpenChange={props.onOpenChange}
+      isSidebarCollapsed={controller.isSidebarCollapsed}
+      header={<ReviewModalHeader controller={controller} />}
+      controls={<ReviewModalControls controller={controller} isBusy={props.isBusy} />}
+      sidebar={
+        <>
+          <ReviewTocSection
+            title="Pending"
+            items={controller.pendingItems}
+            activeItemId={controller.activeItemId}
+            onSelect={controller.setActiveItemId}
+          />
+          <ReviewTocSection
+            title="Reviewed / Failed"
+            items={controller.resolvedItems}
+            activeItemId={controller.activeItemId}
+            onSelect={controller.setActiveItemId}
+          />
+        </>
+      }
+      activeCard={<ReviewActiveItemCard controller={controller} isBusy={props.isBusy} />}
+      footer={<ReviewModalFooter controller={controller} />}
+    />
   );
 }

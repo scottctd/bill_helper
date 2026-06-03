@@ -62,7 +62,7 @@
 - **Attachments:** Image and PDF; uploads are parsed with Docling into inline `parsed.md` plus workspace image-path hints, and the agent can call `read_image` later when visual inspection is needed.
 - **Surface context:** Telegram gets adapted prompts/replies.
 - **Model selection:** Dropdown to pick from available models; can change mid-conversation.
-- **Bulk mode:** One thread per attached file, concurrent limit configurable.
+- **Import tab:** Backend-orchestrated multi-file import jobs with worker pool, re-import detection, and aggregated proposal review.
 - **Run interrupt:** User can stop a running agent.
 - **Review results:** Prepended to latest message for continuation; agent iteratively improves proposals after feedback and inspects prior proposal state through `bh proposals list|get`.
 - **Tool lifecycle:** Queued → running → completed/cancelled; collapsible observability (arguments, output).

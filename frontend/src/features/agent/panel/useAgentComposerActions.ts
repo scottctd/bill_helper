@@ -8,25 +8,12 @@
 import { type Dispatch, type FormEvent, type SetStateAction, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useNotifications } from "../../../components/ui/notification-center";
-import { createAgentThread, deleteAgentThread, getAgentThread, sendAgentMessage, streamAgentMessage } from "../../../lib/api";
+import { getAgentThread, streamAgentMessage } from "../../../lib/api";
 import { invalidateAgentThreadData } from "../../../lib/queryInvalidation";
 import { queryKeys } from "../../../lib/queryKeys";
-import type {
-  AgentApprovalPolicy,
-  AgentStreamEvent,
-  AgentThread,
-  AgentThreadDetail,
-  AgentThreadSummary
-} from "../../../lib/types";
+import type { AgentApprovalPolicy, AgentStreamEvent, AgentThreadDetail } from "../../../lib/types";
 import { sortRunsByCreatedAt } from "../activity";
 import { agentStreamAbortControllers } from "./agentStreamSession";
-import {
-  buildThreadSummary,
-  deriveThreadTitleFromFilename,
-  mapWithConcurrency,
-  summarizeFilenames
-} from "./helpers";
 import { type DraftAttachment, type PendingAssistantMessage, type PendingUserMessage, type ReadyDraftAttachment } from "./types";
 
 interface UseAgentComposerActionsArgs {
@@ -34,14 +21,12 @@ interface UseAgentComposerActionsArgs {
   activeStreamRunId: string | null;
   addOptimisticRunningThreadId: (threadId: string) => void;
   approvalPolicy: AgentApprovalPolicy;
-  bulkLaunchConcurrencyLimit: number;
   clearOptimisticThreadTitle: (threadId: string) => void;
   draftAttachments: DraftAttachment[];
   draftMessage: string;
   ensureThreadId: () => Promise<string>;
   handleAgentStreamEvent: (threadId: string, event: AgentStreamEvent) => void;
   interruptRun: (payload: { runId: string; threadId: string }) => Promise<void>;
-  isBulkMode: boolean;
   removeOptimisticRunningThreadId: (threadId: string) => void;
   resetOptimisticRunState: (threadId?: string) => void;
   resolveDraftAttachmentsForSend: (attachments: DraftAttachment[]) => Promise<ReadyDraftAttachment[]>;
@@ -50,13 +35,11 @@ interface UseAgentComposerActionsArgs {
   setActionError: (message: string | null) => void;
   setDraftAttachments: Dispatch<SetStateAction<DraftAttachment[]>>;
   setDraftMessage: (message: string) => void;
-  setIsBulkLaunching: (value: boolean) => void;
   setPendingAssistantMessage: (threadId: string, message: PendingAssistantMessage | null) => void;
   setPendingUserMessage: (threadId: string, message: PendingUserMessage | null) => void;
   setThreadStreamHealthy: (threadId: string, isHealthy: boolean) => void;
   snapToBottom: () => void;
   threadDetail: AgentThreadDetail | undefined;
-  upsertThreadSummary: (thread: AgentThreadSummary) => void;
 }
 
 export function useAgentComposerActions({
@@ -64,14 +47,12 @@ export function useAgentComposerActions({
   activeStreamRunId,
   addOptimisticRunningThreadId,
   approvalPolicy,
-  bulkLaunchConcurrencyLimit,
   clearOptimisticThreadTitle,
   draftAttachments,
   draftMessage,
   ensureThreadId,
   handleAgentStreamEvent,
   interruptRun,
-  isBulkMode,
   removeOptimisticRunningThreadId,
   resetOptimisticRunState,
   resolveDraftAttachmentsForSend,
@@ -80,110 +61,14 @@ export function useAgentComposerActions({
   setActionError,
   setDraftAttachments,
   setDraftMessage,
-  setIsBulkLaunching,
   setPendingAssistantMessage,
   setPendingUserMessage,
   setThreadStreamHealthy,
   snapToBottom,
-  threadDetail,
-  upsertThreadSummary
+  threadDetail
 }: UseAgentComposerActionsArgs) {
   const queryClient = useQueryClient();
-  const { notify } = useNotifications();
   const [sendingThreadIds, setSendingThreadIds] = useState<string[]>([]);
-
-  async function handleSubmitBulkMessages(content: string, attachments: DraftAttachment[]) {
-    if (attachments.length === 0) {
-      setActionError("Attach at least one file to start Bulk mode.");
-      return;
-    }
-
-    setActionError(null);
-    setIsBulkLaunching(true);
-    try {
-      const readyAttachments = await resolveDraftAttachmentsForSend(attachments);
-      const results = await mapWithConcurrency(readyAttachments, bulkLaunchConcurrencyLimit, async (attachment) => {
-        let createdThread: AgentThread | null = null;
-        try {
-          createdThread = await createAgentThread({
-            title: deriveThreadTitleFromFilename(attachment.file.name)
-          });
-          upsertThreadSummary(buildThreadSummary(createdThread));
-          addOptimisticRunningThreadId(createdThread.id);
-          upsertThreadSummary(
-            buildThreadSummary(createdThread, {
-              last_message_preview: content || "User sent attachments.",
-              has_running_run: true
-            })
-          );
-          await sendAgentMessage({
-            threadId: createdThread.id,
-            content,
-            files: [],
-            attachmentIds: [attachment.uploadedAttachmentId],
-            attachmentsUseOcr: false,
-            modelName: selectedComposerModel || undefined,
-            approvalPolicy
-          });
-          return { attachmentId: attachment.id, fileName: attachment.file.name, failed: false as const, errorMessage: null };
-        } catch (error) {
-          if (createdThread) {
-            removeOptimisticRunningThreadId(createdThread.id);
-            try {
-              await deleteAgentThread(createdThread.id);
-              queryClient.setQueryData(queryKeys.agent.threads, (current: AgentThreadSummary[] | undefined) =>
-                (current ?? []).filter((thread) => thread.id !== createdThread?.id)
-              );
-              queryClient.removeQueries({ queryKey: queryKeys.agent.thread(createdThread.id), exact: true });
-            } catch {
-              upsertThreadSummary(
-                buildThreadSummary(createdThread, {
-                  last_message_preview: null,
-                  has_running_run: false
-                })
-              );
-            }
-          }
-          return {
-            attachmentId: attachment.id,
-            fileName: attachment.file.name,
-            failed: true as const,
-            errorMessage: (error as Error).message
-          };
-        }
-      });
-
-      const startedCount = results.filter((result) => !result.failed).length;
-      const failedResults = results.filter((result) => result.failed);
-      const failedAttachmentIdSet = new Set(failedResults.map((result) => result.attachmentId));
-      const uniqueErrorMessages = [...new Set(failedResults.map((result) => result.errorMessage).filter(Boolean))];
-      setDraftAttachments((current) => current.filter((attachment) => failedAttachmentIdSet.has(attachment.id)));
-      if (failedAttachmentIdSet.size === 0) {
-        setDraftMessage("");
-      }
-      setActionError(uniqueErrorMessages.length === 0 ? null : uniqueErrorMessages.join(" "));
-      if (failedResults.length === 0) {
-        notify({
-          title: `Started ${startedCount} thread${startedCount === 1 ? "" : "s"}.`,
-          tone: "success"
-        });
-      } else {
-        const descriptionParts = [`Files: ${summarizeFilenames(failedResults.map((result) => result.fileName))}`];
-        if (uniqueErrorMessages[0]) {
-          descriptionParts.push(uniqueErrorMessages[0]);
-        }
-        notify({
-          title: `Started ${startedCount} thread${startedCount === 1 ? "" : "s"}. Failed ${failedResults.length}.`,
-          description: descriptionParts.join(" "),
-          tone: "error",
-          durationMs: 5600
-        });
-      }
-      invalidateAgentThreadData(queryClient);
-    } finally {
-      setIsBulkLaunching(false);
-    }
-  }
 
   async function handleSubmitSingleMessage(content: string, attachments: DraftAttachment[]) {
     let threadId: string | null = null;
@@ -283,10 +168,6 @@ export function useAgentComposerActions({
     event.preventDefault();
     setActionError(null);
     const content = draftMessage.trim();
-    if (isBulkMode) {
-      await handleSubmitBulkMessages(content, [...draftAttachments]);
-      return;
-    }
     if (!content && draftAttachments.length === 0) {
       setActionError("Enter a message or attach at least one file.");
       return;

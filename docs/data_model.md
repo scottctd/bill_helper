@@ -28,6 +28,12 @@ Agent:
 - `AgentChangeStatus`: `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `APPLIED`, `APPLY_FAILED`
 - `AgentReviewActionType`: `approve`, `reject`
 
+Import:
+
+- `ImportJobStatus`: `queued`, `running`, `completed`, `failed`, `cancelled`
+- `ImportTaskStatus`: `queued`, `running`, `completed`, `failed`, `cancelled`
+- `ImportPreflightSuggestedAction`: `import`, `skip`
+
 ## Core Ledger Tables
 
 ## `accounts`
@@ -113,7 +119,7 @@ Operational rules:
   - `entry_tagging_model`
   - `agent_model_display_names` (nullable JSON-serialized object mapping model id → display label for UI)
   - `agent_max_steps`
-  - `agent_bulk_max_concurrent_threads`
+- `agent_bulk_max_concurrent_threads` (default import job worker pool size; UI label: import concurrent workers)
   - `agent_retry_max_attempts`
   - `agent_retry_initial_wait_seconds`
   - `agent_retry_max_wait_seconds`
@@ -470,6 +476,41 @@ Fields:
 - `actor`
 - `note`
 - `created_at`
+
+## Import Tables (`0043_add_import_workflow`)
+
+## `import_jobs`
+
+- `id` (PK UUID string)
+- `owner_user_id` (FK -> `users.id`)
+- `title` (nullable)
+- `status` (`ImportJobStatus`)
+- `model_name`
+- `concurrency`
+- `approval_policy` (`AgentApprovalPolicy`)
+- `instructions`
+- `total_tasks`, `completed_tasks`, `failed_tasks`
+- `created_at`, `updated_at`, `completed_at`
+
+## `import_tasks`
+
+- `id` (PK UUID string)
+- `job_id` (FK -> `import_jobs.id`)
+- `thread_id` (FK -> `agent_threads.id`)
+- `source_user_file_id` (nullable FK -> `user_files.id`)
+- `source_sha256` (nullable; used for re-import detection)
+- `source_label`
+- `status` (`ImportTaskStatus`)
+- `active_run_id` (nullable)
+- `error_text` (nullable)
+- `sequence_index`
+- `created_at`, `updated_at`, `completed_at`
+
+Operational rules:
+
+- one source attachment → one task → one agent thread
+- import threads are omitted from the Agent thread list query
+- re-import by identical `source_sha256` is allowed; preflight surfaces prior jobs
 
 ## Derived Rules
 

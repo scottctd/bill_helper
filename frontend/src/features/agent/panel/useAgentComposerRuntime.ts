@@ -10,13 +10,10 @@ import { type ChangeEvent, type KeyboardEvent, useEffect, useMemo, useRef, useSt
 import type {
   AgentApprovalPolicy,
   AgentThreadDetail,
-  AgentThreadSummary,
   RuntimeSettings
 } from "../../../lib/types";
 import { sortRunsByCreatedAt } from "../activity";
 import {
-  BULK_MODE_HELP_TEXT,
-  DEFAULT_BULK_LAUNCH_CONCURRENCY_LIMIT,
   resolveComposerModelName
 } from "./helpers";
 import { useAgentComposerActions } from "./useAgentComposerActions";
@@ -38,17 +35,14 @@ interface UseAgentComposerRuntimeArgs {
   clearOptimisticThreadTitle: (threadId: string) => void;
   ensureThreadId: () => Promise<string>;
   interruptRun: (payload: { runId: string; threadId: string }) => Promise<void>;
-  isBulkLaunching: boolean;
   isInterruptPending: boolean;
   isMutating: boolean;
   removeOptimisticRunningThreadId: (threadId: string) => void;
   runtimeSettings: RuntimeSettings | undefined;
   selectedThreadId: string;
   setActionError: (message: string | null) => void;
-  setIsBulkLaunching: (value: boolean) => void;
   setThreadStreamHealthy: (threadId: string, isHealthy: boolean) => void;
   threadDetail: AgentThreadDetail | undefined;
-  upsertThreadSummary: (thread: AgentThreadSummary) => void;
 }
 
 export function useAgentComposerRuntime({
@@ -59,20 +53,16 @@ export function useAgentComposerRuntime({
   clearOptimisticThreadTitle,
   ensureThreadId,
   interruptRun,
-  isBulkLaunching,
   isInterruptPending,
   isMutating,
   removeOptimisticRunningThreadId,
   runtimeSettings,
   selectedThreadId,
   setActionError,
-  setIsBulkLaunching,
   setThreadStreamHealthy,
-  threadDetail,
-  upsertThreadSummary
+  threadDetail
 }: UseAgentComposerRuntimeArgs) {
   const [draftMessage, setDraftMessage] = useState("");
-  const [isBulkMode, setIsBulkMode] = useState(false);
   const [pendingUserMessagesByThreadId, setPendingUserMessagesByThreadId] = useState<Record<string, PendingUserMessage>>({});
   const [pendingAssistantMessagesByThreadId, setPendingAssistantMessagesByThreadId] = useState<
     Record<string, PendingAssistantMessage>
@@ -114,8 +104,6 @@ export function useAgentComposerRuntime({
   );
   const selectedComposerModel =
     composerModelOverride && availableComposerModels.includes(composerModelOverride) ? composerModelOverride : resolvedComposerModel;
-  const bulkLaunchConcurrencyLimit =
-    runtimeSettings?.agent_bulk_max_concurrent_threads ?? DEFAULT_BULK_LAUNCH_CONCURRENCY_LIMIT;
   const hasActiveRun = useMemo(() => (threadDetail?.runs ?? []).some((run) => run.status === "running"), [threadDetail?.runs]);
   const activeRunId = useMemo(() => {
     const runs = sortRunsByCreatedAt(threadDetail?.runs ?? []);
@@ -216,14 +204,12 @@ export function useAgentComposerRuntime({
     activeStreamRunId,
     addOptimisticRunningThreadId,
     approvalPolicy,
-    bulkLaunchConcurrencyLimit,
     clearOptimisticThreadTitle,
     draftAttachments,
     draftMessage,
     ensureThreadId,
     handleAgentStreamEvent,
     interruptRun,
-    isBulkMode,
     removeOptimisticRunningThreadId,
     resetOptimisticRunState,
     selectedComposerModel,
@@ -232,13 +218,11 @@ export function useAgentComposerRuntime({
     setActionError,
     setDraftAttachments,
     setDraftMessage,
-    setIsBulkLaunching,
     setPendingAssistantMessage,
     setPendingUserMessage,
     setThreadStreamHealthy,
     snapToBottom,
-    threadDetail,
-    upsertThreadSummary
+    threadDetail
   });
   const isSendingMessage = selectedThreadId ? actions.sendingThreadIds.includes(selectedThreadId) : false;
   const isRunInFlight = isSendingMessage || hasActiveRun;
@@ -352,7 +336,7 @@ export function useAgentComposerRuntime({
     }
 
     event.preventDefault();
-    if (isMutating || isBulkLaunching || (!isBulkMode && isRunInFlight)) {
+    if (isMutating || isRunInFlight) {
       return;
     }
     event.currentTarget.form?.requestSubmit();
@@ -374,16 +358,10 @@ export function useAgentComposerRuntime({
     }
   }
 
-  function handleBulkModeChange(checked: boolean) {
-    setIsBulkMode(checked);
-    setActionError(null);
-  }
-
   function resetComposerDraft() {
     setActionError(null);
     setDraftMessage("");
     clearAllDraftAttachments();
-    setIsBulkMode(false);
     setComposerModelOverride(null);
   }
 
@@ -392,21 +370,17 @@ export function useAgentComposerRuntime({
       actionError,
       availableModels: availableComposerModels,
       modelDisplayNames: runtimeSettings?.agent_model_display_names ?? {},
-      bulkModeHelpText: BULK_MODE_HELP_TEXT,
       composerTextareaRef,
       draftAttachments,
       draftMessage,
       fileInputRef,
       approvalPolicy,
-      isBulkLaunching,
-      isBulkMode,
       isComposerDragActive,
       isInterruptPending,
-      isModelPickerDisabled: isMutating || isBulkLaunching,
+      isModelPickerDisabled: isMutating,
       isMutating,
       isRunInFlight,
       isSendingMessage,
-      onBulkModeChange: handleBulkModeChange,
       onComposerKeyDown: handleComposerKeyDown,
       onComposerPaste: handleComposerPaste,
       onDragEnter: handleComposerDragEnter,

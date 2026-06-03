@@ -76,6 +76,12 @@ export const queryKeys = {
         [...payload.surfaces].sort().join(",")
       ] as const
   },
+  import: {
+    jobs: ["import", "jobs"] as const,
+    jobRoot: ["import", "job"] as const,
+    job: (jobId: string) => ["import", "job", jobId] as const,
+    proposals: (jobId: string) => ["import", "job", jobId, "proposals"] as const
+  },
   workspace: {
     snapshot: ["workspace", "snapshot"] as const
   },

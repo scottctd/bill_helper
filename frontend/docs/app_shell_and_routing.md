@@ -30,7 +30,7 @@ Current shell behavior:
 - unauthenticated users are redirected to `/login`
 - authenticated users see the shared sidebar plus route content
 - impersonation sessions show a banner above protected content
-- collapsible left sidebar (`Sidebar.tsx`) with navigation links for `Agent`, `Dashboard`, `Filters`, `Entries`, `Entities`, `Groups`, `Accounts`, `Properties`, and `Settings`
+- collapsible left sidebar (`Sidebar.tsx`) with navigation links for `Agent`, `Import`, `Dashboard`, `Filters`, `Entries`, `Entities`, `Groups`, `Accounts`, `Properties`, and `Settings`
 - admin users also get a dedicated `Admin` button in the expanded sidebar footer above the session card
 - the session card in the sidebar footer shows only the current account name and a logout action
 - route pages are lazy-loaded via `React.lazy` and `Suspense`
@@ -42,6 +42,7 @@ Route map:
 
 - `/login` -> password sign-in page
 - `/` -> agent home chat
+- `/import` -> multi-file import jobs workspace
 - `/dashboard` -> dashboard analytics
 - `/filters` -> saved filter-group workspace
 - `/entries` -> entry list

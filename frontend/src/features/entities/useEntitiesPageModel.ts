@@ -17,7 +17,6 @@ import {
 } from "../../lib/catalogs";
 import { invalidateEntityReadModels } from "../../lib/queryInvalidation";
 import { queryKeys } from "../../lib/queryKeys";
-import { includesFilter } from "../../lib/catalogs";
 import { stringOptionsAsTags, matchesSelectedValues, normalizeFilterValue, UNCATEGORIZED_FILTER_LABEL } from "../../lib/workspaceFilters";
 import type { Entity, Tag } from "../../lib/types";
 

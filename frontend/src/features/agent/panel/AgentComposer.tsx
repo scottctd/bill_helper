@@ -10,7 +10,6 @@ import { CircleHelp, FileImage, FileText, LoaderCircle, Paperclip, SendHorizonta
 
 import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
-import { Switch } from "../../../components/ui/switch";
 import { Textarea } from "../../../components/ui/textarea";
 import { Tooltip } from "../../../components/ui/tooltip";
 import type { AgentApprovalPolicy } from "../../../lib/types";
@@ -31,13 +30,9 @@ interface AgentComposerProps {
   isMutating: boolean;
   isRunInFlight: boolean;
   isSendingMessage: boolean;
-  isBulkMode: boolean;
-  isBulkLaunching: boolean;
   isInterruptPending: boolean;
-  bulkModeHelpText: string;
   actionError: string | null;
   approvalPolicy: AgentApprovalPolicy;
-  onBulkModeChange: (checked: boolean) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onDragEnter: (event: DragEvent<HTMLFormElement>) => void;
   onDragOver: (event: DragEvent<HTMLFormElement>) => void;
@@ -67,13 +62,9 @@ export function AgentComposer(props: AgentComposerProps) {
     isMutating,
     isRunInFlight,
     isSendingMessage,
-    isBulkMode,
-    isBulkLaunching,
     isInterruptPending,
-    bulkModeHelpText,
     actionError,
     approvalPolicy,
-    onBulkModeChange,
     onSubmit,
     onDragEnter,
     onDragOver,
@@ -87,11 +78,9 @@ export function AgentComposer(props: AgentComposerProps) {
     onFileSelection,
     onStopRun
   } = props;
-  const showStopButton = !isBulkMode && isRunInFlight;
-  const submitLabel = isBulkLaunching ? "Starting..." : isSendingMessage ? "Sending..." : "Send";
-  const composerPlaceholder = isBulkMode
-    ? "Enter one shared prompt. Each attached file will start its own fresh thread."
-    : "Ask a question or ask the agent to propose entries/tags/entities...";
+  const showStopButton = isRunInFlight;
+  const submitLabel = isSendingMessage ? "Sending..." : "Send";
+  const composerPlaceholder = "Ask a question or ask the agent to propose entries/tags/entities...";
 
   function attachmentStatusLabel(attachment: DraftAttachment): string | null {
     if (attachment.phase === "uploading") {
@@ -173,7 +162,7 @@ export function AgentComposer(props: AgentComposerProps) {
                   className="agent-draft-attachment-remove"
                   onClick={() => onRemoveAttachment(attachment.id)}
                   aria-label={`Remove ${attachment.file.name}`}
-                  disabled={isSendingMessage || isBulkLaunching}
+                  disabled={isSendingMessage}
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -217,21 +206,6 @@ export function AgentComposer(props: AgentComposerProps) {
               <Paperclip className="h-4 w-4 shrink-0" />
               <span className="agent-composer-attach-text">Attach</span>
             </Button>
-
-            <label className="agent-composer-bulk-toggle">
-              <Switch
-                checked={isBulkMode}
-                onCheckedChange={onBulkModeChange}
-                disabled={isMutating || isSendingMessage || isBulkLaunching || isInterruptPending}
-                aria-label="Bulk mode"
-              />
-              <span className="agent-composer-bulk-toggle-label">Bulk</span>
-              <Tooltip content={bulkModeHelpText}>
-                <button type="button" className="agent-composer-bulk-tooltip-trigger" aria-label="Bulk mode help">
-                  <CircleHelp className="h-3 w-3 text-muted-foreground/80" aria-hidden="true" />
-                </button>
-              </Tooltip>
-            </label>
           </div>
 
           <div className="agent-composer-primary-actions">
@@ -257,7 +231,7 @@ export function AgentComposer(props: AgentComposerProps) {
                   aria-label="Approval policy"
                   value={approvalPolicy}
                   onChange={onApprovalPolicyChange}
-                  disabled={isMutating || isSendingMessage || isBulkLaunching || isInterruptPending}
+                  disabled={isMutating || isSendingMessage || isInterruptPending}
                 >
                   <option value="default">Default</option>
                   <option value="yolo">Yolo</option>
@@ -283,7 +257,7 @@ export function AgentComposer(props: AgentComposerProps) {
                 <Square className="h-3.5 w-3.5" />
               </Button>
             ) : (
-              <Button type="submit" size="sm" disabled={isMutating || isBulkLaunching} className="agent-composer-send">
+              <Button type="submit" size="sm" disabled={isMutating} className="agent-composer-send">
                 {submitLabel}
                 <SendHorizontal className="h-4 w-4" />
               </Button>

@@ -1,0 +1,94 @@
+.import-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+.import-workspace-toolbar {
+  align-items: center;
+}
+
+.import-workspace-toolbar-copy {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.import-toolbar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--primary) 12%, var(--background));
+  color: var(--primary);
+}
+
+.import-toolbar-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.import-toolbar-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.import-detail-nav {
+  display: flex;
+  align-items: center;
+  padding: 0 0.25rem;
+}
+
+.import-jobs-section-body,
+.import-create-section-body,
+.import-job-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.import-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(22rem, 0.85fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.import-overview-primary {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.import-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.875rem;
+}
+
+.import-summary-grid .stat-block {
+  min-height: 6.25rem;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.import-active-badge,
+.import-empty-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.import-empty-state {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 900px) {
+  .import-overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

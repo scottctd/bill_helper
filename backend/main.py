@@ -30,6 +30,7 @@ from backend.routers import (
     workspace,
 )
 from backend.routers.agent import router as agent_router
+from backend.routers.import_jobs import router as import_jobs_router
 from backend.routers.accounts import router as accounts_router
 from backend.services.crud_policy import PolicyViolation
 from backend.services.agent.langfuse_litellm import ensure_langfuse_litellm_configured
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
         groups.router,
         dashboard.router,
         agent_router,
+        import_jobs_router,
         settings.router,
     )
     for router in protected_routers:

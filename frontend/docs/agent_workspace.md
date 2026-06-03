@@ -36,6 +36,7 @@ Supporting modules include:
 - `frontend/src/features/agent/panel/useStickToBottom.ts`
 - `frontend/src/hooks/useResizablePanel.ts`
 - `frontend/src/features/agent/review/AgentThreadReviewModal.tsx`
+- `frontend/src/features/review/ReviewPanel.tsx` (shared review shell consumed by the agent modal and the import job review)
 - `frontend/src/features/agent/review/ReviewModalHeader.tsx`
 - `frontend/src/features/agent/review/ReviewModalControls.tsx`
 - `frontend/src/features/agent/review/ReviewActiveItemCard.tsx`
@@ -83,7 +84,7 @@ Supporting modules include:
 
 ## Thread Review Surface
 
-- review actions are coordinated by `frontend/src/features/agent/review/useAgentThreadReviewController.ts`, while `AgentThreadReviewModal.tsx` now stays focused on dialog shell/layout composition
+- review actions are coordinated by `frontend/src/features/agent/review/useAgentThreadReviewController.ts`; `AgentThreadReviewModal.tsx` now composes the shared `frontend/src/features/review/ReviewPanel.tsx` slot shell (header/controls/sidebar/card/footer) and passes its existing agent-specific pieces, while `review.css` owns the shared `agent-review-*` styling
 - `useAgentThreadReviewController.ts` now stays on item navigation plus review actions, while `useAgentReviewEditorResources.ts` owns catalog/settings queries and `useAgentReviewDraftState.ts` owns reviewer draft maps plus payload-override shaping
 - review modal presentation is split across `ReviewModalHeader.tsx`, `ReviewModalControls.tsx`, `ReviewActiveItemCard.tsx`, and `ReviewModalFooter.tsx` so card rendering, action chrome, and footer messaging do not regrow inside the modal shell
 - the header `Review` button is the only review entry point and opens one thread-scoped dialog for all proposal items across the selected thread
@@ -104,33 +105,28 @@ Supporting modules include:
 
 ## Composer
 
-- pinned composer surface with stacked attachment prep cards; the bottom control row is compact (icon-first attach, short Bulk label, model and approval-policy selects, send/stop)
+- pinned composer surface with stacked attachment prep cards; the bottom control row is compact (icon-first attach, model and approval-policy selects, send/stop)
 - composer now stays docked against the bottom edge of the agent workspace instead of leaving dead space below the input row; the agent route caps workspace height to the viewport so the timeline scrolls internally and the composer does not fall below the fold
 - textarea and control row share one card surface instead of reading as separate color bands
 - supports picker, paste, and drag-drop for images, PDFs, and common plain-text files such as CSV
 - composer attachments upload immediately on selection, then continue through server-side preparation before send; each draft card stays on one line with the filename, a live status label, and a compact inline progress bar beside the filename
 - composer draft attachments stay removable while they are uploading or otherwise preparing so the user can drop a file before sending
-- single-send and Bulk mode both wait for all draft attachments to finish upload/parsing before the actual message request starts; once ready, the send request references persisted `attachment_ids` instead of re-uploading the same files
+- single-send waits for all draft attachments to finish upload/parsing before the streamed message request starts; once ready, the send request references persisted `attachment_ids` instead of re-uploading the same files
 - draft status labels map directly to the active preparation mode: `Preparing pages…` means a PDF is being converted into page images for vision, `Saving…` means an image upload is finishing server-side, and `Ready` means the persisted draft attachment can be sent immediately
 - attachment sends always use the backend's vision-prepared path; the composer no longer exposes an OCR toggle
 - message attachments use browser-native large-view behavior instead of an app modal: user-message attachments stay compact file rows, assistant images open in a native tab on click, and assistant PDFs expose an `Open` action beside the inline preview
-- includes a `Bulk` toggle beside `Attach` (file picker)
+- multi-file imports moved to the dedicated **Import** tab (`frontend/src/features/import/*`); the Agent composer no longer exposes Bulk mode
 - shows an **Approval policy** select (`Default` vs `Yolo`) next to the model picker; `Default` keeps the existing review workflow, `Yolo` sends `approval_policy=yolo` on the next message so the backend auto-applies this run’s pending proposals after a successful completion (same dependency rules as manual approval)
 - shows an `Agent model` dropdown beside the policy control and sources options from runtime settings `available_agent_models` in the same order; option text uses `agent_model_display_names` when set, otherwise the raw model id
 - initializes the picker from the latest run model when a thread has history, otherwise falls back through the thread's configured model and runtime default `agent_model`
 - changing the picker only affects the next `POST /api/v1/agent/threads/{thread_id}/messages` or `/messages/stream` request; existing thread history is still sent unchanged
-- Bulk mode creates one fresh thread per attached file, reuses the current textarea prompt for every launch, and never copies the currently selected thread history
-- Bulk launch concurrency uses the resolved runtime setting `agent_bulk_max_concurrent_threads` and falls back to `4` until settings load
-- Bulk mode help is exposed through a hover/focus tooltip beside the toggle instead of persistent helper text
-- Bulk launches report transient started/failed toast notifications; failed files stay attached for retry while successful files clear
 - `Cmd/Ctrl+Enter` always submits; plain `Enter` submits only for a single-line draft
 - idle primary action is `Send`; active-run primary action is `Stop`
 - switching to an idle thread restores that thread's own composer state immediately, even if another thread continues streaming in the background
 - stop actions are selected-thread scoped: the composer only shows `Stop` when the selected thread itself is running, and interrupt requests target that selected thread's current run only
-- when Bulk mode is enabled, the primary action becomes `Start Bulk` and uses the existing non-stream send endpoint per created thread
 - agent messages stream over SSE from `POST /api/v1/agent/threads/{thread_id}/messages/stream`
 - `useAgentPanelController.ts` now stays on panel composition, while `useAgentPanelQueries.ts` owns query polling/derived read models and `useAgentThreadActions.ts` owns thread lifecycle mutations plus cache reconciliation
-- `useAgentComposerRuntime.ts` now stays focused on composer UI state, while `useAgentComposerActions.ts` owns bulk launches, stream sends, and stop-run orchestration
+- `useAgentComposerRuntime.ts` now stays focused on composer UI state, while `useAgentComposerActions.ts` owns stream sends and stop-run orchestration
 
 ## Usage And Activity
 

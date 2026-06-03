@@ -5,7 +5,7 @@
 # - Side effects: module-local behavior only.
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date as DateValue, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -21,8 +21,9 @@ from backend.enums_agent import (
     AgentRunStatus,
     AgentToolCallStatus,
 )
-from backend.services.agent.change_contracts.entries import BatchImportEntriesPayload
+from backend.enums_finance import EntryKind
 from backend.validation.agent_threads import THREAD_TITLE_MAX_LENGTH, validate_thread_title
+from backend.validation.contract_fields import NormalizedTagList, OptionalCurrencyCode, RequiredEntityName
 
 
 class AgentSchema(BaseModel):
@@ -297,8 +298,22 @@ class AgentProposalCreateRequest(AgentSchema):
     payload_json: dict[str, Any]
 
 
-class AgentBatchImportEntriesRequest(BatchImportEntriesPayload):
+class AgentBatchImportEntryPayload(AgentSchema):
+    kind: EntryKind
+    date: DateValue
+    name: RequiredEntityName = Field(min_length=1, max_length=255)
+    amount_minor: int = Field(gt=0)
+    currency_code: OptionalCurrencyCode = Field(default=None, min_length=3, max_length=3)
+    from_entity: RequiredEntityName = Field(min_length=1, max_length=255)
+    to_entity: RequiredEntityName = Field(min_length=1, max_length=255)
+    tags: NormalizedTagList = Field(default_factory=list)
+    markdown_notes: str | None = None
+
+
+class AgentBatchImportEntriesRequest(AgentSchema):
     """HTTP request body for batch entry proposal creation."""
+
+    entries: list[AgentBatchImportEntryPayload] = Field(min_length=1, max_length=100)
 
 
 class AgentProposalUpdateRequest(AgentSchema):

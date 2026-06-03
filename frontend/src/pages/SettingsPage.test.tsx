@@ -389,7 +389,7 @@ describe("SettingsPage", () => {
     expect(taggingModelInput).toHaveValue("");
   });
 
-  it("saves Bulk mode max concurrent threads", async () => {
+  it("saves import max concurrent workers", async () => {
     vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 0, is_placeholder: false }]);
     vi.mocked(getRuntimeSettings).mockResolvedValue(baseSettingsFixture);
     vi.mocked(updateRuntimeSettings).mockResolvedValue({
@@ -404,9 +404,9 @@ describe("SettingsPage", () => {
     renderWithQueryClient(<SettingsPage />);
 
     await openAgentTab();
-    const bulkConcurrencyInput = screen.getByLabelText("Bulk concurrent launches");
-    await userEvent.clear(bulkConcurrencyInput);
-    await userEvent.type(bulkConcurrencyInput, "6");
+    const importConcurrencyInput = screen.getByLabelText("Import concurrent workers");
+    await userEvent.clear(importConcurrencyInput);
+    await userEvent.type(importConcurrencyInput, "6");
     fireEvent.submit(document.getElementById("runtime-settings-form") as HTMLFormElement);
 
     await waitFor(() => {

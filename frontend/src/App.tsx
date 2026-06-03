@@ -58,6 +58,11 @@ const PropertiesPage = lazy(async () => {
   return { default: module.PropertiesPage };
 });
 
+const ImportPage = lazy(async () => {
+  const module = await import("./pages/ImportPage");
+  return { default: module.ImportPage };
+});
+
 const SettingsPage = lazy(async () => {
   const module = await import("./pages/SettingsPage");
   return { default: module.SettingsPage };
@@ -181,6 +186,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/import" element={<ImportPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/filters" element={<FilterGroupsPage />} />
           <Route path="/entries" element={<EntriesPage />} />

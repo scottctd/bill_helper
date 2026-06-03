@@ -12,6 +12,7 @@ import {
   CreditCard,
   FolderKanban,
   Home,
+  Import,
   Layers3,
   Network,
   Settings2,
@@ -29,6 +30,7 @@ export type AppNavItem = {
 export const APP_NAV_ITEMS: AppNavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: Home },
   { to: "/", label: "Agent", icon: Bot, end: true },
+  { to: "/import", label: "Import", icon: Import },
   { to: "/accounts", label: "Accounts", icon: CreditCard },
   { to: "/entries", label: "Entries", icon: Layers3 },
   { to: "/groups", label: "Groups", icon: Network },

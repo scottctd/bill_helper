@@ -65,7 +65,7 @@ BILL_HELPER_DATA_DIR=./.data
 |----------|---------|-------------|
 | `BILL_HELPER_AGENT_MODEL` | `bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0` | LiteLLM model identifier |
 | `BILL_HELPER_AGENT_MAX_STEPS` | `100` | Max tool-call steps per run |
-| `BILL_HELPER_AGENT_BULK_MAX_CONCURRENT_THREADS` | `4` | Max fresh threads Bulk mode starts at once |
+| `BILL_HELPER_AGENT_BULK_MAX_CONCURRENT_THREADS` | `4` | Default Import tab worker pool size |
 | `BILL_HELPER_AGENT_RETRY_MAX_ATTEMPTS` | `3` | Model call retry attempts |
 | `BILL_HELPER_AGENT_RETRY_INITIAL_WAIT_SECONDS` | `0.25` | Initial retry backoff delay |
 | `BILL_HELPER_AGENT_RETRY_MAX_WAIT_SECONDS` | `4.0` | Max retry backoff delay |

@@ -142,8 +142,6 @@ describe("AgentTimeline", () => {
       activeStreamRunId: null,
       activeStreamReasoningText: "",
       activeStreamText: "",
-      getStreamingReasoningText: () => "",
-      getStreamingText: () => "",
       streamedReasoningTextByRunId: {},
       streamedTextByRunId: {},
       optimisticRunEventsByRunId: {},
@@ -551,9 +549,7 @@ describe("AgentTimeline", () => {
       messages: [assistantMessage],
       runsByAssistantMessageId: new Map([[assistantMessage.id, [run]]]),
       activeStreamRunId: null,
-      streamedReasoningTextByRunId: { "run-persisted": "Checking entities before proposing changes." },
-      getStreamingReasoningText: (runId) =>
-        runId === "run-persisted" ? "Checking entities before proposing changes." : ""
+      streamedReasoningTextByRunId: { "run-persisted": "Checking entities before proposing changes." }
     });
 
     expect(screen.getByText("Checking entities before proposing changes.")).toBeInTheDocument();
@@ -569,9 +565,7 @@ describe("AgentTimeline", () => {
 
     renderTimeline({
       pendingAssistantRuns: [run],
-      streamedReasoningTextByRunId: { "run-pending": "Still thinking through the next step." },
-      getStreamingReasoningText: (runId) =>
-        runId === "run-pending" ? "Still thinking through the next step." : ""
+      streamedReasoningTextByRunId: { "run-pending": "Still thinking through the next step." }
     });
 
     expect(screen.getByText("Still thinking through the next step.")).toBeInTheDocument();
@@ -587,9 +581,7 @@ describe("AgentTimeline", () => {
 
     renderTimeline({
       pendingAssistantRuns: [run],
-      streamedReasoningTextByRunId: { "run-reconnect": "Resuming after refresh." },
-      getStreamingReasoningText: (runId) =>
-        runId === "run-reconnect" ? "Resuming after refresh." : ""
+      streamedReasoningTextByRunId: { "run-reconnect": "Resuming after refresh." }
     });
 
     expect(screen.getByText("Resuming after refresh.")).toBeInTheDocument();

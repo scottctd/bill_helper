@@ -60,6 +60,7 @@
 - `versions/0040_add_agent_session_sources.py`: adds external-agent session summaries, session-source links, and the runtime PDF page limit.
 - `versions/0041_add_agent_run_event_reasoning_duration_ms.py`: adds optional `reasoning_duration_ms` on `agent_run_events` for collapsed model-reasoning summaries.
 - `versions/0042_remove_entry_account_id.py`: backfills missing `from_entity_id` / `to_entity_id` links from legacy `entries.account_id`, then drops the column.
+- `versions/0043_add_import_workflow.py`: adds `import_jobs` and `import_tasks` for backend-orchestrated multi-file import jobs.
 - `versions/__init__.py`: package marker.
 
 ## Backend (`/backend`)
@@ -71,8 +72,10 @@
 - `database.py`: explicit SQLAlchemy engine/session factories plus cached runtime accessors/dependencies.
 - `enums_finance.py`: ledger enums (`EntryKind`, `GroupType`, `GroupMemberRole`, plus legacy migration-only `LinkType`).
 - `enums_agent.py`: agent run/review/message enums.
+- `enums_import.py`: import job/task status enums.
 - `models_finance.py`: ledger/account/entity/tag/taxonomy/filter-group/entry ORM models.
 - `models_agent.py`: agent thread/message/run/tool-call/change/review ORM models, including session summaries and session-source links.
+- `models_import.py`: import job/task ORM models.
 - `models_files.py`: canonical per-user durable file registry ORM model.
 - `models_settings.py`: runtime settings ORM model and table mapping.
 - `contracts_groups.py`: shared group create/update contracts and the typed group-member target payload used by schemas, routers, services, and group-member apply flows.
@@ -82,6 +85,7 @@
 - `schemas_finance.py`: ledger, filter-group, and dashboard request/response schemas.
 - `schemas_agent.py`: agent thread/message/run/review request/response schemas.
 - `schemas_agent_sessions.py`: external-agent session and source request/response schemas.
+- `schemas_import.py`: import workflow request/response schemas.
 - `schemas_auth.py`: auth, admin-user, and admin-session request/response schemas.
 - `schemas_settings.py`: runtime settings request/response schemas.
 - `schemas_workspace.py`: legacy current-user workspace snapshot and recursive file-tree schemas.
@@ -109,6 +113,7 @@
 - `agent.py`: append-only agent thread/message/run/review endpoints.
 - `settings.py`: runtime settings read/update endpoints backed by `models_settings.py` / `schemas_settings.py`, with env fallback where applicable and DB-backed list-form `user_memory`.
 - `agent_sessions.py`: external-agent session CRUD plus text/file source attachment endpoints.
+- `import_jobs.py`: import preflight, job lifecycle, and aggregated proposal review endpoints.
 - `workspace.py`: legacy current-user workspace snapshot, explicit start/stop endpoints, IDE launch endpoint, and same-origin IDE proxy routes for the per-user sandbox.
 - non-admin principal scope applies to owned-resource routes (`accounts`, `entries`, `users`, `groups`, `dashboard`).
 - shared dictionary mutation routes (`entities`, `tags`, `taxonomies` POST/PATCH, plus entity and tag DELETE) require admin principal.
@@ -133,6 +138,7 @@
 - `taxonomy.py`: shared taxonomy normalization, term assignment, and usage-count helpers.
 - `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional `agent_model_display_names`, the PDF page cap, plus derived vision-capable model lists for the composer.
 - `user_files.py`: canonical per-user upload path management, atomic writes/imports, hashing, and readable stored-filename helpers.
+- `import_workflow/`: backend-orchestrated import jobs (`jobs.py`, `preflight.py`, `scheduler.py`, `proposals.py`, `dedup.py`, `serializers.py`).
 - `docker_cli.py`: legacy thin Docker CLI adapter for image/volume/container lifecycle helpers.
 - `agent_workspace.py`: legacy deterministic per-user workspace spec construction plus Docker-backed provisioning/start-stop/remove helpers, disabled by default.
 - `workspace_browser.py`: legacy current-user workspace snapshot shaping for lifecycle and IDE launch state.
@@ -264,6 +270,11 @@
   - `formState.ts`: runtime-settings form hydration, validation, and update-payload construction.
   - `SettingsToolbar.tsx`, `SettingsGeneralSection.tsx`, `SettingsAgentSection.tsx`, `ResetSettingsDialog.tsx`: settings workspace UI sections and dialogs.
   - `constants.ts`, `types.ts`: shared settings field ids, tab definitions, and form-state contracts.
+- `import/`
+  - `ImportWorkspace.tsx`: import job list/create/detail shell.
+  - `ImportCreatePanel.tsx`: upload, preflight re-import chooser, and job start.
+  - `ImportJobDetailView.tsx`: progress, task grid, aggregated proposals, job actions.
+  - `ImportTaskDialog.tsx`, `useImportTaskTimeline.ts`: per-task timeline popup with SSE reconnect.
 
 #### Frontend Lib (`/frontend/src/lib`)
 
@@ -271,6 +282,7 @@
 - `api.ts`: fetch wrappers and API request functions, including shared bearer-token injection plus admin/auth helpers.
 - `types/workspace.ts`: legacy workspace snapshot and recursive file-tree contracts.
 - `api/workspace.ts`: legacy current-user workspace snapshot and start/stop request helpers.
+- `api/import.ts`: import preflight, job lifecycle, and aggregated proposal review helpers.
 - `format.ts`: money formatting and date helpers.
 - `queryKeys.ts`: centralized TanStack Query key factory for all domains.
 - `queryInvalidation.ts`: shared cache invalidation rules after mutations/review actions, including group-driven entry/group refresh.

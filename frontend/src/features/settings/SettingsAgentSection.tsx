@@ -191,19 +191,19 @@ function RunLimitsCard({ formState, onFormPatch }: SettingsFormPatchHandlerProps
   );
 }
 
-function BulkAndAttachmentsCard({ formState, onFormPatch }: SettingsFormPatchHandlerProps) {
+function ImportAndAttachmentsCard({ formState, onFormPatch }: SettingsFormPatchHandlerProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bulk mode and attachments</CardTitle>
-        <CardDescription>Controls bulk launch concurrency and per-message attachment guardrails.</CardDescription>
+        <CardTitle>Import and attachments</CardTitle>
+        <CardDescription>Controls import job concurrency and per-message attachment guardrails.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
-            label="Bulk concurrent launches"
+            label="Import concurrent workers"
             htmlFor={SETTINGS_FIELD_IDS.bulkMaxThreads}
-            hint="How many Bulk mode threads can start at once. Extra attachments wait until one launch request returns."
+            hint="Default worker pool size for Import jobs. Extra tasks wait until a worker finishes."
           >
             <Input
               id={SETTINGS_FIELD_IDS.bulkMaxThreads}
@@ -218,7 +218,7 @@ function BulkAndAttachmentsCard({ formState, onFormPatch }: SettingsFormPatchHan
           <FormField
             label="Max attachments per single message"
             htmlFor={SETTINGS_FIELD_IDS.maxAttachmentsPerMessage}
-            hint="Applies to one normal message send. Bulk mode still starts one fresh thread per attachment."
+            hint="Applies to one normal Agent message send. Multi-file imports run from the Import tab."
           >
             <Input
               id={SETTINGS_FIELD_IDS.maxAttachmentsPerMessage}
@@ -320,7 +320,7 @@ export function SettingsAgentSection({ formState, onFormPatch }: SettingsAgentSe
       <MemoryAndModelsCard formState={formState} onFormPatch={onFormPatch} />
       <ProviderOverrideCard formState={formState} onFormPatch={onFormPatch} />
       <RunLimitsCard formState={formState} onFormPatch={onFormPatch} />
-      <BulkAndAttachmentsCard formState={formState} onFormPatch={onFormPatch} />
+      <ImportAndAttachmentsCard formState={formState} onFormPatch={onFormPatch} />
       <ReliabilityCard formState={formState} onFormPatch={onFormPatch} />
     </div>
   );

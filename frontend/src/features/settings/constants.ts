@@ -26,6 +26,6 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
   {
     id: "agent",
     label: "Agent",
-    description: "Model selection, provider overrides, bulk limits, attachment guardrails, and reliability settings.",
+    description: "Model selection, provider overrides, import concurrency, attachment guardrails, and reliability settings.",
   },
 ];

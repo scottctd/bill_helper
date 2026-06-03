@@ -11,6 +11,8 @@ export interface AgentThreadReviewModalProps {
   open: boolean;
   threadId: string;
   runs: AgentRun[];
+  /** When true, renders review shell only (no outer Dialog). Used inside import job review. */
+  embedded?: boolean;
   onOpenChange: (open: boolean) => void;
   onApproveItem: (payload: { itemId: string; payloadOverride?: Record<string, unknown> }) => Promise<AgentChangeItem>;
   onRejectItem: (payload: { itemId: string; payloadOverride?: Record<string, unknown> }) => Promise<AgentChangeItem>;

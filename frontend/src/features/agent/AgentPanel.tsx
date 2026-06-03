@@ -45,8 +45,7 @@ export function AgentPanel({ isOpen, embedded = false }: AgentPanelProps) {
                 disabled={
                   !controller.header.selectedThreadId ||
                   controller.header.reviewProposalCount === 0 ||
-                  controller.header.isMutating ||
-                  controller.header.isBulkLaunching
+                  controller.header.isMutating
                 }
                 className={`agent-panel-review-button${controller.header.pendingReviewCount > 0 ? " is-pending" : ""}`}
               >
@@ -62,7 +61,7 @@ export function AgentPanel({ isOpen, embedded = false }: AgentPanelProps) {
                 variant="secondary"
                 size="sm"
                 onClick={controller.header.startNewThreadDraft}
-                disabled={controller.header.isMutating || controller.header.isBulkLaunching}
+                disabled={controller.header.isMutating}
               >
                 New Thread
               </Button>

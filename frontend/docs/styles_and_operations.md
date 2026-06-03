@@ -36,6 +36,7 @@
 - `agent/review/modalHelpers.ts`
 - `agent/review/drafts/*`
 - `agent/review/diff/*`
+- `review/ReviewPanel.tsx` (shared review shell), `review/ReviewReadOnlyCard.tsx`, `review/ReviewTocSection.tsx`, `review/helpers.ts`, `review/mapImportProposal.ts`
 - `agent/panel/useAgentPanelController.ts`
 - `agent/panel/useAgentPanelQueries.ts`
 - `agent/panel/useAgentThreadActions.ts`
@@ -73,6 +74,12 @@
   - `frontend/src/styles/dashboard.css`
   - `frontend/src/styles/overlays.css`
   - `frontend/src/styles/agent.css`
+  - `frontend/src/styles/review.css`
+  - `frontend/src/styles/import-shell.css`
+  - `frontend/src/styles/import-create.css`
+  - `frontend/src/styles/import-jobs.css`
+  - `frontend/src/styles/import-task-dialog.css`
+  - `frontend/src/styles/import-review.css`
 
 Key ownership boundaries:
 
@@ -84,7 +91,9 @@ Key ownership boundaries:
 - `overlays.css`: entry editor, select/tag controls, tooltip, and notification surfaces
 - BlockNote-based markdown editor shells inherit the app card surface, so the full editor frame stays on one white panel instead of exposing the muted page canvas below the editable content
 - custom select/tag menus render in a floating portal anchored by `hooks/useFloatingMenuPosition.ts`, so short cards, empty states, and other clipped containers do not truncate the menu body
-- `agent.css`: agent panel, thread rail, timeline, composer, and review modal styling
+- `agent.css`: agent panel, thread rail, timeline, and composer styling
+- `review.css`: shared proposal review panel shell, TOC, structured diff card, and status styling (`agent-review-*` classes) reused by the Agent review modal and the Import job review
+- `import-shell.css` / `import-create.css` / `import-jobs.css` / `import-task-dialog.css` / `import-review.css`: Import tab page shell, create panel, job list/detail, task conversation popup, and job review dialog shell; all use the system spacing scale and `var(--radius)` radii (no undefined `--space-*`/`--radius-md` tokens) and semantic `--warning` tokens for re-import accents
 
 ## Design System And Config
 

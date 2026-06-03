@@ -25,14 +25,13 @@ function buildThreadDetail(overrides: Partial<AgentThreadDetail> = {}): AgentThr
     thread: {
       id: "thread-1",
       title: "Test thread",
-      owner_user_id: "user-1",
       created_at: "2026-02-15T10:00:00Z",
       updated_at: "2026-02-15T10:00:00Z",
-      configured_model_name: "gpt-test",
       initiated_by_external_agent: false
     },
     messages: [],
     runs: overrides.runs ?? [buildRun({ id: "run-1", status: "running", events: [] })],
+    configured_model_name: "gpt-test",
     current_context_tokens: 10,
     ...overrides
   };

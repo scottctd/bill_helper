@@ -332,7 +332,7 @@ Response highlights:
 - `available_agent_models`
 - `agent_model_display_names` (map of model id → short label for UI; only keys in the effective `available_agent_models` list are returned)
 - `vision_capable_agent_models`
-- `agent_bulk_max_concurrent_threads`
+- `agent_bulk_max_concurrent_threads` (default Import tab worker pool size)
 - `agent_max_pdf_pages`
 - `agent_base_url`
 - `agent_api_key_configured`
@@ -368,7 +368,7 @@ Updatable fields include:
 - `available_agent_models`
 - `agent_model_display_names`
 - `agent_max_steps`
-- `agent_bulk_max_concurrent_threads`
+- `agent_bulk_max_concurrent_threads` (default Import tab worker pool size)
 - retry policy fields
 - image and attachment limit fields
   - `agent_max_pdf_pages`

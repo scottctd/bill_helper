@@ -16,6 +16,7 @@ from backend.db_meta import Base
 import backend.models_agent  # noqa: F401
 import backend.models_files  # noqa: F401
 import backend.models_finance  # noqa: F401
+import backend.models_import  # noqa: F401
 import backend.models_settings  # noqa: F401
 
 

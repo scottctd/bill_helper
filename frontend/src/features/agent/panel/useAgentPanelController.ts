@@ -22,7 +22,6 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
   const [selectedThreadId, setSelectedThreadId] = useState<string>("");
   const [isThreadReviewOpen, setIsThreadReviewOpen] = useState(false);
   const [isThreadPanelOpen, setIsThreadPanelOpen] = useState(true);
-  const [isBulkLaunching, setIsBulkLaunching] = useState(false);
   const [pendingDeleteThread, setPendingDeleteThread] = useState<{ id: string; name: string } | null>(null);
   const [streamHealthyThreadIds, setStreamHealthyThreadIds] = useState<string[]>([]);
   const { panelWidth, handleMouseDown: handleResizeMouseDown } = useResizablePanel({
@@ -53,7 +52,6 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
     isNewThreadDraft,
     optimisticRunningThreadIds: actions.optimisticRunningThreadIds,
     optimisticThreadTitlesById: actions.optimisticThreadTitlesById,
-    isBulkLaunching,
     isStreamHealthy: selectedThreadId ? streamHealthyThreadIds.includes(selectedThreadId) : false,
     pruneOptimisticRunningThreadIds: actions.pruneOptimisticRunningThreadIds
   });
@@ -68,7 +66,6 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
     async interruptRun(payload: { runId: string; threadId: string }) {
       await actions.interruptRunMutation.mutateAsync(payload);
     },
-    isBulkLaunching,
     isInterruptPending:
       actions.interruptRunMutation.isPending && actions.interruptRunMutation.variables?.threadId === selectedThreadId,
     isMutating: actions.isMutating,
@@ -76,10 +73,8 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
     runtimeSettings: data.runtimeSettingsQuery.data,
     selectedThreadId,
     setActionError: actions.setActionError,
-    setIsBulkLaunching,
     setThreadStreamHealthy,
-    threadDetail: data.threadQuery.data,
-    upsertThreadSummary: actions.upsertThreadSummary
+    threadDetail: data.threadQuery.data
   });
 
   useEffect(() => {
@@ -136,7 +131,6 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
       startNewThreadDraft() {
         handleStartNewThreadDraft();
       },
-      isBulkLaunching,
       isMutating: actions.isMutating,
       isThreadPanelOpen,
       openReview: () => setIsThreadReviewOpen(true),

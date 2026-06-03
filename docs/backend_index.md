@@ -9,6 +9,7 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `../backend/docs/runtime_and_config.md`: runtime entrypoints, configuration, and database bootstrap.
 - `../backend/docs/domain_and_http.md`: models, schemas, core services, router boundaries, and non-agent HTTP behavior.
 - `../backend/docs/agent_subsystem.md`: agent runtime, tools, review flow, and agent API ownership.
+- `../backend/docs/import_workflow.md`: import jobs, scheduler, preflight, and aggregated proposal review.
 - `../backend/docs/operations.md`: migrations, test coverage, operational impact, and current constraints.
 
 ## Stable Boundaries
@@ -39,6 +40,7 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `0040_add_agent_session_sources`
 - `0041_add_agent_run_event_reasoning_duration_ms`
 - `0042_remove_entry_account_id`
+- `0043_add_import_workflow`
 
 ## Related Docs
 

@@ -26,7 +26,6 @@ interface UseAgentPanelQueriesArgs {
   isNewThreadDraft: boolean;
   optimisticRunningThreadIds: string[];
   optimisticThreadTitlesById: Record<string, string>;
-  isBulkLaunching: boolean;
   isStreamHealthy: boolean;
   pruneOptimisticRunningThreadIds: (threads: AgentThreadSummary[]) => void;
 }
@@ -38,7 +37,6 @@ export function useAgentPanelQueries({
   isNewThreadDraft,
   optimisticRunningThreadIds,
   optimisticThreadTitlesById,
-  isBulkLaunching,
   isStreamHealthy,
   pruneOptimisticRunningThreadIds
 }: UseAgentPanelQueriesArgs) {
@@ -49,7 +47,7 @@ export function useAgentPanelQueries({
     refetchInterval: (query) => {
       const threads = query.state.data as AgentThreadSummary[] | undefined;
       const hasRunningThread = (threads ?? []).some((thread) => thread.has_running_run);
-      return hasRunningThread || optimisticRunningThreadIds.length > 0 || isBulkLaunching ? 5000 : false;
+      return hasRunningThread || optimisticRunningThreadIds.length > 0 ? 5000 : false;
     },
     refetchIntervalInBackground: true
   });

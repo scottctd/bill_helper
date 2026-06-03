@@ -137,6 +137,9 @@ def persist_terminal_run_state(
             thread_id=run.thread_id,
             approval_policy=run.approval_policy,
         )
+    from backend.services.import_workflow.scheduler import notify_agent_run_terminal
+
+    notify_agent_run_terminal(run.id)
     return terminal_event
 
 

@@ -1,0 +1,217 @@
+.import-job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.import-job-row {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+  background: color-mix(in srgb, var(--card) 98%, var(--background));
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.import-job-row:hover {
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  background: var(--card);
+}
+
+.import-job-row.is-active {
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+.import-job-row-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.import-job-row-main {
+  min-width: 0;
+}
+
+.import-job-row-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.import-job-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0.375rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.import-job-row-model {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.import-job-row-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.import-job-row-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.625rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.import-status-badge-success {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--primary);
+}
+
+.import-status-badge-warning {
+  border-color: color-mix(in srgb, hsl(var(--warning)) 35%, transparent);
+  color: hsl(var(--warning-foreground));
+}
+
+.import-status-badge-danger {
+  border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
+  color: var(--destructive);
+}
+
+.import-job-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.import-job-detail-progress-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.import-job-detail-progress-label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.import-job-detail-progress-value {
+  margin: 0.25rem 0 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.import-job-progress {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  overflow: hidden;
+}
+
+.import-job-progress-large {
+  height: 0.5rem;
+}
+
+.import-job-progress-bar {
+  height: 100%;
+  background: var(--primary);
+  transition: width 240ms ease;
+}
+
+.import-task-source-cell {
+  min-width: 12rem;
+}
+
+.import-task-source-label {
+  font-weight: 500;
+}
+
+.import-task-status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.import-task-spinner {
+  width: 1rem;
+  height: 1rem;
+  animation: spin 1s linear infinite;
+}
+
+.import-task-error {
+  margin-top: 0.25rem;
+  color: var(--destructive);
+}
+
+.import-task-actions-head {
+  width: 14rem;
+}
+
+.import-instructions-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: color-mix(in srgb, var(--card) 96%, var(--background));
+}
+
+.import-instructions-panel-label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.import-instructions-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 560px) {
+  .import-job-row-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .import-job-row-stats span {
+    flex: 1 1 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-job-progress-bar,
+  .import-job-row {
+    transition: none;
+  }
+
+  .import-task-spinner {
+    animation: none;
+  }
+}

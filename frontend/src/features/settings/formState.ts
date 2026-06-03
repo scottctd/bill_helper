@@ -133,10 +133,10 @@ export function buildSettingsUpdatePayload(formState: SettingsFormState): Runtim
   const nextAgentMaxSteps = parsePositiveInteger(formState.agent_max_steps, "Agent max steps");
   const nextAgentBulkMaxConcurrentThreads = parsePositiveInteger(
     formState.agent_bulk_max_concurrent_threads,
-    "Bulk mode max concurrent threads"
+    "Import max concurrent workers"
   );
   if (nextAgentBulkMaxConcurrentThreads > 16) {
-    throw new Error("Bulk mode max concurrent threads must be 16 or less.");
+    throw new Error("Import max concurrent workers must be 16 or less.");
   }
 
   const nextAgentMaxImagesPerMessage = parsePositiveInteger(

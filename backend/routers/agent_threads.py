@@ -33,6 +33,7 @@ from backend.models_agent import (
     AgentThread,
     AgentToolCall,
 )
+from backend.models_import import ImportTask
 from backend.schemas_agent import (
     AgentRunRead,
     AgentThreadCreate,
@@ -116,10 +117,12 @@ async def create_user_message_run_or_503(
 
 
 def _thread_summary_rows(db: Session, *, principal: RequestPrincipal) -> list[AgentThreadSummaryRead]:
+    import_thread_ids = select(ImportTask.thread_id)
     threads = list(
         db.scalars(
             select(AgentThread)
             .where(agent_thread_owner_filter(principal))
+            .where(AgentThread.id.not_in(import_thread_ids))
             .order_by(AgentThread.updated_at.desc())
         )
     )

@@ -189,6 +189,21 @@
 - degraded or narrow/mobile states now use one minimal fallback card only; the old in-app file-tree/details surface was removed instead of being kept as a compatibility panel
 - narrow/mobile viewports do not embed the IDE; they show a desktop-first message only
 
+## Import
+
+### `frontend/src/pages/ImportPage.tsx`
+
+- dedicated multi-file import workspace at `/import` with job list, create flow, and job detail tabs
+- feature modules under `frontend/src/features/import/*`:
+  - `ImportWorkspace.tsx`: list/create/detail tab shell
+  - `ImportCreatePanel.tsx`: attachment upload, sha256 preflight re-import chooser, segmented Import/Skip per-file control, and job start form
+  - `ImportJobDetailView.tsx`: progress, task table with Conversation/Review actions, cancel/retry; the Review button reuses the shared `agent-panel-review-button` treatment and opens `ImportJobReviewModal.tsx`
+  - `ImportJobReviewModal.tsx`: renders the shared `ReviewPanel` shell (`frontend/src/features/review/*`) with a TOC of canonical proposals, structured-diff `ReviewReadOnlyCard` (no raw JSON), and batch + per-item approve/reject; aggregated proposals are mapped via `review/mapImportProposal.ts`, surfacing `duplicate_count` and source task labels
+  - `ImportTaskDialog.tsx`: fixed-height conversation dialog with header meta, an `AgentThreadUsageBar` cost/usage strip, and internal timeline scroll (`useImportTaskTimeline.ts`)
+- API client lives in `frontend/src/lib/api/import.ts` with types in `frontend/src/lib/types/import.ts`
+- default job concurrency comes from runtime setting `agent_bulk_max_concurrent_threads` (settings UI: import concurrent workers)
+- import task threads are hidden from the Agent thread list but stream through the standard agent run SSE endpoint
+
 ## Settings
 
 ### `frontend/src/pages/SettingsPage.tsx`
@@ -200,10 +215,10 @@
 - query, mutation, and form orchestration live in `frontend/src/features/settings/useSettingsPageModel.ts`
 - reusable runtime-settings parsing and payload validation live in `frontend/src/features/settings/formState.ts`
 - `General` groups ledger default currencies and the reset-to-server-default action
-- `Agent` groups memory/models, provider overrides, run limits, bulk and attachment limits, and reliability into separate sections
+- `Agent` groups memory/models, provider overrides, run limits, import concurrency and attachment limits, and reliability into separate sections
 - section UI is split across `SettingsToolbar.tsx`, `SettingsGeneralSection.tsx`, `SettingsAgentSection.tsx`, and `ResetSettingsDialog.tsx`
 - `Agent memory` lives under the `Agent` tab, is edited as one item per line, persists as a list of strings, and is sent to every backend agent system prompt
 - `Available models` is a single table-style editor (model id + optional display label per row, add/remove/reorder) that persists ordered ids and labels together; `Default model` and `Default tagging model` sit below it and list the same ids with display labels when set (including server default labels for the built-in catalog)
 - `Default tagging model` is a separate optional dropdown sourced from the same available model list; leaving it blank disables inline entry tag suggestion, and removing the selected model from the list auto-clears it back to blank
-- bulk concurrency is labeled around concurrent launches, while the per-message attachment limit explicitly calls out that Bulk mode still starts one fresh thread per attachment
+- import concurrency defaults the Import tab worker pool (`agent_bulk_max_concurrent_threads`); the per-message attachment limit applies only to single Agent composer sends
 - agent provider overrides use a compact toggle; when off the custom endpoint/key fields are hidden and saving falls back to server env values from `.env` or process env

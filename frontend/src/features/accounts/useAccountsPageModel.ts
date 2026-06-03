@@ -29,6 +29,7 @@ import { includesFilter } from "../../lib/catalogs";
 import { stringOptionsAsTags, matchesSelectedValues, normalizeFilterValue } from "../../lib/workspaceFilters";
 import { buildEditForm, buildSnapshotDeletionImpact, normalizeNullableMarkdown, normalizeOptionalText } from "./helpers";
 import { ACCOUNT_FORM_DEFAULTS, TODAY_ISO, type AccountFormState, type SnapshotFormState } from "./types";
+import type { Account } from "../../lib/types";
 
 export function useAccountsPageModel() {
   const auth = useAuth();

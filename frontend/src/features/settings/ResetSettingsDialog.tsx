@@ -27,7 +27,7 @@ export function ResetSettingsDialog({ open, onOpenChange, onConfirm, isPending }
         </DialogHeader>
         <div className="grid gap-2 text-sm text-foreground">
           <p className="muted">
-            This affects currencies, agent models and memory, provider overrides, bulk limits, attachment limits, and
+            This affects currencies, agent models and memory, provider overrides, import concurrency, attachment limits, and
             reliability settings.
           </p>
           <p className="muted">Use this when you want the app to follow the server defaults again.</p>
