@@ -196,7 +196,6 @@ struct AgentChangeItem: Codable, Equatable, Sendable {
     let runId: String
     let changeType: AgentChangeType
     let payloadJson: [String: JSONValue]
-    let rationaleText: String
     let status: AgentChangeStatus
     let reviewNote: String?
     let appliedResourceType: String?

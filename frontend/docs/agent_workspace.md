@@ -39,19 +39,13 @@ Supporting modules include:
 - `frontend/src/features/review/ReviewPanel.tsx` (shared review shell consumed by the agent modal and the import job review)
 - `frontend/src/features/agent/review/ReviewModalHeader.tsx`
 - `frontend/src/features/agent/review/ReviewModalControls.tsx`
-- `frontend/src/features/agent/review/ReviewActiveItemCard.tsx`
-- `frontend/src/features/agent/review/ReviewModalFooter.tsx`
 - `frontend/src/features/agent/review/useAgentThreadReviewController.ts`
-- `frontend/src/features/agent/review/useAgentReviewEditorResources.ts`
-- `frontend/src/features/agent/review/useAgentReviewDraftState.ts`
-- `frontend/src/features/agent/review/ReviewEditors.tsx`
-- `frontend/src/features/agent/review/ReviewTocSection.tsx`
-- `frontend/src/features/agent/review/ReviewCatalogEditors.tsx`
-- `frontend/src/features/agent/review/ReviewGroupEditors.tsx`
 - `frontend/src/features/agent/review/modalHelpers.ts`
-- `frontend/src/features/agent/review/drafts/*`
 - `frontend/src/features/agent/review/model.ts`
 - `frontend/src/features/agent/review/diff/*`
+- `frontend/src/features/review/ReviewItemCard.tsx`
+- `frontend/src/features/review/ReviewFieldList.tsx`
+- `frontend/src/features/review/proposalFields.ts`
 
 ## Timeline Behavior
 
@@ -84,24 +78,20 @@ Supporting modules include:
 
 ## Thread Review Surface
 
-- review actions are coordinated by `frontend/src/features/agent/review/useAgentThreadReviewController.ts`; `AgentThreadReviewModal.tsx` now composes the shared `frontend/src/features/review/ReviewPanel.tsx` slot shell (header/controls/sidebar/card/footer) and passes its existing agent-specific pieces, while `review.css` owns the shared `agent-review-*` styling
-- `useAgentThreadReviewController.ts` now stays on item navigation plus review actions, while `useAgentReviewEditorResources.ts` owns catalog/settings queries and `useAgentReviewDraftState.ts` owns reviewer draft maps plus payload-override shaping
-- review modal presentation is split across `ReviewModalHeader.tsx`, `ReviewModalControls.tsx`, `ReviewActiveItemCard.tsx`, and `ReviewModalFooter.tsx` so card rendering, action chrome, and footer messaging do not regrow inside the modal shell
+- review actions are coordinated by `frontend/src/features/agent/review/useAgentThreadReviewController.ts`; `AgentThreadReviewModal.tsx` composes the shared `frontend/src/features/review/ReviewPanel.tsx` slot shell (header/controls/sidebar/card) and passes its agent-specific chrome, while `review.css` owns the shared `agent-review-*` styling
+- `useAgentThreadReviewController.ts` owns item navigation plus approve/reject/reopen/batch actions only; review is read-only and does not send `payload_override`
+- review modal presentation is split across `ReviewModalHeader.tsx` and `ReviewModalControls.tsx` (batch/action feedback renders under the controls bar when present); the active proposal card is the shared read-only `frontend/src/features/review/ReviewItemCard.tsx`
 - the header `Review` button is the only review entry point and opens one thread-scoped dialog for all proposal items across the selected thread
-- the dialog uses responsive width rules, lets reviewers collapse the left TOC, groups TOC rows in dependency-friendly order (`Accounts`, `Snapshots`, `Entities`, `Tags`, `Groups`, `Entries`, `Group members`) within `Pending` and `Reviewed / Failed`, sorts the flat proposal list the same way for navigation and batch actions, and surfaces batch plus per-item review controls in a full-width bar above the denser review surface
+- the dialog uses responsive width rules, lets reviewers collapse the left TOC, renders a three-level tree (`Pending` / `Reviewed / Failed` → proposal type → entry `to` destination), keeps non-entry proposal types as flat leaves under their type node, sorts entry leaves by `name` inside each destination group, sorts the flat proposal list the same way for navigation and batch actions, and surfaces batch plus per-item review controls in a full-width bar above the denser review surface
 - the review modal now follows the same compact border-first styling as the rest of the app instead of relying on pill-heavy special-case chrome
-- proposals render CRUD-aware field-level diffs, and reviewer overrides update the preview for create and update entry/account/tag/entity/group proposals plus add-member group proposals
-- `ReviewEditors.tsx` is now the stable export seam; `ReviewTocSection.tsx` owns TOC navigation, `ReviewCatalogEditors.tsx` owns entry/account/entity/tag editors, `ReviewGroupEditors.tsx` owns group and membership editors plus dependency chips, and reusable selection/status helpers live in `frontend/src/features/agent/review/modalHelpers.ts`
-- draft normalization and override builders now live in `frontend/src/features/agent/review/drafts/`, split across shared coercion helpers plus `entries`, `catalog`, and `memberships` ownership modules
-- entry create/update review uses the same field model as `EntryEditorModal` through `frontend/src/features/agent/review/drafts/entries.ts`, including the ranked fuzzy tag picker; account review edits `name`, `currency`, `active`, and `notes`; tag review edits only `name` and `type`; entity review edits only `name` and `category`; create/update group review edits `name` plus create-only `group_type`
-- create-group-member review shows the resolved parent group name plus a read-only full entry snapshot for entry members; the only editable field in v1 is split role, and the diff preview treats membership changes as a group assignment update so only the `group` field (and split role when relevant) changes instead of re-highlighting the whole entry payload
-- diff rendering and record-shaping helpers now live in `frontend/src/features/agent/review/diff/`, split between reusable diff primitives in `core.ts` and proposal-family record builders in `domains.ts`
-- proposal-backed group or entry dependencies show chips only while the referenced create proposal is still unresolved; once that dependency is `APPLIED`, the review surface falls back to the resolved group name and entry snapshot without a dependency banner
-- delete-group and delete-group-member proposals stay confirmation-only in v1
-- non-applied items remain reviewer-editable after rejection or apply failure, so reviewers can revise the payload, move it back to `PENDING_REVIEW`, or approve it directly from the reviewed section; `APPLIED` items stay read-only
-- `Approve All` and `Reject All` call the thread-scoped batch review endpoints once, reuse any saved reviewer drafts via per-item `payload_override`, optimistically clear the pending TOC while the request runs, and invalidate agent/entry read models only after the batch completes
-- pending TOC rows rely on the section grouping instead of repeating a `PENDING_REVIEW` status badge, while resolved rows use compact symbolic status chips for audit context
-- apply failures surface inline on the affected item; local editor validation stays client-side and does not synthesize `APPLY_FAILED`
+- proposals render four card sections when relevant: highlighted natural-language `Summary` (`proposalSummary.ts`, `ReviewSummary.tsx`), `Context` (`proposalContext.ts`, `ReviewContextList.tsx`), `Details` (`proposalFields.ts`, `fieldDisplay.ts`, `ReviewFieldList.tsx`), and resolved-only `Outcome` (`proposalOutcome.ts`, `ReviewOutcomeList.tsx`); summary highlights key values (date, from/to, amount, names), details use title-cased labels with currency-formatted amounts, and update rows show `before → after`
+- shared TOC navigation lives in `frontend/src/features/review/ReviewToc.tsx` with tree building in `frontend/src/features/review/tocTree.ts` (status → proposal type → entry destination); agent-specific modal helpers live in `frontend/src/features/agent/review/modalHelpers.ts`
+- payload record-shaping helpers still live in `frontend/src/features/agent/review/diff/` (`core.ts`, `domains.ts`) and are consumed by `buildProposalFields`
+- non-applied items remain actionable after rejection or apply failure, so reviewers can move them back to `PENDING_REVIEW` or approve/reject directly from the reviewed section; `APPLIED` items stay read-only
+- `Approve All` and `Reject All` call the thread-scoped batch review endpoints once, optimistically clear the pending TOC while the request runs, and invalidate agent/entry read models only after the batch completes
+- TOC leaf buttons use unified titles (entry name or resource name only), left-border color for create/update/delete, trailing status icons for resolved rows, and shared payload-based subtitles (`-`/`+`/`~` kind sign plus date/amount for entries; entity category, account currency, etc. for other types) in both import and agent review
+- detail cards share `review/ReviewCardHeader.tsx`: resource-name title plus key-value `cardMetadata` rows (`Type`, `Status`, then source-specific rows); import adds `Source` and `Duplicates`, agent supplies only the base rows for now
+- apply failures surface inline on the affected item
 
 ## Composer
 

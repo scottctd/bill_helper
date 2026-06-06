@@ -8,7 +8,6 @@
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 
 import type { AgentChangeItem } from "../../../lib/types";
-import { buildProposalDiff } from "./diff";
 import {
   findNextPendingItemId,
   findRelativeItemId,
@@ -19,8 +18,6 @@ import {
 } from "./modalHelpers";
 import { type BatchSummary, type AgentThreadReviewModalProps } from "./modalTypes";
 import { buildThreadReviewItems, isPendingReviewStatus, shortId, type ThreadReviewItem } from "./model";
-import { useAgentReviewDraftState } from "./useAgentReviewDraftState";
-import { useAgentReviewEditorResources } from "./useAgentReviewEditorResources";
 
 export function useAgentThreadReviewController({
   open,
@@ -43,23 +40,6 @@ export function useAgentThreadReviewController({
 
   const flattenedItems = useMemo(() => buildThreadReviewItems(runs), [runs]);
   const activeReviewItem = useMemo(() => items.find((item) => item.item.id === activeItemId) ?? null, [activeItemId, items]);
-  const editorResources = useAgentReviewEditorResources(open, activeReviewItem);
-  const draftState = useAgentReviewDraftState({
-    activeReviewItem,
-    defaultCurrencyCode: editorResources.defaultCurrencyCode
-  });
-  const {
-    activeDrafts,
-    clearReviewDrafts,
-    resolveOverrideState,
-    setActiveAccountDraft,
-    setActiveEntityDraft,
-    setActiveEntryDraft,
-    setActiveGroupDraft,
-    setActiveGroupMembershipDraft,
-    setActiveSnapshotDraft,
-    setActiveTagDraft
-  } = draftState;
 
   useEffect(() => {
     if (!open) {
@@ -70,7 +50,6 @@ export function useAgentThreadReviewController({
       setBatchSummary(null);
       setIsBatchRunning(false);
       setIsSidebarCollapsed(false);
-      clearReviewDrafts();
       return;
     }
     if (isBatchRunning) {
@@ -78,7 +57,7 @@ export function useAgentThreadReviewController({
     }
 
     setItems(flattenedItems);
-  }, [clearReviewDrafts, flattenedItems, isBatchRunning, open]);
+  }, [flattenedItems, isBatchRunning, open]);
 
   useEffect(() => {
     if (!open) {
@@ -109,18 +88,8 @@ export function useAgentThreadReviewController({
   }
 
   async function approveReviewItem(reviewItem: ThreadReviewItem): Promise<boolean> {
-    const overrideState = resolveOverrideState(reviewItem);
-    if (overrideState.validationError) {
-      setActionError(overrideState.validationError);
-      setActiveItemId(reviewItem.item.id);
-      return false;
-    }
-
     try {
-      const updated = await onApproveItem({
-        itemId: reviewItem.item.id,
-        payloadOverride: overrideState.hasChanges ? overrideState.payloadOverride : undefined
-      });
+      const updated = await onApproveItem({ itemId: reviewItem.item.id });
       mergeUpdatedItem(updated);
       setActionError(null);
       return true;
@@ -131,17 +100,8 @@ export function useAgentThreadReviewController({
   }
 
   async function rejectReviewItem(reviewItem: ThreadReviewItem): Promise<boolean> {
-    const overrideState = resolveOverrideState(reviewItem);
-    if (overrideState.validationError) {
-      setActionError(overrideState.validationError);
-      setActiveItemId(reviewItem.item.id);
-      return false;
-    }
     try {
-      const updated = await onRejectItem({
-        itemId: reviewItem.item.id,
-        payloadOverride: overrideState.hasChanges ? overrideState.payloadOverride : undefined
-      });
+      const updated = await onRejectItem({ itemId: reviewItem.item.id });
       mergeUpdatedItem(updated);
       setActionError(null);
       return true;
@@ -152,17 +112,8 @@ export function useAgentThreadReviewController({
   }
 
   async function reopenReviewItem(reviewItem: ThreadReviewItem): Promise<boolean> {
-    const overrideState = resolveOverrideState(reviewItem);
-    if (overrideState.validationError) {
-      setActionError(overrideState.validationError);
-      setActiveItemId(reviewItem.item.id);
-      return false;
-    }
     try {
-      const updated = await onReopenItem({
-        itemId: reviewItem.item.id,
-        payloadOverride: overrideState.hasChanges ? overrideState.payloadOverride : undefined
-      });
+      const updated = await onReopenItem({ itemId: reviewItem.item.id });
       mergeUpdatedItem(updated);
       setActionError(null);
       return true;
@@ -226,20 +177,7 @@ export function useAgentThreadReviewController({
       return;
     }
 
-    const batchItems: Array<{ itemId: string; payloadOverride?: Record<string, unknown> }> = [];
-    for (const reviewItem of pendingItems) {
-      const currentReviewItem = items.find((item) => item.item.id === reviewItem.item.id) ?? reviewItem;
-      const overrideState = resolveOverrideState(currentReviewItem);
-      if (overrideState.validationError) {
-        setActionError(overrideState.validationError);
-        setActiveItemId(currentReviewItem.item.id);
-        return;
-      }
-      batchItems.push({
-        itemId: currentReviewItem.item.id,
-        payloadOverride: overrideState.hasChanges ? overrideState.payloadOverride : undefined
-      });
-    }
+    const batchItems = pendingItems.map((reviewItem) => ({ itemId: reviewItem.item.id }));
 
     setActionError(null);
     setActionNotice(null);
@@ -333,13 +271,6 @@ export function useAgentThreadReviewController({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyboardShortcut, open]);
 
-  const activeOverrideState = activeReviewItem ? resolveOverrideState(activeReviewItem) : { hasChanges: false, validationError: null };
-  const reviewerOverride =
-    activeReviewItem && activeOverrideState.hasChanges && activeOverrideState.payloadOverride
-      ? activeOverrideState.payloadOverride
-      : undefined;
-  const diffPreview =
-    activeReviewItem != null ? buildProposalDiff(activeReviewItem.item.change_type, activeReviewItem.item.payload_json, reviewerOverride) : null;
   const nextPendingItemId = findNextPendingItemId(items, activeItemId);
   const isActivePending = activeReviewItem ? isPendingReviewStatus(activeReviewItem.item.status) : false;
   const isActiveEditable = activeReviewItem ? isEditableReviewStatus(activeReviewItem.item.status) : false;
@@ -347,13 +278,9 @@ export function useAgentThreadReviewController({
   return {
     actionError,
     actionNotice,
-    activeDrafts,
     activeItemId,
-    activeOverrideState,
     activeReviewItem,
     batchSummary,
-    diffPreview,
-    editorResources,
     isActiveEditable,
     isActivePending,
     isBatchRunning,
@@ -367,13 +294,6 @@ export function useAgentThreadReviewController({
       setActiveItemId((current) => findRelativeItemId(items, current, delta));
     },
     setActiveItemId,
-    setActiveAccountDraft,
-    setActiveEntityDraft,
-    setActiveEntryDraft,
-    setActiveGroupDraft,
-    setActiveGroupMembershipDraft,
-    setActiveSnapshotDraft,
-    setActiveTagDraft,
     toggleSidebar() {
       setIsSidebarCollapsed((current) => !current);
     },

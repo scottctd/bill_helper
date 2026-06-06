@@ -68,7 +68,6 @@ def propose_create_tag(context: ToolContext, args: ProposeCreateTagArgs) -> Tool
         context,
         change_type=AgentChangeType.CREATE_TAG,
         payload=payload,
-        rationale_text="Agent proposed creating a tag.",
     )
     return proposal_result("proposed tag creation", preview=payload, item=item)
 
@@ -118,7 +117,6 @@ def propose_update_tag(context: ToolContext, args: ProposeUpdateTagArgs) -> Tool
         context,
         change_type=AgentChangeType.UPDATE_TAG,
         payload=payload,
-        rationale_text="Agent proposed updating a tag.",
     )
     preview = {"name": args.name, "patch": patch}
     return proposal_result("proposed tag update", preview=preview, item=item)
@@ -174,7 +172,6 @@ def propose_delete_tag(context: ToolContext, args: ProposeDeleteTagArgs) -> Tool
         context,
         change_type=AgentChangeType.DELETE_TAG,
         payload=payload,
-        rationale_text="Agent proposed deleting a tag.",
     )
     preview = {
         "name": args.name,
@@ -205,7 +202,6 @@ def propose_create_entity(context: ToolContext, args: ProposeCreateEntityArgs) -
         context,
         change_type=AgentChangeType.CREATE_ENTITY,
         payload=payload,
-        rationale_text="Agent proposed creating an entity.",
     )
     return proposal_result("proposed entity creation", preview=payload, item=item)
 
@@ -245,7 +241,6 @@ def propose_update_entity(context: ToolContext, args: ProposeUpdateEntityArgs) -
         context,
         change_type=AgentChangeType.UPDATE_ENTITY,
         payload=payload,
-        rationale_text="Agent proposed updating an entity.",
     )
     preview = {"name": args.name, "patch": patch}
     return proposal_result("proposed entity update", preview=preview, item=item)
@@ -300,7 +295,6 @@ def propose_delete_entity(context: ToolContext, args: ProposeDeleteEntityArgs) -
         context,
         change_type=AgentChangeType.DELETE_ENTITY,
         payload=payload,
-        rationale_text="Agent proposed deleting an entity.",
     )
     preview = {
         "name": args.name,
@@ -328,7 +322,6 @@ def propose_create_account(context: ToolContext, args: ProposeCreateAccountArgs)
         context,
         change_type=AgentChangeType.CREATE_ACCOUNT,
         payload=payload,
-        rationale_text="Agent proposed creating an account.",
     )
     return proposal_result("proposed account creation", preview=payload, item=item)
 
@@ -358,7 +351,6 @@ def propose_update_account(context: ToolContext, args: ProposeUpdateAccountArgs)
         context,
         change_type=AgentChangeType.UPDATE_ACCOUNT,
         payload=payload,
-        rationale_text="Agent proposed updating an account.",
     )
     preview = {"name": args.name, "patch": patch}
     return proposal_result("proposed account update", preview=preview, item=item)
@@ -404,7 +396,6 @@ def propose_delete_account(context: ToolContext, args: ProposeDeleteAccountArgs)
         context,
         change_type=AgentChangeType.DELETE_ACCOUNT,
         payload=payload,
-        rationale_text="Agent proposed deleting an account.",
     )
     preview = {
         "name": args.name,

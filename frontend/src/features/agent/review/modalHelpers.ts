@@ -5,22 +5,8 @@
  * - Outputs: typed helpers, contracts, or exports from `modalHelpers`.
  * - Side effects: module-local frontend behavior only.
  */
-import { AlertTriangle, Check, CheckCheck, type LucideIcon, X } from "lucide-react";
-
 import type { AgentChangeItem, AgentChangeStatus, Currency } from "../../../lib/types";
-import { isPendingReviewStatus, proposalTocGroupKey, shortId, type ProposalTocGroupKey, type ThreadReviewItem } from "./model";
-
-export interface TocStatusIndicator {
-  className: string;
-  icon: LucideIcon;
-  label: string;
-}
-
-interface TocProposalGroup {
-  key: ProposalTocGroupKey;
-  label: string;
-  items: ThreadReviewItem[];
-}
+import { isPendingReviewStatus, shortId, type ThreadReviewItem } from "./model";
 
 export const KIND_OPTIONS = [
   { value: "EXPENSE", label: "Expense" },
@@ -58,76 +44,6 @@ export function proposalReferenceLabel(record: Record<string, unknown>, idKey: s
     return `Pending ${shortId(proposalId)}`;
   }
   return "Unresolved";
-}
-
-export function statusBadgeClass(status: AgentChangeStatus): string {
-  switch (status) {
-    case "PENDING_REVIEW":
-      return "agent-review-status-pending";
-    case "APPROVED":
-      return "agent-review-status-approved";
-    case "APPLIED":
-      return "agent-review-status-applied";
-    case "REJECTED":
-      return "agent-review-status-rejected";
-    case "APPLY_FAILED":
-      return "agent-review-status-failed";
-    default:
-      return "";
-  }
-}
-
-export function reviewModeClass(changeType: ThreadReviewItem["item"]["change_type"]): string {
-  if (changeType.startsWith("create_")) {
-    return "is-create";
-  }
-  if (changeType.startsWith("update_")) {
-    return "is-update";
-  }
-  if (changeType.startsWith("delete_")) {
-    return "is-delete";
-  }
-  return "is-snapshot";
-}
-
-export function groupReviewItems(items: ThreadReviewItem[]): TocProposalGroup[] {
-  const grouped: Record<ProposalTocGroupKey, ThreadReviewItem[]> = {
-    entry: [],
-    account: [],
-    snapshot: [],
-    entity: [],
-    tag: [],
-    group: [],
-    group_member: []
-  };
-  for (const reviewItem of items) {
-    grouped[proposalTocGroupKey(reviewItem.item.change_type)].push(reviewItem);
-  }
-  const groups: TocProposalGroup[] = [
-    { key: "account", label: "Accounts", items: grouped.account },
-    { key: "snapshot", label: "Snapshots", items: grouped.snapshot },
-    { key: "entity", label: "Entities", items: grouped.entity },
-    { key: "tag", label: "Tags", items: grouped.tag },
-    { key: "group", label: "Groups", items: grouped.group },
-    { key: "entry", label: "Entries", items: grouped.entry },
-    { key: "group_member", label: "Group members", items: grouped.group_member }
-  ];
-  return groups.filter((group) => group.items.length > 0);
-}
-
-export function tocStatusIndicator(status: AgentChangeStatus): TocStatusIndicator | null {
-  switch (status) {
-    case "APPROVED":
-      return { className: "is-approved", icon: Check, label: "Approved" };
-    case "APPLIED":
-      return { className: "is-applied", icon: CheckCheck, label: "Applied" };
-    case "REJECTED":
-      return { className: "is-rejected", icon: X, label: "Rejected" };
-    case "APPLY_FAILED":
-      return { className: "is-failed", icon: AlertTriangle, label: "Apply failed" };
-    default:
-      return null;
-  }
 }
 
 export function prettyDateTime(value: string): string {
@@ -216,8 +132,4 @@ export function resolveProposalItemByReference(items: ThreadReviewItem[], refere
 
 export function isEditableReviewStatus(status: AgentChangeStatus): boolean {
   return status !== "APPLIED";
-}
-
-export function buildReviewHeading(isPending: boolean, noun: string): string {
-  return isPending ? `Adjust the proposed ${noun} before approval.` : "Adjust the proposal payload before changing review status.";
 }

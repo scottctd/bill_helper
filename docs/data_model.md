@@ -458,7 +458,6 @@ Fields:
 - `run_id` (FK -> `agent_runs.id`)
 - `change_type` (`AgentChangeType`)
 - `payload_json`
-- `rationale_text`
 - `status` (`AgentChangeStatus`)
 - `review_note`
 - `applied_resource_type`, `applied_resource_id`

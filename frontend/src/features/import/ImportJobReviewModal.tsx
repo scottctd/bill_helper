@@ -21,8 +21,8 @@ import {
 import { queryKeys } from "../../lib/queryKeys";
 import type { ImportJobBatchApplyResponse } from "../../lib/types";
 import { ReviewPanel } from "../review/ReviewPanel";
-import { ReviewReadOnlyCard } from "../review/ReviewReadOnlyCard";
-import { ReviewTocSection } from "../review/ReviewTocSection";
+import { ReviewItemCard } from "../review/ReviewItemCard";
+import { ReviewToc } from "../review/ReviewToc";
 import { findRelativeReviewItemId } from "../review/helpers";
 import { mapImportProposalsToReviewItems } from "../review/mapImportProposal";
 
@@ -32,6 +32,7 @@ interface ImportJobReviewModalProps {
   jobTitle: string | null;
   onOpenChange: (open: boolean) => void;
   onMutationComplete: () => void;
+  onOpenSourceTask?: (taskId: string) => void;
 }
 
 function resultSummary(result: ImportJobBatchApplyResponse | null): string | null {
@@ -46,7 +47,8 @@ export function ImportJobReviewModal({
   jobId,
   jobTitle,
   onOpenChange,
-  onMutationComplete
+  onMutationComplete,
+  onOpenSourceTask
 }: ImportJobReviewModalProps) {
   const [lastResult, setLastResult] = useState<ImportJobBatchApplyResponse | null>(null);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
@@ -58,8 +60,11 @@ export function ImportJobReviewModal({
     enabled: open
   });
 
-  const proposals = proposalsQuery.data ?? [];
-  const items = useMemo(() => mapImportProposalsToReviewItems(proposals), [proposals]);
+  const proposals = open ? (proposalsQuery.data ?? []) : [];
+  const items = useMemo(
+    () => (open ? mapImportProposalsToReviewItems(proposals) : []),
+    [open, proposals]
+  );
   const pendingItems = useMemo(() => items.filter((item) => item.isPending), [items]);
   const resolvedItems = useMemo(() => items.filter((item) => item.isResolved), [items]);
 
@@ -121,7 +126,8 @@ export function ImportJobReviewModal({
   );
 
   const controls = (
-    <div className="agent-review-controls-bar">
+    <div className="agent-review-controls">
+      <div className="agent-review-controls-bar">
       <div className="agent-review-controls-group">
         <Button
           type="button"
@@ -185,51 +191,27 @@ export function ImportJobReviewModal({
           </Button>
         </div>
       ) : null}
+      </div>
+      {resultText ? (
+        <div className="agent-review-controls-status">
+          <p className="muted agent-review-controls-message">{resultText}</p>
+        </div>
+      ) : null}
     </div>
   );
 
-  const sidebar = (
-    <>
-      <ReviewTocSection title="Pending" items={pendingItems} activeItemId={activeItemId} onSelect={setActiveItemId} />
-      <ReviewTocSection
-        title="Reviewed / Failed"
-        items={resolvedItems}
-        activeItemId={activeItemId}
-        onSelect={setActiveItemId}
-      />
-    </>
-  );
+  const sidebar = <ReviewToc items={items} activeItemId={activeItemId} onSelect={setActiveItemId} />;
 
   const activeCard = proposalsQuery.isLoading ? (
     <div className="agent-review-empty-card">
       <p className="muted text-sm">Loading proposals…</p>
     </div>
   ) : activeItem ? (
-    <ReviewReadOnlyCard
-      itemKey={activeItem.id}
-      changeType={activeItem.changeType}
-      kicker={activeItem.kicker}
-      title={activeItem.title}
-      status={activeItem.status}
-      runMeta={activeItem.meta}
-      rationale={activeItem.rationale}
-      diff={activeItem.diff}
-      extraBadges={activeItem.extraBadges}
-    />
+    <ReviewItemCard item={activeItem} onOpenSourceTask={onOpenSourceTask} />
   ) : (
     <div className="agent-review-empty-card">
       <p className="muted">{items.length === 0 ? "No pending import proposals." : "Select a proposal to review."}</p>
     </div>
-  );
-
-  const footer = (
-    <footer className="agent-review-modal-footer">
-      <p className="agent-review-footer-pending">
-        Pending {pendingItems.length} of {items.length}
-        {activeItem ? ` · ${activeItem.kicker}` : ""}
-      </p>
-      {resultText ? <p className="muted agent-review-footer-message">{resultText}</p> : null}
-    </footer>
   );
 
   return (
@@ -242,7 +224,6 @@ export function ImportJobReviewModal({
       controls={controls}
       sidebar={sidebar}
       activeCard={activeCard}
-      footer={footer}
     />
   );
 }

@@ -128,7 +128,6 @@ export interface AgentChangeItem {
   run_id: string;
   change_type: AgentChangeType;
   payload_json: Record<string, unknown>;
-  rationale_text: string;
   status: AgentChangeStatus;
   review_note: string | null;
   applied_resource_type: string | null;

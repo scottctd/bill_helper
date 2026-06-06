@@ -230,6 +230,14 @@ export function ImportJobDetailView({ jobId, onOpenTask }: ImportJobDetailProps)
         jobTitle={job.title}
         onOpenChange={setReviewOpen}
         onMutationComplete={invalidateJobReadModels}
+        onOpenSourceTask={(taskId) => {
+          const task = job.tasks.find((candidate) => candidate.id === taskId);
+          if (!task) {
+            return;
+          }
+          setReviewOpen(false);
+          onOpenTask(task);
+        }}
       />
     </>
   );

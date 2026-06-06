@@ -126,7 +126,6 @@ class ImportJobAggregatedProposalRead(ImportSchema):
     canonical_change_item_id: str
     change_type: str
     status: str
-    rationale_text: str
     payload_json: dict
     duplicate_count: int
     source_task_ids: list[str]

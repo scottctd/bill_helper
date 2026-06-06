@@ -336,7 +336,6 @@ class AgentChangeItem(Base):
         Enum(AgentChangeType), nullable=False, index=True
     )
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    rationale_text: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[AgentChangeStatus] = mapped_column(
         Enum(AgentChangeStatus),
         nullable=False,

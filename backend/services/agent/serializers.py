@@ -201,7 +201,6 @@ def change_item_to_schema(item: AgentChangeItem) -> AgentChangeItemRead:
         run_id=item.run_id,
         change_type=item.change_type,
         payload_json=item.payload_json,
-        rationale_text=item.rationale_text,
         status=item.status,
         review_note=item.review_note,
         applied_resource_type=item.applied_resource_type,

@@ -61,6 +61,7 @@
 - `versions/0041_add_agent_run_event_reasoning_duration_ms.py`: adds optional `reasoning_duration_ms` on `agent_run_events` for collapsed model-reasoning summaries.
 - `versions/0042_remove_entry_account_id.py`: backfills missing `from_entity_id` / `to_entity_id` links from legacy `entries.account_id`, then drops the column.
 - `versions/0043_add_import_workflow.py`: adds `import_jobs` and `import_tasks` for backend-orchestrated multi-file import jobs.
+- `versions/0044_remove_agent_change_item_rationale_text.py`: drops unused `agent_change_items.rationale_text`.
 - `versions/__init__.py`: package marker.
 
 ## Backend (`/backend`)
@@ -223,7 +224,8 @@
 - `agent/activity.ts`: extracted run/activity derivation helpers for agent timeline state.
 - `agent/review/model.ts`: review-item summaries, proposal-domain grouping, and shared change-type labels.
 - `agent/panel/*`: agent panel presentation layer (`AgentThreadList`, `AgentThreadPanel`, `AgentTimeline`, `AgentComposer`, `AgentThreadUsageBar`, `AgentAttachmentPreviewDialog`) plus the coordinator hooks (`useAgentPanelController`, `useAgentPanelQueries`, `useAgentThreadActions`, `useAgentComposerRuntime`), composer-runtime support hooks (`useAgentComposerStreamState`, `useAgentComposerActions`), panel-local hooks (`useResizablePanel`, `useStickToBottom`, `useAgentDraftAttachments`), and type/format helpers.
-- `agent/review/*`: thread-review modal shell plus split modal presentation modules (`ReviewModalHeader`, `ReviewModalControls`, `ReviewActiveItemCard`, `ReviewModalFooter`), the review controller plus support hooks (`useAgentReviewEditorResources`, `useAgentReviewDraftState`), split TOC/catalog/group editor modules (`ReviewTocSection.tsx`, `ReviewCatalogEditors.tsx`, `ReviewGroupEditors.tsx`) behind the `ReviewEditors.tsx` export seam, draft packages (`drafts/common.ts`, `entries.ts`, `catalog.ts`, `memberships.ts`), and diff packages (`diff/core.ts`, `domains.ts`).
+- `agent/review/*`: thread-review modal shell plus split modal presentation modules (`ReviewModalHeader`, `ReviewModalControls`), the read-only review controller (`useAgentThreadReviewController.ts`), and diff record-shaping packages (`diff/core.ts`, `domains.ts`) consumed by shared field builders.
+- `review/*`: shared proposal review shell (`ReviewPanel.tsx`), unified read-only detail card (`ReviewItemCard.tsx`, `ReviewSummary.tsx`, `ReviewContextList.tsx`, `ReviewOutcomeList.tsx`, `ReviewFieldList.tsx`, `proposalSummary.ts`, `proposalContext.ts`, `proposalOutcome.ts`, `proposalFields.ts`), detail card header (`ReviewCardHeader.tsx`, `cardMetadata.ts`), hierarchical TOC (`ReviewToc.tsx`, `tocTree.ts`, `entryTocFields.ts`), styling/grouping helpers (`helpers.ts`), and mappers for import (`mapImportProposal.ts`) and agent thread items (`mapThreadReviewItem.ts`).
 
 #### Pages (`/frontend/src/pages`)
 

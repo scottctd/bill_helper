@@ -1,8 +1,8 @@
 /**
  * CALLING SPEC:
- * - Purpose: render import task conversation in a fixed-height dialog with internal scroll.
+ * - Purpose: render import task conversation in a fixed-height dialog with internal scroll and follow-up chat.
  * - Inputs: open state, task metadata, and close handler.
- * - Outputs: modal with streamed/polled agent thread timeline and usage bar.
+ * - Outputs: modal with streamed/polled agent thread timeline, usage bar, and composer.
  * - Side effects: agent thread queries and SSE reconnect.
  */
 
@@ -10,9 +10,9 @@ import { useMemo } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { buildThreadUsageTotals } from "../agent/activity";
+import { AgentComposer } from "../agent/panel/AgentComposer";
 import { AgentThreadUsageBar } from "../agent/panel/AgentThreadUsageBar";
 import { AgentTimeline } from "../agent/panel/AgentTimeline";
-import { useStickToBottom } from "../agent/panel/useStickToBottom";
 import type { ImportTask } from "../../lib/types";
 import { importTaskStatusLabel } from "./importHelpers";
 import { useImportTaskTimeline } from "./useImportTaskTimeline";
@@ -30,15 +30,15 @@ interface ImportTaskDialogProps {
 
 export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogProps) {
   const threadId = task?.thread_id ?? "";
-  const timeline = useImportTaskTimeline(threadId, open);
-  const { containerRef, isAtBottom, scrollToBottom, detachFromBottom } = useStickToBottom<HTMLDivElement>();
+  const dialog = useImportTaskTimeline(threadId, open);
+  const { composer, timeline } = dialog;
 
   const threadUsageTotals = useMemo(
-    () => buildThreadUsageTotals(timeline.threadQuery.data),
-    [timeline.threadQuery.data]
+    () => buildThreadUsageTotals(dialog.threadQuery.data),
+    [dialog.threadQuery.data]
   );
 
-  const latestRun = timeline.threadQuery.data?.runs?.at(-1);
+  const latestRun = dialog.threadQuery.data?.runs?.at(-1);
   const statusLabel =
     "status" in (task ?? {}) && task && "status" in task
       ? importTaskStatusLabel((task as ImportTask).status)
@@ -64,18 +64,18 @@ export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogP
           <section className="agent-thread-timeline import-task-dialog-timeline">
             <AgentTimeline
               selectedThreadId={threadId}
-              isLoading={timeline.threadQuery.isLoading}
-              errorMessage={timeline.threadQuery.isError ? (timeline.threadQuery.error as Error).message : null}
-              initiatedByExternalAgent={timeline.threadQuery.data?.thread.initiated_by_external_agent ?? false}
-              messages={timeline.threadQuery.data?.messages}
-              timelineScrollRef={containerRef}
-              runsByAssistantMessageId={timeline.runsByAssistantMessageId}
-              pendingAssistantRuns={timeline.pendingAssistantRuns}
-              pendingAssistantRunsByUserMessageId={timeline.pendingAssistantRunsByUserMessageId}
-              pendingUserMessage={null}
-              pendingAssistantMessage={null}
-              shouldShowOptimisticAssistantBubble={false}
-              pendingRunAttachedToOptimisticMessage={null}
+              isLoading={dialog.threadQuery.isLoading}
+              errorMessage={dialog.threadQuery.isError ? (dialog.threadQuery.error as Error).message : null}
+              initiatedByExternalAgent={dialog.threadQuery.data?.thread.initiated_by_external_agent ?? false}
+              messages={dialog.threadQuery.data?.messages}
+              timelineScrollRef={timeline.timelineScrollRef}
+              runsByAssistantMessageId={dialog.runsByAssistantMessageId}
+              pendingAssistantRuns={dialog.pendingAssistantRuns}
+              pendingAssistantRunsByUserMessageId={dialog.pendingAssistantRunsByUserMessageId}
+              pendingUserMessage={timeline.pendingUserMessage}
+              pendingAssistantMessage={timeline.pendingAssistantMessage}
+              shouldShowOptimisticAssistantBubble={timeline.shouldShowOptimisticAssistantBubble}
+              pendingRunAttachedToOptimisticMessage={timeline.pendingRunAttachedToOptimisticMessage}
               activeStreamRunId={timeline.activeStreamRunId}
               activeStreamReasoningText={timeline.activeStreamReasoningText}
               activeStreamText={timeline.activeStreamText}
@@ -86,11 +86,12 @@ export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogP
               activeOptimisticEvents={timeline.activeOptimisticEvents}
               activeOptimisticToolCalls={timeline.activeOptimisticToolCalls}
               hydratingToolCallIds={timeline.hydratingToolCallIds}
-              onHydrateToolCall={timeline.handleHydrateToolCall}
-              isAtBottom={isAtBottom}
-              detachFromBottom={detachFromBottom}
-              scrollToBottom={scrollToBottom}
+              onHydrateToolCall={timeline.onHydrateToolCall}
+              isAtBottom={timeline.isAtBottom}
+              detachFromBottom={timeline.detachFromBottom}
+              scrollToBottom={timeline.scrollToBottom}
             />
+            <AgentComposer {...composer} />
           </section>
         </div>
       </DialogContent>

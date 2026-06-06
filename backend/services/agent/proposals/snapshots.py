@@ -89,7 +89,6 @@ def propose_create_snapshot(context: ToolContext, args: ProposeCreateSnapshotArg
         context,
         change_type=AgentChangeType.CREATE_SNAPSHOT,
         payload=payload,
-        rationale_text="Agent proposed recording an account balance snapshot.",
     )
     return proposal_result("proposed snapshot creation", preview=payload, item=item)
 
@@ -128,7 +127,6 @@ def propose_delete_snapshot(context: ToolContext, args: ProposeDeleteSnapshotArg
         context,
         change_type=AgentChangeType.DELETE_SNAPSHOT,
         payload=payload,
-        rationale_text="Agent proposed deleting an account balance snapshot.",
     )
     preview = {
         "account_id": account.id,

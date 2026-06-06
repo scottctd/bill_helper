@@ -208,7 +208,6 @@ final class AgentFeatureViewModelTests: XCTestCase {
                 "name": .string("Receipt"),
                 "date": .string("2026-03-08")
             ],
-            rationaleText: "Looks like an expense.",
             status: status,
             reviewNote: nil,
             appliedResourceType: nil,

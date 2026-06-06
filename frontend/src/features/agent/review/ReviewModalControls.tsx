@@ -8,13 +8,17 @@
 import { PanelLeft, PanelLeftClose } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
+import { shortId } from "./model";
 import type { AgentThreadReviewController } from "./useAgentThreadReviewController";
 
 interface ReviewModalControlsProps {
   controller: Pick<
     AgentThreadReviewController,
+    | "actionError"
+    | "actionNotice"
     | "activeItemId"
     | "activeReviewItem"
+    | "batchSummary"
     | "handleApproveActive"
     | "handleBatchAction"
     | "handleRejectActive"
@@ -34,8 +38,11 @@ interface ReviewModalControlsProps {
 }
 
 export function ReviewModalControls({ controller, isBusy = false }: ReviewModalControlsProps) {
+  const hasStatus = Boolean(controller.actionError || controller.actionNotice || controller.batchSummary);
+
   return (
-    <div className="agent-review-controls-bar">
+    <div className="agent-review-controls">
+      <div className="agent-review-controls-bar">
       <div className="agent-review-controls-group">
         <Button
           type="button"
@@ -126,6 +133,30 @@ export function ReviewModalControls({ controller, isBusy = false }: ReviewModalC
           <Button type="button" onClick={controller.handleApproveActive} disabled={isBusy || controller.isBatchRunning}>
             {controller.activeReviewItem?.item.status === "APPLY_FAILED" ? "Approve Again" : "Approve"}
           </Button>
+        </div>
+      ) : null}
+      </div>
+      {hasStatus ? (
+        <div className="agent-review-controls-status">
+          {controller.actionError ? <p className="error agent-review-controls-message">{controller.actionError}</p> : null}
+          {controller.actionNotice ? <p className="muted agent-review-controls-message">{controller.actionNotice}</p> : null}
+          {controller.batchSummary ? (
+            <div className="agent-review-batch-summary">
+              <p>
+                {controller.batchSummary.action === "approve" ? "Approved" : "Rejected"} {controller.batchSummary.succeeded} · Failed{" "}
+                {controller.batchSummary.failed}
+              </p>
+              {controller.batchSummary.failedItemIds.length > 0 ? (
+                <div className="agent-review-failed-links">
+                  {controller.batchSummary.failedItemIds.map((itemId) => (
+                    <Button key={itemId} type="button" variant="link" size="sm" onClick={() => controller.setActiveItemId(itemId)}>
+                      Jump to {shortId(itemId)}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

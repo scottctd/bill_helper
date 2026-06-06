@@ -11,7 +11,6 @@ export interface ThreadReviewItem {
   item: AgentChangeItem;
   runId: string;
   runCreatedAt: string;
-  runIndex: number;
 }
 
 export type ProposalDomain = "entry" | "account" | "snapshot" | "entity" | "tag" | "group";
@@ -203,15 +202,13 @@ export function proposalTocGroupKey(changeType: AgentChangeType): ProposalTocGro
 export function buildThreadReviewItems(runs: AgentRun[]): ThreadReviewItem[] {
   const orderedRuns = [...runs].sort((left, right) => compareIsoDateStrings(left.created_at, right.created_at));
 
-  return orderedRuns
-    .flatMap((run, runIndex) =>
-      run.change_items.map((item) => ({
-        item,
-        runId: run.id,
-        runCreatedAt: run.created_at,
-        runIndex: runIndex + 1
-      }))
-    )
+  return orderedRuns.flatMap((run) =>
+    run.change_items.map((item) => ({
+      item,
+      runId: run.id,
+      runCreatedAt: run.created_at
+    }))
+  )
     .sort((left, right) => {
       const ordinalComparison =
         proposalReviewOrdinal(left.item.change_type) - proposalReviewOrdinal(right.item.change_type);

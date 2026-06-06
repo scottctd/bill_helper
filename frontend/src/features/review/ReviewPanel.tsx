@@ -1,9 +1,9 @@
 /**
  * CALLING SPEC:
- * - Purpose: shared proposal review panel shell (header, controls, sidebar, card, footer slots).
+ * - Purpose: shared proposal review panel shell (header, controls, sidebar, card slots).
  * - Inputs: layout slot nodes and optional Dialog wrapper props.
  * - Outputs: full-height review UI shell reused by agent and import flows.
- * - Side effects: Dialog open state when not embedded.
+ * - Side effects: Dialog open state when not embedded; no footer slot.
  */
 
 import type { ReactNode } from "react";
@@ -22,7 +22,6 @@ export interface ReviewPanelProps {
   controls: ReactNode;
   sidebar: ReactNode;
   activeCard: ReactNode;
-  footer?: ReactNode;
 }
 
 export function ReviewPanel({
@@ -35,8 +34,7 @@ export function ReviewPanel({
   header,
   controls,
   sidebar,
-  activeCard,
-  footer
+  activeCard
 }: ReviewPanelProps) {
   if (!open && !embedded) {
     return null;
@@ -57,8 +55,6 @@ export function ReviewPanel({
 
         <section className="agent-review-card-column">{activeCard}</section>
       </div>
-
-      {footer}
     </div>
   );
 

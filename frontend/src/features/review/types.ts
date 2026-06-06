@@ -6,7 +6,40 @@
  * - Side effects: none.
  */
 
-import type { ProposalDiff } from "../agent/review/diff";
+import type { ProposalFields } from "./proposalFields";
+
+export interface ReviewCardMetadataLink {
+  taskId: string;
+  label: string;
+}
+
+export interface ReviewCardMetadataEntry {
+  key: string;
+  value: string;
+  links?: ReviewCardMetadataLink[];
+}
+
+export type ReviewSummaryPartTone = "plain" | "highlight";
+
+export interface ReviewSummaryPart {
+  text: string;
+  tone: ReviewSummaryPartTone;
+}
+
+export type ReviewContextTone = "neutral" | "warning" | "danger";
+
+export interface ReviewContextLine {
+  text: string;
+  tone?: ReviewContextTone;
+}
+
+export type ReviewOutcomeValueKind = "text" | "code";
+
+export interface ReviewOutcomeLine {
+  label: string;
+  value: string;
+  kind?: ReviewOutcomeValueKind;
+}
 
 export interface ReviewItemView {
   id: string;
@@ -14,11 +47,15 @@ export interface ReviewItemView {
   title: string;
   kicker: string;
   status: string;
-  meta?: string;
-  rationale?: string | null;
-  diff: ProposalDiff | null;
+  cardMetadata?: ReviewCardMetadataEntry[];
+  summary?: ReviewSummaryPart[];
+  context?: ReviewContextLine[];
+  outcome?: ReviewOutcomeLine[];
+  fields: ProposalFields | null;
   isPending: boolean;
   isResolved: boolean;
+  tocTitle?: string;
   tocMeta?: string;
-  extraBadges?: string[];
+  entryName?: string;
+  entryToEntity?: string;
 }

@@ -1,14 +1,42 @@
 /**
  * CALLING SPEC:
- * - Purpose: shared CSS class helpers for the review panel TOC and cards.
- * - Inputs: change types and review statuses as strings.
- * - Outputs: class name fragments for review UI styling.
+ * - Purpose: shared CSS class helpers and TOC grouping for the review panel.
+ * - Inputs: change types, review statuses, and ReviewItemView lists.
+ * - Outputs: class name fragments, TOC groups, and navigation helpers.
  * - Side effects: none.
  */
 
 import { AlertTriangle, Check, CheckCheck, type LucideIcon, X } from "lucide-react";
 
-import type { AgentChangeStatus } from "../../lib/types";
+import type { AgentChangeStatus, AgentChangeType } from "../../lib/types";
+import { proposalTocGroupKey, type ProposalTocGroupKey } from "../agent/review/model";
+import type { ReviewItemView } from "./types";
+
+export interface TocProposalGroup {
+  key: ProposalTocGroupKey;
+  label: string;
+  items: ReviewItemView[];
+}
+
+const TOC_GROUP_LABELS: Record<ProposalTocGroupKey, string> = {
+  account: "Accounts",
+  snapshot: "Snapshots",
+  entity: "Entities",
+  tag: "Tags",
+  group: "Groups",
+  entry: "Entries",
+  group_member: "Group members"
+};
+
+const TOC_GROUP_ORDER: ProposalTocGroupKey[] = [
+  "account",
+  "snapshot",
+  "entity",
+  "tag",
+  "group",
+  "entry",
+  "group_member"
+];
 
 export function reviewModeClass(changeType: string): string {
   if (changeType.startsWith("create_")) {
@@ -82,4 +110,24 @@ export function findRelativeReviewItemId<T extends { id: string }>(
   }
   const nextIndex = Math.max(0, Math.min(items.length - 1, currentIndex + delta));
   return items[nextIndex]?.id ?? null;
+}
+
+export function groupReviewItemsByChangeType(items: ReviewItemView[]): TocProposalGroup[] {
+  const grouped: Record<ProposalTocGroupKey, ReviewItemView[]> = {
+    entry: [],
+    account: [],
+    snapshot: [],
+    entity: [],
+    tag: [],
+    group: [],
+    group_member: []
+  };
+  for (const item of items) {
+    grouped[proposalTocGroupKey(item.changeType as AgentChangeType)].push(item);
+  }
+  return TOC_GROUP_ORDER.map((key) => ({
+    key,
+    label: TOC_GROUP_LABELS[key],
+    items: grouped[key]
+  })).filter((group) => group.items.length > 0);
 }

@@ -96,7 +96,6 @@ export interface ImportJobAggregatedProposal {
   canonical_change_item_id: string;
   change_type: string;
   status: string;
-  rationale_text: string;
   payload_json: Record<string, unknown>;
   duplicate_count: number;
   source_task_ids: string[];

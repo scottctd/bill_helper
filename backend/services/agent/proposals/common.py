@@ -53,13 +53,11 @@ def create_change_item(
     *,
     change_type: AgentChangeType,
     payload: dict[str, Any],
-    rationale_text: str,
 ) -> AgentChangeItem:
     item = AgentChangeItem(
         run_id=context.run_id,
         change_type=change_type,
         payload_json=payload,
-        rationale_text=rationale_text,
         status=AgentChangeStatus.PENDING_REVIEW,
     )
     context.db.add(item)

@@ -128,7 +128,6 @@ class AgentChangeItemRead(AgentOrmReadSchema):
     run_id: str
     change_type: AgentChangeType
     payload_json: dict[str, Any]
-    rationale_text: str
     status: AgentChangeStatus
     review_note: str | None = None
     applied_resource_type: str | None = None
@@ -328,7 +327,6 @@ class AgentProposalRecordRead(AgentSchema):
     change_type: AgentChangeType
     status: AgentChangeStatus
     proposal_summary: str
-    rationale_text: str
     payload: dict[str, Any]
     review_note: str | None = None
     applied_resource_type: str | None = None

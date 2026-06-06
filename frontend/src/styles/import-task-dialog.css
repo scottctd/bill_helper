@@ -3,8 +3,8 @@
   display: flex;
   flex-direction: column;
   width: min(92vw, 56rem);
-  height: min(88vh, 48rem);
-  max-height: 88vh;
+  height: min(92vh, 64rem);
+  max-height: 92vh;
   overflow: hidden;
   padding: 0;
   gap: 0;
@@ -43,6 +43,11 @@
   min-height: 0;
   height: 100%;
   padding-top: 1rem;
+}
+
+.import-task-dialog-timeline .agent-composer {
+  flex-shrink: 0;
+  padding-top: 0.75rem;
 }
 
 .import-task-dialog-timeline .agent-timeline-pane {

@@ -5,21 +5,42 @@
  * - Outputs: React components and UI helpers exported by `AgentThreadReviewModal`.
  * - Side effects: React rendering and user event wiring.
  */
+import { useMemo } from "react";
+
+import { ReviewItemCard } from "../../review/ReviewItemCard";
 import { ReviewPanel } from "../../review/ReviewPanel";
-import { ReviewTocSection } from "./ReviewEditors";
-import { ReviewActiveItemCard } from "./ReviewActiveItemCard";
+import { ReviewToc } from "../../review/ReviewToc";
+import { mapThreadReviewItemToReviewItemView, mapThreadReviewItemsToReviewItems } from "../../review/mapThreadReviewItem";
 import { ReviewModalControls } from "./ReviewModalControls";
-import { ReviewModalFooter } from "./ReviewModalFooter";
 import { ReviewModalHeader } from "./ReviewModalHeader";
 import type { AgentThreadReviewModalProps } from "./modalTypes";
 import { useAgentThreadReviewController } from "./useAgentThreadReviewController";
 
 export function AgentThreadReviewModal(props: AgentThreadReviewModalProps) {
   const controller = useAgentThreadReviewController(props);
+  const tocItems = useMemo(
+    () => mapThreadReviewItemsToReviewItems(controller.items),
+    [controller.items]
+  );
+  const activeItem = useMemo(
+    () =>
+      controller.activeReviewItem
+        ? mapThreadReviewItemToReviewItemView(controller.activeReviewItem, { allItems: controller.items })
+        : null,
+    [controller.activeReviewItem, controller.items]
+  );
 
   if (!props.open) {
     return null;
   }
+
+  const activeCard = activeItem ? (
+    <ReviewItemCard item={activeItem} />
+  ) : (
+    <div className="agent-review-empty-card">
+      <p className="muted">{controller.items.length === 0 ? "No proposals in this thread." : "Select a proposal to review."}</p>
+    </div>
+  );
 
   return (
     <ReviewPanel
@@ -30,23 +51,13 @@ export function AgentThreadReviewModal(props: AgentThreadReviewModalProps) {
       header={<ReviewModalHeader controller={controller} />}
       controls={<ReviewModalControls controller={controller} isBusy={props.isBusy} />}
       sidebar={
-        <>
-          <ReviewTocSection
-            title="Pending"
-            items={controller.pendingItems}
-            activeItemId={controller.activeItemId}
-            onSelect={controller.setActiveItemId}
-          />
-          <ReviewTocSection
-            title="Reviewed / Failed"
-            items={controller.resolvedItems}
-            activeItemId={controller.activeItemId}
-            onSelect={controller.setActiveItemId}
-          />
-        </>
+        <ReviewToc
+          items={tocItems}
+          activeItemId={controller.activeItemId}
+          onSelect={controller.setActiveItemId}
+        />
       }
-      activeCard={<ReviewActiveItemCard controller={controller} isBusy={props.isBusy} />}
-      footer={<ReviewModalFooter controller={controller} />}
+      activeCard={activeCard}
     />
   );
 }

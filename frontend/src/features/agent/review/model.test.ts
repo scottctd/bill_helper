@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import { buildChangeItem, buildRun } from "../../../test/factories/agent";
 import { buildThreadReviewItems, proposalReviewOrdinal, proposalTocGroupKey } from "./model";
-import { groupReviewItems } from "./modalHelpers";
+import { groupReviewItemsByChangeType } from "../../review/helpers";
+import { mapThreadReviewItemsToReviewItems } from "../../review/mapThreadReviewItem";
 
 describe("proposalReviewOrdinal", () => {
   it("orders tags before entries and group members after entries", () => {
@@ -92,7 +93,7 @@ describe("buildThreadReviewItems", () => {
   });
 });
 
-describe("groupReviewItems", () => {
+describe("groupReviewItemsByChangeType", () => {
   it("lists Group members section after Entries", () => {
     const entry = buildChangeItem({
       id: "e1",
@@ -120,8 +121,8 @@ describe("groupReviewItems", () => {
       }
     });
     const run = buildRun({ id: "r1", created_at: "2026-01-01T00:00:00Z", change_items: [member, entry] });
-    const items = buildThreadReviewItems([run]);
-    const groups = groupReviewItems(items);
+    const items = mapThreadReviewItemsToReviewItems(buildThreadReviewItems([run]));
+    const groups = groupReviewItemsByChangeType(items);
     const keys = groups.map((g) => g.key);
     expect(keys.indexOf("entry")).toBeGreaterThan(-1);
     expect(keys.indexOf("group_member")).toBeGreaterThan(-1);

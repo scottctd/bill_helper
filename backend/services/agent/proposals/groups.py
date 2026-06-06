@@ -261,7 +261,6 @@ def propose_create_group(context: ToolContext, args: ProposeCreateGroupArgs) -> 
         context,
         change_type=AgentChangeType.CREATE_GROUP,
         payload=payload,
-        rationale_text="Agent proposed creating a group.",
     )
     return proposal_result("proposed group creation", preview=payload, item=item)
 
@@ -290,7 +289,6 @@ def propose_update_group(context: ToolContext, args: ProposeUpdateGroupArgs) -> 
         context,
         change_type=AgentChangeType.UPDATE_GROUP,
         payload=payload,
-        rationale_text="Agent proposed renaming a group.",
     )
     preview = {"group_id": group_public_id(group.id), "patch": patch}
     return proposal_result("proposed group update", preview=preview, item=item)
@@ -318,7 +316,6 @@ def propose_delete_group(context: ToolContext, args: ProposeDeleteGroupArgs) -> 
         context,
         change_type=AgentChangeType.DELETE_GROUP,
         payload=payload,
-        rationale_text="Agent proposed deleting a group.",
     )
     preview = {
         "group_id": group_public_id(group.id),

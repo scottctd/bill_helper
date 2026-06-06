@@ -284,7 +284,6 @@ def _public_proposal_record(item: AgentChangeItem) -> dict[str, Any]:
         "change_type": item.change_type.value,
         "status": item.status.value,
         "proposal_summary": _proposal_summary(item),
-        "rationale_text": item.rationale_text,
         "payload": dict(item.payload_json),
         "review_note": item.review_note,
         "applied_resource_type": item.applied_resource_type,

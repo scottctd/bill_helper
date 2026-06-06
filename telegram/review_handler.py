@@ -248,7 +248,6 @@ def format_change_item_html(item: AgentChangeItemRead, *, include_status: bool =
     summary = _extract_summary(payload)
     amount = _extract_amount(payload)
     tags = _extract_tags(payload) if item.change_type.value == "create_entry" else []
-    rationale = escape((item.rationale_text or "").strip() or "No rationale provided.", quote=False)
     lines = [f"{emoji} <b>{escape(label, quote=False)}</b>"]
     if summary:
         detail = f"<b>{escape(summary, quote=False)}</b>"
@@ -260,7 +259,6 @@ def format_change_item_html(item: AgentChangeItemRead, *, include_status: bool =
     if tags:
         rendered_tags = ", ".join(escape(tag, quote=False) for tag in tags)
         lines.append(f"Tags: <b>{rendered_tags}</b>")
-    lines.append(rationale)
     if include_status:
         lines.append(f"Status: <b>{escape(_STATUS_LABELS[item.status], quote=False)}</b>")
     return "\n".join(lines)

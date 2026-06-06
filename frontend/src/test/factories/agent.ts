@@ -40,7 +40,6 @@ export function buildChangeItem(overrides: Partial<AgentChangeItem> = {}): Agent
     run_id: overrides.run_id ?? "run-1",
     change_type: overrides.change_type ?? "create_entry",
     payload_json: overrides.payload_json ?? { name: "test" },
-    rationale_text: overrides.rationale_text ?? "rationale",
     status: overrides.status ?? "PENDING_REVIEW",
     review_note: overrides.review_note ?? null,
     applied_resource_type: overrides.applied_resource_type ?? null,

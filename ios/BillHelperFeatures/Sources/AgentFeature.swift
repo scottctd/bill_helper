@@ -807,12 +807,6 @@ private struct AgentReviewCard: View {
             Text(reviewSummary(reviewItem.item))
                 .font(.headline)
 
-            if !reviewItem.item.rationaleText.isEmpty {
-                Text(reviewItem.item.rationaleText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
             Text(payloadPreview(reviewItem.item.payloadJson))
                 .font(.footnote.monospaced())
                 .foregroundStyle(.secondary)

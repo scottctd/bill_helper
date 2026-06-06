@@ -1048,3 +1048,18 @@ def test_migration_0042_backfills_account_links_and_drops_account_id(tmp_path):
             {"id": entry_id},
         ).scalar_one()
         assert str(from_entity_id) == account_entity_id
+
+
+def test_migration_0044_drops_agent_change_item_rationale_text(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0044.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0043_add_import_workflow")
+
+    engine = create_engine(database_url, future=True)
+    inspector = inspect(engine)
+    assert "rationale_text" in {column["name"] for column in inspector.get_columns("agent_change_items")}
+
+    command.upgrade(cfg, "0044_remove_agent_change_item_rationale_text")
+
+    inspector = inspect(engine)
+    assert "rationale_text" not in {column["name"] for column in inspector.get_columns("agent_change_items")}

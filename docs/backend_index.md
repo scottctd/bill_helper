@@ -41,6 +41,7 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `0041_add_agent_run_event_reasoning_duration_ms`
 - `0042_remove_entry_account_id`
 - `0043_add_import_workflow`
+- `0044_remove_agent_change_item_rationale_text`
 
 ## Related Docs
 

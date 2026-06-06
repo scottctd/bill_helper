@@ -209,7 +209,6 @@ def propose_create_entry(context: ToolContext, args: ProposeCreateEntryArgs) -> 
         context,
         change_type=AgentChangeType.CREATE_ENTRY,
         payload=payload,
-        rationale_text="Agent proposed creating an entry.",
     )
     preview = {
         "date": payload["date"],
@@ -250,7 +249,6 @@ def propose_update_entry(context: ToolContext, args: ProposeUpdateEntryArgs) -> 
         context,
         change_type=AgentChangeType.UPDATE_ENTRY,
         payload=payload,
-        rationale_text="Agent proposed updating an entry.",
     )
     preview = {
         "entry_id": entry_public_id(matched_entry.id),
@@ -274,7 +272,6 @@ def propose_delete_entry(context: ToolContext, args: ProposeDeleteEntryArgs) -> 
         context,
         change_type=AgentChangeType.DELETE_ENTRY,
         payload=payload,
-        rationale_text="Agent proposed deleting an entry.",
     )
     preview = {
         "entry_id": entry_public_id(matched_entry.id),

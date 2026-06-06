@@ -105,7 +105,7 @@ function formatArrayValue(value: unknown[], rawPath: string): string {
   if (!allSimple) {
     return `${value.length} items`;
   }
-  return `[${value.map((item) => formatLeafValue(item, rawPath)).join(", ")}]`;
+  return value.map((item) => formatLeafValue(item, rawPath)).join(", ");
 }
 
 function formatLeafValue(value: unknown, rawPath: string): string {
@@ -114,7 +114,10 @@ function formatLeafValue(value: unknown, rawPath: string): string {
     return value;
   }
   if (typeof value === "number") {
-    if (leafKey === "amount_minor") {
+    if (leafKey === "amount_minor" || leafKey === "amount") {
+      return formatMinorAmount(value);
+    }
+    if (leafKey === "balance_minor" || leafKey === "balance") {
       return formatMinorAmount(value);
     }
     return String(value);

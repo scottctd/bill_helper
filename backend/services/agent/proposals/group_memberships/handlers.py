@@ -176,7 +176,6 @@ def propose_update_group_membership(
             context,
             change_type=AgentChangeType.CREATE_GROUP_MEMBER,
             payload=payload,
-            rationale_text="Agent proposed adding a direct group member.",
         )
         preview = {
             "action": "add",
@@ -206,7 +205,6 @@ def propose_update_group_membership(
         context,
         change_type=AgentChangeType.DELETE_GROUP_MEMBER,
         payload=payload,
-        rationale_text="Agent proposed removing a direct group member.",
     )
     preview = {
         "action": "remove",

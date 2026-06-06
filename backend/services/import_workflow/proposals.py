@@ -74,7 +74,6 @@ def aggregate_job_proposals(db: Session, *, job: ImportJob) -> list[ImportJobAgg
                 canonical_change_item_id=canonical.id,
                 change_type=canonical.change_type.value,
                 status=canonical.status.value,
-                rationale_text=canonical.rationale_text,
                 payload_json=canonical.payload_json,
                 duplicate_count=len(grouped_items),
                 source_task_ids=[task.id for task in source_tasks],
