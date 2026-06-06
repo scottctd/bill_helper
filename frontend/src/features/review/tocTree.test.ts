@@ -12,7 +12,7 @@ function buildEntryItem(overrides: Partial<ReviewItemView> & Pick<ReviewItemView
     title: `Create Entry: ${overrides.entryName}`,
     kicker: "Create Entry",
     status: "PENDING_REVIEW",
-    diff: null,
+    fields: null,
     isPending: true,
     isResolved: false,
     tocMeta: "Run 1",

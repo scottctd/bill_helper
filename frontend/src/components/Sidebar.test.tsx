@@ -15,6 +15,12 @@ vi.mock("../features/auth", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+vi.mock("../features/dashboard/usePrefetchDashboard", () => ({
+  usePrefetchDashboard: () => ({
+    prefetchCoreDashboard: vi.fn(),
+  }),
+}));
+
 describe("Sidebar", () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -112,6 +118,7 @@ describe("Sidebar", () => {
     expect(navLinks).toEqual([
       "Dashboard",
       "Agent",
+      "Import",
       "Accounts",
       "Entries",
       "Groups",

@@ -19,6 +19,7 @@ describe("ImportJobReviewModal", () => {
         change_type: "create_entity",
         status: "PENDING_REVIEW",
         payload_json: { name: `Entity ${index}`, category: "merchant" },
+        source_task_ids: [`task-${index}`],
         source_task_labels: ["Scene_Visa_card_4017_060626.csv"],
         duplicate_count: 1
       }))
