@@ -24,7 +24,7 @@
 }
 
 .agent-review-shell {
-  @apply grid min-h-0 grid-cols-[17rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden;
+  @apply grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden;
 }
 
 .agent-review-shell.is-sidebar-collapsed {
@@ -36,7 +36,7 @@
 }
 
 .agent-review-controls {
-  @apply col-span-2 grid gap-0 border-b border-border bg-card;
+  @apply col-span-3 grid gap-0 border-b border-border bg-card;
 }
 
 .agent-review-controls-bar {
@@ -68,7 +68,11 @@
 }
 
 .agent-review-sidebar {
-  @apply flex min-h-0 flex-col overflow-hidden border-r border-border bg-secondary/55;
+  @apply flex min-h-0 shrink-0 flex-col overflow-hidden border-r border-border bg-secondary/55;
+}
+
+.agent-review-sidebar-resize-handle {
+  @apply self-stretch;
 }
 
 .agent-review-sidebar-scroll {
@@ -559,7 +563,11 @@
   }
 
   .agent-review-sidebar {
-    @apply border-b border-r-0;
+    @apply w-full border-b border-r-0;
+  }
+
+  .agent-review-sidebar-resize-handle {
+    @apply hidden;
   }
 
   .agent-review-sidebar-scroll {
