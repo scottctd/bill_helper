@@ -244,15 +244,18 @@
     @apply grid w-full min-w-0 self-start gap-2;
   }
 
-  .agent-message-header {
+  .agent-message-meta-row {
     @apply flex items-center justify-between gap-2 text-[12px] text-muted-foreground;
   }
 
-  .agent-message-header > .muted {
+  .agent-message-meta-row > .muted,
+  .agent-message-meta-row > .agent-message-meta-actions {
     @apply opacity-0 transition-opacity duration-150;
   }
 
-  .agent-message:hover .agent-message-header > .muted {
+  .agent-message:hover .agent-message-meta-row > .muted,
+  .agent-message:hover .agent-message-meta-row > .agent-message-meta-actions,
+  .agent-message-meta-row > .agent-message-meta-actions:focus-within {
     @apply opacity-100;
   }
 
@@ -283,7 +286,7 @@
   }
 
   .agent-message-assistant > .agent-message-text,
-  .agent-message-assistant > header,
+  .agent-message-assistant > .agent-message-meta-row,
   .agent-message-assistant > .agent-markdown,
   .agent-message-assistant > .agent-message-attachments,
   .agent-message-assistant > .agent-run-block,
@@ -412,13 +415,26 @@
     font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
   }
 
+  .agent-markdown-pre-shell {
+    @apply relative;
+  }
+
+  .agent-markdown-pre-copy {
+    @apply absolute right-1.5 top-1.5 z-[1] opacity-0 transition-opacity duration-150;
+  }
+
+  .agent-markdown-pre-shell:hover .agent-markdown-pre-copy,
+  .agent-markdown-pre-shell:focus-within .agent-markdown-pre-copy {
+    @apply opacity-100;
+  }
+
   .agent-markdown pre {
-    @apply overflow-auto rounded-md border border-border bg-secondary/65 p-2 text-xs;
+    @apply overflow-x-hidden whitespace-pre-wrap break-words rounded-md border border-border bg-secondary/65 p-2 pr-10 text-xs;
     font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
   }
 
   .agent-markdown pre code {
-    @apply bg-transparent p-0;
+    @apply whitespace-pre-wrap break-words bg-transparent p-0;
   }
 
   .agent-message-attachments {

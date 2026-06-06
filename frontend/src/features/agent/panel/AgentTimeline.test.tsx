@@ -271,9 +271,11 @@ describe("AgentTimeline", () => {
       pendingAssistantRunsByUserMessageId: new Map([[userMessage.id, [interruptedRun]]])
     });
 
-    expect(screen.getAllByText("Run interrupted by user.")).toHaveLength(1);
+    expect(markdownRenderSpy).toHaveBeenCalledWith("```\nRun interrupted by user.\n```");
+    expect(screen.getByText(/Run interrupted by user\./)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Copy message" })).toHaveLength(2);
     expect(screen.getByText("Please import the statement.")).toBeInTheDocument();
-    expectArticleClasses(screen.getByText("Run interrupted by user."), ["agent-message", "agent-message-assistant", "agent-message-activity"], ["agent-message-user"]);
+    expectArticleClasses(screen.getByText(/Run interrupted by user\./), ["agent-message", "agent-message-assistant", "agent-message-activity"], ["agent-message-user"]);
   });
 
   it("does not render empty assistant shells for legacy tool-only runs without events", () => {

@@ -26,6 +26,10 @@ from backend.services.agent.run_orchestrator import (
     AssistantStepContext,
     RunLoopOutcome,
 )
+from backend.services.agent.runtime_support.error_content import (
+    format_model_error_assistant_content,
+    format_unexpected_error_assistant_content,
+)
 from backend.services.agent.runtime_state import (
     PreparedToolCall,
     apply_usage_totals_to_run as _apply_usage_totals_to_run,
@@ -377,10 +381,7 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             error_text=str(error),
             event_type=AgentRunEventType.RUN_FAILED,
             event_message=str(error),
-            assistant_content=(
-                "I could not complete this run because the language model request failed.\n"
-                f"Error: {str(error)}"
-            ),
+            assistant_content=format_model_error_assistant_content(str(error)),
         )
         if terminal_event is None:
             return []
@@ -395,7 +396,7 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             error_text=str(error),
             event_type=AgentRunEventType.RUN_FAILED,
             event_message=str(error),
-            assistant_content="I encountered an internal error while processing this request.",
+            assistant_content=format_unexpected_error_assistant_content(str(error)),
         )
         if terminal_event is None:
             return []

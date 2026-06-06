@@ -27,7 +27,6 @@ interface UseAgentComposerStreamStateArgs {
   applyThreadTitleToCaches: (threadId: string, title: string | null, updatedAt?: string) => void;
   pendingAssistantMessage: PendingAssistantMessage | null;
   selectedThreadId: string;
-  setActionError: (message: string | null) => void;
   threadDetail: AgentThreadDetail | undefined;
 }
 
@@ -39,7 +38,6 @@ export function useAgentComposerStreamState({
   applyThreadTitleToCaches,
   pendingAssistantMessage,
   selectedThreadId,
-  setActionError,
   threadDetail
 }: UseAgentComposerStreamStateArgs) {
   const queryClient = useQueryClient();
@@ -386,9 +384,6 @@ export function useAgentComposerStreamState({
             return next;
           });
         }
-        if (event.event.event_type === "run_failed" && event.event.message) {
-          setActionError(event.event.message);
-        }
         if (event.run_usage) {
           patchAgentThreadCachedRunUsage(queryClient, threadId, event.run_id, event.run_usage);
         }
@@ -428,7 +423,7 @@ export function useAgentComposerStreamState({
         bump();
       }
     },
-    [bump, hydrateToolCallDetails, queryClient, setActionError, syncActiveStreamRunIds]
+    [bump, hydrateToolCallDetails, queryClient, syncActiveStreamRunIds]
   );
 
   const getReconnectSequenceIndex = useCallback((runId: string) => {

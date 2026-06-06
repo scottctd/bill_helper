@@ -9,6 +9,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "../../lib/utils";
+import { MarkdownPreBlock } from "./MarkdownPreBlock";
 
 interface MarkdownRendererProps {
   markdown: string;
@@ -35,7 +36,8 @@ export function MarkdownRenderer({ markdown, className }: MarkdownRendererProps)
                 target={isExternalHref(safeHref) ? "_blank" : undefined}
               />
             );
-          }
+          },
+          pre: ({ children, ...props }) => <MarkdownPreBlock {...props}>{children}</MarkdownPreBlock>
         }}
       >
         {markdown}

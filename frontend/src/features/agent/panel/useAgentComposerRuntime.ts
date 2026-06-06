@@ -168,7 +168,6 @@ export function useAgentComposerRuntime({
     applyThreadTitleToCaches,
     pendingAssistantMessage,
     selectedThreadId,
-    setActionError,
     threadDetail
   });
   const {

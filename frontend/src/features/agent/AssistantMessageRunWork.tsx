@@ -64,22 +64,13 @@ export function AssistantMessageRunWork({
 
   const showCompletedChrome = !isLive && hasRenderableActivity;
 
-  const errorNodes = runs.map((run) =>
-    run.error_text ? (
-      <p key={run.id} className="error">
-        {run.error_text}
-      </p>
-    ) : null
-  );
-
-  if (!hasRenderableActivity && !errorNodes.some(Boolean)) {
+  if (!hasRenderableActivity) {
     return null;
   }
 
   if (isLive) {
     return (
       <div className="agent-assistant-run-work">
-        {errorNodes}
         <AgentRunActivityRows
           items={mergedItems}
           onInspectActivity={onInspectActivity}
@@ -95,7 +86,6 @@ export function AssistantMessageRunWork({
 
   return (
     <div className="agent-assistant-run-work">
-      {errorNodes}
       {showCompletedChrome ? (
         <>
           {expanded ? (

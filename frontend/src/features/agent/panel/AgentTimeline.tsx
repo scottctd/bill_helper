@@ -16,6 +16,7 @@ type AssistantBubbleAttachment =
   | { id: string; kind: "image" | "pdf"; url: string; name: string };
 import { cn } from "../../../lib/utils";
 import { AssistantMessageRunWork } from "../AssistantMessageRunWork";
+import { formatAgentRunErrorMarkdown } from "../formatRunError";
 import { AgentRunBlock } from "../AgentRunBlock";
 import { PendingAssistantActivityBlock } from "../AgentRunActivity";
 import { MarkdownRenderer } from "../../../components/ui/MarkdownRenderer";
@@ -25,8 +26,8 @@ import { AgentAttachmentFileRow } from "./AgentAttachmentFileRow";
 import { AgentMessageAttachmentRow } from "./AgentMessageAttachmentRow";
 import { AgentMessageAttachmentImage } from "./AgentMessageAttachmentImage";
 import { AgentMessageAttachmentPdf } from "./AgentMessageAttachmentPdf";
+import { AgentMessageHeader } from "./AgentMessageHeader";
 import { openAttachmentInNewTab } from "./attachmentBrowserOpen";
-import { prettyDateTime } from "./format";
 import { resolveRunStreamBuffer } from "./helpers";
 import { agentStreamSession } from "./agentStreamSession";
 import type { PendingAssistantMessage, PendingUserMessage } from "./types";
@@ -206,9 +207,6 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
   }) {
     return (
       <>
-        <header className="agent-message-header agent-message-user-meta">
-          <span className="muted">{prettyDateTime(options.createdAt)}</span>
-        </header>
         <div className="agent-message-user-bubble">
           {renderUserAttachments(options.attachments)}
           {options.text ? (
@@ -217,8 +215,20 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
             <p className="muted">{options.emptyText}</p>
           )}
         </div>
+        <AgentMessageHeader
+          createdAt={options.createdAt}
+          copyText={options.text}
+          className="agent-message-user-meta"
+        />
       </>
     );
+  }
+
+  function renderStandaloneRunError(run: AgentRun) {
+    if (!run.error_text || run.assistant_message_id) {
+      return null;
+    }
+    return <MarkdownRenderer markdown={formatAgentRunErrorMarkdown(run.error_text)} />;
   }
 
   function messageClassName(options: {
@@ -306,10 +316,6 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                     })
                   ) : (
                     <>
-                      <header className="agent-message-header agent-message-meta-only">
-                        <span className="muted">{prettyDateTime(message.created_at)}</span>
-                      </header>
-
                       {isAssistant && messageRuns.length > 0 ? (
                         <AssistantMessageRunWork
                           runs={messageRuns}
@@ -355,6 +361,12 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                             />
                           ))
                         : null}
+
+                      <AgentMessageHeader
+                        createdAt={message.created_at}
+                        copyText={assistantDisplayMarkdown}
+                        className="agent-message-meta-only"
+                      />
                     </>
                   )}
                 </article>
@@ -377,9 +389,6 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                             isActivity: true
                           })}
                         >
-                          <header className="agent-message-header agent-message-meta-only">
-                            <span className="muted">{prettyDateTime(run.created_at)}</span>
-                          </header>
                           <AssistantMessageRunWork
                             runs={[run]}
                             optimisticRunEventsByRunId={optimisticRunEventsByRunId}
@@ -394,6 +403,12 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                               streamedReasoningTextByRunId
                             )}
                             streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(run.id)}
+                          />
+                          {renderStandaloneRunError(run)}
+                          <AgentMessageHeader
+                            createdAt={run.created_at}
+                            copyText={run.error_text}
+                            className="agent-message-meta-only"
                           />
                         </article>
                       );
@@ -423,9 +438,6 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
               })}
               key={pendingAssistantMessage.id}
             >
-              <header className="agent-message-header agent-message-meta-only">
-                <span className="muted">{prettyDateTime(pendingAssistantMessage.createdAt)}</span>
-              </header>
               {pendingRunAttachedToOptimisticMessage ? (
                 <AgentRunBlock
                   run={pendingRunAttachedToOptimisticMessage}
@@ -460,6 +472,11 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                   <span className="agent-message-caret">{"\u258d"}</span>
                 </p>
               ) : null}
+              <AgentMessageHeader
+                createdAt={pendingAssistantMessage.createdAt}
+                copyText={activeStreamText}
+                className="agent-message-meta-only"
+              />
             </article>
           ) : null}
 
@@ -496,9 +513,6 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                   isStreaming: isLivePendingRun
                 })}
               >
-                <header className="agent-message-header agent-message-meta-only">
-                  <span className="muted">{prettyDateTime(run.created_at)}</span>
-                </header>
                 <AssistantMessageRunWork
                   runs={[run]}
                   optimisticRunEventsByRunId={optimisticRunEventsByRunId}
@@ -510,6 +524,12 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                     pendingRunStreamReasoning.length > 0 ? pendingRunStreamReasoning : undefined
                   }
                   streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(run.id)}
+                />
+                {renderStandaloneRunError(run)}
+                <AgentMessageHeader
+                  createdAt={run.created_at}
+                  copyText={run.error_text}
+                  className="agent-message-meta-only"
                 />
               </article>
             );
