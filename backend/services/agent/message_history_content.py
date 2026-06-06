@@ -18,11 +18,10 @@ def _compose_user_feedback_text(
     message: AgentMessage,
     *,
     review_results_prefix: str | None,
-    interruption_prefix: str | None,
 ) -> str:
     prefixes = [
         prefix
-        for prefix in (interruption_prefix, review_results_prefix)
+        for prefix in (review_results_prefix,)
         if isinstance(prefix, str) and prefix.strip()
     ]
     if not prefixes:
@@ -56,12 +55,10 @@ def build_user_content(
     *,
     model_name: str | None = None,
     review_results_prefix: str | None = None,
-    interruption_prefix: str | None = None,
 ) -> str | list[dict[str, Any]]:
     content_text = _compose_user_feedback_text(
         message,
         review_results_prefix=review_results_prefix,
-        interruption_prefix=interruption_prefix,
     )
     if not message.attachments:
         return content_text

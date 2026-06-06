@@ -1295,13 +1295,11 @@ def test_tool_catalog_exposes_only_terminal_and_retained_session_tools():
     assert "search_entries" not in names
     assert "add_user_memory" in names
     assert "rename_thread" in names
-    assert "send_intermediate_update" in names
     assert "run_bh" in names
     assert "terminal" not in names
     assert names == [
         "add_user_memory",
         "rename_thread",
-        "send_intermediate_update",
         "run_bh",
     ]
 
@@ -1748,7 +1746,7 @@ def test_tool_call_detail_endpoint_returns_full_payload(client, monkeypatch):
     assert isinstance(payload["output_json"], dict)
     assert isinstance(payload["output_text"], str)
 
-def test_run_persists_assistant_tool_step_text_as_intermediate_update(client, monkeypatch):
+def test_run_persists_assistant_tool_step_text_as_reasoning_update(client, monkeypatch):
     _patch_terminal_success(monkeypatch)
     calls = [
         {
@@ -2090,73 +2088,6 @@ def test_stream_message_endpoint_emits_reasoning_delta_events(client, monkeypatc
     assert reasoning_updates[0]["message"] == "Checking entities"
 
 
-def test_stream_message_endpoint_emits_reasoning_update_events(client, monkeypatch):
-    from backend.services.agent import runtime
-
-    stream_responses = [
-        [
-            {
-                "type": "done",
-                "message": {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        {
-                            "id": "call_intermediate_update",
-                            "type": "function",
-                            "function": {
-                                "name": "send_intermediate_update",
-                                "arguments": json.dumps({"message": "I am checking existing entries and tags."}),
-                            },
-                        }
-                    ],
-                },
-            }
-        ],
-        [
-            {
-                "type": "done",
-                "message": {
-                    "role": "assistant",
-                    "content": "Finished and ready for review.",
-                    "tool_calls": [],
-                },
-            }
-        ],
-    ]
-
-    def stream_model(_messages, _db, **_kwargs):
-        for event in stream_responses.pop(0):
-            yield event
-
-    monkeypatch.setattr(runtime, "call_model_stream", stream_model)
-
-    thread = create_thread(client)
-    events = collect_sse_events(client, thread["id"], "process this import")
-
-    reasoning_updates = [
-        event["event"]
-        for event in events
-        if event.get("type") == "run_event" and event.get("event", {}).get("event_type") == "reasoning_update"
-    ]
-    assert len(reasoning_updates) == 1
-    assert reasoning_updates[0]["message"] == "I am checking existing entries and tags."
-    assert not [
-        event
-        for event in events
-        if event.get("type") == "run_event" and event.get("event", {}).get("event_type") == "tool_call_queued"
-    ]
-    assert events[-1]["event"]["event_type"] == "run_completed"
-
-    detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
-    detail_response.raise_for_status()
-    detail = detail_response.json()
-    assert len(detail["runs"]) == 1
-    run = detail["runs"][0]
-    assert len(run["tool_calls"]) == 0
-    assert [event["event_type"] for event in run["events"] if event["event_type"] == "reasoning_update"] == ["reasoning_update"]
-
-
 def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasoning_update(client, monkeypatch):
     from backend.services.agent import runtime
 
@@ -2453,16 +2384,145 @@ def test_interrupted_previous_run_context_is_injected_into_followup_turn(client,
 
     history = captured_messages[-1]
     followup_user_messages = [message for message in history if message.get("role") == "user"]
-    assert followup_user_messages
+    assert len(followup_user_messages) == 3
+    assert followup_user_messages[0].get("content") == "Please summarize January spend."
+    steering_message = followup_user_messages[-2]
     followup_user = followup_user_messages[-1]
+    assert "I interrupted the previous turn before it finished" in steering_message.get("content", "")
+    assert "steer according to my next message" in steering_message.get("content", "")
     followup_content = followup_user.get("content")
     assert isinstance(followup_content, str)
-    assert "Previous turn note: the user interrupted your previous response before it completed." in followup_content
-    assert 'Interrupted previous user request: "Please summarize January spend."' in followup_content
-    assert "Treat that interrupted request as conversation context" in followup_content
-    assert "User feedback:" in followup_content
+    assert "Previous turn note:" not in followup_content
     assert "continue with Feb and include recurring items" in followup_content
-    assert followup_content.index("Previous turn note:") < followup_content.index("User feedback:")
+    assert history.index(steering_message) < history.index(followup_user)
+
+
+def test_interrupted_run_replays_completed_tool_context_into_followup_turn(client, monkeypatch):
+    _patch_terminal_success(monkeypatch)
+
+    entered_second_model = Event()
+    release_second_model = Event()
+    model_calls = {"count": 0}
+
+    def staged_model(_messages):
+        model_calls["count"] += 1
+        if model_calls["count"] == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "reasoning": "I'll inspect tags first.",
+                "tool_calls": [
+                    {
+                        "id": "call_bh_1",
+                        "type": "function",
+                        "function": {
+                            "name": "run_bh",
+                            "arguments": json.dumps({"command": "bh tags list"}),
+                        },
+                    }
+                ],
+            }
+        entered_second_model.set()
+        release_second_model.wait(timeout=2.0)
+        return {"role": "assistant", "content": "Done."}
+
+    patch_model(monkeypatch, staged_model)
+    thread = create_thread(client)
+
+    first_response = client.post(
+        f"/api/v1/agent/threads/{thread['id']}/messages",
+        data={"content": "Please summarize January spend."},
+    )
+    first_response.raise_for_status()
+    first_run = first_response.json()
+    assert first_run["status"] == "running"
+    assert entered_second_model.wait(timeout=2.0)
+
+    interrupt_response = client.post(f"/api/v1/agent/runs/{first_run['id']}/interrupt")
+    interrupt_response.raise_for_status()
+    interrupted = interrupt_response.json()
+    assert interrupted["status"] == "failed"
+    assert interrupted["assistant_message_id"] is None
+
+    release_second_model.set()
+    wait_for_run_completion(client, first_run["id"], timeout_seconds=2.0)
+
+    captured_messages: list[list[dict]] = []
+
+    def followup_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "Acknowledged."}
+
+    patch_model(monkeypatch, followup_model)
+    followup_run = send_message(client, thread["id"], "continue with February spend")
+    assert followup_run["status"] == "completed"
+    assert captured_messages
+
+    history = captured_messages[-1]
+    assistant_messages = [message for message in history if message.get("role") == "assistant"]
+    tool_messages = [message for message in history if message.get("role") == "tool"]
+    assert any(message.get("reasoning") == "I'll inspect tags first." for message in assistant_messages)
+    assert any(message.get("name") == "run_bh" for message in tool_messages)
+    steering_messages = [
+        message
+        for message in history
+        if message.get("role") == "user"
+        and "I interrupted the previous turn before it finished" in str(message.get("content"))
+    ]
+    assert len(steering_messages) == 1
+
+
+def test_completed_turn_retains_tool_context_for_next_message(client, monkeypatch):
+    _patch_terminal_success(monkeypatch)
+    model_calls = [
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning": "I'll inspect tags first.",
+            "tool_calls": [
+                {
+                    "id": "call_bh_1",
+                    "type": "function",
+                    "function": {
+                        "name": "run_bh",
+                        "arguments": json.dumps({"command": "bh tags list"}),
+                    },
+                }
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": "Tags checked.",
+        },
+    ]
+    patch_model(monkeypatch, lambda _messages: model_calls.pop(0))
+
+    thread = create_thread(client)
+    first_run = send_message(client, thread["id"], "List tags.")
+    assert first_run["status"] == "completed"
+
+    captured_messages: list[list[dict]] = []
+
+    def followup_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "Acknowledged."}
+
+    patch_model(monkeypatch, followup_model)
+    followup_run = send_message(client, thread["id"], "Now list accounts.")
+    assert followup_run["status"] == "completed"
+    assert captured_messages
+
+    history = captured_messages[-1]
+    assert any(
+        message.get("role") == "assistant" and message.get("reasoning") == "I'll inspect tags first."
+        for message in history
+    )
+    assert any(message.get("role") == "tool" and message.get("name") == "run_bh" for message in history)
+    assert "Tags checked." in [
+        str(message.get("content"))
+        for message in history
+        if message.get("role") == "assistant"
+    ]
 
 
 def test_run_accumulates_usage_tokens_across_steps(client, monkeypatch):
@@ -2635,7 +2695,6 @@ def test_runtime_tool_registry_only_contains_current_tools():
         "add_user_memory",
         "rename_thread",
         "run_bh",
-        "send_intermediate_update",
     }
 
 

@@ -67,7 +67,6 @@ Bill Helper is a local-first personal finance ledger with AI-assisted, review-ga
 Model-visible tools:
 
 - `run_bh`
-- `send_intermediate_update`
 - `rename_thread`
 - `add_user_memory`
 
@@ -92,7 +91,8 @@ Contract notes:
 - `run_orchestrator.py`: shared step-state machine used by runtime sync/stream flows and benchmark adapters
 - `message_history.py`: public thread-to-model message assembly facade
 - `message_history_content.py`: attachment-backed user-content shaping and entity-category prompt context
-- `message_history_prefixes.py`: review-window queries and interruption-prefix composition
+- `message_history_prefixes.py`: review-window queries for the current turn
+- `message_history_turn_context.py`: rebuild append-only per-turn LLM context for conversation history
 - `attachment_content.py`: public attachment-content seam plus vision capability checks used by attachment helpers and `read_image`
 - `docling_convert.py` / `agent_attachment_bundle.py`: Docling-based agent attachment parsing and bundle layout
 - `attachment_content_assembly.py`: attachment part assembly and workspace image-path hint helpers

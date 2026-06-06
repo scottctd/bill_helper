@@ -6,13 +6,8 @@
 from __future__ import annotations
 
 from backend.services.agent.session_tools.memory import add_user_memory
-from backend.services.agent.session_tools.progress import send_intermediate_update
 from backend.services.agent.session_tools.threads import rename_thread
 from backend.services.agent.tool_args.memory import AddUserMemoryArgs
-from backend.services.agent.tool_args.shared import (
-    INTERMEDIATE_UPDATE_TOOL_NAME,
-    SendIntermediateUpdateArgs,
-)
 from backend.services.agent.tool_args.threads import RenameThreadArgs
 from backend.services.agent.tool_runtime_support.definitions import AgentToolDefinition
 
@@ -37,15 +32,5 @@ SESSION_TOOLS: dict[str, AgentToolDefinition] = {
         ),
         args_model=RenameThreadArgs,
         handler=rename_thread,
-    ),
-    INTERMEDIATE_UPDATE_TOOL_NAME: AgentToolDefinition(
-        name=INTERMEDIATE_UPDATE_TOOL_NAME,
-        description=(
-            "Call this tool before calling other tools (but after rename_thread). "
-            "Call this tool again only for meaningful transitions between tool calls; "
-            "do not call it on every tool step."
-        ),
-        args_model=SendIntermediateUpdateArgs,
-        handler=send_intermediate_update,
     ),
 }

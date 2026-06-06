@@ -750,7 +750,7 @@
   }
 
   .agent-composer {
-    @apply grid shrink-0 gap-2 border-t border-border/75 bg-card pb-0 pt-2;
+    @apply grid shrink-0 gap-2 bg-card pb-0 pt-2;
   }
 
   .agent-composer-drop-active {

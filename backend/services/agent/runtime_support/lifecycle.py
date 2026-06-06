@@ -101,6 +101,8 @@ def persist_terminal_run_state(
     if _run_has_terminal_event(db, run.id):
         return None
 
+    _cancel_incomplete_tool_calls(db, run)
+
     if persist_assistant_message and assistant_content is not None:
         _persist_final_message(
             db,

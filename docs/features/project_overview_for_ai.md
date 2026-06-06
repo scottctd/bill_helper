@@ -38,7 +38,6 @@
 **Model-visible tools:**
 
 - `run_bh` - executes local `bh ...` CLI commands with injected backend/auth/session/thread/run env.
-- `send_intermediate_update` – short user-visible progress note.
 - `rename_thread` – rename current thread.
 - `add_user_memory` – append persistent memory items (add-only).
 
@@ -68,7 +67,7 @@
 - **Tool lifecycle:** Queued → running → completed/cancelled; collapsible observability (arguments, output).
 - **Usage tracking:** Context tokens, input/output/cache tokens, cost estimates; thread-level footnote.
 - **Custom provider:** Configurable base URL and API key in settings.
-- **Intermediate updates:** Agent tool `send_intermediate_update` emits progress notes between tool calls (e.g. "Let me search your entries…"); shown in timeline before final message.
+- **Reasoning updates:** Model reasoning and assistant tool-step text emit `reasoning_update` events during runs; the timeline shows them before the final assistant message.
 - **Parallel threads:** Multiple threads can run concurrently; composer is thread-scoped (Send on idle thread even when another runs).
 - **Running indicator:** Sidebar shows which threads have active runs.
 - **Agent context:** Receives account markdown notes in system prompt for grounding.
@@ -144,7 +143,7 @@
 
 - Private chats only; user allow-list.
 - Accepts text, photos, images, PDFs.
-- **Streaming:** Progressive message edits as text arrives; agent progress notes from send_intermediate_update shown.
+- **Streaming:** Progressive message edits as text arrives; reasoning updates and tool lifecycle events appear in the timeline during the run.
 - **Forum topics:** `/topics on` maps one Telegram topic ↔ one backend thread; messages in topic go to that thread.
 - Pending review items as inline keyboards (approve/reject).
 - Dashboard charts rendered as images (matplotlib).

@@ -35,16 +35,15 @@ from backend.services.agent.runtime_state import (
     apply_usage_totals_to_run as _apply_usage_totals_to_run,
     ensure_run_started_event as _ensure_run_started_event,
     events_after_sequence as _events_after_sequence,
-    extract_reasoning_from_tool_result as _extract_reasoning_from_tool_result,
     finalize_tool_call_error as _finalize_tool_call_error,
     finalize_tool_call_success as _finalize_tool_call_success,
     mark_tool_call_running as _mark_tool_call_running,
     persist_run_event as _persist_run_event,
     record_reasoning_update_event as _record_reasoning_update_event,
+    cancelled_tool_result_llm_message as _cancelled_tool_result_llm_message,
     tool_result_llm_message as _tool_result_llm_message,
 )
 from backend.services.agent.serializers import stream_run_event_to_payload
-from backend.services.agent.tool_args.shared import INTERMEDIATE_UPDATE_TOOL_NAME
 from backend.services.agent.principal_scope import load_thread_owner_user
 from backend.services.agent.langfuse_litellm import agent_run_litellm_metadata
 from backend.services.agent.tool_runtime import build_openai_tool_schemas, execute_tool
@@ -253,32 +252,6 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
             if prepared_tool_call.decode_error is not None
             else None
         )
-        if prepared_tool_call.tool_name == INTERMEDIATE_UPDATE_TOOL_NAME:
-            result = decode_error_result or execute_tool(
-                prepared_tool_call.tool_name,
-                prepared_tool_call.arguments,
-                self.tool_context,
-            )
-            llm_messages.append(_tool_result_llm_message(prepared_tool_call, result))
-            reasoning_message, source = _extract_reasoning_from_tool_result(
-                result,
-                prepared_tool_call.arguments,
-            )
-            reasoning_event = _record_reasoning_update_event(
-                self.db,
-                run=self.run,
-                message=reasoning_message or "",
-                source=source,
-            )
-            self.dependencies.update_run_context_tokens(
-                self.run,
-                llm_messages,
-                self._request_tools_for_next_model_call(),
-            )
-            self.db.add(self.run)
-            self.db.commit()
-            return self._event_payloads([reasoning_event] if reasoning_event is not None else [])
-
         tool_row = prepared_tool_call.persisted_row
         if tool_row is None:  # pragma: no cover - defensive guard
             return []
@@ -300,6 +273,14 @@ class RuntimeRunLoopAdapterBase(AgentRunLoopAdapter[PreparedToolCall]):
         )
         self.db.refresh(tool_row, attribute_names=["status"])
         if tool_row.status == AgentToolCallStatus.CANCELLED:
+            llm_messages.append(_cancelled_tool_result_llm_message(prepared_tool_call))
+            self.dependencies.update_run_context_tokens(
+                self.run,
+                llm_messages,
+                self._request_tools_for_next_model_call(),
+            )
+            self.db.add(self.run)
+            self.db.commit()
             return payloads
 
         if result.status == ToolExecutionStatus.OK:

@@ -28,8 +28,13 @@ from backend.models_agent import (
     AgentToolCall,
 )
 from backend.services.agent.protocol_helpers import decode_tool_call
-from backend.services.agent.tool_args.shared import INTERMEDIATE_UPDATE_TOOL_NAME
 from backend.services.agent.tool_types import ToolExecutionResult
+
+CANCELLED_TOOL_RESULT_CONTENT = (
+    "ERROR\n"
+    "summary: tool call cancelled by user\n"
+    "details: The run was interrupted before this tool call finished."
+)
 
 
 @dataclass(slots=True)
@@ -134,15 +139,6 @@ def queue_tool_call_record(
 ) -> PreparedToolCall:
     decoded = decode_tool_call(tool_call)
     tool_name = decoded.tool_name or "(unknown)"
-    if tool_name == INTERMEDIATE_UPDATE_TOOL_NAME:
-        return PreparedToolCall(
-            tool_call=tool_call,
-            tool_name=tool_name,
-            arguments=decoded.arguments,
-            raw_arguments=decoded.raw_arguments,
-            decode_error=decoded.decode_error,
-            persisted_row=None,
-        )
 
     tool_row = AgentToolCall(
         run_id=run.id,
@@ -260,39 +256,6 @@ def record_reasoning_update_event(
     )
 
 
-def _reasoning_source_from_value(value: Any) -> AgentRunEventSource:
-    if value == AgentRunEventSource.MODEL_REASONING.value:
-        return AgentRunEventSource.MODEL_REASONING
-    if value == AgentRunEventSource.ASSISTANT_CONTENT.value:
-        return AgentRunEventSource.ASSISTANT_CONTENT
-    return AgentRunEventSource.TOOL_CALL
-
-
-def extract_reasoning_from_tool_result(
-    result: ToolExecutionResult,
-    arguments: dict[str, Any],
-) -> tuple[str | None, AgentRunEventSource]:
-    output_json = result.output_json if isinstance(result.output_json, dict) else {}
-    output_message = output_json.get("message")
-    if isinstance(output_message, str):
-        normalized_output = output_message.strip()
-        if normalized_output:
-            return normalized_output, _reasoning_source_from_value(
-                output_json.get("source") or arguments.get("source")
-            )
-
-    input_message = arguments.get("message")
-    if isinstance(input_message, str):
-        normalized_input = input_message.strip()
-        if normalized_input:
-            return normalized_input, _reasoning_source_from_value(
-                output_json.get("source") or arguments.get("source")
-            )
-    return None, _reasoning_source_from_value(
-        output_json.get("source") or arguments.get("source")
-    )
-
-
 def tool_result_llm_message(
     prepared_tool_call: PreparedToolCall, result: ToolExecutionResult
 ) -> dict[str, Any]:
@@ -302,6 +265,15 @@ def tool_result_llm_message(
         "tool_call_id": prepared_tool_call.tool_call.get("id"),
         "name": prepared_tool_call.tool_name,
         "content": content,
+    }
+
+
+def cancelled_tool_result_llm_message(prepared_tool_call: PreparedToolCall) -> dict[str, Any]:
+    return {
+        "role": "tool",
+        "tool_call_id": prepared_tool_call.tool_call.get("id"),
+        "name": prepared_tool_call.tool_name,
+        "content": CANCELLED_TOOL_RESULT_CONTENT,
     }
 
 

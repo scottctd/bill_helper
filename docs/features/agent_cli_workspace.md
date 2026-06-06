@@ -11,7 +11,6 @@ The older model-visible tool catalog kept growing across reads, proposals, and r
 The runtime catalog exposed to the hosted model contains only:
 
 - `run_bh`
-- `send_intermediate_update`
 - `rename_thread`
 - `add_user_memory`
 

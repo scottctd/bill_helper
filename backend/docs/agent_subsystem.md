@@ -29,7 +29,7 @@
 - `backend/services/agent/message_history_content.py`
   - attachment-backed user-content shaping plus entity-category prompt context
 - `backend/services/agent/message_history_prefixes.py`
-  - review-result and interruption-prefix query helpers for the current turn
+  - review-result query helpers for the current turn; append-only turn context lives in `message_history_turn_context.py`
 - `backend/services/agent/model_client.py`
   - thin public seam re-exporting the LiteLLM client contract
 - `backend/services/agent/model_client_support/`
@@ -49,7 +49,7 @@
 - `backend/services/agent/read_tools/`
   - internal lookup helper package: `entries.py` for entry lookup ranking, `catalog.py` for tag/entity/account lookup helpers, `groups.py` for group lookup/detail formatting helpers, `accounts.py` for snapshot/reconciliation helpers, and `common.py` for shared ranking/principal-scope formatting helpers
 - `backend/services/agent/session_tools/`
-  - session-tool package: `progress.py` for `send_intermediate_update`, `memory.py` for add-only persistent memory appends, and `threads.py` for short thread-topic updates
+  - session-tool package: `memory.py` for add-only persistent memory appends and `threads.py` for short thread-topic updates
 - `backend/services/agent/terminal.py`
   - hosted `bh` CLI execution helper that injects per-command auth/session/run context and rejects general shell commands
 - `backend/services/agent/read_image.py`
@@ -109,12 +109,12 @@
 - prompt rendering carries a run surface hint so Telegram-directed turns can request plain-text-friendly final answers
 - `Current User Context` includes timezone/date bullets plus `Entity Category Reference` and `Account Context`
 - `Agent Memory` is rendered as a markdown unordered list built from persisted runtime-setting memory items
-- the model-visible tool catalog is intentionally small: `rename_thread`, `send_intermediate_update`, `add_user_memory`, and `run_bh`
+- the model-visible tool catalog is intentionally small: `rename_thread`, `add_user_memory`, and `run_bh`
+- legacy runs that predate `send_intermediate_update` removal may still have `reasoning_update` rows with `source = tool_call`; see `agent_legacy_compat.md` for replay and timeline compatibility rules
 - app-state reads and proposal lifecycle work flow through `run_bh` running local `bh ...` commands rather than through a Docker shell or the older large direct read/proposal tool list
 - duplicate-entry checks should happen before new entry proposals
 - tag/entity naming should stay canonical and generalized
 - tag-delete proposals may proceed while referenced; proposal previews should surface impact counts and apply removes entry junction rows by cascade
-- `send_intermediate_update` is required as the first tool call when tool work is needed
 - `add_user_memory` is an add-only tool for explicit remember-this requests; mutate/remove requests must be declined
 - `rename_thread` should run right after the first user message in a new thread, then only when the user explicitly asks or the topic materially changes
 - untitled threads are runtime-gated to expose only the `rename_thread` tool on the first model step and request an explicit required `tool_choice`; if a provider rejects that forced `tool_choice`, or LiteLLM raises `UnsupportedParamsError` because the provider does not support `tool_choice` at all, the model client retries once without `tool_choice` while keeping the rename-only tool list restriction
@@ -221,7 +221,6 @@ Endpoints:
 - live streamed `run_event` payloads optionally include `run_usage` (cumulative counters and derived USD costs for that run at event time) for incremental UI such as thread-level usage bars; historical replay omits `run_usage` so past events do not carry the finished run's final totals
 - tool-call payloads now include backend-computed `display_label` / `display_detail` fields so clients can render high-signal summaries without duplicating formatter logic
 - clients may hydrate a streamed `rename_thread` tool call immediately and update the visible thread title before the final assistant message arrives
-- `send_intermediate_update` is persisted as a `reasoning_update` event, not as a fake tool call
 - malformed tool-call JSON now persists an explicit tool-call error with raw argument text and decode metadata instead of being silently rewritten to an empty argument object
 - attachment-bearing user turns reach the model as ordered content parts: attachment parts first, then the typed user prompt
 - each user message persists the legacy `attachments_use_ocr` flag, but current hosted attachment sends use image/PDF page parts for visual files and inline text parts for plain-text files; image and PDF attachments require a vision-capable model
@@ -229,7 +228,7 @@ Endpoints:
 - new agent uploads are written into the canonical per-user store under `{data_dir}/user_files/{owner_user_id}/uploads/...`, and `agent_message_attachments` link to those canonical rows instead of owning file metadata directly
 - the hosted agent prompt does not expose external setup, session navigation, or source-management commands; `run_bh` enforces the same boundary and allows only current-session updates through `bh sessions update`
 - PDF and image attachments are written into per-upload bundle directories. Images keep the original bytes with no resizing. PDFs are stored as `raw.pdf` plus PyMuPDF `page-<n>.png` renders at scale 2 over the default 72 pt/in raster, one file per page, and are rejected before rendering when page count exceeds `agent_max_pdf_pages` (default `10`). Message assembly sends those images as `image_url` parts and does not run Docling or OCR. Plain-text attachments such as CSV are stored as `raw.<ext>` and assembled as inline `text` parts with the file body.
-- interruption marks runs as `failed` and injects interruption context into the next turn
+- interruption marks runs as `failed`; conversation history stays append-only by rebuilding each turn's thinking/tool work from persisted run activity, with a steering user message before the next request after an interrupt
 - pending proposals remain inspectable in later turns while still `PENDING_REVIEW`
 - reviewed proposal context now includes reviewer override values when `payload_override` changed the approved payload, so later turns can see concrete edited values instead of only changed field names
 - run snapshots expose persisted `surface`, explicit `reply_surface`, and `terminal_assistant_reply`, so read-time formatting overrides do not masquerade as the stored run surface

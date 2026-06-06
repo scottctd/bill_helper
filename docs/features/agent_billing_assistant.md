@@ -19,7 +19,7 @@ This feature doc describes the current billing assistant architecture, prompt sh
 
 The current assistant is a review-gated tool-calling runtime with a deliberately small model-visible surface:
 
-- the model sees only `rename_thread`, `send_intermediate_update`, `add_user_memory`, and `run_bh`
+- the model sees only `rename_thread`, `add_user_memory`, and `run_bh`
 - Bill Helper app reads, proposal creation/updates/removal, and review actions now happen through `bh`
 - `run_bh` is a narrow bridge for backend-backed Bill Helper operations, not a general shell
 - proposals still create `AgentChangeItem` rows first; direct ledger mutation still happens only in review apply handlers
@@ -34,7 +34,7 @@ The old read/proposal/review modules still exist internally, but no longer as di
 | Runtime                      | `backend/services/agent/runtime.py`, `backend/services/agent/runtime_loop.py`, `backend/services/agent/run_orchestrator.py`                                                                   | Tool-calling loop, event persistence, final assistant completion, and streaming/background adapters                                                 |
 | Model client                 | `backend/services/agent/model_client.py`, `backend/services/agent/model_client_support/`                                                                                                      | LiteLLM integration, retry behavior, streaming delta normalization, and usage accounting                                                            |
 | Prompt assembly              | `backend/services/agent/system_prompt.j2`, `backend/services/agent/external_agent_prompt.j2`, `backend/services/agent/prompt_includes/`, `backend/services/agent/prompts.py`                     | Hosted prompt composition with current-user context; external-agent instruction via `bh instruction`; shared proposal/domain policy includes |
-| Message history              | `backend/services/agent/message_history.py`, `backend/services/agent/message_history_content.py`, `backend/services/agent/attachment_content.py`                                              | Thread history shaping, attachment extraction, PDF/image handling, and review/interruption prefixing                                                |
+| Message history              | `backend/services/agent/message_history.py`, `backend/services/agent/message_history_content.py`, `backend/services/agent/message_history_turn_context.py`, `backend/services/agent/attachment_content.py` | Thread history shaping, append-only turn context, attachment extraction, PDF/image handling, and review prefixing |
 | Runtime-visible tool catalog | `backend/services/agent/tool_runtime_support/catalog.py`, `backend/services/agent/tool_runtime_support/catalog_session.py`, `backend/services/agent/tool_runtime_support/catalog_terminal.py` | Exact tool schemas exposed to the model                                                                                                             |
 | CLI execution                | `backend/services/agent/terminal.py`, `backend/services/agent/work_sessions.py`, `backend/services/docker_cli.py`, `backend/services/agent_workspace.py`                                      | Hosted `bh` execution, short-lived session injection, source/session persistence, output truncation, secret scrubbing, and legacy workspace support |
 | CLI                          | `backend/cli/main.py`, `backend/cli/support.py`, `backend/cli/rendering.py`, `backend/cli/reference.py`, `backend/cli/dashboard_commands.py` | Thin HTTP client, compact/text rendering, dashboard analytics reads, and prompt/doc reference metadata |
@@ -50,14 +50,13 @@ The old read/proposal/review modules still exist internally, but no longer as di
 3. Backend persists the message, binds any uploaded attachments (or inline request files), links those files as session sources, and creates a new `agent_runs` row.
 4. Runtime builds the system prompt, current-user context, entity-category context, user memory section, and message history.
 5. If the thread is untitled, the runtime exposes only `rename_thread` and requests that tool explicitly.
-6. After the thread has a valid title, the runtime exposes the four-tool catalog.
-7. The model uses `send_intermediate_update` before meaningful tool-call batches.
-8. For Bill Helper app work, the model calls `run_bh` and executes `bh ...`.
-9. `run_bh` mints a short-lived backend session, injects `BH_*` env, executes the local CLI module, truncates output when needed, and revokes the temporary session afterward.
-10. Hosted `bh` calls backend routes for reads, current-session summary updates, and current-thread proposal lifecycle actions. Session navigation and source attachment commands remain available to external agents through `bh instruction`, but are blocked for hosted runs. External agents load the shared proposal/domain policy plus the full external CLI reference from `bh instruction`.
-11. Proposal creation stores pending `AgentChangeItem` rows scoped to the current thread and hosted run, or to a synthetic CLI run for external agents.
-12. Human review approves, rejects, or reopens proposals.
-13. Only approval apply handlers mutate the real domain tables.
+6. After the thread has a valid title, the runtime exposes the three-tool catalog.
+7. For Bill Helper app work, the model calls `run_bh` and executes `bh ...`.
+8. `run_bh` mints a short-lived backend session, injects `BH_*` env, executes the local CLI module, truncates output when needed, and revokes the temporary session afterward.
+9. Hosted `bh` calls backend routes for reads, current-session summary updates, and current-thread proposal lifecycle actions. Session navigation and source attachment commands remain available to external agents through `bh instruction`, but are blocked for hosted runs. External agents load the shared proposal/domain policy plus the full external CLI reference from `bh instruction`.
+10. Proposal creation stores pending `AgentChangeItem` rows scoped to the current thread and hosted run, or to a synthetic CLI run for external agents.
+11. Human review approves, rejects, or reopens proposals.
+12. Only approval apply handlers mutate the real domain tables.
 
 ## Prompt Shape
 
@@ -125,18 +124,6 @@ Arguments:
 - `title: string` required
   description: Short thread title/topic in 1-5 words.
   constraints: minLength=1, maxLength=80
-
-### `send_intermediate_update`
-
-Description:
-
-Call this tool before calling other tools (but after rename_thread). Call this tool again only for meaningful transitions between tool calls; do not call it on every tool step.
-
-Arguments:
-
-- `message: string` required
-  description: A short, user-visible progress note. Use plain text or inline markdown (e.g. **bold**, `code`, *italic*) for emphasis when helpful.
-  constraints: minLength=1, maxLength=400
 
 ### `run_bh`
 

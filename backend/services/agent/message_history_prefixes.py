@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from backend.enums_agent import AgentMessageRole, AgentRunStatus
+from backend.enums_agent import AgentMessageRole
 from backend.models_agent import (
     AgentChangeItem,
     AgentMessage,
@@ -116,73 +116,3 @@ def build_review_results_prefix_for_current_turn(
         return None
     return "\n".join(lines)
 
-
-def build_interruption_prefix_for_current_turn(
-    db: Session,
-    *,
-    thread_id: str,
-    history: list[AgentMessage],
-    current_user_message_id: str | None,
-) -> str | None:
-    if not current_user_message_id:
-        return None
-
-    current_user = next(
-        (
-            message
-            for message in history
-            if message.id == current_user_message_id and message.role == AgentMessageRole.USER
-        ),
-        None,
-    )
-    if current_user is None:
-        return None
-
-    previous_user = next(
-        (
-            message
-            for message in reversed(history)
-            if message.role == AgentMessageRole.USER and message.created_at < current_user.created_at
-        ),
-        None,
-    )
-    if previous_user is None:
-        return None
-
-    candidate_runs = list(
-        db.scalars(
-            select(AgentRun)
-            .where(
-                AgentRun.thread_id == thread_id,
-                AgentRun.user_message_id == previous_user.id,
-            )
-            .order_by(AgentRun.created_at.desc())
-        )
-    )
-    interrupted_run = next(
-        (
-            run
-            for run in candidate_runs
-            if run.status == AgentRunStatus.FAILED
-            and run.assistant_message_id is None
-            and "interrupt" in (run.error_text or "").lower()
-        ),
-        None,
-    )
-    if interrupted_run is None:
-        return None
-
-    previous_feedback = " ".join(previous_user.content_markdown.split()).strip()
-    if len(previous_feedback) > 180:
-        previous_feedback = f"{previous_feedback[:177]}..."
-    previous_feedback_line = (
-        f'Interrupted previous user request: "{previous_feedback}"'
-        if previous_feedback
-        else "Interrupted previous user request: (no text; attachments and context still apply)."
-    )
-
-    return (
-        "Previous turn note: the user interrupted your previous response before it completed.\n"
-        f"{previous_feedback_line}\n"
-        "Treat that interrupted request as conversation context while answering the latest user feedback."
-    )

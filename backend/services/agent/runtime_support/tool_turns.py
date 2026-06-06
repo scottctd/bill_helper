@@ -85,13 +85,14 @@ def prepare_tool_turn(
     if reasoning_event is not None:
         event_rows.append(reasoning_event)
 
-    llm_messages.append(
-        {
-            "role": "assistant",
-            "content": assistant_content,
-            "tool_calls": sanitized_tool_calls,
-        }
-    )
+    assistant_entry: dict[str, Any] = {
+        "role": "assistant",
+        "content": assistant_content,
+        "tool_calls": sanitized_tool_calls,
+    }
+    if model_reasoning.strip():
+        assistant_entry["reasoning"] = model_reasoning
+    llm_messages.append(assistant_entry)
     assistant_event = _record_reasoning_update_event(
         db,
         run=run,

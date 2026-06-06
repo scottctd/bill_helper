@@ -145,8 +145,8 @@
 - `workspace_browser.py`: legacy current-user workspace snapshot shaping for lifecycle and IDE launch state.
 - `workspace_ide.py`: legacy IDE launch-cookie helpers plus same-origin proxy header policy for `code-server`.
 - `agent/`: agent runtime, tool execution, prompt-size counting, serialization, prompt/model adapters, and review apply handlers.
-  - `tool_args/`: focused tool-input package for read filters, progress/session commands, thread rename, and pending-proposal admin wrappers.
-  - `session_tools/`: session-scoped non-proposal tool handlers for progress updates, add-only memory appends, and thread rename operations.
+  - `tool_args/`: focused tool-input package for read filters, thread rename, and pending-proposal admin wrappers.
+  - `session_tools/`: session-scoped non-proposal tool handlers for add-only memory appends and thread rename operations.
   - `threads.py`: thread lookup and rename persistence helpers used by the router and tool runtime.
   - `protocol_helpers.py`: shared helper contracts for tool-call decoding and usage-shape normalization.
   - `protocol.py`: compatibility facade re-exporting protocol helper APIs.
@@ -162,7 +162,8 @@
   - `attachment_content_assembly.py`: attachment display-name, data-url, and model-content assembly helpers.
   - `message_history.py`: public thread-to-model message assembly seam.
   - `message_history_content.py`: attachment-backed user-content shaping and entity-category prompt context helpers.
-  - `message_history_prefixes.py`: review-result and interruption-prefix history queries for the current turn.
+  - `message_history_prefixes.py`: review-result history queries for the current turn.
+  - `message_history_turn_context.py`: rebuild append-only per-turn LLM context from persisted run activity.
   - `user_context.py`: account/user prompt-context normalization and truncation helpers.
   - `runtime.py`: public runtime facade and stable test/benchmark monkeypatch seams.
   - `runtime_support/`: grouped runtime internals split into run lifecycle and tool-turn preparation helpers.

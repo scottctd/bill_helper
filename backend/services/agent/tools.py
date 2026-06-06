@@ -11,7 +11,6 @@ Production modules in this package should import from the owning tool_* modules
 directly so there is a single canonical home for runtime and type logic.
 """
 
-from backend.services.agent.tool_args.shared import INTERMEDIATE_UPDATE_TOOL_NAME
 from backend.services.agent.tool_runtime import (
     TOOLS,
     AgentToolDefinition,
@@ -22,7 +21,6 @@ from backend.services.agent.tool_types import ToolContext, ToolExecutionResult, 
 
 __all__ = [
     "AgentToolDefinition",
-    "INTERMEDIATE_UPDATE_TOOL_NAME",
     "TOOLS",
     "ToolContext",
     "ToolExecutionResult",

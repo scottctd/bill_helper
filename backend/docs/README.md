@@ -7,6 +7,7 @@ Use this directory when the top-level backend index is still too broad.
 - `runtime_and_config.md`: startup paths, environment settings, DB factories, and runtime settings behavior.
 - `domain_and_http.md`: finance-domain models, schemas, services, routers, and ownership conventions.
 - `agent_subsystem.md`: agent runtime, tool handlers, review/apply flow, and thread detail behavior.
+- `agent_legacy_compat.md`: compatibility notes for pre-removal agent runs (legacy `reasoning_update` sources and timeline behavior).
 - `import_workflow.md`: import jobs, scheduler, preflight, and aggregated proposal review.
 - `operations.md`: migrations, tests, operational impact, and known backend constraints.
 
@@ -15,5 +16,6 @@ Use this directory when the top-level backend index is still too broad.
 - "How does the backend boot and resolve settings?" -> `runtime_and_config.md`
 - "Where should this business rule live?" -> `domain_and_http.md`
 - "How does the agent run/review pipeline work?" -> `agent_subsystem.md`
+- "How do we handle old agent runs after tool removals?" -> `agent_legacy_compat.md`
 - "How does the import job scheduler work?" -> `import_workflow.md`
 - "What do I need to run or verify after a backend change?" -> `operations.md`

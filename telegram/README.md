@@ -42,7 +42,7 @@ This package contains the Bill Helper Telegram private-chat transport. It keeps 
 - if a chat does not have an active thread yet, Telegram creates one automatically on the first message
 - supported uploads: text, photos, image documents, and PDFs
 - while a run is active, Telegram sends `typing` chat actions and edits a placeholder message as streamed text arrives
-- `send_intermediate_update` reasoning notes are surfaced before assistant text starts
+- `reasoning_update` events (model reasoning and assistant tool-step text) are surfaced before assistant text starts
 - if SSE streaming drops, the transport falls back to the existing background-run plus polling flow
 - final replies are sent back as Telegram-safe HTML chunks with a small model/cost footer when usage data is available
 - pending review items are sent as one Telegram message per change item, with optional batch approve/reject buttons

@@ -13,7 +13,18 @@ def patch_model(monkeypatch, handler: Any) -> None:
     def wrapped(messages, _db, **_kwargs):
         return handler(messages)
 
+    def wrapped_stream(messages, _db, **_kwargs):
+        message = handler(messages)
+        reasoning = str(message.get("reasoning") or "").strip()
+        if reasoning:
+            yield {"type": "reasoning_delta", "delta": reasoning}
+        content = str(message.get("content") or "")
+        if content:
+            yield {"type": "text_delta", "delta": content}
+        yield {"type": "done", "message": message}
+
     monkeypatch.setattr(runtime, "call_model", wrapped)
+    monkeypatch.setattr(runtime, "call_model_stream", wrapped_stream)
 
 
 def create_thread(client) -> dict:

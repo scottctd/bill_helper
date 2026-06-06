@@ -18,10 +18,11 @@ from backend.services.agent.message_history_content import (
 )
 from backend.services.agent.message_history_content import build_user_content
 from backend.services.agent.message_history_prefixes import (
-    build_interruption_prefix_for_current_turn as _build_interruption_prefix_for_current_turn,
-)
-from backend.services.agent.message_history_prefixes import (
     build_review_results_prefix_for_current_turn as _build_review_results_prefix_for_current_turn,
+)
+from backend.services.agent.message_history_turn_context import (
+    build_turn_context_insert,
+    load_latest_runs_by_user_message_id,
 )
 from backend.services.agent.principal_scope import load_thread_owner_user
 from backend.services.agent.prompts import SystemPromptContext, system_prompt
@@ -60,12 +61,11 @@ def build_llm_messages(
         history=history,
         current_user_message_id=current_user_message_id,
     )
-    interruption_prefix = _build_interruption_prefix_for_current_turn(
+    latest_runs_by_user_message_id = load_latest_runs_by_user_message_id(
         db,
         thread_id=thread_id,
-        history=history,
-        current_user_message_id=current_user_message_id,
     )
+    skipped_assistant_message_ids: set[str] = set()
 
     messages: list[dict[str, Any]] = [
         {
@@ -93,9 +93,6 @@ def build_llm_messages(
             message_review_prefix = (
                 review_results_prefix if message.id == current_user_message_id else None
             )
-            message_interruption_prefix = (
-                interruption_prefix if message.id == current_user_message_id else None
-            )
             messages.append(
                 {
                     "role": "user",
@@ -103,12 +100,27 @@ def build_llm_messages(
                         message,
                         model_name=model_name,
                         review_results_prefix=message_review_prefix,
-                        interruption_prefix=message_interruption_prefix,
                     ),
                 }
             )
+            run = latest_runs_by_user_message_id.get(message.id)
+            if run is not None:
+                turn_context = build_turn_context_insert(
+                    run=run,
+                    user_message=message,
+                    current_user_message_id=current_user_message_id,
+                    history=history,
+                )
+                if turn_context is not None:
+                    messages.extend(turn_context.messages)
+                    if turn_context.skip_assistant_message_id is not None:
+                        skipped_assistant_message_ids.add(
+                            turn_context.skip_assistant_message_id
+                        )
             continue
         if message.role == AgentMessageRole.ASSISTANT:
+            if message.id in skipped_assistant_message_ids:
+                continue
             messages.append({"role": "assistant", "content": message.content_markdown})
             continue
         messages.append({"role": "system", "content": message.content_markdown})

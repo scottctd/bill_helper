@@ -311,6 +311,8 @@ Behavior:
 
 - lookup is owner-scoped through the parent thread
 - running runs are marked `failed` with `error_text = "Run interrupted by user."`
+- incomplete queued/running tool calls are cancelled when a run terminates; completed, failed, and cancelled tool results stay in later LLM history
+- each turn rebuilds append-only LLM context from persisted run activity (thinking, completed tool calls/results, final assistant reply); interrupted turns also insert a steering user message before the next user request
 - already finished runs are returned unchanged
 
 Errors:

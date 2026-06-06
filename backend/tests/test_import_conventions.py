@@ -253,9 +253,9 @@ def test_agent_read_tools_are_grouped_in_a_package() -> None:
 def test_agent_session_tools_are_grouped_in_a_package() -> None:
     assert not REMOVED_AGENT_MEMORY_HANDLER_MODULE.exists(), "memory tool handler should stay in the session_tools package"
     assert not REMOVED_AGENT_THREAD_HANDLER_MODULE.exists(), "thread tool handler should stay in the session_tools package"
-    assert not REMOVED_AGENT_PROGRESS_HANDLER_MODULE.exists(), "progress tool should stay in the session_tools package"
+    assert not REMOVED_AGENT_PROGRESS_HANDLER_MODULE.exists(), "legacy read_tools progress handler should stay removed"
     assert AGENT_SESSION_TOOLS_PACKAGE.is_dir(), "session_tools package should exist"
-    for name in ("memory.py", "progress.py", "threads.py"):
+    for name in ("memory.py", "threads.py"):
         assert (AGENT_SESSION_TOOLS_PACKAGE / name).exists(), f"missing session tool module: {name}"
 
 

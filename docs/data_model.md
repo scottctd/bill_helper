@@ -430,7 +430,6 @@ Fields:
 Operational notes:
 
 - non-intermediate tool rows are created when the model turn resolves, before execution starts
-- `send_intermediate_update` is represented only as a `reasoning_update` row in `agent_run_events`, not as an `agent_tool_calls` row
 
 ## `agent_run_events`
 
