@@ -21,7 +21,8 @@ function runHasLiveStreamBuffers(runId: string, session: AgentStreamSessionState
   return (
     (session.streamedReasoningTextByRunId[runId]?.length ?? 0) > 0 ||
     (session.streamedTextByRunId[runId]?.length ?? 0) > 0 ||
-    (session.optimisticRunEventsByRunId[runId]?.length ?? 0) > 0
+    (session.optimisticStepsByRunId[runId]?.length ?? 0) > 0 ||
+    (session.optimisticToolCallsByRunId[runId]?.length ?? 0) > 0
   );
 }
 
@@ -48,10 +49,7 @@ export function resolveReconnectSequenceIndex(
   run: AgentRun,
   session: AgentStreamSessionState
 ): number {
-  const persistedMax = (run.events ?? []).reduce(
-    (max, event) => Math.max(max, event.sequence_index),
-    0
-  );
+  const persistedMax = run.last_event_sequence_index ?? 0;
   const sessionMax = session.lastSequenceIndexByRunId[run.id] ?? 0;
   return Math.max(persistedMax, sessionMax);
 }

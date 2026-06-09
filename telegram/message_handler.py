@@ -9,7 +9,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from backend.schemas_agent import AgentMessageRead, AgentRunRead
+from backend.schemas_agent import AgentRunRead, AgentTurnMessageRead
 from telegram.bill_helper_api import BillHelperApiClient, BillHelperApiError, BillHelperApiStreamError
 from telegram.files import TelegramAttachmentError, download_message_attachments
 from telegram.formatting import (
@@ -129,7 +129,7 @@ class TelegramContentHandler:
         consumer: TelegramStreamConsumer | None,
     ) -> list[TelegramMessage]:
         if run.status.value != "completed":
-            error_text = (run.error_text or "The request did not complete.").strip()
+            error_text = (run.error_detail or "The request did not complete.").strip()
             if consumer is not None:
                 await consumer.finalize_error("Request failed", error_text)
                 return consumer.sent_messages
@@ -157,19 +157,24 @@ class TelegramContentHandler:
         return thread.id
 
     async def _resolve_final_reply(self, run: AgentRunRead) -> str | None:
-        reply = (run.terminal_assistant_reply or "").strip()
+        reply = (run.final_assistant_reply or "").strip()
         if reply:
             return reply
-        if not run.assistant_message_id:
-            return None
         detail = await asyncio.to_thread(self.bill_helper_api.get_thread, run.thread_id)
-        assistant_message = next(
-            (message for message in reversed(detail.messages) if message.id == run.assistant_message_id),
-            None,
-        )
+        assistant_message = self._latest_assistant_turn_message(detail.turns)
         return self._fallback_message_reply(assistant_message)
 
-    def _fallback_message_reply(self, message: AgentMessageRead | None) -> str | None:
+    def _latest_assistant_turn_message(
+        self,
+        turns: list[object],
+    ) -> AgentTurnMessageRead | None:
+        for turn in reversed(turns):
+            assistant_message = getattr(turn, "assistant_message", None)
+            if assistant_message is not None:
+                return assistant_message
+        return None
+
+    def _fallback_message_reply(self, message: AgentTurnMessageRead | None) -> str | None:
         content = simplify_markdown_for_telegram(message.content_markdown if message is not None else None)
         return content or None
 

@@ -189,6 +189,13 @@ Apply migrations:
 uv run alembic upgrade head
 ```
 
+Harness-first agent reset:
+
+- migration `0045_agent_harness_first_schema` replaces legacy agent tables and ports transcript messages
+- it drops and recreates all agent thread/run/transcript tables
+- upgrade fails while any `agent_runs.status = running` rows still exist; interrupt or wait for active runs first
+- expect legacy threads and conversation transcript (user/assistant/tool messages) to be preserved when moving to `0045`; historical SSE/event journals are not ported
+
 Current revisions:
 
 - `0001_initial`
@@ -232,6 +239,10 @@ Current revisions:
 - `0039_add_agent_run_approval_policy`
 - `0040_add_agent_session_sources`
 - `0041_add_agent_run_event_reasoning_duration_ms`
+- `0042_remove_entry_account_id`
+- `0043_add_import_workflow`
+- `0044_remove_agent_change_item_rationale_text`
+- `0045_agent_harness_first_schema`
 
 ## Seed Data
 
@@ -386,11 +397,16 @@ Backend agent modules:
 - `backend/routers/agent_runs.py`
 - `backend/routers/agent_reviews.py`
 - `backend/routers/agent_attachments.py`
+- `backend/services/agent/harness/`
+- `backend/services/agent/production_runtime.py`
+- `backend/services/agent/production_repository.py`
+- `backend/services/agent/production_events.py`
+- `backend/services/agent/model_gateway.py`
+- `backend/services/agent/thread_context.py`
+- `backend/services/agent/api_projection.py`
+- `backend/services/agent/execution.py`
 - `backend/services/agent/runtime.py`
-- `backend/services/agent/runtime_loop.py`
-- `backend/services/agent/runtime_state.py`
-- `backend/services/agent/run_orchestrator.py`
-- `backend/services/agent/message_history.py`
+- `backend/services/agent/stream_hub.py`
 - `backend/services/agent/attachment_content.py`
 - `backend/services/agent/user_context.py`
 - `backend/services/agent/protocol_helpers.py`
@@ -431,7 +447,7 @@ Frontend test modules:
 Behavioral checks:
 
 - user can open home agent workspace and create/select threads
-- message send persists timeline and run history
+- message send persists canonical transcript rows, harness events, and run history
 - tool/reasoning traces appear in timeline while run is active
 - proposal items can be approved/rejected individually from the thread review modal
 - accounts workspace supports create/edit/snapshot flows from split feature modules

@@ -14,9 +14,9 @@ from backend.config import get_settings
 from sqlalchemy import select
 
 from backend.database import open_session
-from backend.enums_agent import AgentMessageRole, AgentRunStatus
+from backend.enums_agent import AgentRunStatus
 from backend.enums_import import ImportJobStatus, ImportPreflightSuggestedAction, ImportTaskStatus
-from backend.models_agent import AgentMessage, AgentRun
+from backend.models_agent import AgentRun, AgentThread
 from backend.models_import import ImportTask
 from backend.services.import_workflow.scheduler import notify_agent_run_terminal, reset_import_scheduler_for_tests
 from backend.tests.agent_test_utils import build_pdf_bytes
@@ -154,18 +154,15 @@ def test_scheduler_marks_task_complete_on_run_terminal(client: TestClient, monke
     async def fake_create_user_message_and_start_run(**kwargs):
         db = kwargs["db"]
         thread_id = kwargs["thread_id"]
-        message = AgentMessage(
-            thread_id=thread_id,
-            role=AgentMessageRole.USER,
-            content_markdown=kwargs["content"],
-        )
-        db.add(message)
-        db.flush()
+        thread = db.get(AgentThread, thread_id)
+        assert thread is not None
         run = AgentRun(
             thread_id=thread_id,
-            user_message_id=message.id,
+            turn_index=0,
             status=AgentRunStatus.RUNNING,
             model_name="test-model",
+            principal_user_id=thread.owner_user_id,
+            origin="app",
         )
         db.add(run)
         db.flush()
@@ -181,7 +178,7 @@ def test_scheduler_marks_task_complete_on_run_terminal(client: TestClient, monke
         lambda run_id, session_factory=None: None,
     )
     monkeypatch.setattr(
-        "backend.services.agent.execution.ensure_agent_available",
+        "backend.services.agent.runtime.ensure_agent_available",
         lambda db, model_name=None: None,
     )
 

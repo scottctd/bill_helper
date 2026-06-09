@@ -78,6 +78,17 @@ function parseAgentStreamEvent(rawBlock: string): AgentStreamEvent | null {
   return payload as AgentStreamEvent;
 }
 
+function shouldYieldAfterStreamEvent(event: AgentStreamEvent): boolean {
+  return event.type === "model_delta" || event.type === "reasoning_delta" || event.type === "text_delta";
+}
+
+function waitForNextPaint(): Promise<void> {
+  if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+    return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  }
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 async function consumeAgentSseResponse(
   response: Response,
   onEvent: (event: AgentStreamEvent) => void
@@ -98,17 +109,23 @@ async function consumeAgentSseResponse(
     buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
     const { blocks, remainder } = readSseBlocks(buffer);
     buffer = remainder;
-    blocks.forEach((rawBlock) => {
+    for (const rawBlock of blocks) {
       const event = parseAgentStreamEvent(rawBlock);
       if (event) {
         onEvent(event);
+        if (shouldYieldAfterStreamEvent(event)) {
+          await waitForNextPaint();
+        }
       }
-    });
+    }
   }
   if (buffer.trim()) {
     const event = parseAgentStreamEvent(buffer);
     if (event) {
       onEvent(event);
+      if (shouldYieldAfterStreamEvent(event)) {
+        await waitForNextPaint();
+      }
     }
   }
 }

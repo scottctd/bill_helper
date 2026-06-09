@@ -25,7 +25,7 @@ from backend.services.agent.execution import (
     create_user_message_and_start_run,
     run_agent_in_background,
 )
-from backend.services.agent.runtime_support.lifecycle import interrupt_run
+from backend.services.agent.runtime import interrupt_agent_run
 
 _logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def _finalize_task_for_run(db: Session, *, task: ImportTask, run: AgentRun) -> N
         task.error_text = None
     else:
         task.status = ImportTaskStatus.FAILED
-        task.error_text = run.error_text or f"Agent run ended with status {run.status.value}."
+        task.error_text = run.error_detail or f"Agent run ended with status {run.status.value}."
     task.active_run_id = None
     task.completed_at = now
     task.updated_at = now
@@ -174,6 +174,7 @@ def _start_task_run(db: Session, *, job: ImportJob, task: ImportTask) -> None:
                 model_name=job.model_name,
                 surface="app",
                 approval_policy=job.approval_policy,
+                principal_user_id=job.owner_user_id,
             )
         )
     except AgentExecutionPolicyError as exc:
@@ -215,7 +216,7 @@ def _interrupt_running_tasks(db: Session, *, job: ImportJob) -> None:
     for task in job.tasks:
         if task.status != ImportTaskStatus.RUNNING or not task.active_run_id:
             continue
-        interrupt_run(db, run_id=task.active_run_id, reason="Import job cancelled.")
+        interrupt_agent_run(db, task.active_run_id)
 
 
 def _coordinator_loop(

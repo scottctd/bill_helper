@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentRunBlock } from "./AgentRunBlock";
-import { buildChangeItem, buildRun, buildRunEvent, buildToolCall } from "../../test/factories/agent";
+import type { RunActivityItem } from "./activity";
+import { buildChangeItem, buildRun, buildStep, buildToolCall } from "../../test/factories/agent";
 
 describe("AgentRunBlock", () => {
   it("renders summary mode without a per-run review button", () => {
@@ -18,19 +19,16 @@ describe("AgentRunBlock", () => {
     expect(screen.getByText("Use the thread header Review button to process proposals.")).toBeInTheDocument();
   });
 
-  it("renders interleaved activity timeline for reasoning updates", () => {
-    const toolCall = buildToolCall({ id: "tool-1", tool_name: "list_entries", created_at: "2026-02-15T10:00:00Z" });
+  it("renders interleaved activity timeline for progress notes", () => {
+    const toolCall = buildToolCall({ id: "tool-1", step_id: "step-1", tool_name: "list_entries" });
     const run = buildRun({
       id: "run-activity",
       status: "running",
-      events: [
-        buildRunEvent({ id: "event-1", sequence_index: 1, event_type: "tool_call_queued", tool_call_id: "tool-1" }),
-        buildRunEvent({
-          id: "event-2",
-          sequence_index: 2,
-          event_type: "reasoning_update",
-          message: "Validating candidate entries",
-          source: "tool_call"
+      steps: [
+        buildStep({
+          id: "step-1",
+          step_index: 1,
+          progress_note: "Validating candidate entries"
         })
       ],
       tool_calls: [toolCall]
@@ -45,13 +43,11 @@ describe("AgentRunBlock", () => {
     const run = buildRun({
       id: "run-model-reasoning",
       status: "running",
-      events: [
-        buildRunEvent({
-          id: "event-1",
-          sequence_index: 1,
-          event_type: "reasoning_update",
-          message: "Checking entities before proposing changes.",
-          source: "model_reasoning",
+      steps: [
+        buildStep({
+          id: "step-1",
+          step_index: 1,
+          reasoning_text: "Checking entities before proposing changes.",
           reasoning_duration_ms: 3200
         })
       ]
@@ -70,18 +66,16 @@ describe("AgentRunBlock", () => {
   it("renders model-visible tool output in tool-call details", async () => {
     const toolCall = buildToolCall({
       id: "tool-1",
+      step_id: "step-1",
       tool_name: "list_entries",
       display_label: "Listed entries",
       output_text: "OK\nsummary: returned 2 of 2 matching entries",
-      output_json: { status: "ok", summary: "returned 2 of 2 matching entries" }
+      result_content_json: { status: "ok", summary: "returned 2 of 2 matching entries" }
     });
     const run = buildRun({
       id: "run-tool-output",
       status: "completed",
-      events: [
-        buildRunEvent({ id: "event-1", sequence_index: 1, event_type: "tool_call_queued", tool_call_id: "tool-1" }),
-        buildRunEvent({ id: "event-2", sequence_index: 2, event_type: "tool_call_completed", tool_call_id: "tool-1" })
-      ],
+      steps: [buildStep({ id: "step-1", step_index: 1 })],
       tool_calls: [toolCall]
     });
 
@@ -95,26 +89,24 @@ describe("AgentRunBlock", () => {
     expect(screen.getByText("Structured output (debug)")).toBeInTheDocument();
   });
 
-  it("renders placeholder tool rows from optimistic events before tool snapshot arrives", async () => {
+  it("renders placeholder tool rows from optimistic tool snapshots", async () => {
     const optimisticToolCall = buildToolCall({
       id: "tool-1",
+      step_id: "step-1",
       tool_name: "list_tags",
       display_label: "Listed tags",
-      input_json: { include_descriptions: true }
+      arguments_json: { include_descriptions: true }
     });
     const run = buildRun({
       id: "run-optimistic",
       status: "running",
-      events: []
+      steps: []
     });
 
     render(
       <AgentRunBlock
         run={run}
         mode="activity"
-        optimisticEvents={[
-          buildRunEvent({ id: "event-1", sequence_index: 1, event_type: "tool_call_queued", tool_call_id: "tool-1" })
-        ]}
         optimisticToolCalls={[optimisticToolCall]}
       />
     );
@@ -131,25 +123,18 @@ describe("AgentRunBlock", () => {
     const toolCall = buildToolCall({
       id: "tool-compact",
       run_id: "run-compact",
+      step_id: "step-1",
       tool_name: "list_tags",
       display_label: "Listed tags",
       has_full_payload: false,
-      input_json: null,
-      output_json: null,
+      arguments_json: null,
+      result_content_json: null,
       output_text: null
     });
     const run = buildRun({
       id: "run-compact",
       status: "running",
-      events: [
-        buildRunEvent({
-          id: "event-1",
-          run_id: "run-compact",
-          sequence_index: 1,
-          event_type: "tool_call_started",
-          tool_call_id: "tool-compact"
-        })
-      ],
+      steps: [buildStep({ id: "step-1", run_id: "run-compact", step_index: 1 })],
       tool_calls: [toolCall]
     });
 
@@ -173,33 +158,25 @@ describe("AgentRunBlock", () => {
     const compactToolCall = buildToolCall({
       id: "tool-streamed-compact",
       run_id: "run-streamed-compact",
+      step_id: "step-1",
       tool_name: "propose_create_entity",
       display_label: "Proposed entity creation",
       has_full_payload: false,
-      input_json: null,
-      output_json: null,
+      arguments_json: null,
+      result_content_json: null,
       output_text: null,
       status: "queued"
     });
     const run = buildRun({
       id: "run-streamed-compact",
       status: "running",
-      events: []
+      steps: []
     });
 
     render(
       <AgentRunBlock
         run={run}
         mode="activity"
-        optimisticEvents={[
-          buildRunEvent({
-            id: "event-1",
-            run_id: "run-streamed-compact",
-            sequence_index: 1,
-            event_type: "tool_call_queued",
-            tool_call_id: "tool-streamed-compact"
-          })
-        ]}
         optimisticToolCalls={[compactToolCall]}
       />
     );
@@ -212,11 +189,63 @@ describe("AgentRunBlock", () => {
     expect(screen.getByText("Loading on demand...")).toBeInTheDocument();
   });
 
+  it("keeps live assistant text anchored before following tool rows", () => {
+    const toolCall = buildToolCall({
+      id: "tool-after-message",
+      run_id: "run-live-ledger",
+      step_id: "step-1",
+      tool_name: "rename_thread",
+      display_label: "Renamed thread",
+      status: "running"
+    });
+    const liveActivity: RunActivityItem[] = [
+      {
+        type: "reasoning_step",
+        key: "step-1:reasoning",
+        runId: "run-live-ledger",
+        stepId: "step-1",
+        message: "Deciding the title.",
+        durationMs: 1000,
+        createdAt: "2026-02-15T10:00:00Z"
+      },
+      {
+        type: "assistant_message",
+        key: "step-1:assistant",
+        runId: "run-live-ledger",
+        stepId: "step-1",
+        message: "I will rename the thread first.",
+        createdAt: "2026-02-15T10:00:00Z"
+      },
+      {
+        type: "tool_call",
+        key: toolCall.id,
+        runId: "run-live-ledger",
+        toolCallId: toolCall.id,
+        toolCall,
+        createdAt: "2026-02-15T10:00:01Z"
+      }
+    ];
+    const run = buildRun({
+      id: "run-live-ledger",
+      status: "running",
+      final_assistant_reply: null
+    });
+
+    render(<AgentRunBlock run={run} mode="activity" liveActivityLedgerByRunId={{ [run.id]: liveActivity }} />);
+
+    const timelineText = document.querySelector(".agent-run-activity-timeline")?.textContent ?? "";
+    expect(timelineText.indexOf("Thought")).toBeGreaterThanOrEqual(0);
+    expect(timelineText.indexOf("I will rename the thread first.")).toBeGreaterThan(timelineText.indexOf("Thought"));
+    expect(timelineText.indexOf("Renamed thread")).toBeGreaterThan(
+      timelineText.indexOf("I will rename the thread first.")
+    );
+  });
+
   it("renders a live reasoning placeholder as soon as the run starts", () => {
     const run = buildRun({
       id: "run-started",
       status: "running",
-      events: [buildRunEvent({ id: "event-1", sequence_index: 1, event_type: "run_started" })]
+      steps: []
     });
 
     render(<AgentRunBlock run={run} mode="activity" />);
@@ -225,11 +254,17 @@ describe("AgentRunBlock", () => {
   });
 
   it("keeps tool rows collapsed by default while streaming", () => {
-    const toolCall = buildToolCall({ id: "tool-1", tool_name: "list_entries", display_label: "Listed entries" });
+    const toolCall = buildToolCall({
+      id: "tool-1",
+      step_id: "step-1",
+      tool_name: "list_entries",
+      display_label: "Listed entries",
+      status: "running"
+    });
     const run = buildRun({
       id: "run-running-tool",
       status: "running",
-      events: [buildRunEvent({ id: "event-1", sequence_index: 1, event_type: "tool_call_started", tool_call_id: "tool-1" })],
+      steps: [buildStep({ id: "step-1", step_index: 1 })],
       tool_calls: [toolCall]
     });
 
@@ -243,7 +278,7 @@ describe("AgentRunBlock", () => {
     const run = buildRun({
       id: "run-streaming-reasoning",
       status: "running",
-      events: []
+      steps: []
     });
     const longReasoning = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`).join("\n");
 

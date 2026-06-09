@@ -7,6 +7,10 @@ import litellm
 import pytest
 
 from backend.services.agent.model_client import AgentModelError, LiteLLMModelClient, validate_litellm_environment
+from backend.services.agent.model_client_support.messages import (
+    normalize_assistant_message_for_completion,
+    sanitize_messages_for_completion,
+)
 
 
 def _build_model_client(
@@ -115,6 +119,95 @@ def test_complete_stream_emits_reasoning_delta_events(monkeypatch):
     assert events[2]["delta"] == "Done."
     assert events[3]["message"]["reasoning"] == "Checking entities"
     assert events[3]["message"]["content"] == "Done."
+
+
+def test_normalize_assistant_message_maps_reasoning_to_reasoning_content() -> None:
+    normalized = normalize_assistant_message_for_completion(
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning": "Rename the thread first.",
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "rename_thread"}}],
+        }
+    )
+
+    assert "reasoning" not in normalized
+    assert normalized["reasoning_content"] == "Rename the thread first."
+    assert normalized["content"] == ""
+    assert normalized["tool_calls"][0]["function"]["name"] == "rename_thread"
+
+
+def test_normalize_assistant_message_keeps_content_and_reasoning_separate() -> None:
+    normalized = normalize_assistant_message_for_completion(
+        {
+            "role": "assistant",
+            "content": "Checking tags.",
+            "reasoning": "I'll inspect tags first.",
+        }
+    )
+
+    assert normalized["content"] == "Checking tags."
+    assert normalized["reasoning_content"] == "I'll inspect tags first."
+
+
+def test_complete_maps_reasoning_to_reasoning_content_for_outbound_messages(monkeypatch) -> None:
+    client = _build_model_client(retry_max_attempts=1)
+    captured_messages: list[list[dict[str, object]]] = []
+
+    def fake_completion(**kwargs):
+        captured_messages.append(list(kwargs["messages"]))
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="Hello",
+                        tool_calls=[],
+                    )
+                )
+            ],
+            usage={"input_tokens": 3, "output_tokens": 2},
+        )
+
+    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    client.complete(
+        [
+            {"role": "user", "content": "hi"},
+            {
+                "role": "assistant",
+                "content": "",
+                "reasoning": "The user is starting a new thread.",
+                "tool_calls": [
+                    {
+                        "id": "call_rename_thread",
+                        "type": "function",
+                        "function": {"name": "rename_thread", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_rename_thread", "content": "ok"},
+        ]
+    )
+
+    assert len(captured_messages) == 1
+    assistant_message = captured_messages[0][1]
+    assert "reasoning" not in assistant_message
+    assert assistant_message["reasoning_content"] == "The user is starting a new thread."
+    assert assistant_message["content"] == ""
+
+
+def test_sanitize_messages_for_completion_does_not_mutate_input() -> None:
+    messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning": "Thinking.",
+        }
+    ]
+    sanitized = sanitize_messages_for_completion(messages)
+
+    assert messages[0]["reasoning"] == "Thinking."
+    assert sanitized[0]["reasoning_content"] == "Thinking."
+    assert "reasoning" not in sanitized[0]
 
 
 def test_complete_stream_merges_cumulative_tool_call_deltas_without_corrupting_arguments(monkeypatch):

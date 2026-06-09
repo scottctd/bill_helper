@@ -11,11 +11,11 @@ from sqlalchemy.orm import Session
 from backend.auth.contracts import RequestPrincipal, is_admin_principal
 from backend.models_agent import (
     AgentChangeItem,
-    AgentMessage,
-    AgentMessageAttachment,
     AgentRun,
     AgentThread,
     AgentToolCall,
+    AgentTranscriptAttachment,
+    AgentTranscriptMessage,
 )
 from backend.models_finance import Account, Entity, Entry, EntryGroup, FilterGroup, Tag, Taxonomy, User
 from backend.services.crud_policy import PolicyViolation
@@ -324,13 +324,17 @@ def load_attachment_for_principal(
     *,
     attachment_id: str,
     principal: RequestPrincipal,
-) -> AgentMessageAttachment:
+) -> AgentTranscriptAttachment:
     attachment = db.scalar(
-        select(AgentMessageAttachment)
-        .join(AgentMessage, AgentMessage.id == AgentMessageAttachment.message_id)
-        .join(AgentThread, AgentThread.id == AgentMessage.thread_id)
+        select(AgentTranscriptAttachment)
+        .join(
+            AgentTranscriptMessage,
+            AgentTranscriptMessage.id == AgentTranscriptAttachment.transcript_message_id,
+        )
+        .join(AgentRun, AgentRun.id == AgentTranscriptMessage.run_id)
+        .join(AgentThread, AgentThread.id == AgentRun.thread_id)
         .where(
-            AgentMessageAttachment.id == attachment_id,
+            AgentTranscriptAttachment.id == attachment_id,
             agent_thread_owner_filter(principal),
         )
     )

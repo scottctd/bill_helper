@@ -5,14 +5,16 @@
  * - Outputs: shared session store and abort-controller registry.
  * - Side effects: module-level mutable state; abort only via explicit Stop.
  */
-import type { AgentRunEvent, AgentToolCall } from "../../../lib/types";
+import type { AgentRunStep, AgentToolCall } from "../../../lib/types";
+import type { RunActivityItem } from "../activity";
 
 export interface AgentStreamSessionState {
   activeStreamRunIdsByThreadId: Record<string, string>;
   streamedReasoningTextByRunId: Record<string, string>;
   streamedTextByRunId: Record<string, string>;
-  optimisticRunEventsByRunId: Record<string, AgentRunEvent[]>;
+  optimisticStepsByRunId: Record<string, AgentRunStep[]>;
   optimisticToolCallsByRunId: Record<string, AgentToolCall[]>;
+  liveActivityLedgerByRunId: Record<string, RunActivityItem[]>;
   reasoningSegmentStartedAtByRunId: Record<string, number>;
   lastSequenceIndexByRunId: Record<string, number>;
 }
@@ -21,8 +23,9 @@ export const agentStreamSession: AgentStreamSessionState = {
   activeStreamRunIdsByThreadId: {},
   streamedReasoningTextByRunId: {},
   streamedTextByRunId: {},
-  optimisticRunEventsByRunId: {},
+  optimisticStepsByRunId: {},
   optimisticToolCallsByRunId: {},
+  liveActivityLedgerByRunId: {},
   reasoningSegmentStartedAtByRunId: {},
   lastSequenceIndexByRunId: {}
 };
@@ -32,8 +35,9 @@ export const agentStreamAbortControllers: Record<string, AbortController> = {};
 export function clearAgentStreamSessionRun(runId: string): void {
   delete agentStreamSession.streamedReasoningTextByRunId[runId];
   delete agentStreamSession.streamedTextByRunId[runId];
-  delete agentStreamSession.optimisticRunEventsByRunId[runId];
+  delete agentStreamSession.optimisticStepsByRunId[runId];
   delete agentStreamSession.optimisticToolCallsByRunId[runId];
+  delete agentStreamSession.liveActivityLedgerByRunId[runId];
   delete agentStreamSession.reasoningSegmentStartedAtByRunId[runId];
   delete agentStreamSession.lastSequenceIndexByRunId[runId];
 }
@@ -50,8 +54,9 @@ export function resetAgentStreamSession(): void {
   agentStreamSession.activeStreamRunIdsByThreadId = {};
   agentStreamSession.streamedReasoningTextByRunId = {};
   agentStreamSession.streamedTextByRunId = {};
-  agentStreamSession.optimisticRunEventsByRunId = {};
+  agentStreamSession.optimisticStepsByRunId = {};
   agentStreamSession.optimisticToolCallsByRunId = {};
+  agentStreamSession.liveActivityLedgerByRunId = {};
   agentStreamSession.reasoningSegmentStartedAtByRunId = {};
   agentStreamSession.lastSequenceIndexByRunId = {};
 }

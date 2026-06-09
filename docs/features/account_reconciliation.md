@@ -58,7 +58,7 @@ The `as_of` date still defaults to the server's current day when the query param
 
 - `backend/routers/accounts.py`: account create/update/delete plus snapshot/reconciliation routes.
 - `backend/services/account_snapshots.py`: shared snapshot create/list/delete persistence workflows.
-- `backend/services/agent/message_history.py`: current-user account context assembly for agent system prompt (includes account notes).
+- `backend/services/agent/user_context.py`: current-user account context assembly for the agent system prompt (includes account notes).
 - `backend/services/accounts.py`: shared account/entity-root create, update, and delete behavior.
 - `backend/services/finance_reconciliation.py`: interval reconciliation builders plus dashboard reconciliation summaries.
 - `backend/services/account_balances.py`: tracked balance computation for account list/detail responses.

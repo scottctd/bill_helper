@@ -11,6 +11,9 @@ from typing import Any
 import litellm
 
 from backend.services.agent.error_policy import RecoverableResult, recoverable_result
+from backend.services.agent.model_client_support.messages import (
+    sanitize_messages_for_completion,
+)
 
 
 TOKEN_COUNTER_EXCEPTIONS = (
@@ -31,7 +34,7 @@ def count_context_tokens_result(
     try:
         count = litellm.token_counter(
             model=model_name,
-            messages=deepcopy(messages),
+            messages=sanitize_messages_for_completion(messages),
             tools=deepcopy(tools) if tools is not None else None,
             use_default_image_token_count=True,
         )

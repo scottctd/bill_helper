@@ -293,8 +293,7 @@ def test_agent_attachment_content_helpers_are_split_by_concern() -> None:
 
 def test_agent_runtime_uses_grouped_support_modules() -> None:
     assert AGENT_RUNTIME_SUPPORT_PACKAGE.is_dir(), "runtime support package should exist"
-    for name in ("lifecycle.py", "tool_turns.py"):
-        assert (AGENT_RUNTIME_SUPPORT_PACKAGE / name).exists(), f"missing runtime support module: {name}"
+    assert (AGENT_RUNTIME_SUPPORT_PACKAGE / "error_content.py").exists(), "missing runtime support module: error_content.py"
 
 
 def test_agent_change_contracts_are_grouped_by_domain() -> None:

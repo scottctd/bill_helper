@@ -16,9 +16,12 @@ Legacy note:
 
 Agent:
 
-- `AgentMessageRole`: `user`, `assistant`, `system`
-- `AgentRunStatus`: `running`, `completed`, `failed`
-- `AgentToolCallStatus`: `ok`, `error`
+- `AgentTranscriptRole`: `system`, `user`, `assistant`, `tool`
+- `AgentRunStatus`: `running`, `completed`, `interrupted`, `max_steps`, `failed`
+- `AgentApprovalPolicy`: `default`, `yolo`
+- `AgentToolCallStatus`: `queued`, `running`, `ok`, `error`, `cancelled`
+- `AgentStepStatus`: `committed`, `failed`
+- `AgentRunEventType`: `run_started`, `model_request_started`, `model_decision_committed`, `tool_started`, `tool_finished`, `step_committed`, `run_finished`
 - `AgentChangeType`:
   - entries: `create_entry`, `update_entry`, `delete_entry`
   - accounts: `create_account`, `update_account`, `delete_account`
@@ -140,20 +143,6 @@ Purpose:
   - `agent_model_display_names` is an optional DB-only JSON object of UI labels; the API merges these with built-in labels for known default-catalog model ids and exposes only entries for models in the effective available list
 - `vision_capable_agent_models` is not persisted; it is derived at read time from the effective available model list
 - identity is not stored here
-
-## `agent_messages`
-
-- `id` (PK UUID string)
-- `thread_id` (FK -> `agent_threads.id`)
-- `role` (`AgentMessageRole`)
-- `content_markdown`
-- `attachments_use_ocr` (legacy bool; current hosted attachment sends use vision-prepared images/PDF pages)
-- `created_at`
-
-Operational rules:
-
-- attachment-bearing sends require a vision-capable model
-- current message-history assembly sends image/PDF page content parts instead of OCR text
 
 ## `entities`
 
@@ -290,7 +279,9 @@ Deletion semantics:
 - soft-deleting an entry removes its direct `entry_group_members` row if one exists
 - deleting a group is allowed only when it has no direct members and is not attached as a child group
 
-## Agent Tables (`0006_agent_append_only_core`, `0008_agent_run_usage_metrics`, `0015_add_agent_tool_call_output_text`, `0020_add_agent_message_attachment_original_filename`, `0021_add_agent_run_context_tokens`, `0022_agent_run_events_and_tool_lifecycle`, `0029_add_agent_run_surface`, `0030_add_account_agent_change_types`, `0035_add_user_files_and_agent_workspace`, `0037_add_agent_message_attachments_use_ocr`, `0040_add_agent_session_sources`, `0041_add_agent_run_event_reasoning_duration_ms`)
+## Agent Tables (`0045_agent_harness_first_schema`)
+
+Migration `0045_agent_harness_first_schema` replaces the legacy thread/message/run layout with the harness-first schema below. Before dropping legacy tables it exports and validates every thread, run, conversation message, attachment, session source, proposal, and review action, then ports them into the new schema. The upgrade aborts before dropping tables if any conversation message or attachment cannot be ported, or if any run is `RUNNING`. Historical event journals are used to reconstruct tool-using transcripts but are not themselves retained.
 
 ## `user_files`
 
@@ -329,34 +320,43 @@ Fields:
 - `summary` (nullable external-agent editable session summary)
 - `created_at`, `updated_at`
 
-## `agent_messages`
+## `agent_transcript_messages`
 
-Purpose: timeline messages in a thread.
+Purpose: canonical ordered transcript rows for one run. This is the source of truth for model-visible conversation state and for API turn projections.
 
 Fields:
 
 - `id` (PK UUID string)
-- `thread_id` (FK -> `agent_threads.id`)
-- `role` (`AgentMessageRole`)
-- `content_markdown`
-- `attachments_use_ocr` (legacy bool; current hosted attachment sends use vision-prepared images/PDF pages)
+- `run_id` (FK -> `agent_runs.id`)
+- `sequence_index` (monotonic per run)
+- `role` (`AgentTranscriptRole`)
+- `content_json` (structured message payload: text, multimodal parts, tool requests, or tool results)
+- `reasoning_text` (nullable; assistant reasoning captured for the step)
+- `tool_request_id` (nullable; tool-result rows only)
+- `tool_name` (nullable; tool-result rows only)
 - `created_at`
 
-## `agent_message_attachments`
+Operational rules:
 
-Purpose: message-level linkage from a user message to one canonical `user_files` row.
+- one run owns only messages introduced by that turn: its system prompt snapshot, user input, assistant decisions, and tool results
+- model context is assembled from the current system snapshot, prior runs' non-system rows, and the current turn's owned rows
+- attachment-bearing user sends require a vision-capable model for image/PDF parts
+
+## `agent_transcript_attachments`
+
+Purpose: linkage from a user transcript row to one canonical `user_files` row.
 
 Fields:
 
 - `id` (PK UUID string)
-- `message_id` (FK -> `agent_messages.id`)
+- `transcript_message_id` (FK -> `agent_transcript_messages.id`)
 - `user_file_id` (FK -> `user_files.id`)
 - `created_at`
 
 Operational note:
 
 - new uploads are persisted under `{data_dir}/user_files/{owner_user_id}/uploads/...`
-- serializers keep the current attachment API surface by deriving `mime_type`, `original_filename`, and absolute `file_path` from the linked `user_files` row
+- serializers derive `mime_type`, `original_filename`, `file_path`, and `attachment_url` from the linked `user_files` row
 
 ## `agent_session_sources`
 
@@ -374,66 +374,101 @@ Operational notes:
 
 - `(thread_id, user_file_id)` is unique, so attaching the same stored source to the same session is idempotent.
 - deleting a session removes source links but keeps canonical `user_files` payloads.
+- migration `0045_agent_harness_first_schema` refuses the destructive table swap unless every legacy thread, run, message, attachment, tool call, and event has a canonical replacement; proposal and review rows retain their IDs and relationships.
 
 ## `agent_runs`
 
-Purpose: one model execution per user message.
+Purpose: one harness execution per user turn. Each run owns a canonical transcript, step records, tool calls, harness events, and review items.
 
 Fields:
 
 - `id` (PK UUID string)
 - `thread_id` (FK -> `agent_threads.id`)
-- `user_message_id` (FK -> `agent_messages.id`)
-- `assistant_message_id` (nullable FK -> `agent_messages.id`)
+- `turn_index` (nullable int; monotonic per thread for user turns; external-session anchor runs may use `NULL`)
 - `status` (`AgentRunStatus`)
 - `model_name`
+- `principal_user_id` (the durable tool-execution principal)
+- `principal_user_name` (nullable display/audit name)
+- `metadata_json` (durable run/tool context such as attachment handling flags)
+- `origin` (string execution origin; currently `app`, `telegram`, or `cli` for external-session anchors)
 - `approval_policy` (`default` or `yolo`; `yolo` triggers server-side auto-approval of this run’s pending change items after a successful run completion, subject to the same dependency ordering rules as manual approval)
-- `surface` (string execution surface; currently `app` or `telegram`)
-- `context_tokens` (nullable int; best-effort prompt-size snapshot for the run's current model-visible context, including tool schemas)
+- `max_steps` (bounded harness step limit for the run)
+- `final_transcript_message_id` (nullable FK -> `agent_transcript_messages.id`; terminal assistant row when the run completes successfully)
 - `input_tokens` (nullable int)
 - `output_tokens` (nullable int)
 - `cache_read_tokens` (nullable int)
 - `cache_write_tokens` (nullable int)
-- `error_text`
+- `input_cost_usd` (nullable float; persisted when available)
+- `output_cost_usd` (nullable float; persisted when available)
+- `total_cost_usd` (nullable float; persisted when available)
+- `error_code` (nullable string terminal error code)
+- `error_detail` (nullable text terminal error detail)
+- `stop_requested` (bool; user interrupt flag checked by the harness stop signal)
 - `created_at`, `completed_at`
+
+Unique constraint:
+
+- `(thread_id, turn_index)`
 
 API-derived fields (not persisted in DB columns):
 
-- `terminal_assistant_reply` (latest terminal assistant reply formatted for the requested read surface)
-- `input_cost_usd` (nullable float)
-- `output_cost_usd` (nullable float)
-- `total_cost_usd` (nullable float)
-- computed from persisted usage counters via LiteLLM pricing at serialization time
-- `input_cost_usd` remains the full prompt-side cost after cache-aware pricing when `cache_read_tokens` or `cache_write_tokens` are present
-- `output_cost_usd` remains the completion-side cost
-- `total_cost_usd` is the sum of prompt-side and completion-side cost; no separate cache-cost response fields are added
-- `model_name` records the explicit message-level selection when a send request overrides the configured default model
+- `final_assistant_reply` (terminal assistant content formatted for the requested read origin)
+- derived USD pricing fields are also recomputed at serialization time from persisted usage counters when needed
+- `current_context_tokens` on thread detail is computed at read time from the canonical transcript plus tool schemas; it is not stored on `agent_runs`
 
-## `agent_tool_calls`
+## `agent_steps`
 
-Purpose: audit trail for tool usage during a run.
+Purpose: durable model-step projection for one harness loop iteration.
 
 Fields:
 
 - `id` (PK UUID string)
 - `run_id` (FK -> `agent_runs.id`)
-- `llm_tool_call_id` (nullable provider tool-call id)
-- `tool_name`
-- `input_json`
-- `output_json`
-- `output_text` (exact tool result text that was sent to the model)
-- `status` (`AgentToolCallStatus`)
+- `step_index` (monotonic per run)
+- `assistant_transcript_message_id` (FK -> `agent_transcript_messages.id`)
+- `status` (`AgentStepStatus`)
+- `input_tokens` (nullable int)
+- `output_tokens` (nullable int)
+- `cache_read_tokens` (nullable int)
+- `cache_write_tokens` (nullable int)
+- `finish_reason` (nullable string)
+
+Operational rules:
+
+- a model decision is persisted as a `running` step with queued tool calls before any tool executes
+- queued tools are claimed as `running` before execution and become `ok` or `error` with a canonical tool-result transcript row
+- resume executes queued tools, but converts tools left `running` by a process interruption into an explicit unknown-outcome error instead of repeating possible side effects
+- a step becomes `committed` only after all of its tool calls are terminal
+- `latency_ms` (nullable int)
+- `diagnostic_json` (nullable JSON)
 - `created_at`
+
+## `agent_tool_calls`
+
+Purpose: audit trail for tool usage during a committed step.
+
+Fields:
+
+- `id` (PK UUID string)
+- `run_id` (FK -> `agent_runs.id`)
+- `step_id` (FK -> `agent_steps.id`)
+- `call_index` (monotonic per step)
+- `tool_request_id` (provider-stable request id within the run)
+- `tool_name`
+- `arguments_json`
+- `result_content_json` (nullable structured tool result sent back to the model)
+- `status` (`AgentToolCallStatus`)
+- `error_code` (nullable)
 - `started_at` (nullable)
 - `completed_at` (nullable)
 
 Operational notes:
 
-- non-intermediate tool rows are created when the model turn resolves, before execution starts
+- tool rows are created when the model decision commits, then updated as execution starts and finishes
 
 ## `agent_run_events`
 
-Purpose: canonical ordered activity timeline for live streaming and historical replay.
+Purpose: durable harness event log for live streaming and historical replay.
 
 Fields:
 
@@ -441,11 +476,13 @@ Fields:
 - `run_id` (FK -> `agent_runs.id`)
 - `sequence_index` (monotonic per run)
 - `event_type` (`AgentRunEventType`)
-- `source` (nullable `AgentRunEventSource`)
-- `message` (nullable)
-- `tool_call_id` (nullable FK -> `agent_tool_calls.id`)
-- `reasoning_duration_ms` (nullable integer; populated on `reasoning_update` rows with `source = model_reasoning`)
+- `payload_json` (event-specific harness payload)
 - `created_at`
+
+Operational notes:
+
+- streaming also emits ephemeral `model_delta` SSE events that are not persisted as rows
+- persisted event types map directly to harness coordinator events such as `tool_started`, `tool_finished`, `step_committed`, and `run_finished`
 
 ## `agent_change_items`
 

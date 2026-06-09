@@ -1,36 +1,37 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `serializers`.
-# - Inputs: callers that import `backend/services/agent/serializers.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `serializers`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: map harness-first agent ORM rows to API read schemas and SSE payloads.
+# - Inputs: AgentRun graphs, transcript attachments, durable run events.
+# - Outputs: Pydantic read models and stream payload dicts from payload_json.
+# - Side effects: none.
 from __future__ import annotations
 
 import logging
 import re
 from typing import Any
 
-from backend.enums_agent import is_supported_agent_change_type
+from backend.enums_agent import AgentRunStatus, is_supported_agent_change_type
 from backend.models_agent import (
     AgentChangeItem,
-    AgentMessage,
-    AgentMessageAttachment,
     AgentReviewAction,
-    AgentRunEvent,
     AgentRun,
+    AgentRunEvent,
+    AgentStep,
     AgentThread,
     AgentToolCall,
+    AgentTranscriptAttachment,
 )
 from backend.schemas_agent import (
     AgentChangeItemRead,
-    AgentMessageAttachmentRead,
-    AgentMessageRead,
     AgentReviewActionRead,
     AgentRunEventRead,
     AgentRunRead,
+    AgentStepRead,
     AgentThreadRead,
     AgentThreadSummaryRead,
     AgentToolCallRead,
+    AgentTranscriptAttachmentRead,
 )
+from backend.services.agent.assistant_content import final_assistant_content as clean_final_assistant_content
 from backend.services.agent.attachment_content_assembly import attachment_display_name
 from backend.services.agent.pricing import calculate_usage_costs
 from backend.services.agent.tool_call_display import build_tool_call_display
@@ -39,16 +40,30 @@ from backend.services.agent.tool_call_display import build_tool_call_display
 logger = logging.getLogger(__name__)
 
 
+def content_markdown_from_transcript_row(row: Any) -> str:
+    payload = dict(row.content_json or {})
+    content = payload.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                parts.append(str(part.get("text") or ""))
+        return "".join(parts)
+    return ""
+
+
 _MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 _MARKDOWN_HEADING_PATTERN = re.compile(r"^#{1,6}\s*", re.MULTILINE)
 _MARKDOWN_BLOCKQUOTE_PATTERN = re.compile(r"^\s*>\s?", re.MULTILINE)
 _MARKDOWN_FENCE_PATTERN = re.compile(r"```(?:[a-zA-Z0-9_+.-]+)?\n?|```")
 
 
-def _format_terminal_assistant_reply(content: str | None, *, surface: str) -> str | None:
+def _format_terminal_assistant_reply(content: str | None, *, origin: str) -> str | None:
     if content is None:
         return None
-    if surface != "telegram":
+    if origin != "telegram":
         return content
 
     formatted = _MARKDOWN_LINK_PATTERN.sub(r"\1 (\2)", content)
@@ -65,10 +80,14 @@ def _format_terminal_assistant_reply(content: str | None, *, surface: str) -> st
     return formatted or None
 
 
-def attachment_to_schema(attachment: AgentMessageAttachment, *, api_prefix: str) -> AgentMessageAttachmentRead:
-    return AgentMessageAttachmentRead(
+def transcript_attachment_to_schema(
+    attachment: AgentTranscriptAttachment,
+    *,
+    api_prefix: str,
+) -> AgentTranscriptAttachmentRead:
+    return AgentTranscriptAttachmentRead(
         id=attachment.id,
-        message_id=attachment.message_id,
+        transcript_message_id=attachment.transcript_message_id,
         display_name=attachment_display_name(attachment),
         mime_type=attachment.mime_type,
         file_path=attachment.file_path,
@@ -77,38 +96,97 @@ def attachment_to_schema(attachment: AgentMessageAttachment, *, api_prefix: str)
     )
 
 
-def message_to_schema(message: AgentMessage, *, api_prefix: str) -> AgentMessageRead:
-    return AgentMessageRead(
-        id=message.id,
-        thread_id=message.thread_id,
-        role=message.role,
-        content_markdown=message.content_markdown,
-        created_at=message.created_at,
-        attachments=[attachment_to_schema(attachment, api_prefix=api_prefix) for attachment in message.attachments],
-    )
+def _tool_call_payload_fields(
+    tool_call: AgentToolCall,
+    *,
+    include_payload: bool,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str | None, dict[str, Any] | None]:
+    result_payload = tool_call.result_content_json if isinstance(tool_call.result_content_json, dict) else None
+    input_json = dict(tool_call.arguments_json) if include_payload else None
+    output_json: dict[str, Any] | None = None
+    output_text: str | None = None
+    display_output_json: dict[str, Any] | None = None
+    if include_payload and isinstance(result_payload, dict):
+        nested_output = result_payload.get("output_json")
+        if isinstance(nested_output, dict):
+            output_json = dict(nested_output)
+            display_output_json = output_json
+        elif "summary" in result_payload:
+            output_json = dict(result_payload)
+            display_output_json = output_json
+        content = result_payload.get("content")
+        if isinstance(content, str):
+            output_text = content
+    return input_json, output_json, output_text, display_output_json
 
 
 def tool_call_to_schema(tool_call: AgentToolCall, *, include_payload: bool = True) -> AgentToolCallRead:
+    input_json, output_json, output_text, display_output_json = _tool_call_payload_fields(
+        tool_call,
+        include_payload=include_payload,
+    )
     display = build_tool_call_display(
         tool_call.tool_name,
-        input_json=tool_call.input_json,
-        output_json=tool_call.output_json,
+        input_json=tool_call.arguments_json,
+        output_json=display_output_json,
     )
     return AgentToolCallRead(
         id=tool_call.id,
         run_id=tool_call.run_id,
-        llm_tool_call_id=tool_call.llm_tool_call_id,
+        step_id=tool_call.step_id,
+        call_index=tool_call.call_index,
+        tool_request_id=tool_call.tool_request_id,
         tool_name=tool_call.tool_name,
         display_label=display.label,
         display_detail=display.detail,
-        input_json=tool_call.input_json if include_payload else None,
-        output_json=tool_call.output_json if include_payload else None,
-        output_text=tool_call.output_text if include_payload else None,
+        arguments_json=input_json,
+        result_content_json=output_json if include_payload else None,
+        input_json=input_json,
+        output_json=output_json,
+        output_text=output_text,
         has_full_payload=include_payload,
         status=tool_call.status,
-        created_at=tool_call.created_at,
+        error_code=tool_call.error_code,
         started_at=tool_call.started_at,
         completed_at=tool_call.completed_at,
+    )
+
+
+def step_to_schema(
+    step: AgentStep,
+    *,
+    tool_calls_by_step: dict[str, list[AgentToolCall]],
+    include_tool_payload: bool = True,
+) -> AgentStepRead:
+    step_tool_calls = sorted(
+        tool_calls_by_step.get(step.id, []),
+        key=lambda call: call.call_index,
+    )
+    assistant_message = getattr(step, "assistant_message", None)
+    reasoning_text = (
+        str(assistant_message.reasoning_text).strip() or None
+        if assistant_message is not None and assistant_message.reasoning_text
+        else None
+    )
+    return AgentStepRead(
+        id=step.id,
+        run_id=step.run_id,
+        step_index=step.step_index,
+        status=step.status,
+        reasoning_text=reasoning_text,
+        progress_note=None,
+        reasoning_duration_ms=None,
+        finish_reason=step.finish_reason,
+        latency_ms=step.latency_ms,
+        input_tokens=step.input_tokens,
+        output_tokens=step.output_tokens,
+        cache_read_tokens=step.cache_read_tokens,
+        cache_write_tokens=step.cache_write_tokens,
+        created_at=step.created_at,
+        tool_calls=[
+            tool_call_to_schema(call, include_payload=include_tool_payload)
+            for call in step_tool_calls
+        ],
     )
 
 
@@ -118,27 +196,9 @@ def run_event_to_schema(event: AgentRunEvent) -> AgentRunEventRead:
         run_id=event.run_id,
         sequence_index=event.sequence_index,
         event_type=event.event_type,
-        source=event.source,
-        message=event.message,
-        tool_call_id=event.tool_call_id,
+        payload_json=dict(event.payload_json or {}),
         created_at=event.created_at,
-        reasoning_duration_ms=event.reasoning_duration_ms,
     )
-
-
-def _tool_call_for_stream_event(
-    run: AgentRun,
-    event: AgentRunEvent,
-    *,
-    tool_call: AgentToolCall | None = None,
-) -> AgentToolCall | None:
-    if tool_call is not None:
-        return tool_call
-    if event.tool_call is not None:
-        return event.tool_call
-    if event.tool_call_id is None:
-        return None
-    return next((call for call in run.tool_calls if call.id == event.tool_call_id), None)
 
 
 def run_usage_snapshot_for_stream(run: AgentRun) -> dict[str, Any]:
@@ -150,7 +210,6 @@ def run_usage_snapshot_for_stream(run: AgentRun) -> dict[str, Any]:
         cache_write_tokens=run.cache_write_tokens,
     )
     return {
-        "context_tokens": run.context_tokens,
         "input_tokens": run.input_tokens,
         "output_tokens": run.output_tokens,
         "cache_read_tokens": run.cache_read_tokens,
@@ -161,27 +220,26 @@ def run_usage_snapshot_for_stream(run: AgentRun) -> dict[str, Any]:
     }
 
 
-def stream_run_event_to_payload(
+def run_event_row_to_sse_payload(
     run: AgentRun,
     event: AgentRunEvent,
     *,
-    tool_call: AgentToolCall | None = None,
-    include_run_usage: bool = True,
+    include_run_usage: bool = False,
 ) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "type": "run_event",
+    payload = dict(event.payload_json or {})
+    event_type = event.event_type.value
+    sse_payload: dict[str, Any] = {
+        "type": event_type,
         "run_id": run.id,
-        "event": run_event_to_schema(event).model_dump(mode="json"),
+        "sequence_index": event.sequence_index,
     }
-    compact_tool_call = _tool_call_for_stream_event(run, event, tool_call=tool_call)
-    if compact_tool_call is not None:
-        payload["tool_call"] = tool_call_to_schema(
-            compact_tool_call,
-            include_payload=False,
-        ).model_dump(mode="json")
+    for key, value in payload.items():
+        if key == "event_type":
+            continue
+        sse_payload[key] = value
     if include_run_usage:
-        payload["run_usage"] = run_usage_snapshot_for_stream(run)
-    return payload
+        sse_payload["run_usage"] = run_usage_snapshot_for_stream(run)
+    return sse_payload
 
 
 def review_action_to_schema(action: AgentReviewAction) -> AgentReviewActionRead:
@@ -227,11 +285,29 @@ def _serializable_change_items(run: AgentRun) -> list[AgentChangeItem]:
     return supported_items
 
 
+def _final_assistant_content(run: AgentRun) -> str | None:
+    if run.status != AgentRunStatus.COMPLETED:
+        return None
+    if run.final_transcript_message_id:
+        for row in run.transcript_messages:
+            if row.id != run.final_transcript_message_id:
+                continue
+            return clean_final_assistant_content(content_markdown_from_transcript_row(row))
+    assistant_rows = [
+        row
+        for row in sorted(run.transcript_messages, key=lambda item: item.sequence_index)
+        if row.role.value == "assistant"
+    ]
+    if not assistant_rows:
+        return None
+    return clean_final_assistant_content(content_markdown_from_transcript_row(assistant_rows[-1]))
+
+
 def run_to_schema(
     run: AgentRun,
     *,
     include_tool_payload: bool = True,
-    surface: str | None = None,
+    origin: str | None = None,
 ) -> AgentRunRead:
     costs = calculate_usage_costs(
         model_name=run.model_name,
@@ -240,23 +316,22 @@ def run_to_schema(
         cache_read_tokens=run.cache_read_tokens,
         cache_write_tokens=run.cache_write_tokens,
     )
-    reply_surface = surface or run.surface or "app"
-    assistant_content = run.assistant_message.content_markdown if run.assistant_message is not None else None
+    reply_origin = origin or run.origin or "app"
+    tool_calls_by_step: dict[str, list[AgentToolCall]] = {}
+    for tool_call in run.tool_calls:
+        tool_calls_by_step.setdefault(tool_call.step_id, []).append(tool_call)
     return AgentRunRead(
         id=run.id,
-        thread_id=run.thread_id,
-        user_message_id=run.user_message_id,
-        assistant_message_id=run.assistant_message_id,
-        terminal_assistant_reply=_format_terminal_assistant_reply(
-            assistant_content,
-            surface=reply_surface,
-        ),
+        thread_id=run.thread_id or "",
+        turn_index=run.turn_index,
         status=run.status,
         model_name=run.model_name,
         approval_policy=run.approval_policy,
-        surface=run.surface,
-        reply_surface=reply_surface,
-        context_tokens=run.context_tokens,
+        origin=reply_origin,
+        final_assistant_reply=_format_terminal_assistant_reply(
+            _final_assistant_content(run),
+            origin=reply_origin,
+        ),
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
         cache_read_tokens=run.cache_read_tokens,
@@ -264,11 +339,23 @@ def run_to_schema(
         input_cost_usd=costs.input_cost_usd,
         output_cost_usd=costs.output_cost_usd,
         total_cost_usd=costs.total_cost_usd,
-        error_text=run.error_text,
+        error_code=run.error_code,
+        error_detail=run.error_detail,
         created_at=run.created_at,
         completed_at=run.completed_at,
+        steps=[
+            step_to_schema(
+                step,
+                tool_calls_by_step=tool_calls_by_step,
+                include_tool_payload=include_tool_payload,
+            )
+            for step in sorted(run.steps, key=lambda item: item.step_index)
+        ],
         events=[run_event_to_schema(event) for event in run.events],
-        tool_calls=[tool_call_to_schema(call, include_payload=include_tool_payload) for call in run.tool_calls],
+        tool_calls=[
+            tool_call_to_schema(call, include_payload=include_tool_payload)
+            for call in sorted(run.tool_calls, key=lambda item: item.call_index)
+        ],
         change_items=[change_item_to_schema(item) for item in _serializable_change_items(run)],
     )
 

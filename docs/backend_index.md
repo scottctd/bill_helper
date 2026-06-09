@@ -8,8 +8,7 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `../backend/docs/README.md`: topic map and fastest path to the right backend doc.
 - `../backend/docs/runtime_and_config.md`: runtime entrypoints, configuration, and database bootstrap.
 - `../backend/docs/domain_and_http.md`: models, schemas, core services, router boundaries, and non-agent HTTP behavior.
-- `../backend/docs/agent_subsystem.md`: agent runtime, tools, review flow, and agent API ownership.
-- `../backend/docs/agent_legacy_compat.md`: legacy agent run compatibility (pre-removal `send_intermediate_update` events and replay rules).
+- `../backend/docs/agent_subsystem.md`: harness-first agent runtime, tools, review flow, and agent API ownership.
 - `../backend/docs/import_workflow.md`: import jobs, scheduler, preflight, and aggregated proposal review.
 - `../backend/docs/operations.md`: migrations, test coverage, operational impact, and current constraints.
 
@@ -43,6 +42,7 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `0042_remove_entry_account_id`
 - `0043_add_import_workflow`
 - `0044_remove_agent_change_item_rationale_text`
+- `0045_agent_harness_first_schema`
 
 ## Related Docs
 

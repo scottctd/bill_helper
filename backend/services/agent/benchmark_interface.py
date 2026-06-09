@@ -1,10 +1,11 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `benchmark_interface`.
-# - Inputs: callers that import `backend/services/agent/benchmark_interface.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `benchmark_interface`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: execute benchmark cases through production harness runtime and DB persistence.
+# - Inputs: SQLAlchemy session, benchmark prompt text, and optional attachment file paths.
+# - Outputs: BenchmarkCaseExecution with predictions, trace steps, and usage totals.
+# - Side effects: creates thread/run rows and executes harness against production tools.
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,35 +14,19 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.enums_agent import AgentApprovalPolicy, AgentChangeType, AgentMessageRole, AgentRunStatus
-from backend.models_agent import AgentChangeItem, AgentMessage, AgentMessageAttachment, AgentRun, AgentThread
+from backend.enums_agent import AgentApprovalPolicy, AgentChangeType, AgentRunStatus, AgentTranscriptRole
+from backend.models_agent import AgentChangeItem, AgentRun, AgentThread, AgentTranscriptMessage
 from backend.models_finance import User
-from backend.services.agent.attachments import create_message_attachment
-from backend.services.agent.langfuse_litellm import agent_run_litellm_metadata
-from backend.services.agent.message_history import build_llm_messages
-from backend.services.agent.model_client import AgentModelError
-from backend.services.agent.principal_scope import load_thread_owner_user
-from backend.services.agent.protocol_helpers import (
-    USAGE_FIELDS,
-    canonicalize_tool_call,
-    decode_tool_call,
-    extract_usage_dict,
-    tool_call_decode_error_result,
-)
-from backend.services.agent.run_orchestrator import (
-    AgentRunLoopAdapter,
-    AssistantStepContext,
-    ModelStepGenerator,
-    RunLoopOutcome,
-    run_agent_loop,
-)
-from backend.services.agent.runtime import call_model
-from backend.services.agent.tool_runtime import execute_tool
-from backend.services.agent.tool_types import ToolContext
-from backend.services.user_files import SOURCE_TYPE_AGENT_ATTACHMENT, STORAGE_AREA_UPLOAD, import_user_file_from_path
+from backend.services.agent.attachments import create_transcript_attachment
+from backend.services.agent.execution import _latest_user_transcript_message
+from backend.services.agent.harness.contracts import HarnessApprovalPolicy, HarnessPrincipal
+from backend.services.agent.production_runtime import execute_harness_run, initialize_harness_run
+from backend.services.agent.thread_context import build_new_turn_transcript
 from backend.services.runtime_settings import resolve_runtime_settings
+from backend.services.user_files import SOURCE_TYPE_AGENT_ATTACHMENT, STORAGE_AREA_UPLOAD, import_user_file_from_path
 
 BENCHMARK_ENTRY_NOTES_KEY = "markdown_notes"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -75,49 +60,6 @@ class BenchmarkCaseExecution:
     total_usage: dict[str, int | None]
     total_wall_clock_ms: int
     final_assistant_content: str
-
-
-@dataclass(slots=True)
-class _PreparedToolCall:
-    tool_call: dict[str, Any]
-    tool_name: str
-    arguments: dict[str, Any]
-    raw_arguments: str | None = None
-    decode_error: str | None = None
-
-
-@dataclass(slots=True)
-class _BenchmarkRunState:
-    trace_steps: list[BenchmarkTraceStep] = field(default_factory=list)
-    final_assistant_content: str = ""
-    execution_error: str | None = None
-
-
-def _redact_image_content(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    redacted = []
-    for msg in messages:
-        content = msg.get("content")
-        if isinstance(content, list):
-            new_parts = []
-            for part in content:
-                if isinstance(part, dict) and part.get("type") == "image_url":
-                    url = (part.get("image_url") or {}).get("url", "")
-                    if url.startswith("data:"):
-                        media_type = url.split(";")[0] if ";" in url else "data:image/unknown"
-                        new_parts.append(
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"{media_type};base64,[REDACTED {len(url)} chars]"},
-                            }
-                        )
-                    else:
-                        new_parts.append(part)
-                else:
-                    new_parts.append(part)
-            redacted.append({**msg, "content": new_parts})
-        else:
-            redacted.append(msg)
-    return redacted
 
 
 def _predictions_from_change_items(change_items: list[AgentChangeItem]) -> BenchmarkPredictionSet:
@@ -154,289 +96,68 @@ def _predictions_from_change_items(change_items: list[AgentChangeItem]) -> Bench
     return predictions
 
 
-def _create_benchmark_run(
-    db: Session,
-    *,
-    text: str,
-    attachments: list[BenchmarkAttachmentInput],
-    model_name: str,
-    owner_user: User,
-) -> tuple[AgentThread, AgentMessage, AgentRun]:
-    thread = AgentThread(owner_user_id=owner_user.id)
-    db.add(thread)
-    db.flush()
+def _trace_steps_from_run(run: AgentRun) -> list[BenchmarkTraceStep]:
+    trace_steps: list[BenchmarkTraceStep] = []
+    tool_calls_by_step = {step.id: [] for step in run.steps}
+    for tool_call in run.tool_calls:
+        tool_calls_by_step.setdefault(tool_call.step_id, []).append(tool_call)
 
-    user_message = AgentMessage(
-        thread_id=thread.id,
-        role=AgentMessageRole.USER,
-        content_markdown=text,
-    )
-    db.add(user_message)
-    db.flush()
-
-    for attachment in attachments:
-        user_file = import_user_file_from_path(
-            db,
-            owner_user_id=owner_user.id,
-            storage_area=STORAGE_AREA_UPLOAD,
-            source_type=SOURCE_TYPE_AGENT_ATTACHMENT,
-            source_path=Path(attachment.file_path),
-            mime_type=attachment.mime_type,
-            original_filename=Path(attachment.file_path).name,
-            move_source=False,
-        )
-        create_message_attachment(
-            db,
-            message_id=user_message.id,
-            user_file=user_file,
-        )
-    db.flush()
-
-    run = AgentRun(
-        thread_id=thread.id,
-        user_message_id=user_message.id,
-        status=AgentRunStatus.RUNNING,
-        model_name=model_name,
-        approval_policy=AgentApprovalPolicy.DEFAULT,
-    )
-    db.add(run)
-    db.commit()
-    db.refresh(run)
-    return thread, user_message, run
-
-
-def _mark_failed_run(
-    db: Session,
-    run: AgentRun,
-    state: _BenchmarkRunState,
-    *,
-    error_text: str,
-) -> None:
-    run.status = AgentRunStatus.FAILED
-    run.error_text = error_text
-    state.execution_error = error_text
-    db.add(run)
-    db.commit()
-
-
-def _run_loop_outcome(
-    adapter: AgentRunLoopAdapter[_PreparedToolCall],
-) -> RunLoopOutcome:
-    loop = run_agent_loop(adapter)
-    try:
-        while True:
-            next(loop)
-    except StopIteration as done:
-        return done.value
-
-
-class _BenchmarkRunLoopAdapter(AgentRunLoopAdapter[_PreparedToolCall]):
-    def __init__(
-        self,
-        *,
-        db: Session,
-        run: AgentRun,
-        thread_id: str,
-        user_message_id: str,
-        max_steps: int,
-        state: _BenchmarkRunState,
-    ) -> None:
-        self._db = db
-        self._run = run
-        self._thread_id = thread_id
-        self._user_message_id = user_message_id
-        self._max_steps = max_steps
-        self._state = state
-        owner_user = load_thread_owner_user(db, thread_id=thread_id)
-        self._tool_context = ToolContext(
-            db=db,
-            run_id=run.id,
-            principal_name=owner_user.name if owner_user is not None else None,
-            principal_user_id=owner_user.id if owner_user is not None else None,
-            principal_is_admin=owner_user.is_admin if owner_user is not None else False,
-        )
-        self._latest_usage_totals: dict[str, int | None] = {}
-        self._trace_step: BenchmarkTraceStep | None = None
-        self._step_started_at = 0.0
-
-    @property
-    def latest_usage_totals(self) -> dict[str, int | None]:
-        return dict(self._latest_usage_totals)
-
-    @property
-    def max_steps(self) -> int:
-        return self._max_steps
-
-    def build_initial_messages(self) -> list[dict[str, Any]]:
-        return build_llm_messages(
-            self._db,
-            self._thread_id,
-            current_user_message_id=self._user_message_id,
-        )
-
-    def initial_usage_totals(self) -> dict[str, int | None]:
-        return {}
-
-    def apply_usage_totals(self, usage_totals: dict[str, int | None]) -> None:
-        self._latest_usage_totals = dict(usage_totals)
-        self._run.input_tokens = usage_totals.get("input_tokens")
-        self._run.output_tokens = usage_totals.get("output_tokens")
-        self._run.cache_read_tokens = usage_totals.get("cache_read_tokens")
-        self._run.cache_write_tokens = usage_totals.get("cache_write_tokens")
-        self._db.add(self._run)
-
-    def call_model_step(
-        self,
-        *,
-        step_index: int,
-        llm_messages: list[dict[str, Any]],
-    ) -> ModelStepGenerator:
-        self._step_started_at = time.monotonic()
-        messages_snapshot = _redact_image_content(llm_messages)
-        assistant_msg = call_model(
-            llm_messages,
-            self._db,
-            litellm_metadata=agent_run_litellm_metadata(
-                run_id=self._run.id,
-                thread_id=self._thread_id,
-                owner_user_id=self._tool_context.principal_user_id,
-                step_index=step_index,
-                surface="benchmark",
+    for step in sorted(run.steps, key=lambda item: item.step_index):
+        assistant_row = next(
+            (
+                row
+                for row in run.transcript_messages
+                if row.id == step.assistant_transcript_message_id
             ),
+            None,
         )
-        step_usage = extract_usage_dict(assistant_msg, fields=USAGE_FIELDS)
-        tool_calls = assistant_msg.get("tool_calls") or []
-        assistant_content = assistant_msg.get("content") or ""
-        self._trace_step = BenchmarkTraceStep(
-            step=step_index,
-            messages_sent=messages_snapshot,
-            model_response={
-                "content": assistant_content,
-                "tool_calls": tool_calls,
-                "usage": step_usage,
-            },
-        )
-        if False:  # pragma: no cover - generator shape helper
-            yield {}
-        return assistant_msg
-
-    def prepare_tool_calls(
-        self,
-        *,
-        step: AssistantStepContext,
-        llm_messages: list[dict[str, Any]],
-    ) -> tuple[list[_PreparedToolCall], list[dict[str, Any]]]:
-        sanitized_tool_calls = [canonicalize_tool_call(tool_call) for tool_call in step.tool_calls]
-        llm_messages.append(
-            {
-                "role": "assistant",
-                "content": step.assistant_content,
-                "tool_calls": sanitized_tool_calls,
-            }
-        )
-        prepared_calls: list[_PreparedToolCall] = []
-        for tool_call in sanitized_tool_calls:
-            decoded = decode_tool_call(tool_call)
-            prepared_calls.append(
-                _PreparedToolCall(
-                    tool_call=tool_call,
-                    tool_name=decoded.tool_name,
-                    arguments=decoded.arguments,
-                    raw_arguments=decoded.raw_arguments,
-                    decode_error=decoded.decode_error,
-                )
-            )
-        return prepared_calls, []
-
-    def execute_prepared_tool_call(
-        self,
-        *,
-        step: AssistantStepContext,
-        prepared_tool_call: _PreparedToolCall,
-        llm_messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        result = (
-            tool_call_decode_error_result(
-                tool_name=prepared_tool_call.tool_name,
-                raw_arguments=prepared_tool_call.raw_arguments,
-                decode_error=prepared_tool_call.decode_error,
-            )
-            if prepared_tool_call.decode_error is not None
-            else execute_tool(
-                prepared_tool_call.tool_name,
-                prepared_tool_call.arguments,
-                self._tool_context,
+        assistant_content = ""
+        if assistant_row is not None:
+            assistant_content = str((assistant_row.content_json or {}).get("content") or "")
+        trace_steps.append(
+            BenchmarkTraceStep(
+                step=step.step_index,
+                messages_sent=[],
+                model_response={
+                    "content": assistant_content,
+                    "usage": {
+                        "input_tokens": step.input_tokens,
+                        "output_tokens": step.output_tokens,
+                        "cache_read_tokens": step.cache_read_tokens,
+                        "cache_write_tokens": step.cache_write_tokens,
+                    },
+                },
+                tool_results=[
+                    {
+                        "tool_name": tool_call.tool_name,
+                        "input": tool_call.arguments_json,
+                        "output": tool_call.result_content_json,
+                        "status": tool_call.status.value,
+                    }
+                    for tool_call in sorted(
+                        tool_calls_by_step.get(step.id, []),
+                        key=lambda item: item.call_index,
+                    )
+                ],
+                wall_clock_ms=step.latency_ms or 0,
             )
         )
-        llm_messages.append(
-            {
-                "role": "tool",
-                "tool_call_id": prepared_tool_call.tool_call.get("id"),
-                "name": prepared_tool_call.tool_name,
-                "content": result.llm_content if result.llm_content is not None else result.output_text,
-            }
-        )
-        if self._trace_step is not None:
-            self._trace_step.tool_results.append(
-                {
-                    "tool_name": prepared_tool_call.tool_name,
-                    "input": prepared_tool_call.arguments,
-                    "output": result.output_json,
-                    "status": result.status.value,
-                }
-            )
-        return []
+    return trace_steps
 
-    def after_tool_turn(
-        self,
-        *,
-        step: AssistantStepContext,
-        llm_messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        self._db.commit()
-        self._finalize_trace_step()
-        return []
 
-    def record_model_reasoning(self, *, step: AssistantStepContext) -> list[dict[str, Any]]:
-        self._finalize_trace_step()
-        return []
-
-    def complete(self, *, step: AssistantStepContext) -> list[dict[str, Any]]:
-        self._finalize_trace_step()
-        self._state.final_assistant_content = step.assistant_content
-        self._run.status = AgentRunStatus.COMPLETED
-        self._db.add(self._run)
-        self._db.commit()
-        return []
-
-    def fail_max_steps(self) -> list[dict[str, Any]]:
-        self._finalize_trace_step()
-        _mark_failed_run(
-            self._db,
-            self._run,
-            self._state,
-            error_text="maximum tool steps reached",
-        )
-        return []
-
-    def fail_model_error(self, error: AgentModelError) -> list[dict[str, Any]]:
-        self._finalize_trace_step()
-        _mark_failed_run(self._db, self._run, self._state, error_text=str(error))
-        return []
-
-    def fail_unexpected_error(self, error: Exception) -> list[dict[str, Any]]:
-        self._finalize_trace_step()
-        _mark_failed_run(self._db, self._run, self._state, error_text=str(error))
-        return []
-
-    def _finalize_trace_step(self) -> None:
-        if self._trace_step is None:
-            return
-        self._trace_step.wall_clock_ms = int(
-            (time.monotonic() - self._step_started_at) * 1000
-        )
-        self._state.trace_steps.append(self._trace_step)
-        self._trace_step = None
+def _final_assistant_content(run: AgentRun) -> str:
+    if run.final_transcript_message_id:
+        for row in run.transcript_messages:
+            if row.id == run.final_transcript_message_id:
+                return str((row.content_json or {}).get("content") or "")
+    assistant_rows = [
+        row
+        for row in sorted(run.transcript_messages, key=lambda item: item.sequence_index)
+        if row.role == AgentTranscriptRole.ASSISTANT
+    ]
+    if not assistant_rows:
+        return ""
+    return str((assistant_rows[-1].content_json or {}).get("content") or "")
 
 
 def run_benchmark_case(
@@ -452,33 +173,62 @@ def run_benchmark_case(
     )
     if owner_user is None:
         raise ValueError("Benchmark execution requires at least one persisted user.")
-    thread, user_message, run = _create_benchmark_run(
+
+    thread = AgentThread(owner_user_id=owner_user.id)
+    db.add(thread)
+    db.flush()
+
+    transcript = build_new_turn_transcript(
         db,
-        text=text,
-        attachments=attachments,
-        model_name=settings.agent_model,
-        owner_user=owner_user,
-    )
-    state = _BenchmarkRunState()
-    overall_start = time.monotonic()
-
-    adapter = _BenchmarkRunLoopAdapter(
-        db=db,
-        run=run,
         thread_id=thread.id,
-        user_message_id=user_message.id,
-        max_steps=max(settings.agent_max_steps, 1),
-        state=state,
+        user_content=text,
+        surface="benchmark",
     )
-    if _run_loop_outcome(adapter) == RunLoopOutcome.STOPPED:
-        _mark_failed_run(
-            db,
-            run,
-            state,
-            error_text="benchmark run stopped unexpectedly",
-        )
+    principal = HarnessPrincipal(user_id=owner_user.id, user_name=owner_user.name)
+    overall_start = time.monotonic()
+    run = initialize_harness_run(
+        db,
+        thread=thread,
+        transcript=transcript,
+        model_name=settings.agent_model,
+        surface="benchmark",
+        approval_policy=HarnessApprovalPolicy(AgentApprovalPolicy.DEFAULT.value),
+        principal=principal,
+        max_steps=max(settings.agent_max_steps, 1),
+        turn_index=0,
+    )
 
-    total_wall_clock_ms = int((time.monotonic() - overall_start) * 1000)
+    user_message_row = _latest_user_transcript_message(db, run_id=run.id)
+    if user_message_row is not None:
+        for attachment in attachments:
+            user_file = import_user_file_from_path(
+                db,
+                owner_user_id=owner_user.id,
+                storage_area=STORAGE_AREA_UPLOAD,
+                source_type=SOURCE_TYPE_AGENT_ATTACHMENT,
+                source_path=Path(attachment.file_path),
+                mime_type=attachment.mime_type,
+                original_filename=Path(attachment.file_path).name,
+                move_source=False,
+            )
+            create_transcript_attachment(
+                db,
+                transcript_message_id=user_message_row.id,
+                user_file=user_file,
+            )
+    db.commit()
+
+    execution_error: str | None = None
+    try:
+        execute_harness_run(db, run.id, streaming=False)
+    except Exception as exc:
+        logger.exception(
+            "benchmark harness execution failed",
+            extra={"run_id": run.id, "error_type": type(exc).__name__},
+        )
+        execution_error = str(exc)
+
+    db.refresh(run)
     change_items = list(
         db.scalars(
             select(AgentChangeItem)
@@ -487,13 +237,18 @@ def run_benchmark_case(
         )
     )
     predictions = _predictions_from_change_items(change_items)
-    db.refresh(run, attribute_names=["status", "error_text"])
+    total_wall_clock_ms = int((time.monotonic() - overall_start) * 1000)
     return BenchmarkCaseExecution(
         run_status=run.status.value,
-        error=state.execution_error or run.error_text,
+        error=execution_error or run.error_detail,
         predictions=predictions,
-        trace_steps=state.trace_steps,
-        total_usage=adapter.latest_usage_totals,
+        trace_steps=_trace_steps_from_run(run),
+        total_usage={
+            "input_tokens": run.input_tokens,
+            "output_tokens": run.output_tokens,
+            "cache_read_tokens": run.cache_read_tokens,
+            "cache_write_tokens": run.cache_write_tokens,
+        },
         total_wall_clock_ms=total_wall_clock_ms,
-        final_assistant_content=state.final_assistant_content,
+        final_assistant_content=_final_assistant_content(run),
     )

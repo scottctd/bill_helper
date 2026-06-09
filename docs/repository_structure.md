@@ -62,6 +62,7 @@
 - `versions/0042_remove_entry_account_id.py`: backfills missing `from_entity_id` / `to_entity_id` links from legacy `entries.account_id`, then drops the column.
 - `versions/0043_add_import_workflow.py`: adds `import_jobs` and `import_tasks` for backend-orchestrated multi-file import jobs.
 - `versions/0044_remove_agent_change_item_rationale_text.py`: drops unused `agent_change_items.rationale_text`.
+- `versions/0045_agent_harness_first_schema.py`: validated full conversation port into the harness-first transcript, step, tool-call, and event schema.
 - `versions/__init__.py`: package marker.
 
 ## Backend (`/backend`)
@@ -75,7 +76,7 @@
 - `enums_agent.py`: agent run/review/message enums.
 - `enums_import.py`: import job/task status enums.
 - `models_finance.py`: ledger/account/entity/tag/taxonomy/filter-group/entry ORM models.
-- `models_agent.py`: agent thread/message/run/tool-call/change/review ORM models, including session summaries and session-source links.
+- `models_agent.py`: harness-first agent ORM models for threads, runs, canonical transcript rows, steps, tool calls, events, and review items.
 - `models_import.py`: import job/task ORM models.
 - `models_files.py`: canonical per-user durable file registry ORM model.
 - `models_settings.py`: runtime settings ORM model and table mapping.
@@ -84,7 +85,7 @@
 - `contracts_settings.py`: shared runtime-settings write contract used by both schema and service layers.
 - `models_shared.py`: shared model defaults (`utc_now`, `uuid_str`) used by both model domains.
 - `schemas_finance.py`: ledger, filter-group, and dashboard request/response schemas.
-- `schemas_agent.py`: agent thread/message/run/review request/response schemas.
+- `schemas_agent.py`: agent thread/turn/run/step/review request/response schemas.
 - `schemas_agent_sessions.py`: external-agent session and source request/response schemas.
 - `schemas_import.py`: import workflow request/response schemas.
 - `schemas_auth.py`: auth, admin-user, and admin-session request/response schemas.
@@ -144,15 +145,22 @@
 - `agent_workspace.py`: legacy deterministic per-user workspace spec construction plus Docker-backed provisioning/start-stop/remove helpers, disabled by default.
 - `workspace_browser.py`: legacy current-user workspace snapshot shaping for lifecycle and IDE launch state.
 - `workspace_ide.py`: legacy IDE launch-cookie helpers plus same-origin proxy header policy for `code-server`.
-- `agent/`: agent runtime, tool execution, prompt-size counting, serialization, prompt/model adapters, and review apply handlers.
+- `agent/`: harness-first agent runtime, canonical transcript persistence, tool execution, prompt-size counting, serialization, prompt/model adapters, and review apply handlers.
   - `tool_args/`: focused tool-input package for read filters, thread rename, and pending-proposal admin wrappers.
   - `session_tools/`: session-scoped non-proposal tool handlers for add-only memory appends and thread rename operations.
   - `threads.py`: thread lookup and rename persistence helpers used by the router and tool runtime.
   - `protocol_helpers.py`: shared helper contracts for tool-call decoding and usage-shape normalization.
   - `protocol.py`: compatibility facade re-exporting protocol helper APIs.
   - `error_policy.py`: shared recoverable-error policy/result primitives and contextual fallback logging.
-  - `run_orchestrator.py`: shared run-step state machine used by runtime sync/stream adapters and benchmark runner.
-  - `execution.py`: agent execution-policy service (message intake/run lifecycle/context-token reads) plus benchmark/test execution facade methods.
+  - `harness/`: product-native `AgentHarness` coordinator, contracts, transcript helpers, step executor, and event/repository protocols.
+  - `production_runtime.py`: compose production harness with DB repository, model gateway, tools, stop signal, and SSE fan-out.
+  - `production_repository.py`: SQLAlchemy `RunRepository` for canonical transcript, steps, tool calls, and harness events.
+  - `legacy_transcript_backfill.py` / `legacy_transcript_backfill_apply.py`: plan, validate, and apply the one-time full conversation port into the harness schema.
+  - `production_events.py`: map harness events to client SSE payloads.
+  - `model_gateway.py`: LiteLLM completion adapters used by the harness model gateway.
+  - `api_projection.py`: derive API `turns` and thread-detail projections from canonical transcript rows plus per-run work records.
+  - `thread_context.py`: build per-turn `initial_transcript` from prior canonical transcript rows and prompt context.
+  - `execution.py`: HTTP/background intake for user turns and harness run startup.
   - `attachments.py`: message-to-canonical-file linkage helpers for attachment rows.
   - `attachment_content.py`: public attachment-content seam plus vision capability checks.
   - `docling_convert.py`: archived Docling standard-pipeline conversion and referenced markdown export for historical agent bundles
@@ -160,14 +168,11 @@
   - `work_sessions.py`: external-agent session/source persistence plus synthetic CLI run ownership for proposal creation
   - `agent_upload_bundle_relocate.py`: one-shot relocate of bundle dirs to created-at dates and readable folder names
   - `attachment_content_assembly.py`: attachment display-name, data-url, and model-content assembly helpers.
-  - `message_history.py`: public thread-to-model message assembly seam.
   - `message_history_content.py`: attachment-backed user-content shaping and entity-category prompt context helpers.
-  - `message_history_prefixes.py`: review-result history queries for the current turn.
-  - `message_history_turn_context.py`: rebuild append-only per-turn LLM context from persisted run activity.
+  - `message_history_prefixes.py`: review-result prefix assembly for the current turn.
   - `user_context.py`: account/user prompt-context normalization and truncation helpers.
-  - `runtime.py`: public runtime facade and stable test/benchmark monkeypatch seams.
-  - `runtime_support/`: grouped runtime internals split into run lifecycle and tool-turn preparation helpers.
-  - `runtime_state.py`: run-event/tool-call persistence helpers used by runtime coordinator.
+  - `runtime.py`: public facade over harness execution plus stable test/benchmark monkeypatch seams.
+  - `stream_hub.py`: in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers.
   - `entry_references.py`: shared entry-id alias, selector lookup, and public entry snapshot helpers.
   - `group_references.py`: shared group-id alias lookup plus public group summary/detail formatting for group tools and review payloads.
   - `proposals/`: proposal-family helpers split into `common.py`, `catalog.py`, `entries.py`, `groups.py`, the `group_memberships/` package (`common.py`, `validation.py`, `handlers.py`), family-owned normalization modules plus a small `normalization.py` registry, and `pending.py`.

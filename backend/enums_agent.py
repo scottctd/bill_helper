@@ -1,22 +1,25 @@
 # CALLING SPEC:
-# - Purpose: provide the `enums_agent` module.
-# - Inputs: callers that import `backend/enums_agent.py` and pass module-defined arguments or framework events.
-# - Outputs: module exports from `enums_agent`.
-# - Side effects: module-local behavior only.
+# - Purpose: agent subsystem enums for harness-first persistence and API contracts.
+# - Inputs: callers import enum values for ORM columns and API schemas.
+# - Outputs: StrEnum values for runs, transcript roles, tool calls, events, proposals.
+# - Side effects: none.
 from __future__ import annotations
 
 from enum import StrEnum
 
 
-class AgentMessageRole(StrEnum):
+class AgentTranscriptRole(StrEnum):
+    SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
-    SYSTEM = "system"
+    TOOL = "tool"
 
 
 class AgentRunStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
+    INTERRUPTED = "interrupted"
+    MAX_STEPS = "max_steps"
     FAILED = "failed"
 
 
@@ -33,22 +36,20 @@ class AgentToolCallStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class AgentStepStatus(StrEnum):
+    RUNNING = "running"
+    COMMITTED = "committed"
+    FAILED = "failed"
+
+
 class AgentRunEventType(StrEnum):
     RUN_STARTED = "run_started"
-    REASONING_UPDATE = "reasoning_update"
-    TOOL_CALL_QUEUED = "tool_call_queued"
-    TOOL_CALL_STARTED = "tool_call_started"
-    TOOL_CALL_COMPLETED = "tool_call_completed"
-    TOOL_CALL_FAILED = "tool_call_failed"
-    TOOL_CALL_CANCELLED = "tool_call_cancelled"
-    RUN_COMPLETED = "run_completed"
-    RUN_FAILED = "run_failed"
-
-
-class AgentRunEventSource(StrEnum):
-    MODEL_REASONING = "model_reasoning"
-    ASSISTANT_CONTENT = "assistant_content"
-    TOOL_CALL = "tool_call"
+    MODEL_REQUEST_STARTED = "model_request_started"
+    MODEL_DECISION_COMMITTED = "model_decision_committed"
+    TOOL_STARTED = "tool_started"
+    TOOL_FINISHED = "tool_finished"
+    STEP_COMMITTED = "step_committed"
+    RUN_FINISHED = "run_finished"
 
 
 class AgentChangeType(StrEnum):

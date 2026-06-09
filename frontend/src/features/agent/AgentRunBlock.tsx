@@ -7,13 +7,15 @@
  */
 import { useMemo } from "react";
 
-import type { AgentRun, AgentRunEvent, AgentToolCall } from "../../lib/types";
+import type { AgentRun, AgentRunStep, AgentToolCall } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import {
-  buildRunTimelineFromEvents,
-  mergeRunEvents,
+  buildRunTimelineFromProjections,
+  mergeRunSteps,
   mergeRunToolCalls,
-  summarizeRunChangeTypes
+  runErrorText,
+  summarizeRunChangeTypes,
+  type RunActivityItem
 } from "./activity";
 import { AssistantMessageRunWork } from "./AssistantMessageRunWork";
 
@@ -23,10 +25,11 @@ interface AgentRunBlockProps {
   onHydrateToolCall?: (runId: string, toolCallId: string) => void;
   hydratingToolCallIds?: ReadonlySet<string>;
   mode?: "activity" | "summary" | "all";
-  optimisticEvents?: AgentRunEvent[];
+  optimisticSteps?: AgentRunStep[];
   optimisticToolCalls?: AgentToolCall[];
   streamingReasoningText?: string;
   streamingReasoningStartedAt?: number | null;
+  liveActivityLedgerByRunId?: Record<string, RunActivityItem[]>;
 }
 
 export function AgentRunBlock({
@@ -35,10 +38,11 @@ export function AgentRunBlock({
   onHydrateToolCall,
   hydratingToolCallIds,
   mode = "all",
-  optimisticEvents = [],
+  optimisticSteps = [],
   optimisticToolCalls = [],
   streamingReasoningText = "",
-  streamingReasoningStartedAt
+  streamingReasoningStartedAt,
+  liveActivityLedgerByRunId = {}
 }: AgentRunBlockProps) {
   const showActivity = mode !== "summary";
   const showSummary = mode !== "activity";
@@ -47,26 +51,26 @@ export function AgentRunBlock({
   const failedCount = run.change_items.filter((item) => item.status === "APPLY_FAILED").length;
   const typeSummary = summarizeRunChangeTypes(run.change_items);
 
-  const optimisticRunEventsByRunId = useMemo(
-    () => ({ [run.id]: optimisticEvents }),
-    [run.id, optimisticEvents]
+  const optimisticStepsByRunId = useMemo(
+    () => ({ [run.id]: optimisticSteps }),
+    [run.id, optimisticSteps]
   );
   const optimisticToolCallsByRunId = useMemo(
     () => ({ [run.id]: optimisticToolCalls }),
     [run.id, optimisticToolCalls]
   );
 
-  const mergedEvents = useMemo(() => mergeRunEvents(run.events, optimisticEvents), [run.events, optimisticEvents]);
+  const mergedSteps = useMemo(() => mergeRunSteps(run.steps, optimisticSteps), [run.steps, optimisticSteps]);
   const mergedToolCalls = useMemo(
     () => mergeRunToolCalls(run.tool_calls, optimisticToolCalls),
     [run.tool_calls, optimisticToolCalls]
   );
   const activityTimeline = useMemo(
-    () => buildRunTimelineFromEvents(mergedEvents, mergedToolCalls),
-    [mergedEvents, mergedToolCalls]
+    () => buildRunTimelineFromProjections(mergedSteps, mergedToolCalls),
+    [mergedSteps, mergedToolCalls]
   );
   const hasActivitySignals =
-    Boolean(run.error_text) ||
+    Boolean(runErrorText(run)) ||
     activityTimeline.length > 0 ||
     streamingReasoningText.length > 0 ||
     run.status === "running";
@@ -80,8 +84,10 @@ export function AgentRunBlock({
       {showActivity && hasActivitySignals ? (
         <AssistantMessageRunWork
           runs={[run]}
-          optimisticRunEventsByRunId={optimisticRunEventsByRunId}
+          optimisticStepsByRunId={optimisticStepsByRunId}
           optimisticToolCallsByRunId={optimisticToolCallsByRunId}
+          liveActivityLedgerByRunId={liveActivityLedgerByRunId}
+          isStreamingRun={run.status === "running" || streamingReasoningText.length > 0}
           streamingReasoningText={streamingReasoningText}
           streamingReasoningStartedAt={streamingReasoningStartedAt}
           onInspectActivity={onInspectActivity}

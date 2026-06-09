@@ -81,24 +81,16 @@ export function useAgentComposerActions({
       addOptimisticRunningThreadId(activeThreadId);
       setThreadStreamHealthy(activeThreadId, true);
       resetOptimisticRunState(activeThreadId);
-      invalidateAgentThreadData(queryClient, activeThreadId);
       const readyAttachments = await resolveDraftAttachmentsForSend(attachments);
-      const baselineLastUserMessageId =
-        [...(threadDetail?.messages ?? [])]
-          .reverse()
-          .find((message) => message.role === "user")
-          ?.id ?? null;
-      const baselineLastAssistantMessageId =
-        [...(threadDetail?.messages ?? [])]
-          .reverse()
-          .find((message) => message.role === "assistant")
-          ?.id ?? null;
+      const baselineLastTurnRunId =
+        [...(threadDetail?.turns ?? [])].sort((left, right) => right.turn_index - left.turn_index)[0]?.run_id ??
+        null;
       const optimisticMessage: PendingUserMessage = {
         id: `pending-user-${Date.now()}`,
         threadId: activeThreadId,
         content,
         createdAt: new Date().toISOString(),
-        baselineLastUserMessageId,
+        baselineLastTurnRunId,
         attachments: readyAttachments.map((item, index) => ({
           id: `${item.id}-${index}`,
           name: item.file.name,
@@ -112,7 +104,7 @@ export function useAgentComposerActions({
         id: `pending-assistant-${Date.now()}`,
         threadId: activeThreadId,
         createdAt: new Date().toISOString(),
-        baselineLastAssistantMessageId
+        baselineLastTurnRunId
       });
       setDraftMessage("");
       setDraftAttachments([]);

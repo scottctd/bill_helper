@@ -89,13 +89,14 @@ def get_run(
         run_id=run_id,
         principal=principal,
         stmt=select(AgentRun).options(
-            selectinload(AgentRun.assistant_message),
+            selectinload(AgentRun.transcript_messages),
+            selectinload(AgentRun.steps),
             selectinload(AgentRun.events),
             selectinload(AgentRun.tool_calls),
             selectinload(AgentRun.change_items).selectinload(AgentChangeItem.review_actions),
         ),
     )
-    return run_to_schema(run, surface=surface)
+    return run_to_schema(run, origin=surface)
 
 
 @router.get("/tool-calls/{tool_call_id}", response_model=AgentToolCallRead)
@@ -118,4 +119,5 @@ def interrupt_run(
     run = interrupt_agent_run(db, run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    db.refresh(run)
     return run_to_schema(run)

@@ -21,7 +21,7 @@ from backend.schemas_agent import (
     AgentDashboardMetricsRead,
     AgentDashboardModelBreakdownRead,
     AgentDashboardRead,
-    AgentDashboardSurfaceBreakdownRead,
+    AgentDashboardOriginBreakdownRead,
     AgentDashboardTokenSliceRead,
     AgentDashboardTopRunRead,
 )
@@ -43,7 +43,7 @@ AGENT_DASHBOARD_GRANULARITY: dict[AgentDashboardRangeKey, AgentDashboardGranular
     "90d": "week",
     "all": "month",
 }
-AGENT_DASHBOARD_SURFACES = ("app", "telegram")
+AGENT_DASHBOARD_ORIGINS = ("app", "telegram")
 AGENT_DASHBOARD_TOP_RUN_LIMIT = 10
 
 
@@ -61,7 +61,7 @@ class AgentDashboardRunRow:
     thread_id: str
     thread_title: str | None
     model_name: str
-    surface: str
+    origin: str
     status: AgentRunStatus
     created_at: datetime
     completed_at: datetime | None
@@ -83,28 +83,28 @@ def build_agent_dashboard_read(
 ) -> AgentDashboardRead:
     window = resolve_agent_dashboard_window(range_key, today=today)
     selected_models = _normalize_string_filters(model_names)
-    selected_surfaces = _normalize_surface_filters(surfaces)
+    selected_origins = _normalize_origin_filters(surfaces)
     all_rows = _list_dashboard_rows(db, principal=principal, window=window)
     available_models = sorted({row.model_name for row in all_rows})
     filtered_rows = [
         row
         for row in all_rows
         if (not selected_models or row.model_name in selected_models)
-        and (not selected_surfaces or row.surface in selected_surfaces)
+        and (not selected_origins or row.origin in selected_origins)
     ]
 
     return AgentDashboardRead(
         range_key=window.range_key,
         granularity=window.granularity,
         available_models=available_models,
-        available_surfaces=list(AGENT_DASHBOARD_SURFACES),
+        available_origins=list(AGENT_DASHBOARD_ORIGINS),
         selected_models=selected_models,
-        selected_surfaces=selected_surfaces,
+        selected_origins=selected_origins,
         metrics=_build_metrics(filtered_rows),
         cost_series=_build_cost_series(filtered_rows, granularity=window.granularity),
         token_distribution=_build_token_distribution(filtered_rows),
         model_breakdown=_build_model_breakdown(filtered_rows),
-        surface_breakdown=_build_surface_breakdown(filtered_rows),
+        origin_breakdown=_build_origin_breakdown(filtered_rows),
         top_runs=_build_top_runs(filtered_rows),
     )
 
@@ -139,8 +139,8 @@ def _normalize_string_filters(values: list[str] | None) -> list[str]:
     return normalized
 
 
-def _normalize_surface_filters(values: list[str] | None) -> list[str]:
-    normalized = [value for value in _normalize_string_filters(values) if value in AGENT_DASHBOARD_SURFACES]
+def _normalize_origin_filters(values: list[str] | None) -> list[str]:
+    normalized = [value for value in _normalize_string_filters(values) if value in AGENT_DASHBOARD_ORIGINS]
     return normalized
 
 
@@ -182,7 +182,7 @@ def _list_dashboard_rows(
                 thread_id=run.thread_id,
                 thread_title=thread_title,
                 model_name=run.model_name,
-                surface=(run.surface or "app").strip() or "app",
+                origin=(run.origin or "app").strip() or "app",
                 status=run.status,
                 created_at=run.created_at,
                 completed_at=run.completed_at,
@@ -343,25 +343,25 @@ def _build_model_breakdown(rows: list[AgentDashboardRunRow]) -> list[AgentDashbo
     )
 
 
-def _build_surface_breakdown(rows: list[AgentDashboardRunRow]) -> list[AgentDashboardSurfaceBreakdownRead]:
+def _build_origin_breakdown(rows: list[AgentDashboardRunRow]) -> list[AgentDashboardOriginBreakdownRead]:
     grouped: dict[str, list[AgentDashboardRunRow]] = defaultdict(list)
     for row in rows:
-        grouped[row.surface].append(row)
+        grouped[row.origin].append(row)
 
-    breakdown: list[AgentDashboardSurfaceBreakdownRead] = []
-    for surface in AGENT_DASHBOARD_SURFACES:
-        surface_rows = grouped.get(surface, [])
-        if not surface_rows and grouped:
+    breakdown: list[AgentDashboardOriginBreakdownRead] = []
+    for origin in AGENT_DASHBOARD_ORIGINS:
+        origin_rows = grouped.get(origin, [])
+        if not origin_rows and grouped:
             continue
         costs_by_model: dict[str, float] = defaultdict(float)
-        for row in surface_rows:
+        for row in origin_rows:
             costs_by_model[row.model_name] += row.total_cost_usd
         breakdown.append(
-            AgentDashboardSurfaceBreakdownRead(
-                surface=surface,
-                run_count=len(surface_rows),
-                total_tokens=sum(row.total_tokens for row in surface_rows),
-                total_cost_usd=round(sum(row.total_cost_usd for row in surface_rows), 12),
+            AgentDashboardOriginBreakdownRead(
+                origin=origin,
+                run_count=len(origin_rows),
+                total_tokens=sum(row.total_tokens for row in origin_rows),
+                total_cost_usd=round(sum(row.total_cost_usd for row in origin_rows), 12),
                 costs_by_model={
                     model_name: round(float(total_cost_usd), 12)
                     for model_name, total_cost_usd in sorted(costs_by_model.items())
@@ -383,7 +383,7 @@ def _build_top_runs(rows: list[AgentDashboardRunRow]) -> list[AgentDashboardTopR
             thread_id=row.thread_id,
             thread_title=row.thread_title,
             model_name=row.model_name,
-            surface=row.surface,
+            origin=row.origin,
             status=row.status,
             created_at=row.created_at,
             completed_at=row.completed_at,

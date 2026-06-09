@@ -41,7 +41,7 @@ export interface PendingUserMessage {
   threadId: string;
   content: string;
   createdAt: string;
-  baselineLastUserMessageId: string | null;
+  baselineLastTurnRunId: string | null;
   attachments: PendingUserAttachmentPreview[];
 }
 
@@ -49,7 +49,7 @@ export interface PendingAssistantMessage {
   id: string;
   threadId: string;
   createdAt: string;
-  baselineLastAssistantMessageId: string | null;
+  baselineLastTurnRunId: string | null;
 }
 
 export const IMAGE_FILENAME_PATTERN = /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;

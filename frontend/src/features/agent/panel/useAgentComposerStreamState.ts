@@ -6,13 +6,27 @@
  * - Side effects: client-side state coordination; syncs with module session store for same-tab reuse.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { getAgentToolCall } from "../../../lib/api";
 import { invalidateAgentThreadData } from "../../../lib/queryInvalidation";
-import type { AgentRun, AgentRunEvent, AgentStreamEvent, AgentThreadDetail, AgentToolCall } from "../../../lib/types";
-import { mergeRunToolCalls, runsWithoutAssistantMessage } from "../activity";
-import { patchAgentThreadCachedRunUsage } from "../threadDetailCache";
+import type {
+  AgentRun,
+  AgentRunStep,
+  AgentStreamEvent,
+  AgentThreadDetail,
+  AgentToolCall,
+  AgentToolCallStatus
+} from "../../../lib/types";
+import {
+  appendLiveActivityLedgerItem,
+  mergeRunSteps,
+  mergeRunToolCalls,
+  pendingRuns,
+  type RunActivityItem
+} from "../activity";
+import { patchAgentThreadCacheFromStreamEvent } from "../threadDetailCache";
 import {
   agentStreamSession,
   clearAgentStreamSessionRun,
@@ -34,6 +48,80 @@ function cloneSessionRecord<T extends Record<string, unknown>>(record: T): T {
   return { ...record };
 }
 
+function mapHarnessToolStatus(status: string): AgentToolCallStatus {
+  switch (status) {
+    case "queued":
+      return "queued";
+    case "running":
+      return "running";
+    case "ok":
+      return "ok";
+    case "error":
+      return "error";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "running";
+  }
+}
+
+function trackSequenceIndex(runId: string, sequenceIndex: number | undefined): void {
+  if (typeof sequenceIndex !== "number") {
+    return;
+  }
+  agentStreamSession.lastSequenceIndexByRunId[runId] = Math.max(
+    agentStreamSession.lastSequenceIndexByRunId[runId] ?? 0,
+    sequenceIndex
+  );
+}
+
+function buildOptimisticStepFromCommit(
+  event: Extract<AgentStreamEvent, { type: "model_decision_committed" }>,
+  reasoningText: string
+): AgentRunStep {
+  const startedAt = agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id];
+  const reasoningDurationMs =
+    startedAt && reasoningText.trim().length > 0 ? Math.max(1, Date.now() - startedAt) : null;
+  return {
+    id: event.assistant_message_id,
+    run_id: event.run_id,
+    step_index: event.step_index,
+    status: "committed",
+    reasoning_text: reasoningText.trim().length > 0 ? reasoningText : null,
+    progress_note: null,
+    reasoning_duration_ms: reasoningDurationMs,
+    latency_ms: null,
+    created_at: new Date().toISOString()
+  };
+}
+
+function streamStepId(runId: string, stepIndex: number): string {
+  return `stream-step-${runId}-${stepIndex}`;
+}
+
+function buildOptimisticToolCallFromStarted(
+  event: Extract<AgentStreamEvent, { type: "tool_started" }>
+): AgentToolCall {
+  return {
+    id: event.tool_call_id,
+    run_id: event.run_id,
+    step_id: streamStepId(event.run_id, event.step_index),
+    call_index: 0,
+    tool_request_id: event.tool_call_id,
+    tool_name: event.tool_name,
+    display_label: event.tool_name,
+    display_detail: null,
+    arguments_json: null,
+    result_content_json: null,
+    output_text: null,
+    has_full_payload: false,
+    status: "running",
+    error_code: null,
+    started_at: new Date().toISOString(),
+    completed_at: null
+  };
+}
+
 export function useAgentComposerStreamState({
   applyThreadTitleToCaches,
   pendingAssistantMessage,
@@ -52,11 +140,14 @@ export function useAgentComposerStreamState({
   const [streamedTextByRunId, setStreamedTextByRunId] = useState(() =>
     cloneSessionRecord(agentStreamSession.streamedTextByRunId)
   );
-  const [optimisticRunEventsByRunId, setOptimisticRunEventsByRunId] = useState(() =>
-    cloneSessionRecord(agentStreamSession.optimisticRunEventsByRunId)
+  const [optimisticStepsByRunId, setOptimisticStepsByRunId] = useState(() =>
+    cloneSessionRecord(agentStreamSession.optimisticStepsByRunId)
   );
   const [optimisticToolCallsByRunId, setOptimisticToolCallsByRunId] = useState(() =>
     cloneSessionRecord(agentStreamSession.optimisticToolCallsByRunId)
+  );
+  const [liveActivityLedgerByRunId, setLiveActivityLedgerByRunId] = useState(() =>
+    cloneSessionRecord(agentStreamSession.liveActivityLedgerByRunId)
   );
   const [hydratingToolCallIds, setHydratingToolCallIds] = useState<Set<string>>(new Set());
   const activeStreamRunIdsRef = useRef<Record<string, string>>(activeStreamRunIdsByThreadId);
@@ -89,13 +180,22 @@ export function useAgentComposerStreamState({
   }, [optimisticToolCallsByRunId]);
 
   const threadRuns = threadDetail?.runs ?? [];
-  const pendingAssistantRuns = useMemo(() => runsWithoutAssistantMessage(threadDetail), [threadDetail]);
+  const pendingAssistantRuns = useMemo(() => pendingRuns(threadDetail), [threadDetail]);
   const liveRunId = useMemo(
     () =>
       selectedThreadId
         ? resolveLiveRunIdForThread(selectedThreadId, threadRuns, agentStreamSession)
         : null,
-    [selectedThreadId, threadRuns, streamedReasoningTextByRunId, streamedTextByRunId, optimisticRunEventsByRunId, activeStreamRunIdsByThreadId]
+    [
+      selectedThreadId,
+      threadRuns,
+      streamedReasoningTextByRunId,
+      streamedTextByRunId,
+      optimisticStepsByRunId,
+      optimisticToolCallsByRunId,
+      liveActivityLedgerByRunId,
+      activeStreamRunIdsByThreadId
+    ]
   );
   const activeStreamRunId = liveRunId;
 
@@ -130,9 +230,9 @@ export function useAgentComposerStreamState({
     () => (liveRunId ? streamedReasoningTextByRunId[liveRunId] ?? "" : ""),
     [liveRunId, streamedReasoningTextByRunId]
   );
-  const activeOptimisticEvents = useMemo(
-    () => (liveRunId ? optimisticRunEventsByRunId[liveRunId] ?? [] : []),
-    [liveRunId, optimisticRunEventsByRunId]
+  const activeOptimisticSteps = useMemo(
+    () => (liveRunId ? optimisticStepsByRunId[liveRunId] ?? [] : []),
+    [liveRunId, optimisticStepsByRunId]
   );
   const activeOptimisticToolCalls = useMemo(
     () => (liveRunId ? optimisticToolCallsByRunId[liveRunId] ?? [] : []),
@@ -168,7 +268,7 @@ export function useAgentComposerStreamState({
         delete next[runId];
         return next;
       });
-      setOptimisticRunEventsByRunId((current) => {
+      setOptimisticStepsByRunId((current) => {
         if (!(runId in current)) {
           return current;
         }
@@ -177,6 +277,14 @@ export function useAgentComposerStreamState({
         return next;
       });
       setOptimisticToolCallsByRunId((current) => {
+        if (!(runId in current)) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[runId];
+        return next;
+      });
+      setLiveActivityLedgerByRunId((current) => {
         if (!(runId in current)) {
           return current;
         }
@@ -197,8 +305,9 @@ export function useAgentComposerStreamState({
         activeStreamRunIdsRef.current = {};
         setStreamedReasoningTextByRunId({});
         setStreamedTextByRunId({});
-        setOptimisticRunEventsByRunId({});
+        setOptimisticStepsByRunId({});
         setOptimisticToolCallsByRunId({});
+        setLiveActivityLedgerByRunId({});
         setHydratingToolCallIds(new Set());
         hydratingToolCallIdsRef.current.clear();
         bump();
@@ -300,100 +409,28 @@ export function useAgentComposerStreamState({
     [hydrateToolCallDetails, selectedThreadId]
   );
 
+  const appendLiveLedgerItem = useCallback((runId: string, item: RunActivityItem) => {
+    const existingSessionLedger = agentStreamSession.liveActivityLedgerByRunId[runId] ?? [];
+    const nextSessionLedger = appendLiveActivityLedgerItem(existingSessionLedger, item);
+    agentStreamSession.liveActivityLedgerByRunId[runId] = nextSessionLedger;
+    flushSync(() => {
+      setLiveActivityLedgerByRunId((current) => {
+        return {
+          ...current,
+          [runId]: nextSessionLedger
+        };
+      });
+    });
+  }, []);
+
   const handleAgentStreamEvent = useCallback(
     (threadId: string, event: AgentStreamEvent) => {
-      if (event.type === "run_event") {
-        const sequenceIndex = event.event.sequence_index;
-        if (typeof sequenceIndex === "number") {
-          agentStreamSession.lastSequenceIndexByRunId[event.run_id] = Math.max(
-            agentStreamSession.lastSequenceIndexByRunId[event.run_id] ?? 0,
-            sequenceIndex
-          );
-        }
-        syncActiveStreamRunIds((current) =>
-          current[threadId] === event.run_id ? current : { ...current, [threadId]: event.run_id }
-        );
-        const toolCall = event.tool_call;
-        if (toolCall) {
-          setOptimisticToolCallsByRunId((current) => {
-            const nextRunToolCalls = mergeRunToolCalls(current[event.run_id] ?? [], [toolCall]);
-            agentStreamSession.optimisticToolCallsByRunId[event.run_id] = nextRunToolCalls;
-            return {
-              ...current,
-              [event.run_id]: nextRunToolCalls
-            };
-          });
-          if (toolCall.tool_name === "rename_thread") {
-            if (event.event.event_type === "tool_call_started") {
-              void hydrateToolCallDetails(threadId, event.run_id, toolCall.id);
-            }
-            if (event.event.event_type === "tool_call_completed") {
-              void hydrateToolCallDetails(threadId, event.run_id, toolCall.id, true);
-            }
-            if (event.event.event_type === "tool_call_failed") {
-              invalidateAgentThreadData(queryClient, threadId);
-            }
-          }
-        }
-        setOptimisticRunEventsByRunId((current) => {
-          const existing = current[event.run_id] ?? [];
-          if (existing.some((item) => item.id === event.event.id)) {
-            return current;
-          }
-          let nextEvent = event.event;
-          if (
-            nextEvent.event_type === "reasoning_update" &&
-            nextEvent.source === "model_reasoning" &&
-            (nextEvent.reasoning_duration_ms == null || nextEvent.reasoning_duration_ms <= 0)
-          ) {
-            const startedAt = agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id];
-            if (startedAt) {
-              nextEvent = {
-                ...nextEvent,
-                reasoning_duration_ms: Math.max(1, Date.now() - startedAt)
-              };
-            }
-          }
-          if (nextEvent.event_type === "reasoning_update" && nextEvent.source === "model_reasoning") {
-            delete agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id];
-          }
-          const nextEvents = [...existing, nextEvent];
-          agentStreamSession.optimisticRunEventsByRunId[event.run_id] = nextEvents;
-          return {
-            ...current,
-            [event.run_id]: nextEvents
-          };
-        });
-        if (event.event.event_type === "reasoning_update" && event.event.source === "assistant_content") {
-          setStreamedTextByRunId((current) => {
-            if (!current[event.run_id]) {
-              return current;
-            }
-            const next = { ...current, [event.run_id]: "" };
-            agentStreamSession.streamedTextByRunId[event.run_id] = "";
-            return next;
-          });
-        }
-        if (event.event.event_type === "reasoning_update" && event.event.source === "model_reasoning") {
-          setStreamedReasoningTextByRunId((current) => {
-            if (!current[event.run_id]) {
-              return current;
-            }
-            const next = { ...current, [event.run_id]: "" };
-            agentStreamSession.streamedReasoningTextByRunId[event.run_id] = "";
-            return next;
-          });
-        }
-        if (event.run_usage) {
-          patchAgentThreadCachedRunUsage(queryClient, threadId, event.run_id, event.run_usage);
-        }
-        bump();
-        return;
-      }
+      trackSequenceIndex(event.run_id, "sequence_index" in event ? event.sequence_index : undefined);
+      syncActiveStreamRunIds((current) =>
+        current[threadId] === event.run_id ? current : { ...current, [threadId]: event.run_id }
+      );
+
       if (event.type === "reasoning_delta") {
-        syncActiveStreamRunIds((current) =>
-          current[threadId] === event.run_id ? current : { ...current, [threadId]: event.run_id }
-        );
         if (!agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id]) {
           agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id] = Date.now();
         }
@@ -408,10 +445,8 @@ export function useAgentComposerStreamState({
         bump();
         return;
       }
+
       if (event.type === "text_delta") {
-        syncActiveStreamRunIds((current) =>
-          current[threadId] === event.run_id ? current : { ...current, [threadId]: event.run_id }
-        );
         setStreamedTextByRunId((current) => {
           const nextText = `${current[event.run_id] ?? ""}${event.delta}`;
           agentStreamSession.streamedTextByRunId[event.run_id] = nextText;
@@ -421,9 +456,198 @@ export function useAgentComposerStreamState({
           };
         });
         bump();
+        return;
+      }
+
+      if (event.type === "model_delta") {
+        if (event.delta_type === "reasoning") {
+          if (!agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id]) {
+            agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id] = Date.now();
+          }
+          setStreamedReasoningTextByRunId((current) => {
+            const nextText = `${current[event.run_id] ?? ""}${event.text}`;
+            agentStreamSession.streamedReasoningTextByRunId[event.run_id] = nextText;
+            return {
+              ...current,
+              [event.run_id]: nextText
+            };
+          });
+        } else {
+          setStreamedTextByRunId((current) => {
+            const nextText = `${current[event.run_id] ?? ""}${event.text}`;
+            agentStreamSession.streamedTextByRunId[event.run_id] = nextText;
+            return {
+              ...current,
+              [event.run_id]: nextText
+            };
+          });
+        }
+        bump();
+        return;
+      }
+
+      if (event.type === "model_decision_committed") {
+        const streamedReasoning = agentStreamSession.streamedReasoningTextByRunId[event.run_id] ?? "";
+        const committedReasoning = (event.reasoning_text ?? "").trim();
+        const reasoningText =
+          streamedReasoning.trim().length > 0 ? streamedReasoning : committedReasoning;
+        const optimisticStep = buildOptimisticStepFromCommit(event, reasoningText);
+        if (reasoningText.trim().length > 0) {
+          appendLiveLedgerItem(event.run_id, {
+            type: "reasoning_step",
+            key: `${event.assistant_message_id}:reasoning`,
+            runId: event.run_id,
+            stepId: event.assistant_message_id,
+            message: reasoningText.trim(),
+            durationMs: optimisticStep.reasoning_duration_ms,
+            createdAt: optimisticStep.created_at
+          });
+        }
+        const streamedAssistantText = agentStreamSession.streamedTextByRunId[event.run_id] ?? "";
+        const shouldAnchorAssistantText = event.has_tool_requests && streamedAssistantText.trim().length > 0;
+        if (shouldAnchorAssistantText) {
+          appendLiveLedgerItem(event.run_id, {
+            type: "assistant_message",
+            key: `${event.assistant_message_id}:assistant`,
+            runId: event.run_id,
+            stepId: event.assistant_message_id,
+            message: streamedAssistantText.trim(),
+            createdAt: optimisticStep.created_at
+          });
+        }
+        patchAgentThreadCacheFromStreamEvent(queryClient, threadId, event, { reasoningText });
+        setOptimisticStepsByRunId((current) => {
+          const existing = current[event.run_id] ?? [];
+          const nextSteps = mergeRunSteps(existing, [optimisticStep]);
+          agentStreamSession.optimisticStepsByRunId[event.run_id] = nextSteps;
+          return {
+            ...current,
+            [event.run_id]: nextSteps
+          };
+        });
+        delete agentStreamSession.reasoningSegmentStartedAtByRunId[event.run_id];
+        setStreamedReasoningTextByRunId((current) => {
+          if (!current[event.run_id]) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[event.run_id];
+          agentStreamSession.streamedReasoningTextByRunId[event.run_id] = "";
+          return next;
+        });
+        if (event.has_tool_requests) {
+          setStreamedTextByRunId((current) => {
+            if (!current[event.run_id]) {
+              return current;
+            }
+            const next = { ...current };
+            delete next[event.run_id];
+            delete agentStreamSession.streamedTextByRunId[event.run_id];
+            return next;
+          });
+        }
+        bump();
+        return;
+      }
+
+      if (event.type === "tool_started") {
+        const optimisticToolCall = buildOptimisticToolCallFromStarted(event);
+        appendLiveLedgerItem(event.run_id, {
+          type: "tool_call",
+          key: event.tool_call_id,
+          runId: event.run_id,
+          toolCallId: event.tool_call_id,
+          toolCall: optimisticToolCall,
+          createdAt: optimisticToolCall.started_at ?? optimisticToolCall.completed_at ?? new Date().toISOString()
+        });
+        patchAgentThreadCacheFromStreamEvent(queryClient, threadId, event);
+        setOptimisticToolCallsByRunId((current) => {
+          const nextRunToolCalls = mergeRunToolCalls(current[event.run_id] ?? [], [optimisticToolCall]);
+          agentStreamSession.optimisticToolCallsByRunId[event.run_id] = nextRunToolCalls;
+          return {
+            ...current,
+            [event.run_id]: nextRunToolCalls
+          };
+        });
+        if (event.tool_name === "rename_thread") {
+          void hydrateToolCallDetails(threadId, event.run_id, event.tool_call_id);
+        }
+        bump();
+        return;
+      }
+
+      if (event.type === "tool_finished") {
+        const status = mapHarnessToolStatus(event.status);
+        const completedAt = new Date().toISOString();
+        const existingToolCalls = optimisticToolCallsRef.current[event.run_id] ?? [];
+        const matched = existingToolCalls.find((toolCall) => toolCall.id === event.tool_call_id);
+        const patch: AgentToolCall = matched
+          ? { ...matched, status, completed_at: completedAt }
+          : {
+              ...buildOptimisticToolCallFromStarted({
+                type: "tool_started",
+                run_id: event.run_id,
+                step_index: event.step_index,
+                tool_call_id: event.tool_call_id,
+                tool_name: event.tool_name
+              }),
+              status,
+              completed_at: completedAt
+            };
+        appendLiveLedgerItem(event.run_id, {
+          type: "tool_call",
+          key: event.tool_call_id,
+          runId: event.run_id,
+          toolCallId: event.tool_call_id,
+          toolCall: patch,
+          createdAt: patch.started_at ?? patch.completed_at ?? completedAt
+        });
+        patchAgentThreadCacheFromStreamEvent(queryClient, threadId, event);
+        setOptimisticToolCallsByRunId((current) => {
+          const existing = current[event.run_id] ?? [];
+          const nextRunToolCalls = mergeRunToolCalls(existing, [patch]);
+          agentStreamSession.optimisticToolCallsByRunId[event.run_id] = nextRunToolCalls;
+          return {
+            ...current,
+            [event.run_id]: nextRunToolCalls
+          };
+        });
+        if (event.tool_name === "rename_thread") {
+          void hydrateToolCallDetails(threadId, event.run_id, event.tool_call_id, true);
+        }
+        if (status === "error" && event.tool_name === "rename_thread") {
+          invalidateAgentThreadData(queryClient, threadId);
+        }
+        bump();
+        return;
+      }
+
+      if (event.type === "run_finished") {
+        patchAgentThreadCacheFromStreamEvent(queryClient, threadId, event);
+        setStreamedTextByRunId((current) => {
+          const streamed = current[event.run_id] ?? "";
+          const finalContent = (event.final_assistant_content ?? "").trim();
+          if (!streamed && !finalContent) {
+            return current;
+          }
+          if (streamed && finalContent && streamed.trim() === finalContent) {
+            const next = { ...current };
+            delete next[event.run_id];
+            delete agentStreamSession.streamedTextByRunId[event.run_id];
+            return next;
+          }
+          if (finalContent) {
+            const next = { ...current };
+            delete next[event.run_id];
+            delete agentStreamSession.streamedTextByRunId[event.run_id];
+            return next;
+          }
+          return current;
+        });
+        bump();
       }
     },
-    [bump, hydrateToolCallDetails, queryClient, syncActiveStreamRunIds]
+    [appendLiveLedgerItem, bump, hydrateToolCallDetails, queryClient, syncActiveStreamRunIds]
   );
 
   const getReconnectSequenceIndex = useCallback((runId: string) => {
@@ -435,7 +659,7 @@ export function useAgentComposerStreamState({
   }, []);
 
   return {
-    activeOptimisticEvents,
+    activeOptimisticSteps,
     activeOptimisticToolCalls,
     activeStreamReasoningText,
     activeStreamRunId,
@@ -446,7 +670,8 @@ export function useAgentComposerStreamState({
     handleAgentStreamEvent,
     handleHydrateToolCall,
     hydratingToolCallIds,
-    optimisticRunEventsByRunId,
+    liveActivityLedgerByRunId,
+    optimisticStepsByRunId,
     optimisticToolCallsByRunId,
     pendingRunAttachedToOptimisticMessage,
     resetOptimisticRunState,

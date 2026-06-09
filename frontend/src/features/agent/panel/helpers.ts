@@ -16,11 +16,11 @@ export function normalizeThreadTitleValue(value: unknown): string | null {
 }
 
 export function extractRenameThreadTitle(toolCall: AgentToolCall): string | null {
-  const outputTitle = normalizeThreadTitleValue(toolCall.output_json?.title);
+  const outputTitle = normalizeThreadTitleValue(toolCall.result_content_json?.title);
   if (outputTitle) {
     return outputTitle;
   }
-  return normalizeThreadTitleValue(toolCall.input_json?.title);
+  return normalizeThreadTitleValue(toolCall.arguments_json?.title);
 }
 
 export function normalizeModelName(value: string | null | undefined): string | null {

@@ -67,11 +67,10 @@ export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogP
               isLoading={dialog.threadQuery.isLoading}
               errorMessage={dialog.threadQuery.isError ? (dialog.threadQuery.error as Error).message : null}
               initiatedByExternalAgent={dialog.threadQuery.data?.thread.initiated_by_external_agent ?? false}
-              messages={dialog.threadQuery.data?.messages}
+              turns={dialog.threadQuery.data?.turns}
               timelineScrollRef={timeline.timelineScrollRef}
-              runsByAssistantMessageId={dialog.runsByAssistantMessageId}
+              runsById={dialog.runsById}
               pendingAssistantRuns={dialog.pendingAssistantRuns}
-              pendingAssistantRunsByUserMessageId={dialog.pendingAssistantRunsByUserMessageId}
               pendingUserMessage={timeline.pendingUserMessage}
               pendingAssistantMessage={timeline.pendingAssistantMessage}
               shouldShowOptimisticAssistantBubble={timeline.shouldShowOptimisticAssistantBubble}
@@ -81,9 +80,10 @@ export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogP
               activeStreamText={timeline.activeStreamText}
               streamedReasoningTextByRunId={timeline.streamedReasoningTextByRunId}
               streamedTextByRunId={timeline.streamedTextByRunId}
-              optimisticRunEventsByRunId={timeline.optimisticRunEventsByRunId}
+              optimisticStepsByRunId={timeline.optimisticStepsByRunId}
               optimisticToolCallsByRunId={timeline.optimisticToolCallsByRunId}
-              activeOptimisticEvents={timeline.activeOptimisticEvents}
+              liveActivityLedgerByRunId={timeline.liveActivityLedgerByRunId}
+              activeOptimisticSteps={timeline.activeOptimisticSteps}
               activeOptimisticToolCalls={timeline.activeOptimisticToolCalls}
               hydratingToolCallIds={timeline.hydratingToolCallIds}
               onHydrateToolCall={timeline.onHydrateToolCall}

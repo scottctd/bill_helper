@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.services.agent.runtime_state import PreparedToolCall, tool_result_llm_message
+from backend.services.agent.tool_results import PreparedToolCall, tool_result_llm_message
 from backend.services.agent.tool_types import ToolExecutionResult, ToolExecutionStatus
 
 

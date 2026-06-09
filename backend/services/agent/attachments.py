@@ -1,7 +1,7 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `attachments`.
-# - Inputs: callers that import `backend/services/agent/attachments.py` and pass module-defined arguments or framework events.
-# - Outputs: helpers that ingest, attach, resolve, and delete agent attachment files.
+# - Purpose: ingest, attach, resolve, and delete agent transcript attachment files.
+# - Inputs: draft uploads, user file ids, transcript message ids, owner scope.
+# - Outputs: UserFile rows and AgentTranscriptAttachment bindings.
 # - Side effects: DB row creation plus canonical filesystem writes/deletes for agent attachment bundles.
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from starlette import status
 
 from backend.config import get_settings
-from backend.models_agent import AgentMessageAttachment
+from backend.models_agent import AgentTranscriptAttachment
 from backend.models_files import UserFile
 from backend.services.agent.agent_attachment_bundle import (
     ingest_agent_attachment_without_docling,
@@ -30,14 +30,14 @@ from backend.services.runtime_settings import ResolvedRuntimeSettings
 from backend.services.user_files import SOURCE_TYPE_AGENT_ATTACHMENT, resolve_user_file_path
 
 
-def create_message_attachment(
+def create_transcript_attachment(
     db: Session,
     *,
-    message_id: str,
+    transcript_message_id: str,
     user_file: UserFile,
-) -> AgentMessageAttachment:
-    attachment = AgentMessageAttachment(
-        message_id=message_id,
+) -> AgentTranscriptAttachment:
+    attachment = AgentTranscriptAttachment(
+        transcript_message_id=transcript_message_id,
         user_file_id=user_file.id,
     )
     db.add(attachment)
@@ -110,7 +110,7 @@ async def ingest_draft_attachment_upload(
         ) from exc
 
 
-def message_attachments_require_vision(
+def transcript_attachments_require_vision(
     db: Session,
     *,
     files: list[UploadFile],
@@ -153,11 +153,11 @@ def load_draft_attachment_user_file(
     return user_file
 
 
-def attach_existing_user_files(
+def attach_existing_user_files_to_transcript(
     db: Session,
     *,
     attachment_ids: list[str],
-    message_id: str,
+    transcript_message_id: str,
     owner_user_id: str,
 ) -> list[UserFile]:
     if not attachment_ids:
@@ -178,9 +178,9 @@ def attach_existing_user_files(
     if missing_ids:
         raise PolicyViolation.not_found("One or more attachments are unavailable.")
     for attachment_id in attachment_ids:
-        create_message_attachment(
+        create_transcript_attachment(
             db,
-            message_id=message_id,
+            transcript_message_id=transcript_message_id,
             user_file=files_by_id[attachment_id],
         )
     return [files_by_id[attachment_id] for attachment_id in attachment_ids]
@@ -197,10 +197,12 @@ def delete_draft_attachment(
         attachment_id=attachment_id,
         owner_user_id=owner_user_id,
     )
-    has_bound_message_attachment = db.scalar(
-        select(AgentMessageAttachment.id).where(AgentMessageAttachment.user_file_id == user_file.id).limit(1)
+    has_bound_transcript_attachment = db.scalar(
+        select(AgentTranscriptAttachment.id)
+        .where(AgentTranscriptAttachment.user_file_id == user_file.id)
+        .limit(1)
     )
-    if has_bound_message_attachment:
+    if has_bound_transcript_attachment:
         raise PolicyViolation(
             detail="Attachment is already bound to a message and cannot be removed.",
             status_code=status.HTTP_409_CONFLICT,

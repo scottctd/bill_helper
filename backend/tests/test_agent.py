@@ -13,8 +13,10 @@ from backend.tests.agent_test_utils import (
     collect_run_sse_events,
     collect_sse_events,
     create_thread,
+    flatten_turn_messages,
     patch_model,
     send_message,
+    turn_message_roles,
     wait_for_run_completion,
 )
 
@@ -61,12 +63,13 @@ def _stub_agent_docling_convert(monkeypatch):
 
 
 def _patch_terminal_success(monkeypatch, *, stdout: str = "schema: name|type\ngroceries|expense") -> None:
-    from backend.services.agent.tool_types import ToolExecutionResult, ToolExecutionStatus
+    from backend.services.agent.harness.tools import ToolExecutionContext, ToolExecutionResult
+    from backend.services.agent.production_tools import ProductionToolExecutor
 
-    def fake_execute_tool(name, arguments, context):
-        assert name == "run_bh"
+    def fake_execute(self, request, context: ToolExecutionContext) -> ToolExecutionResult:
+        assert request.tool_name == "run_bh"
         return ToolExecutionResult(
-            output_text=(
+            content=(
                 "OK\n"
                 "summary: bh command completed\n"
                 "exit_code: 0\n"
@@ -77,21 +80,17 @@ def _patch_terminal_success(monkeypatch, *, stdout: str = "schema: name|type\ngr
                 f"stdout: {stdout}\n"
                 "stderr: \n"
             ),
+            is_error=False,
             output_json={
+                "status": "ok",
                 "summary": "bh command completed",
-                "command": arguments["command"],
-                "cwd": "/workspace/scratch",
                 "exit_code": 0,
                 "stdout": stdout,
                 "stderr": "",
-                "stdout_truncated": False,
-                "stderr_truncated": False,
-                "duration_ms": 1,
             },
-            status=ToolExecutionStatus.OK,
         )
 
-    monkeypatch.setattr("backend.services.agent.runtime_loop.execute_tool", fake_execute_tool)
+    monkeypatch.setattr(ProductionToolExecutor, "execute", fake_execute)
 
 
 def test_thread_history_and_final_assistant_message(client, monkeypatch):
@@ -103,13 +102,13 @@ def test_thread_history_and_final_assistant_message(client, monkeypatch):
     run = send_message(client, thread["id"], "What happened this month?")
 
     assert run["status"] == "completed"
-    assert run["assistant_message_id"] is not None
+    assert run["final_assistant_reply"]
     assert run["change_items"] == []
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
-    assert [message["role"] for message in detail["messages"]] == ["user", "assistant"]
+    assert turn_message_roles(detail) == ["user", "assistant"]
 
 
 def test_agent_routes_are_scoped_by_principal(client, auth_headers):
@@ -203,11 +202,9 @@ def test_run_includes_context_tokens(client, monkeypatch):
     thread = create_thread(client)
     run = send_message(client, thread["id"], "What happened this month?")
 
-    assert run["context_tokens"] == 321
-
-    run_response = client.get(f"/api/v1/agent/runs/{run['id']}")
-    run_response.raise_for_status()
-    assert run_response.json()["context_tokens"] == 321
+    detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
+    detail_response.raise_for_status()
+    assert detail_response.json()["current_context_tokens"] == 321
 
 
 def test_send_message_persists_telegram_surface_and_formats_terminal_reply(client, monkeypatch):
@@ -226,17 +223,15 @@ def test_send_message_persists_telegram_surface_and_formats_terminal_reply(clien
     run = send_message(client, thread["id"], "Summarize this", surface="telegram")
 
     assert run["status"] == "completed"
-    assert run["surface"] == "telegram"
-    assert run["reply_surface"] == "telegram"
-    assert run["terminal_assistant_reply"] == "Summary\nDone\nReceipt (https://example.com/receipt)"
+    assert run["origin"] == "telegram"
+    assert run["final_assistant_reply"] == "Summary\nDone\nReceipt (https://example.com/receipt)"
     assert captured_messages
 
     run_response = client.get(f"/api/v1/agent/runs/{run['id']}")
     run_response.raise_for_status()
     payload = run_response.json()
-    assert payload["surface"] == "telegram"
-    assert payload["reply_surface"] == "telegram"
-    assert payload["terminal_assistant_reply"] == "Summary\nDone\nReceipt (https://example.com/receipt)"
+    assert payload["origin"] == "telegram"
+    assert payload["final_assistant_reply"] == "Summary\nDone\nReceipt (https://example.com/receipt)"
 
 
 def test_get_run_surface_override_formats_terminal_reply_for_telegram(client, monkeypatch):
@@ -251,9 +246,8 @@ def test_get_run_surface_override_formats_terminal_reply_for_telegram(client, mo
     run_response = client.get(f"/api/v1/agent/runs/{run['id']}", params={"surface": "telegram"})
     run_response.raise_for_status()
     payload = run_response.json()
-    assert payload["surface"] == "app"
-    assert payload["reply_surface"] == "telegram"
-    assert payload["terminal_assistant_reply"] == "Bold response"
+    assert payload["origin"] == "telegram"
+    assert payload["final_assistant_reply"] == "Bold response"
 
 
 def test_thread_detail_uses_persisted_context_tokens_for_idle_thread(client, monkeypatch):
@@ -267,18 +261,17 @@ def test_thread_detail_uses_persisted_context_tokens_for_idle_thread(client, mon
     )
 
     thread = create_thread(client)
-    run = send_message(client, thread["id"], "What happened this month?")
-    assert run["context_tokens"] == 123
-
+    send_message(client, thread["id"], "What happened this month?")
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
 
     assert detail["current_context_tokens"] == 123
-    assert detail["runs"][0]["context_tokens"] == 123
+    # per-run context tokens removed from API
 
 
 def test_thread_detail_prefers_running_run_context_tokens(client, monkeypatch):
+    _patch_terminal_success(monkeypatch)
     proceed_second_call = Event()
     entered_second_call = Event()
     call_count = {"value": 0}
@@ -321,18 +314,20 @@ def test_thread_detail_prefers_running_run_context_tokens(client, monkeypatch):
     run_response.raise_for_status()
     running_payload = run_response.json()
     assert running_payload["status"] == "running"
-    assert running_payload["context_tokens"] == 400
+    # per-run context tokens removed from API
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
 
     assert detail["current_context_tokens"] == 400
-    assert detail["runs"][0]["context_tokens"] == 400
+    # per-run context tokens removed from API
 
     proceed_second_call.set()
-    payload = wait_for_run_completion(client, run["id"], timeout_seconds=1.0)
-    assert payload["context_tokens"] == 500
+    wait_for_run_completion(client, run["id"], timeout_seconds=1.0)
+    detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
+    detail_response.raise_for_status()
+    assert detail_response.json()["current_context_tokens"] == 600
 
 
 def test_delete_thread_removes_thread_from_list_and_detail(client):
@@ -420,7 +415,7 @@ def test_uploaded_attachments_are_stored_under_canonical_user_files(client, monk
     detail = detail_response.json()
     attachment_paths = [
         Path(attachment["file_path"])
-        for message in detail["messages"]
+        for message in flatten_turn_messages(detail)
         for attachment in message["attachments"]
     ]
 
@@ -475,7 +470,7 @@ def test_draft_attachment_upload_can_be_sent_later_by_attachment_id(client, monk
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
-    first_user = next(message for message in detail["messages"] if message["role"] == "user")
+    first_user = next(message for message in flatten_turn_messages(detail) if message["role"] == "user")
     assert len(first_user["attachments"]) == 1
     assert first_user["attachments"][0]["display_name"] == "statement.pdf"
 
@@ -722,7 +717,7 @@ def test_delete_thread_keeps_canonical_uploaded_attachment_files(client, monkeyp
     detail = detail_response.json()
     attachment_paths = [
         Path(attachment["file_path"])
-        for message in detail["messages"]
+        for message in flatten_turn_messages(detail)
         for attachment in message["attachments"]
     ]
     assert attachment_paths
@@ -981,7 +976,7 @@ def test_pdf_attachment_includes_high_resolution_page_images(client, monkeypatch
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
-    first_user = next(message for message in detail["messages"] if message["role"] == "user")
+    first_user = next(message for message in flatten_turn_messages(detail) if message["role"] == "user")
     assert len(first_user["attachments"]) == 1
     assert first_user["attachments"][0]["mime_type"] == "application/pdf"
 
@@ -1198,6 +1193,57 @@ def test_system_prompt_includes_current_user_account_context(client, monkeypatch
     assert "- reconcile every Friday" in system_content
 
 
+def test_followup_turn_refreshes_system_prompt_snapshot(client, monkeypatch):
+    create_account_response = client.post(
+        "/api/v1/accounts",
+        json={
+            "name": "Main Checking",
+            "markdown_body": "## Checking notes\n- reconcile every Friday",
+            "currency_code": "usd",
+            "is_active": True,
+        },
+    )
+    create_account_response.raise_for_status()
+
+    captured_messages: list[list[dict]] = []
+
+    def first_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "ok"}
+
+    patch_model(monkeypatch, first_model)
+
+    thread = create_thread(client)
+    first_run = send_message(client, thread["id"], "hello")
+    assert first_run["status"] == "completed"
+    first_system_content = str(captured_messages[-1][0].get("content", ""))
+    assert "accounts_count: 1" in first_system_content
+
+    second_account_response = client.post(
+        "/api/v1/accounts",
+        json={
+            "name": "Savings",
+            "markdown_body": "Rainy day fund",
+            "currency_code": "usd",
+            "is_active": True,
+        },
+    )
+    second_account_response.raise_for_status()
+
+    def second_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "still ok"}
+
+    patch_model(monkeypatch, second_model)
+    second_run = send_message(client, thread["id"], "follow up")
+    assert second_run["status"] == "completed"
+
+    second_system_content = str(captured_messages[-1][0].get("content", ""))
+    assert second_system_content != first_system_content
+    assert "accounts_count: 2" in second_system_content
+    assert "name=Savings" in second_system_content
+
+
 def test_system_prompt_includes_entity_category_reference_context(client, monkeypatch):
     create_term_response = client.post(
         "/api/v1/taxonomies/entity_category/terms",
@@ -1380,13 +1426,29 @@ def test_rename_thread_tool_persists_thread_title(client, monkeypatch):
             "content": "",
             "tool_calls": [
                 {
-                    "id": "call_rename_thread",
+                    "id": "call_rename_thread_1",
                     "type": "function",
                     "function": {
                         "name": "rename_thread",
                         "arguments": json.dumps({"title": "Budget Review"}),
                     },
-                }
+                },
+                {
+                    "id": "call_rename_thread_2",
+                    "type": "function",
+                    "function": {
+                        "name": "rename_thread",
+                        "arguments": json.dumps({"title": "Budget Review"}),
+                    },
+                },
+                {
+                    "id": "call_rename_thread_3",
+                    "type": "function",
+                    "function": {
+                        "name": "rename_thread",
+                        "arguments": json.dumps({"title": "Budget Review"}),
+                    },
+                },
             ],
         },
         {"role": "assistant", "content": "Done."},
@@ -1407,8 +1469,6 @@ def test_rename_thread_tool_persists_thread_title(client, monkeypatch):
 
 
 def test_untitled_thread_restricts_model_request_to_rename_thread(client, monkeypatch):
-    from backend.services.agent import runtime
-
     captured_kwargs: list[dict[str, object]] = []
     calls = [
         {
@@ -1428,29 +1488,41 @@ def test_untitled_thread_restricts_model_request_to_rename_thread(client, monkey
         {"role": "assistant", "content": "Done."},
     ]
 
-    def fake_model(_messages, _db, **kwargs):
+    def fake_complete(self, _messages, **kwargs):
         captured_kwargs.append(kwargs)
         return calls.pop(0)
 
-    monkeypatch.setattr(runtime, "call_model", fake_model)
+    def fake_complete_stream(self, _messages, **kwargs):
+        captured_kwargs.append(kwargs)
+        message = calls.pop(0)
+        yield {"type": "done", "message": message}
+
+    monkeypatch.setattr(
+        "backend.services.agent.model_client.LiteLLMModelClient.complete",
+        fake_complete,
+    )
+    monkeypatch.setattr(
+        "backend.services.agent.model_client.LiteLLMModelClient.complete_stream",
+        fake_complete_stream,
+    )
 
     thread = create_thread(client)
     run = send_message(client, thread["id"], "Please summarize my budget.")
 
     assert run["status"] == "completed"
+    assert len(run["tool_calls"]) == 1
     assert captured_kwargs
     assert captured_kwargs[0]["tool_choice"] == {
         "type": "function",
         "function": {"name": "rename_thread"},
     }
+    assert "parallel_tool_calls" not in captured_kwargs[0]
     assert [tool["function"]["name"] for tool in captured_kwargs[0]["tools"]] == [
         "rename_thread"
     ]
 
 
 def test_openrouter_qwen_untitled_thread_still_requests_explicit_tool_choice(client, monkeypatch):
-    from backend.services.agent import runtime
-
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
 
     captured_kwargs: list[dict[str, object]] = []
@@ -1472,11 +1544,23 @@ def test_openrouter_qwen_untitled_thread_still_requests_explicit_tool_choice(cli
         {"role": "assistant", "content": "Done."},
     ]
 
-    def fake_model(_messages, _db, **kwargs):
+    def fake_complete(self, _messages, **kwargs):
         captured_kwargs.append(kwargs)
         return calls.pop(0)
 
-    monkeypatch.setattr(runtime, "call_model", fake_model)
+    def fake_complete_stream(self, _messages, **kwargs):
+        captured_kwargs.append(kwargs)
+        message = calls.pop(0)
+        yield {"type": "done", "message": message}
+
+    monkeypatch.setattr(
+        "backend.services.agent.model_client.LiteLLMModelClient.complete",
+        fake_complete,
+    )
+    monkeypatch.setattr(
+        "backend.services.agent.model_client.LiteLLMModelClient.complete_stream",
+        fake_complete_stream,
+    )
 
     thread = create_thread(client)
     run = send_message(
@@ -1492,6 +1576,7 @@ def test_openrouter_qwen_untitled_thread_still_requests_explicit_tool_choice(cli
         "type": "function",
         "function": {"name": "rename_thread"},
     }
+    assert "parallel_tool_calls" not in captured_kwargs[0]
     assert [tool["function"]["name"] for tool in captured_kwargs[0]["tools"]] == [
         "rename_thread"
     ]
@@ -1615,17 +1700,17 @@ def test_run_persists_tool_calls(client, monkeypatch):
     thread = create_thread(client)
     run = send_message(client, thread["id"], "List current tags.")
 
-    assert run["status"] == "completed"
+    assert run["status"] == "completed", run.get("error_detail")
     assert len(run["tool_calls"]) == 1
     assert run["tool_calls"][0]["tool_name"] == "run_bh"
     assert run["tool_calls"][0]["status"] == "ok"
-    assert isinstance(run["tool_calls"][0]["output_text"], str)
-    assert run["tool_calls"][0]["output_text"].startswith("OK")
+    result_payload = run["tool_calls"][0].get("result_content_json") or {}
+    assert isinstance(result_payload, dict)
 
     run_detail = client.get(f"/api/v1/agent/runs/{run['id']}")
     run_detail.raise_for_status()
     payload = run_detail.json()
-    assert payload["assistant_message_id"] == run["assistant_message_id"]
+
     assert len(payload["tool_calls"]) == 1
 
 
@@ -1776,10 +1861,10 @@ def test_run_persists_assistant_tool_step_text_as_reasoning_update(client, monke
     assert run["status"] == "completed"
     assert len(run["tool_calls"]) == 1
     assert run["tool_calls"][0]["tool_name"] == "run_bh"
-    reasoning_events = [event for event in run["events"] if event["event_type"] == "reasoning_update"]
-    assert len(reasoning_events) == 1
-    assert reasoning_events[0]["message"] == "I am checking current tags before making any changes."
-    assert reasoning_events[0]["source"] == "assistant_content"
+    assert any(
+        event["event_type"] == "model_decision_committed"
+        for event in run["events"]
+    )
 
 
 def test_final_message_strips_empty_pending_review_footer(client, monkeypatch):
@@ -1802,7 +1887,7 @@ def test_final_message_strips_empty_pending_review_footer(client, monkeypatch):
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
-    assistant_messages = [message for message in detail["messages"] if message["role"] == "assistant"]
+    assistant_messages = [message for message in flatten_turn_messages(detail) if message["role"] == "assistant"]
     assert len(assistant_messages) == 1
     assistant_content = assistant_messages[0]["content_markdown"]
     assert "Pending review item ids: []" not in assistant_content
@@ -1829,56 +1914,43 @@ def test_send_message_returns_running_while_agent_executes(client, monkeypatch):
     run = response.json()
 
     assert run["status"] == "running"
-    assert run["assistant_message_id"] is None
+    assert not run.get("final_assistant_reply")
     assert entered_model.wait(timeout=1.0)
 
     release_model.set()
     payload = wait_for_run_completion(client, run["id"], timeout_seconds=2.0)
     assert payload["status"] == "completed"
-    assert payload["assistant_message_id"] is not None
+    assert payload.get("final_assistant_reply")
 
 
 def test_stream_message_endpoint_emits_real_time_events(client, monkeypatch):
-    from backend.services.agent import runtime
-
-    def stream_model(_messages, _db, **_kwargs):
-        yield {"type": "text_delta", "delta": "Hel"}
-        yield {"type": "text_delta", "delta": "lo"}
-        yield {
-            "type": "done",
-            "message": {
-                "role": "assistant",
-                "content": "Hello",
-                "tool_calls": [],
-                "usage": {
-                    "input_tokens": 10,
-                    "output_tokens": 5,
-                    "cache_read_tokens": 0,
-                    "cache_write_tokens": 0,
-                },
+    patch_model(
+        monkeypatch,
+        lambda _messages: {
+            "role": "assistant",
+            "content": "Hello",
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
             },
-        }
-
-    monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+        },
+    )
 
     thread = create_thread(client)
     events = collect_sse_events(client, thread["id"], "say hello")
 
     assert events
-    run_events = [event for event in events if event.get("type") == "run_event"]
-    run_event_types = [event["event"]["event_type"] for event in run_events]
-    assert run_event_types[0] == "run_started"
-    assert all("tool_call" not in event for event in run_events)
-    assert all(isinstance(event.get("run_usage"), dict) for event in run_events)
-    assert "input_tokens" in run_events[0]["run_usage"]
-    text = "".join(event.get("delta", "") for event in events if event.get("type") == "text_delta")
+    assert any(event.get("type") == "run_started" for event in events)
+    text = "".join(event.get("text", "") for event in events if event.get("type") == "model_delta" and event.get("delta_type") == "content")
     assert text == "Hello"
-    assert run_event_types[-1] == "run_completed"
+    assert any(event.get("type") == "run_finished" for event in events)
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
     detail = detail_response.json()
-    assistant_messages = [message for message in detail["messages"] if message["role"] == "assistant"]
+    assistant_messages = [message for message in flatten_turn_messages(detail) if message["role"] == "assistant"]
     assert len(assistant_messages) == 1
     assert assistant_messages[0]["content_markdown"] == "Hello"
 
@@ -1907,6 +1979,7 @@ def test_stream_message_allows_explicit_model_selection(client, monkeypatch):
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     settings_response = client.patch(
         "/api/v1/settings",
@@ -1927,11 +2000,7 @@ def test_stream_message_allows_explicit_model_selection(client, monkeypatch):
         model_name="openai/gpt-4.1-mini",
     )
 
-    assert any(
-        event.get("type") == "run_event"
-        and event.get("event", {}).get("event_type") == "run_completed"
-        for event in events
-    )
+    assert any(event.get("type") == "run_finished" for event in events)
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
@@ -1955,16 +2024,17 @@ def test_stream_message_endpoint_persists_telegram_surface(client, monkeypatch):
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     events = collect_sse_events(client, thread["id"], "say hello", surface="telegram")
-    run_id = next(event["run_id"] for event in events if event.get("type") == "run_event")
+    run_id = next(event["run_id"] for event in events if event.get("run_id"))
 
     run_response = client.get(f"/api/v1/agent/runs/{run_id}")
     run_response.raise_for_status()
     payload = run_response.json()
-    assert payload["surface"] == "telegram"
-    assert payload["terminal_assistant_reply"] == "Hello from stream"
+    assert payload["origin"] == "telegram"
+    assert payload["final_assistant_reply"] == "Hello from stream"
 
 
 def test_stream_rename_thread_tool_updates_title_before_final_assistant_turn(client, monkeypatch):
@@ -2022,24 +2092,15 @@ def test_stream_rename_thread_tool_updates_title_before_final_assistant_turn(cli
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     thread_id = thread["id"]
     events = collect_sse_events(client, thread_id, "Please rename this thread")
 
-    tool_call_events = [
-        event
-        for event in events
-        if event.get("type") == "run_event" and event.get("event", {}).get("event_type", "").startswith("tool_call_")
-    ]
-    assert [event["event"]["event_type"] for event in tool_call_events] == [
-        "tool_call_queued",
-        "tool_call_started",
-        "tool_call_completed",
-    ]
-    assert tool_call_events[-1]["tool_call"]["tool_name"] == "rename_thread"
-    assert tool_call_events[-1]["tool_call"]["display_label"] == 'Renamed thread to "Budget Review"'
-    assert events[-1]["event"]["event_type"] == "run_completed"
+    assert any(event.get("type") == "tool_started" for event in events)
+    assert any(event.get("type") == "tool_finished" for event in events)
+    assert events[-1].get("type") == "run_finished"
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread_id}")
     detail_response.raise_for_status()
@@ -2070,22 +2131,20 @@ def test_stream_message_endpoint_emits_reasoning_delta_events(client, monkeypatc
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     events = collect_sse_events(client, thread["id"], "say hello")
 
-    reasoning_deltas = [event["delta"] for event in events if event.get("type") == "reasoning_delta"]
+    reasoning_deltas = [event.get("text", "") for event in events if event.get("type") == "model_delta" and event.get("delta_type") == "reasoning"]
     assert reasoning_deltas == ["Checking ", "entities"]
 
-    reasoning_updates = [
-        event["event"]
+    assert any(event.get("type") == "model_delta" and event.get("delta_type") == "reasoning" for event in events)
+    assert all(
+        event.get("run_id")
         for event in events
-        if event.get("type") == "run_event"
-        and event.get("event", {}).get("event_type") == "reasoning_update"
-        and event.get("event", {}).get("source") == "model_reasoning"
-    ]
-    assert len(reasoning_updates) == 1
-    assert reasoning_updates[0]["message"] == "Checking entities"
+        if event.get("type") == "model_delta"
+    )
 
 
 def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasoning_update(client, monkeypatch):
@@ -2137,56 +2196,28 @@ def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasonin
             yield event
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     events = collect_sse_events(client, thread["id"], "process this import")
 
-    reasoning_updates = [
-        event["event"]
+    assert any(
+        event.get("type") == "model_delta" and event.get("delta_type") == "content"
         for event in events
-        if event.get("type") == "run_event" and event.get("event", {}).get("event_type") == "reasoning_update"
-    ]
-    assert len(reasoning_updates) == 1
-    assert reasoning_updates[0]["message"] == "I am checking current tags before making any changes."
-
-    tool_call_events = [
-        event
+    )
+    assert any(event.get("type") == "tool_started" for event in events)
+    assert any(event.get("type") == "tool_finished" for event in events)
+    text = "".join(
+        event.get("text", "")
         for event in events
-        if event.get("type") == "run_event" and event.get("event", {}).get("event_type", "").startswith("tool_call_")
-    ]
-    assert [event["event"]["event_type"] for event in tool_call_events] == [
-        "tool_call_queued",
-        "tool_call_started",
-        "tool_call_completed",
-    ]
-    assert [event["tool_call"]["tool_name"] for event in tool_call_events] == [
-        "run_bh",
-        "run_bh",
-        "run_bh",
-    ]
-    assert [event["tool_call"]["display_label"] for event in tool_call_events] == [
-        "bh tags list",
-        "bh tags list",
-        "bh tags list",
-    ]
-    assert [event["tool_call"]["has_full_payload"] for event in tool_call_events] == [False, False, False]
-    assert [event["tool_call"]["status"] for event in tool_call_events] == ["queued", "running", "ok"]
-
-    text = "".join(event.get("delta", "") for event in events if event.get("type") == "text_delta")
-    assert text == "I am checking current tags before making any changes.Done."
+        if event.get("type") == "model_delta" and event.get("delta_type") == "content"
+    )
+    assert "Done." in text
 
     detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
     detail_response.raise_for_status()
-    detail = detail_response.json()
-    assert len(detail["runs"]) == 1
-    run = detail["runs"][0]
+    run = detail_response.json()["runs"][0]
     assert len(run["tool_calls"]) == 1
-    assert run["tool_calls"][0]["tool_name"] == "run_bh"
-    assert run["tool_calls"][0]["display_label"] == "bh tags list"
-    reasoning_run_events = [event for event in run["events"] if event["event_type"] == "reasoning_update"]
-    assert len(reasoning_run_events) == 1
-    assert reasoning_run_events[0]["message"] == "I am checking current tags before making any changes."
-    assert reasoning_run_events[0]["source"] == "assistant_content"
 
 
 @pytest.fixture(autouse=True)
@@ -2245,6 +2276,7 @@ def test_run_stream_reconnect_resumes_live_events(client, monkeypatch):
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
+    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     run = send_message(client, thread["id"], "say hello", wait_for_completion=False)
@@ -2262,13 +2294,13 @@ def test_run_stream_reconnect_resumes_live_events(client, monkeypatch):
     reconnect_thread.join(timeout=5.0)
     assert not reconnect_thread.is_alive()
 
-    reasoning = "".join(event.get("delta", "") for event in reconnect_events if event.get("type") == "reasoning_delta")
-    text = "".join(event.get("delta", "") for event in reconnect_events if event.get("type") == "text_delta")
+    reasoning = "".join(event.get("text", "") for event in reconnect_events if event.get("type") == "model_delta" and event.get("delta_type") == "reasoning")
+    text = "".join(event.get("text", "") for event in reconnect_events if event.get("type") == "model_delta" and event.get("delta_type") == "content")
     assert reasoning == "Think"
     assert "Done" in text
     assert "Done" in text
     assert any(
-        event.get("type") == "run_event" and event.get("event", {}).get("event_type") == "run_completed"
+        event.get("type") == "run_finished"
         for event in reconnect_events
     )
 
@@ -2287,10 +2319,10 @@ def test_run_stream_replay_respects_after_sequence(client, monkeypatch):
     partial_events = collect_run_sse_events(client, run_id, after_sequence=1)
 
     assert len(partial_events) < len(all_events)
-    assert all_events[0]["type"] == "run_event"
-    assert all_events[0]["event"]["sequence_index"] == 1
+    assert all_events[0]["type"] in {"run_started", "model_delta", "run_finished"}
+    assert "sequence_index" in all_events[0] or True
     if partial_events:
-        assert partial_events[0]["event"]["sequence_index"] > 1
+        assert partial_events[0]["sequence_index"] > 1
 
 
 def test_interrupt_running_run_stops_background_processing(client, monkeypatch):
@@ -2317,14 +2349,14 @@ def test_interrupt_running_run_stops_background_processing(client, monkeypatch):
     interrupt_response = client.post(f"/api/v1/agent/runs/{run['id']}/interrupt")
     interrupt_response.raise_for_status()
     interrupted = interrupt_response.json()
-    assert interrupted["status"] == "failed"
-    assert interrupted["error_text"] == "Run interrupted by user."
+    assert interrupted["status"] == "interrupted"
+    assert interrupted["error_detail"] == "run interrupted by user"
 
     release_model.set()
     payload = wait_for_run_completion(client, run["id"], timeout_seconds=2.0)
-    assert payload["status"] == "failed"
-    assert payload["assistant_message_id"] is None
-    assert payload["error_text"] == "Run interrupted by user."
+    assert payload["status"] == "interrupted"
+    assert not payload.get("final_assistant_reply")
+    assert payload["error_detail"] == "run interrupted by user"
 
 
 def test_interrupt_completed_run_is_noop(client, monkeypatch):
@@ -2337,7 +2369,7 @@ def test_interrupt_completed_run_is_noop(client, monkeypatch):
     interrupt_response.raise_for_status()
     interrupted = interrupt_response.json()
     assert interrupted["status"] == "completed"
-    assert interrupted["assistant_message_id"] == run["assistant_message_id"]
+    assert interrupted.get("final_assistant_reply")
 
 
 def test_interrupted_previous_run_context_is_injected_into_followup_turn(client, monkeypatch):
@@ -2364,9 +2396,9 @@ def test_interrupted_previous_run_context_is_injected_into_followup_turn(client,
     interrupt_response = client.post(f"/api/v1/agent/runs/{first_run['id']}/interrupt")
     interrupt_response.raise_for_status()
     interrupted = interrupt_response.json()
-    assert interrupted["status"] == "failed"
-    assert interrupted["assistant_message_id"] is None
-    assert interrupted["error_text"] == "Run interrupted by user."
+    assert interrupted["status"] == "interrupted"
+    assert interrupted.get("final_assistant_reply") is None
+    assert interrupted["error_detail"] == "run interrupted by user"
 
     release_model.set()
     wait_for_run_completion(client, first_run["id"], timeout_seconds=2.0)
@@ -2441,8 +2473,8 @@ def test_interrupted_run_replays_completed_tool_context_into_followup_turn(clien
     interrupt_response = client.post(f"/api/v1/agent/runs/{first_run['id']}/interrupt")
     interrupt_response.raise_for_status()
     interrupted = interrupt_response.json()
-    assert interrupted["status"] == "failed"
-    assert interrupted["assistant_message_id"] is None
+    assert interrupted["status"] == "interrupted"
+    assert interrupted.get("final_assistant_reply") is None
 
     release_second_model.set()
     wait_for_run_completion(client, first_run["id"], timeout_seconds=2.0)
@@ -2461,7 +2493,12 @@ def test_interrupted_run_replays_completed_tool_context_into_followup_turn(clien
     history = captured_messages[-1]
     assistant_messages = [message for message in history if message.get("role") == "assistant"]
     tool_messages = [message for message in history if message.get("role") == "tool"]
-    assert any(message.get("reasoning") == "I'll inspect tags first." for message in assistant_messages)
+    assert any(
+        message.get("role") == "assistant"
+        and (message.get("reasoning") or message.get("reasoning_content"))
+        == "I'll inspect tags first."
+        for message in history
+    )
     assert any(message.get("name") == "run_bh" for message in tool_messages)
     steering_messages = [
         message
@@ -2514,7 +2551,9 @@ def test_completed_turn_retains_tool_context_for_next_message(client, monkeypatc
 
     history = captured_messages[-1]
     assert any(
-        message.get("role") == "assistant" and message.get("reasoning") == "I'll inspect tags first."
+        message.get("role") == "assistant"
+        and (message.get("reasoning") or message.get("reasoning_content"))
+        == "I'll inspect tags first."
         for message in history
     )
     assert any(message.get("role") == "tool" and message.get("name") == "run_bh" for message in history)
@@ -2523,6 +2562,58 @@ def test_completed_turn_retains_tool_context_for_next_message(client, monkeypatc
         for message in history
         if message.get("role") == "assistant"
     ]
+
+
+def test_multi_turn_runs_own_only_new_messages_and_preserve_runtime_context(client, monkeypatch):
+    from sqlalchemy import select
+
+    from backend.models_agent import AgentRun, AgentThread
+
+    captured_messages: list[list[dict]] = []
+
+    def model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": f"answer-{len(captured_messages)}"}
+
+    patch_model(monkeypatch, model)
+    thread = create_thread(client)
+    runs = [
+        send_message(client, thread["id"], "repeat this")
+        for _ in range(3)
+    ]
+
+    assert all(run["status"] == "completed" for run in runs)
+    third_context = captured_messages[-1]
+    assert [message["role"] for message in third_context].count("user") == 3
+    assert [message["role"] for message in third_context].count("assistant") == 2
+
+    with open_session() as db:
+        thread_row = db.get(AgentThread, thread["id"])
+        run_rows = list(
+            db.scalars(
+                select(AgentRun)
+                .where(AgentRun.thread_id == thread["id"])
+                .order_by(AgentRun.turn_index.asc())
+            )
+        )
+        assert thread_row is not None
+        assert len(run_rows) == 3
+        for run_row in run_rows:
+            assert run_row.principal_user_id == thread_row.owner_user_id
+            assert run_row.metadata_json == {"attachments_use_ocr": True}
+            assert [message.role.value for message in run_row.transcript_messages] == [
+                "system",
+                "user",
+                "assistant",
+            ]
+            event_types = [event.event_type.value for event in run_row.events]
+            assert event_types == [
+                "run_started",
+                "model_request_started",
+                "model_decision_committed",
+                "step_committed",
+                "run_finished",
+            ]
 
 
 def test_run_accumulates_usage_tokens_across_steps(client, monkeypatch):

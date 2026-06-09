@@ -12,7 +12,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, status, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, load_only, selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from backend.auth.contracts import RequestPrincipal
 from backend.auth.dependencies import get_current_principal
@@ -21,17 +21,17 @@ from backend.database import get_session_maker
 from backend.enums_agent import (
     AgentApprovalPolicy,
     AgentChangeStatus,
-    AgentMessageRole,
     AgentRunStatus,
     SUPPORTED_AGENT_CHANGE_TYPES,
 )
 from backend.models_agent import (
     AgentChangeItem,
-    AgentMessage,
-    AgentMessageAttachment,
     AgentRun,
+    AgentStep,
     AgentThread,
     AgentToolCall,
+    AgentTranscriptAttachment,
+    AgentTranscriptMessage,
 )
 from backend.models_import import ImportTask
 from backend.schemas_agent import (
@@ -43,6 +43,7 @@ from backend.schemas_agent import (
     AgentThreadUpdate,
 )
 from backend.services.access_scope import agent_thread_owner_filter, load_agent_thread_for_principal
+from backend.services.agent.api_projection import build_thread_detail_projection, last_turn_preview_from_thread
 from backend.services.agent.execution import (
     AgentExecutionPolicyError,
     create_user_message_and_start_run,
@@ -53,12 +54,7 @@ from backend.services.agent.external_session import thread_initiated_by_external
 from backend.services.agent.runtime import AgentRuntimeUnavailable
 from backend.services.agent.sse import format_sse_event
 from backend.services.agent.stream_hub import iter_run_stream_hub_events, start_run_stream_execution
-from backend.services.agent.serializers import (
-    message_to_schema,
-    run_to_schema,
-    thread_summary_to_schema,
-    thread_to_schema,
-)
+from backend.services.agent.serializers import run_to_schema, thread_summary_to_schema, thread_to_schema
 from backend.services.agent.threads import AgentThreadNotFoundError, rename_thread_by_id
 from backend.services.runtime_settings import resolve_runtime_settings
 
@@ -97,6 +93,7 @@ async def create_user_message_run_or_503(
     db: Session,
     model_name: str | None,
     approval_policy: AgentApprovalPolicy,
+    principal: RequestPrincipal,
 ) -> AgentRun:
     try:
         return await create_user_message_and_start_run(
@@ -109,6 +106,8 @@ async def create_user_message_run_or_503(
             model_name=model_name,
             surface=surface,
             approval_policy=approval_policy,
+            principal_user_id=principal.user_id,
+            principal_user_name=principal.user_name,
         )
     except AgentRuntimeUnavailable as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
@@ -123,6 +122,9 @@ def _thread_summary_rows(db: Session, *, principal: RequestPrincipal) -> list[Ag
             select(AgentThread)
             .where(agent_thread_owner_filter(principal))
             .where(AgentThread.id.not_in(import_thread_ids))
+            .options(
+                selectinload(AgentThread.runs).selectinload(AgentRun.transcript_messages),
+            )
             .order_by(AgentThread.updated_at.desc())
         )
     )
@@ -137,15 +139,6 @@ def _thread_summary_rows(db: Session, *, principal: RequestPrincipal) -> list[Ag
     )
     summaries: list[AgentThreadSummaryRead] = []
     for thread in threads:
-        last_message = db.scalar(
-            select(AgentMessage.content_markdown)
-            .where(
-                AgentMessage.thread_id == thread.id,
-                AgentMessage.role.in_((AgentMessageRole.USER, AgentMessageRole.ASSISTANT)),
-            )
-            .order_by(AgentMessage.created_at.desc())
-            .limit(1)
-        )
         pending_change_count = int(
             db.scalar(
                 select(func.count(AgentChangeItem.id))
@@ -161,7 +154,7 @@ def _thread_summary_rows(db: Session, *, principal: RequestPrincipal) -> list[Ag
         summaries.append(
             thread_summary_to_schema(
                 thread,
-                last_message_preview=(last_message[:120] if last_message else None),
+                last_message_preview=last_turn_preview_from_thread(thread),
                 pending_change_count=pending_change_count,
                 has_running_run=thread.id in running_thread_ids,
                 initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=thread.id),
@@ -204,10 +197,7 @@ def delete_thread(
         db,
         thread_id=thread_id,
         principal=principal,
-        stmt=select(AgentThread).options(
-            selectinload(AgentThread.runs),
-            selectinload(AgentThread.messages).selectinload(AgentMessage.attachments),
-        ),
+        stmt=select(AgentThread).options(selectinload(AgentThread.runs)),
     )
 
     if any(run.status == AgentRunStatus.RUNNING for run in thread.runs):
@@ -238,6 +228,25 @@ def update_thread(
     )
 
 
+def _thread_detail_load_options():
+    return (
+        selectinload(AgentThread.runs)
+        .selectinload(AgentRun.transcript_messages)
+        .selectinload(AgentTranscriptMessage.attachments)
+        .selectinload(AgentTranscriptAttachment.user_file),
+        selectinload(AgentThread.runs)
+        .selectinload(AgentRun.steps)
+        .selectinload(AgentStep.assistant_message),
+        selectinload(AgentThread.runs)
+        .selectinload(AgentRun.tool_calls)
+        .selectinload(AgentToolCall.step),
+        selectinload(AgentThread.runs).selectinload(AgentRun.events),
+        selectinload(AgentThread.runs)
+        .selectinload(AgentRun.change_items)
+        .selectinload(AgentChangeItem.review_actions),
+    )
+
+
 @router.get("/threads/{thread_id}", response_model=AgentThreadDetailRead)
 def get_thread_detail(
     thread_id: str,
@@ -248,45 +257,20 @@ def get_thread_detail(
         db,
         thread_id=thread_id,
         principal=principal,
-        stmt=select(AgentThread).options(
-            selectinload(AgentThread.messages)
-            .selectinload(AgentMessage.attachments)
-            .selectinload(AgentMessageAttachment.user_file),
-            selectinload(AgentThread.runs).selectinload(AgentRun.events),
-            selectinload(AgentThread.runs).selectinload(AgentRun.assistant_message),
-            selectinload(AgentThread.runs)
-            .selectinload(AgentRun.tool_calls)
-            .options(
-                load_only(
-                    AgentToolCall.id,
-                    AgentToolCall.run_id,
-                    AgentToolCall.llm_tool_call_id,
-                    AgentToolCall.tool_name,
-                    AgentToolCall.status,
-                    AgentToolCall.created_at,
-                    AgentToolCall.started_at,
-                    AgentToolCall.completed_at,
-                )
-            ),
-            selectinload(AgentThread.runs)
-            .selectinload(AgentRun.change_items)
-            .selectinload(AgentChangeItem.review_actions),
-        ),
+        stmt=select(AgentThread).options(*_thread_detail_load_options()),
     )
     settings = resolve_runtime_settings(db)
-    return AgentThreadDetailRead(
-        thread=thread_to_schema(
-            thread,
-            initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=thread.id),
-        ),
-        messages=[message_to_schema(message, api_prefix=settings.api_prefix) for message in thread.messages],
-        runs=[run_to_schema(run, include_tool_payload=False) for run in thread.runs],
+    return build_thread_detail_projection(
+        thread,
+        api_prefix=settings.api_prefix,
         configured_model_name=settings.agent_model,
         current_context_tokens=current_context_tokens_for_thread(
             db,
             thread=thread,
             model_name=settings.agent_model,
         ),
+        initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=thread.id),
+        include_tool_payload=False,
     )
 
 
@@ -314,12 +298,14 @@ async def send_thread_message(
         db=db,
         model_name=model_name,
         approval_policy=_normalize_approval_policy_form(approval_policy),
+        principal=principal,
     )
     Thread(
         target=run_agent_in_background,
         kwargs={"run_id": run.id, "session_factory": open_background_session},
         daemon=True,
     ).start()
+    db.refresh(run)
     return run_to_schema(run)
 
 
@@ -347,6 +333,7 @@ async def send_thread_message_stream(
         db=db,
         model_name=model_name,
         approval_policy=_normalize_approval_policy_form(approval_policy),
+        principal=principal,
     )
 
     def stream_events() -> Iterator[str]:

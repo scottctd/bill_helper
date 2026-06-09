@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: provide the `schemas_agent` module.
-# - Inputs: callers that import `backend/schemas_agent.py` and pass module-defined arguments or framework events.
-# - Outputs: module exports from `schemas_agent`.
-# - Side effects: module-local behavior only.
+# - Purpose: harness-first agent API read/write schemas and dashboard projections.
+# - Inputs: FastAPI route handlers and serializers building response models.
+# - Outputs: Pydantic models for threads, turns, runs, steps, tool calls, proposals.
+# - Side effects: none.
 from __future__ import annotations
 
 from datetime import date as DateValue, datetime
@@ -14,12 +14,12 @@ from backend.enums_agent import (
     AgentApprovalPolicy,
     AgentChangeStatus,
     AgentChangeType,
-    AgentMessageRole,
     AgentReviewActionType,
-    AgentRunEventSource,
     AgentRunEventType,
     AgentRunStatus,
+    AgentStepStatus,
     AgentToolCallStatus,
+    AgentTranscriptRole,
 )
 from backend.enums_finance import EntryKind
 from backend.validation.agent_threads import THREAD_TITLE_MAX_LENGTH, validate_thread_title
@@ -59,20 +59,22 @@ class AgentThreadRead(AgentOrmReadSchema):
     updated_at: datetime
     initiated_by_external_agent: bool = False
 
+
 class AgentThreadSummaryRead(AgentThreadRead):
     last_message_preview: str | None = None
     pending_change_count: int = 0
     has_running_run: bool = False
 
 
-class AgentMessageAttachmentRead(AgentOrmReadSchema):
+class AgentTranscriptAttachmentRead(AgentOrmReadSchema):
     id: str
-    message_id: str
+    transcript_message_id: str
     display_name: str
     mime_type: str
     file_path: str
     attachment_url: str
     created_at: datetime
+
 
 class AgentDraftAttachmentRead(AgentOrmReadSchema):
     id: str
@@ -80,40 +82,63 @@ class AgentDraftAttachmentRead(AgentOrmReadSchema):
     mime_type: str
     created_at: datetime
 
-class AgentMessageRead(AgentOrmReadSchema):
+
+class AgentTurnMessageRead(AgentSchema):
     id: str
-    thread_id: str
-    role: AgentMessageRole
+    role: AgentTranscriptRole
     content_markdown: str
+    reasoning_text: str | None = None
     created_at: datetime
-    attachments: list[AgentMessageAttachmentRead] = Field(default_factory=list)
+    attachments: list[AgentTranscriptAttachmentRead] = Field(default_factory=list)
+
 
 class AgentToolCallRead(AgentOrmReadSchema):
     id: str
     run_id: str
-    llm_tool_call_id: str | None = None
+    step_id: str
+    call_index: int
+    tool_request_id: str
     tool_name: str
     display_label: str
     display_detail: str | None = None
+    arguments_json: dict[str, Any] | None = None
+    result_content_json: dict[str, Any] | None = None
     input_json: dict[str, Any] | None = None
     output_json: dict[str, Any] | None = None
     output_text: str | None = None
     has_full_payload: bool = False
     status: AgentToolCallStatus
-    created_at: datetime
+    error_code: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+
+
+class AgentStepRead(AgentOrmReadSchema):
+    id: str
+    run_id: str
+    step_index: int
+    status: AgentStepStatus
+    reasoning_text: str | None = None
+    progress_note: str | None = None
+    reasoning_duration_ms: int | None = None
+    finish_reason: str | None = None
+    latency_ms: int | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
+    created_at: datetime
+    tool_calls: list[AgentToolCallRead] = Field(default_factory=list)
+
 
 class AgentRunEventRead(AgentOrmReadSchema):
     id: str
     run_id: str
     sequence_index: int
     event_type: AgentRunEventType
-    source: AgentRunEventSource | None = None
-    message: str | None = None
-    tool_call_id: str | None = None
+    payload_json: dict[str, Any]
     created_at: datetime
-    reasoning_duration_ms: int | None = None
+
 
 class AgentReviewActionRead(AgentOrmReadSchema):
     id: str
@@ -122,6 +147,7 @@ class AgentReviewActionRead(AgentOrmReadSchema):
     actor: str
     note: str | None = None
     created_at: datetime
+
 
 class AgentChangeItemRead(AgentOrmReadSchema):
     id: str
@@ -136,18 +162,16 @@ class AgentChangeItemRead(AgentOrmReadSchema):
     updated_at: datetime
     review_actions: list[AgentReviewActionRead] = Field(default_factory=list)
 
+
 class AgentRunRead(AgentOrmReadSchema):
     id: str
     thread_id: str
-    user_message_id: str
-    assistant_message_id: str | None = None
-    terminal_assistant_reply: str | None = None
+    turn_index: int | None = None
     status: AgentRunStatus
     model_name: str
     approval_policy: AgentApprovalPolicy = AgentApprovalPolicy.DEFAULT
-    surface: str = "app"
-    reply_surface: str = "app"
-    context_tokens: int | None = None
+    origin: str = "app"
+    final_assistant_reply: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
     cache_read_tokens: int | None = None
@@ -155,12 +179,22 @@ class AgentRunRead(AgentOrmReadSchema):
     input_cost_usd: float | None = None
     output_cost_usd: float | None = None
     total_cost_usd: float | None = None
-    error_text: str | None = None
+    error_code: str | None = None
+    error_detail: str | None = None
     created_at: datetime
     completed_at: datetime | None = None
+    steps: list[AgentStepRead] = Field(default_factory=list)
     events: list[AgentRunEventRead] = Field(default_factory=list)
     tool_calls: list[AgentToolCallRead] = Field(default_factory=list)
     change_items: list[AgentChangeItemRead] = Field(default_factory=list)
+
+
+class AgentTurnRead(AgentSchema):
+    run_id: str
+    turn_index: int
+    status: AgentRunStatus
+    user_message: AgentTurnMessageRead
+    assistant_message: AgentTurnMessageRead | None = None
 
 
 class AgentDashboardMetricsRead(AgentSchema):
@@ -204,8 +238,8 @@ class AgentDashboardModelBreakdownRead(AgentSchema):
     avg_cost_per_run_usd: float = 0.0
 
 
-class AgentDashboardSurfaceBreakdownRead(AgentSchema):
-    surface: str
+class AgentDashboardOriginBreakdownRead(AgentSchema):
+    origin: str
     run_count: int = 0
     total_tokens: int = 0
     total_cost_usd: float = 0.0
@@ -217,7 +251,7 @@ class AgentDashboardTopRunRead(AgentSchema):
     thread_id: str
     thread_title: str | None = None
     model_name: str
-    surface: str
+    origin: str
     status: AgentRunStatus
     created_at: datetime
     completed_at: datetime | None = None
@@ -229,20 +263,20 @@ class AgentDashboardRead(AgentSchema):
     range_key: str
     granularity: str
     available_models: list[str] = Field(default_factory=list)
-    available_surfaces: list[str] = Field(default_factory=list)
+    available_origins: list[str] = Field(default_factory=list)
     selected_models: list[str] = Field(default_factory=list)
-    selected_surfaces: list[str] = Field(default_factory=list)
+    selected_origins: list[str] = Field(default_factory=list)
     metrics: AgentDashboardMetricsRead
     cost_series: list[AgentDashboardCostPointRead] = Field(default_factory=list)
     token_distribution: list[AgentDashboardTokenSliceRead] = Field(default_factory=list)
     model_breakdown: list[AgentDashboardModelBreakdownRead] = Field(default_factory=list)
-    surface_breakdown: list[AgentDashboardSurfaceBreakdownRead] = Field(default_factory=list)
+    origin_breakdown: list[AgentDashboardOriginBreakdownRead] = Field(default_factory=list)
     top_runs: list[AgentDashboardTopRunRead] = Field(default_factory=list)
 
 
 class AgentThreadDetailRead(AgentSchema):
     thread: AgentThreadRead
-    messages: list[AgentMessageRead]
+    turns: list[AgentTurnRead]
     runs: list[AgentRunRead]
     configured_model_name: str
     current_context_tokens: int | None = None

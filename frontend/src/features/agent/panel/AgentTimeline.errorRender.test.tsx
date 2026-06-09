@@ -2,32 +2,23 @@ import { createRef } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MarkdownRenderer } from "../../../components/ui/MarkdownRenderer";
-import { buildRun } from "../../../test/factories/agent";
+import { buildRun, buildTurn } from "../../../test/factories/agent";
 import { AgentTimeline } from "./AgentTimeline";
 
-function buildMessage(overrides: Partial<import("../../../lib/types").AgentMessage> = {}) {
-  return {
-    id: overrides.id ?? "message-assistant-1",
-    thread_id: overrides.thread_id ?? "thread-1",
-    role: overrides.role ?? "assistant",
-    content_markdown:
-      overrides.content_markdown ??
-      "I could not complete this run because the language model request failed.\nError: model request failed: litellm.UnsupportedParamsError: fireworks_ai does not support parameters: ['tools']",
-    created_at: overrides.created_at ?? "2026-06-06T17:24:11Z",
-    attachments: overrides.attachments ?? []
-  };
-}
-
 describe("AgentTimeline error rendering", () => {
-  it("renders persisted model failures with the real markdown renderer", () => {
-    const message = buildMessage();
+  it("renders standalone run errors for pending turns without assistant replies", () => {
+    const turn = buildTurn({
+      run_id: "run-error",
+      user_message: {
+        ...buildTurn().user_message,
+        content_markdown: "Please retry."
+      },
+      assistant_message: null
+    });
     const run = buildRun({
-      id: "run-failed",
-      assistant_message_id: message.id,
+      id: "run-error",
       status: "failed",
-      error_text:
-        "model request failed: litellm.UnsupportedParamsError: fireworks_ai does not support parameters: ['tools']"
+      error_detail: "Provider timeout while calling the model."
     });
 
     render(
@@ -36,11 +27,10 @@ describe("AgentTimeline error rendering", () => {
         isLoading={false}
         errorMessage={null}
         initiatedByExternalAgent={false}
-        messages={[message]}
+        turns={[turn]}
         timelineScrollRef={createRef<HTMLDivElement>()}
-        runsByAssistantMessageId={new Map([[message.id, [run]]])}
-        pendingAssistantRuns={[]}
-        pendingAssistantRunsByUserMessageId={new Map()}
+        runsById={new Map([[run.id, run]])}
+        pendingAssistantRuns={[run]}
         pendingUserMessage={null}
         pendingAssistantMessage={null}
         shouldShowOptimisticAssistantBubble={false}
@@ -50,9 +40,10 @@ describe("AgentTimeline error rendering", () => {
         activeStreamText=""
         streamedReasoningTextByRunId={{}}
         streamedTextByRunId={{}}
-        optimisticRunEventsByRunId={{}}
+        optimisticStepsByRunId={{}}
         optimisticToolCallsByRunId={{}}
-        activeOptimisticEvents={[]}
+        liveActivityLedgerByRunId={{}}
+        activeOptimisticSteps={[]}
         activeOptimisticToolCalls={[]}
         detachFromBottom={() => undefined}
         onHydrateToolCall={() => undefined}
@@ -62,15 +53,6 @@ describe("AgentTimeline error rendering", () => {
       />
     );
 
-    expect(screen.getByText(/language model request failed/i)).toBeInTheDocument();
-    expect(screen.queryByText(/UnsupportedParamsError/i)).toBeInTheDocument();
-  });
-
-  it("renders fenced backend error markdown through the real markdown renderer", () => {
-    const markdown =
-      "I could not complete this run because the language model request failed.\n\n```\nmodel request failed: boom\n```";
-    render(<MarkdownRenderer markdown={markdown} />);
-    expect(screen.getByText(/language model request failed/i)).toBeInTheDocument();
-    expect(screen.getByText("model request failed: boom")).toBeInTheDocument();
+    expect(screen.getByText(/Provider timeout while calling the model\./)).toBeInTheDocument();
   });
 });

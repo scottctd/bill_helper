@@ -2,14 +2,28 @@
 
 ## Agent Service Layout
 
+- `backend/services/agent/harness/`
+  - product-native harness package: `AgentHarness` coordinator, contracts, transcript helpers, step executor, and `EventSink` / `RunRepository` protocols
+- `backend/services/agent/production_runtime.py`
+  - compose production harness with SQLAlchemy repository, LiteLLM model gateway, production tools, stop signal, and SSE fan-out
+- `backend/services/agent/production_repository.py`
+  - SQLAlchemy `RunRepository` that persists canonical transcript rows, steps, tool calls, and harness events
+- `backend/services/agent/production_events.py`
+  - map harness events to client SSE payloads
+- `backend/services/agent/model_gateway.py`
+  - LiteLLM completion adapters; streaming gateway emits `ModelDeltaEvent` into the harness event sink
+- `backend/services/agent/thread_context.py`
+  - build per-turn `initial_transcript` from the thread's first hosted system row plus prior user/assistant/tool transcript rows
+- `backend/services/agent/api_projection.py`
+  - derive API `turns` and thread-detail read models from transcript rows plus per-run `steps` / `events` / `tool_calls`
+- `backend/services/agent/execution.py`
+  - HTTP/background intake for user turns and harness run startup
 - `backend/services/agent/runtime.py`
-  - public runtime facade: run lifecycle entrypoints plus stable execution seams (`call_model`, `call_model_stream`, `calculate_context_tokens`)
-- `backend/services/agent/runtime_support/`
-  - grouped runtime internals: `lifecycle.py` for run creation, replay, interrupt, and terminal persistence; `tool_turns.py` for assistant-content cleanup and queued tool-turn preparation
-- `backend/services/agent/runtime_loop.py`
-  - runtime adapter package-less split for tool-turn preparation, non-stream and stream run-loop adapters, and terminal completion/error handling
-- `backend/services/agent/run_orchestrator.py`
-  - shared run-step state machine for sync, stream, and benchmark adapters
+  - public facade over harness execution plus stable execution seams (`call_model`, `call_model_stream`, `calculate_context_tokens`)
+- `backend/services/agent/stream_hub.py`
+  - in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers
+- `backend/services/agent/legacy_transcript_backfill.py`, `legacy_structured_backfill.py`, and `legacy_transcript_backfill_apply.py`
+  - one-time destructive migration planner, lossless validation, and canonical port of legacy conversations, attachments, steps, tool calls, events, proposals, and reviews
 - `backend/services/agent/protocol_helpers.py`
   - canonical tool-call decoding and usage-shape normalization helpers
 - `backend/services/agent/error_policy.py`
@@ -24,12 +38,10 @@
   - hosted prompt shell with tool discipline, response-surface guidance, and per-user context injection
 - `backend/services/agent/external_agent_prompt.j2`
   - external-agent instruction shell rendered by `bh instruction`
-- `backend/services/agent/message_history.py`
-  - public message-history facade for thread-to-model message assembly
 - `backend/services/agent/message_history_content.py`
   - attachment-backed user-content shaping plus entity-category prompt context
 - `backend/services/agent/message_history_prefixes.py`
-  - review-result query helpers for the current turn; append-only turn context lives in `message_history_turn_context.py`
+  - review-result prefix assembly for the current turn
 - `backend/services/agent/model_client.py`
   - thin public seam re-exporting the LiteLLM client contract
 - `backend/services/agent/model_client_support/`
@@ -92,8 +104,6 @@
   - external-agent session/source persistence plus synthetic CLI run ownership for proposal creation without a hosted run id
 - `backend/services/agent/user_context.py`
   - current-user and account-context normalization
-- `backend/services/agent/runtime_state.py`
-  - run-event, tool-call, and terminal-state persistence helpers
 - `backend/services/agent/benchmark_interface.py`
   - benchmark-facing `run_benchmark_case` contract
 - `backend/services/agent/reviews/`
@@ -110,7 +120,6 @@
 - `Current User Context` includes timezone/date bullets plus `Entity Category Reference` and `Account Context`
 - `Agent Memory` is rendered as a markdown unordered list built from persisted runtime-setting memory items
 - the model-visible tool catalog is intentionally small: `rename_thread`, `add_user_memory`, and `run_bh`
-- legacy runs that predate `send_intermediate_update` removal may still have `reasoning_update` rows with `source = tool_call`; see `agent_legacy_compat.md` for replay and timeline compatibility rules
 - app-state reads and proposal lifecycle work flow through `run_bh` running local `bh ...` commands rather than through a Docker shell or the older large direct read/proposal tool list
 - duplicate-entry checks should happen before new entry proposals
 - tag/entity naming should stay canonical and generalized
@@ -191,7 +200,8 @@ Endpoints:
 
 ## Thread Detail Behavior
 
-- `GET /api/v1/agent/threads/{thread_id}` returns `current_context_tokens`, a LiteLLM `token_counter` estimate over the same in-loop `messages` plus the tool schemas that request would attach (running runs keep `AgentRun.context_tokens` updated after each tool result and after the final assistant message; idle threads use the newest completed run's snapshot or fall back to counting `build_llm_messages` with the same untitled/titled tool-surface rule)
+- `GET /api/v1/agent/threads/{thread_id}` returns `turns` projected by `api_projection.py` from each run's canonical transcript rows, plus `runs` with `steps[]`, harness `events[]`, and `tool_calls[]`
+- `current_context_tokens` is a LiteLLM `token_counter` estimate over the canonical transcript that the next turn would send, plus the tool schemas for that request
 - message-send endpoints accept optional multipart `model_name`; when present it must match one of the resolved runtime `available_agent_models`
 - message-send endpoints accept optional multipart `approval_policy` (`default` or `yolo`); each run persists the chosen value and exposes it on `AgentRunRead`
 - message-send endpoints accept optional multipart `attachments_use_ocr`; `false` is only accepted for vision-capable models
@@ -201,7 +211,8 @@ Endpoints:
 - attachment read models include a normalized `display_name` plus the authenticated download URL so the frontend can render inline labels/previews without inferring names from storage paths
 - hosted image/PDF attachments are linked to the current session source list automatically when they are bound to a user message; plain-text attachments follow the same session-linking behavior
 - full tool payloads are fetched through `GET /api/v1/agent/tool-calls/{tool_call_id}`
-- runs persist ordered `events[]` rows for replayable timeline activity
+- runs persist ordered harness `events[]` rows for replayable timeline activity
+- runs also persist `steps[]` as committed model-step projections tied to assistant transcript rows
 - runs also carry their `change_items`; the frontend flattens those per-run proposal lists into one thread review model
 - serializer output skips legacy persisted change rows whose enum values are still recognized for hydration but no longer part of the supported client review surface
 - run snapshots aggregate usage metrics and derived USD pricing; prompt-side costs use cache-aware LiteLLM rates when cache usage is present and stay folded into the existing `input_cost_usd`/`total_cost_usd` fields
@@ -209,16 +220,19 @@ Endpoints:
 
 ## Current Agent Execution Behavior
 
+- `AgentHarness` is the single run coordinator: create/load run state, call the model gateway per step, durably prepare decisions before tools, finish tool results, commit steps/events, and finish with a terminal status
+- each run durably stores its principal and tool-context metadata so background execution and resume do not depend on request-local state
+- each run persists only its owned turn messages; model context is assembled from current and prior canonical rows without duplicating prior transcripts
+- resume executes persisted queued tools but never automatically repeats a tool left in the ambiguous `running` state after interruption
 - when Langfuse credentials are present, each LLM step is reported through OpenTelemetry to Langfuse; without `LANGFUSE_OTEL_HOST`, LiteLLM targets **US** cloud — EU tenants must set the host explicitly (see `runtime_and_config.md`); install-time dependencies are `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp-proto-http` alongside LiteLLM
-- runs support both background execution and SSE execution
-- `backend/services/agent/stream_hub.py` owns the in-process single-worker stream hub: one execution thread per `run_id`, subscriber fan-out, ephemeral delta replay, and `GET /runs/{run_id}/stream` reconnect after client disconnect or page refresh (single backend process only)
+- runs support both background execution and SSE execution through `production_runtime.py` and `stream_hub.py`
+- `stream_hub.py` owns the in-process single-worker stream hub: one execution thread per `run_id`, subscriber fan-out, ephemeral `model_delta` replay, and `GET /runs/{run_id}/stream` reconnect after client disconnect or page refresh (single backend process only)
 - draft attachment uploads prepare vision content eagerly before send so the frontend can show upload progress, then page-preparation progress, while the user is still composing
 - repeated draft uploads of the same bytes for the same owner reuse an existing canonical file row by SHA-256 while still creating a fresh draft attachment row so removal semantics stay independent
 - each run persists a `surface` hint so later execution and polling can distinguish Telegram-originated runs from default app runs
-- streamed runs emit transient `reasoning_delta`, `text_delta`, and ordered persisted `run_event` rows
-- persisted `model_reasoning` `reasoning_update` rows store optional `reasoning_duration_ms` captured from the stream adapter (first `reasoning_delta` through step persistence) so clients can render collapsed per-segment summaries after reload
-- streamed tool lifecycle `run_event` payloads include a compact top-level `tool_call` snapshot so clients can render the tool name immediately without fetching full payloads
-- live streamed `run_event` payloads optionally include `run_usage` (cumulative counters and derived USD costs for that run at event time) for incremental UI such as thread-level usage bars; historical replay omits `run_usage` so past events do not carry the finished run's final totals
+- streamed runs emit ephemeral `model_delta` events (`delta_type=reasoning|content`) plus durable harness events such as `tool_started`, `tool_finished`, `step_committed`, and `run_finished`
+- committed assistant rows store `reasoning_text`; reload reconstructs per-step reasoning/content from transcript rows and `steps[]` instead of legacy timeline message rows
+- live replay of persisted harness events may include `run_usage` while the run is still `running`; historical replay omits `run_usage` so past events do not carry the finished run's final totals
 - tool-call payloads now include backend-computed `display_label` / `display_detail` fields so clients can render high-signal summaries without duplicating formatter logic
 - clients may hydrate a streamed `rename_thread` tool call immediately and update the visible thread title before the final assistant message arrives
 - malformed tool-call JSON now persists an explicit tool-call error with raw argument text and decode metadata instead of being silently rewritten to an empty argument object
@@ -228,10 +242,10 @@ Endpoints:
 - new agent uploads are written into the canonical per-user store under `{data_dir}/user_files/{owner_user_id}/uploads/...`, and `agent_message_attachments` link to those canonical rows instead of owning file metadata directly
 - the hosted agent prompt does not expose external setup, session navigation, or source-management commands; `run_bh` enforces the same boundary and allows only current-session updates through `bh sessions update`
 - PDF and image attachments are written into per-upload bundle directories. Images keep the original bytes with no resizing. PDFs are stored as `raw.pdf` plus PyMuPDF `page-<n>.png` renders at scale 2 over the default 72 pt/in raster, one file per page, and are rejected before rendering when page count exceeds `agent_max_pdf_pages` (default `10`). Message assembly sends those images as `image_url` parts and does not run Docling or OCR. Plain-text attachments such as CSV are stored as `raw.<ext>` and assembled as inline `text` parts with the file body.
-- interruption marks runs as `failed`; conversation history stays append-only by rebuilding each turn's thinking/tool work from persisted run activity, with a steering user message before the next request after an interrupt
+- interruption sets `stop_requested=true` and the harness finishes the run as `interrupted`; later turns rebuild model context from prior canonical transcript rows across completed runs
 - pending proposals remain inspectable in later turns while still `PENDING_REVIEW`
 - reviewed proposal context now includes reviewer override values when `payload_override` changed the approved payload, so later turns can see concrete edited values instead of only changed field names
-- run snapshots expose persisted `surface`, explicit `reply_surface`, and `terminal_assistant_reply`, so read-time formatting overrides do not masquerade as the stored run surface
+- run snapshots expose persisted `origin` and `final_assistant_reply`; optional read-time `surface` query params only affect reply formatting
 - deleting a thread removes attachment linkage rows but intentionally leaves canonical uploaded payload files in place
 - the active agent runtime now exposes only `bh` CLI execution through `run_bh`; app-state operations are expected to go through `bh`
 - proposal HTTP routes are thread-scoped; `X-Bill-Helper-Agent-Run-Id` keeps proposals attached to a hosted invoking run when present, while external agents may omit it and use the session's synthetic CLI run

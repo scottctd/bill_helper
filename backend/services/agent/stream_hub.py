@@ -2,7 +2,7 @@
 # - Purpose: single-worker agent run streaming with subscriber fan-out and reconnect replay.
 # - Inputs: run ids, DB session factory, and after_sequence cursors from stream routes.
 # - Outputs: hub publish/subscribe helpers and `iter_run_stream_hub_events`.
-# - Side effects: in-process threads, queues, and ephemeral delta buffers per run id.
+# - Side effects: in-process threads, queues, and ephemeral model_delta buffers per run id.
 from __future__ import annotations
 
 import queue
@@ -11,17 +11,29 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from backend.enums_agent import AgentRunStatus
-from backend.services.agent.runtime import run_existing_agent_run_stream
-from backend.services.agent.runtime_state import events_after_sequence, load_run_snapshot
-from backend.services.agent.runtime_support.lifecycle import resolve_existing_run
-from backend.services.agent.serializers import stream_run_event_to_payload
+from backend.models_agent import AgentRun
+from backend.services.agent.production_runtime import execute_harness_run
+from backend.services.agent.serializers import run_event_row_to_sse_payload
 
 _SENTINEL = object()
-_EPHEMERAL_TYPES = frozenset({"reasoning_delta", "text_delta"})
+_EPHEMERAL_TYPES = frozenset({"model_delta"})
+_DURABLE_SSE_TYPES = frozenset(
+    {
+        "model_decision_committed",
+        "tool_started",
+        "tool_finished",
+        "run_finished",
+        "run_started",
+        "model_request_started",
+        "step_committed",
+    }
+)
 _SUBSCRIBER_POLL_SECONDS = 30.0
+_HUB_SEQUENCE_KEY = "_hub_sequence"
 
 
 @dataclass
@@ -30,6 +42,7 @@ class _ActiveRunExecution:
     lock: threading.Lock = field(default_factory=threading.Lock)
     subscribers: list[queue.Queue[Any]] = field(default_factory=list)
     ephemeral_events: list[dict[str, Any]] = field(default_factory=list)
+    next_hub_sequence: int = 0
     worker_started: bool = False
     worker_thread: threading.Thread | None = None
 
@@ -51,8 +64,10 @@ def publish_run_stream_event(run_id: str, payload: dict[str, Any]) -> None:
     execution = _get_or_create_execution(run_id)
     event_copy = dict(payload)
     with execution.lock:
+        execution.next_hub_sequence += 1
+        event_copy[_HUB_SEQUENCE_KEY] = execution.next_hub_sequence
         event_type = str(event_copy.get("type") or "")
-        if event_type == "run_event":
+        if event_type in _DURABLE_SSE_TYPES:
             execution.ephemeral_events.clear()
         elif event_type in _EPHEMERAL_TYPES:
             execution.ephemeral_events.append(event_copy)
@@ -78,10 +93,22 @@ def reset_run_stream_hub_for_tests() -> None:
 
 
 def _stream_worker(run_id: str, session_factory: Callable[[], Session]) -> None:
+    import logging
+
+    logger = logging.getLogger(__name__)
     db = session_factory()
     try:
-        for event in run_existing_agent_run_stream(db, run_id):
-            publish_run_stream_event(run_id, event)
+        execute_harness_run(db, run_id, streaming=True)
+    except Exception:
+        logger.exception("agent stream worker failed run_id=%s", run_id)
+        db.rollback()
+        run_row = db.get(AgentRun, run_id)
+        if run_row is not None and run_row.status == AgentRunStatus.RUNNING:
+            run_row.status = AgentRunStatus.FAILED
+            run_row.error_code = "worker_error"
+            run_row.error_detail = "background harness execution failed"
+            db.add(run_row)
+            db.commit()
     finally:
         db.close()
         close_run_stream_execution(run_id)
@@ -119,40 +146,28 @@ def _unregister_subscriber(execution: _ActiveRunExecution, subscriber: queue.Que
             execution.subscribers.remove(subscriber)
 
 
+def _load_run_for_replay(db: Session, run_id: str) -> AgentRun | None:
+    return db.scalar(
+        select(AgentRun)
+        .where(AgentRun.id == run_id)
+        .options(selectinload(AgentRun.events))
+    )
+
+
 def _replay_persisted_events(
     db: Session,
     run_id: str,
     after_sequence: int,
 ) -> Iterator[dict[str, Any]]:
-    resolution = resolve_existing_run(db, run_id)
-    if resolution.state == "missing" or resolution.run is None:
-        return
-
-    if resolution.state == "replay":
-        for event_row in resolution.run.events:
-            if event_row.sequence_index > after_sequence:
-                yield stream_run_event_to_payload(
-                    resolution.run,
-                    event_row,
-                    include_run_usage=False,
-                )
-        return
-
-    if resolution.state == "failed_missing_thread":
-        if resolution.terminal_event is not None and resolution.terminal_event.sequence_index > after_sequence:
-            yield stream_run_event_to_payload(
-                resolution.run,
-                resolution.terminal_event,
-                include_run_usage=False,
-            )
-        return
-
-    run = load_run_snapshot(db, run_id)
+    run = _load_run_for_replay(db, run_id)
     if run is None:
         return
+
     include_usage = run.status == AgentRunStatus.RUNNING
-    for event_row in events_after_sequence(db, run_id, after_sequence):
-        yield stream_run_event_to_payload(
+    for event_row in sorted(run.events, key=lambda row: row.sequence_index):
+        if event_row.sequence_index <= after_sequence:
+            continue
+        yield run_event_row_to_sse_payload(
             run,
             event_row,
             include_run_usage=include_usage,
@@ -160,10 +175,26 @@ def _replay_persisted_events(
 
 
 def _is_run_terminal(db: Session, run_id: str) -> bool:
-    run = load_run_snapshot(db, run_id)
+    run = db.get(AgentRun, run_id)
     if run is None:
         return True
     return run.status != AgentRunStatus.RUNNING
+
+
+def _is_terminal_sse_payload(payload: dict[str, Any]) -> bool:
+    if str(payload.get("type") or "") != "run_finished":
+        return False
+    status = str(payload.get("status") or "")
+    return status in {
+        AgentRunStatus.COMPLETED.value,
+        AgentRunStatus.FAILED.value,
+        AgentRunStatus.INTERRUPTED.value,
+        AgentRunStatus.MAX_STEPS.value,
+    }
+
+
+def _public_stream_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if key != _HUB_SEQUENCE_KEY}
 
 
 def iter_run_stream_hub_events(
@@ -175,8 +206,13 @@ def iter_run_stream_hub_events(
 ) -> Iterator[dict[str, Any]]:
     execution = _get_or_create_execution(run_id)
     subscriber = _register_subscriber(execution)
+    seen_hub_sequences: set[int] = set()
+    last_durable_sequence = after_sequence
     try:
         for event in _replay_persisted_events(db, run_id, after_sequence):
+            sequence = event.get("sequence_index")
+            if isinstance(sequence, int):
+                last_durable_sequence = max(last_durable_sequence, sequence)
             yield event
 
         if _is_run_terminal(db, run_id):
@@ -185,7 +221,10 @@ def iter_run_stream_hub_events(
         with execution.lock:
             ephemeral = [dict(item) for item in execution.ephemeral_events]
         for event in ephemeral:
-            yield event
+            hub_sequence = event.get(_HUB_SEQUENCE_KEY)
+            if isinstance(hub_sequence, int):
+                seen_hub_sequences.add(hub_sequence)
+            yield _public_stream_payload(event)
 
         start_run_stream_execution(run_id, session_factory=session_factory)
 
@@ -198,12 +237,19 @@ def iter_run_stream_hub_events(
                 continue
             if item is _SENTINEL:
                 return
-            yield item
-            if str(item.get("type") or "") == "run_event":
-                event_payload = item.get("event")
-                if isinstance(event_payload, dict):
-                    event_type = str(event_payload.get("event_type") or "")
-                    if event_type in {"run_completed", "run_failed"}:
-                        return
+            hub_sequence = item.get(_HUB_SEQUENCE_KEY)
+            if isinstance(hub_sequence, int):
+                if hub_sequence in seen_hub_sequences:
+                    continue
+                seen_hub_sequences.add(hub_sequence)
+            durable_sequence = item.get("sequence_index")
+            if isinstance(durable_sequence, int):
+                if durable_sequence <= last_durable_sequence:
+                    continue
+                last_durable_sequence = durable_sequence
+            public_item = _public_stream_payload(item)
+            yield public_item
+            if _is_terminal_sse_payload(public_item):
+                return
     finally:
         _unregister_subscriber(execution, subscriber)

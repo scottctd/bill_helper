@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `runtime`.
-# - Inputs: callers that import `backend/services/agent/runtime.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `runtime`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: public agent runtime facade over harness-first production runtime.
+# - Inputs: DB session, thread/run ids, model configuration.
+# - Outputs: run lifecycle helpers; model call seams for tests.
+# - Side effects: harness execution through production_runtime.
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -12,47 +12,18 @@ from sqlalchemy.orm import Session
 
 from backend.config import DEFAULT_AGENT_MODEL
 from backend.enums_agent import AgentApprovalPolicy
-from backend.models_agent import AgentMessage, AgentRun, AgentThread
+from backend.models_agent import AgentRun, AgentThread
 from backend.services.agent.context_tokens import count_context_tokens
+from backend.services.agent.harness.contracts import HarnessPrincipal
 from backend.services.agent.model_client import (
     LiteLLMModelClient,
     validate_litellm_environment,
 )
-from backend.services.agent.runtime_loop import (
-    RuntimeLoopDependencies,
-    RuntimeNonStreamRunLoopAdapter,
-    RuntimeStreamRunLoopAdapter,
-    iter_run_loop_payloads,
+from backend.services.agent.production_runtime import (
+    execute_harness_run,
+    interrupt_harness_run,
+    resume_harness_run,
 )
-from backend.services.agent.runtime_state import load_run_snapshot as _load_run_snapshot
-from backend.services.agent.runtime_support.lifecycle import (
-    interrupt_run as _interrupt_run,
-)
-from backend.services.agent.runtime_support.lifecycle import (
-    create_run as _create_run,
-)
-from backend.services.agent.runtime_support.lifecycle import (
-    resolve_existing_run as _resolve_existing_run,
-)
-from backend.services.agent.runtime_support.lifecycle import (
-    run_is_stopped as _run_is_stopped,
-)
-from backend.services.agent.runtime_support.lifecycle import (
-    persist_terminal_run_state as _persist_terminal_run_state,
-)
-from backend.services.agent.runtime_support.tool_turns import (
-    final_assistant_content as _final_assistant_content_support,
-)
-from backend.services.agent.runtime_support.tool_turns import (
-    prepare_tool_turn as _prepare_tool_turn_support,
-)
-from backend.services.agent.runtime_support.tool_turns import (
-    update_run_context_tokens as _update_run_context_tokens_support,
-)
-from backend.services.agent.run_orchestrator import (
-    run_agent_loop,
-)
-from backend.services.agent.serializers import stream_run_event_to_payload
 from backend.services.agent.tool_runtime import build_openai_tool_schemas
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.validation.runtime_settings import normalize_text_or_none
@@ -65,7 +36,6 @@ class AgentRuntimeUnavailable(RuntimeError):
 def ensure_agent_available(db: Session, *, model_name: str | None = None) -> None:
     settings = resolve_runtime_settings(db)
     requested_model_name = normalize_text_or_none(model_name) or settings.agent_model
-    # If custom base_url or api_key is configured, skip LiteLLM env validation
     if settings.agent_base_url or settings.agent_api_key:
         return
     has_credentials, missing_keys, request_model = validate_litellm_environment(
@@ -106,7 +76,6 @@ def call_model(
     response_format: Any = None,
     litellm_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    # Stable seam for tests/bench harnesses to inject model responses.
     return _build_model_client(db, model_name=model_name).complete(
         messages,
         tools=tools,
@@ -126,7 +95,6 @@ def call_model_stream(
     response_format: Any = None,
     litellm_metadata: dict[str, Any] | None = None,
 ) -> Iterator[dict[str, Any]]:
-    # Stable seam for tests/bench harnesses to inject streaming model responses.
     return _build_model_client(db, model_name=model_name).complete_stream(
         messages,
         tools=tools,
@@ -149,147 +117,48 @@ def calculate_context_tokens(
     )
 
 
-def _update_run_context_tokens(
-    run: AgentRun,
-    llm_messages: list[dict[str, Any]],
-    tools: list[dict[str, Any]],
-) -> None:
-    _update_run_context_tokens_support(
-        run=run,
-        llm_messages=llm_messages,
-        tools=tools,
-        calculate_context_tokens=calculate_context_tokens,
-    )
-
-
-def _runtime_loop_dependencies() -> RuntimeLoopDependencies:
-    return RuntimeLoopDependencies(
-        call_model=call_model,
-        call_model_stream=call_model_stream,
-        run_is_stopped=_run_is_stopped,
-        prepare_tool_turn=lambda db, run, llm_messages, assistant_content, model_reasoning, tool_calls, request_tools, reasoning_duration_ms: _prepare_tool_turn_support(
-            db,
-            run=run,
-            llm_messages=llm_messages,
-            assistant_content=assistant_content,
-            model_reasoning=model_reasoning,
-            tool_calls=tool_calls,
-            request_tools=request_tools,
-            update_run_context_tokens=_update_run_context_tokens,
-            reasoning_duration_ms=reasoning_duration_ms,
-        ),
-        persist_terminal_run_state=_persist_terminal_run_state,
-        update_run_context_tokens=_update_run_context_tokens,
-        finalize_assistant_content=_final_assistant_content_support,
-    )
-
-
-def _execute_agent_run(
-    db: Session,
-    *,
-    thread: AgentThread,
-    run: AgentRun,
-) -> AgentRun:
-    adapter = RuntimeNonStreamRunLoopAdapter(
-        db=db,
-        thread=thread,
-        run=run,
-        dependencies=_runtime_loop_dependencies(),
-    )
-    for _ in iter_run_loop_payloads(run_agent_loop(adapter)):
-        pass
-    return _load_run_snapshot(db, run.id)
-
-
-def _execute_agent_run_stream(
-    db: Session,
-    *,
-    thread: AgentThread,
-    run: AgentRun,
-) -> Iterator[dict[str, Any]]:
-    adapter = RuntimeStreamRunLoopAdapter(
-        db=db,
-        thread=thread,
-        run=run,
-        dependencies=_runtime_loop_dependencies(),
-    )
-    yield from iter_run_loop_payloads(run_agent_loop(adapter))
-
-
 def start_agent_run(
     db: Session,
     thread: AgentThread,
-    user_message: AgentMessage,
     *,
-    model_name: str | None = None,
-    surface: str = "app",
-    approval_policy: AgentApprovalPolicy | None = None,
+    run_id: str,
 ) -> AgentRun:
-    ensure_agent_available(db, model_name=model_name)
-    resolved_policy = approval_policy if approval_policy is not None else AgentApprovalPolicy.DEFAULT
-    return _create_run(
-        db,
-        thread=thread,
-        user_message=user_message,
-        calculate_context_tokens=calculate_context_tokens,
-        model_name=model_name,
-        surface=surface,
-        approval_policy=resolved_policy,
-    )
+    execute_harness_run(db, run_id, streaming=True)
+    run_row = db.get(AgentRun, run_id)
+    if run_row is None:
+        raise RuntimeError(f"run not found after execution: {run_id}")
+    return run_row
 
 
 def run_existing_agent_run(db: Session, run_id: str) -> AgentRun | None:
-    resolution = _resolve_existing_run(db, run_id)
-    if resolution.state == "missing":
+    try:
+        resume_harness_run(db, run_id, streaming=False)
+    except LookupError:
         return None
-    if resolution.state in {"replay", "failed_missing_thread"}:
-        return resolution.run
-    if resolution.run is None or resolution.thread is None:  # pragma: no cover - defensive
-        return None
-    return _execute_agent_run(db, thread=resolution.thread, run=resolution.run)
+    return db.get(AgentRun, run_id)
 
 
 def run_existing_agent_run_stream(db: Session, run_id: str) -> Iterator[dict[str, Any]]:
-    resolution = _resolve_existing_run(db, run_id)
-    if resolution.state == "missing":
+    from backend.services.agent.production_events import harness_event_to_sse_payload
+    from backend.services.agent.stream_hub import publish_run_stream_event
+
+    run_row = db.get(AgentRun, run_id)
+    if run_row is None:
         return
-    if resolution.state == "replay":
-        if resolution.run is None:
-            return
-        for event_row in resolution.run.events:
-            yield stream_run_event_to_payload(
-                resolution.run,
-                event_row,
-                include_run_usage=False,
-            )
-        return
-    if resolution.state == "failed_missing_thread":
-        if resolution.run is None or resolution.terminal_event is None:
-            return
-        yield stream_run_event_to_payload(
-            resolution.run,
-            resolution.terminal_event,
-            include_run_usage=False,
-        )
+    if run_row.status.value != "running":
+        for event_row in sorted(run_row.events, key=lambda row: row.sequence_index):
+            payload = {
+                "type": event_row.event_type.value,
+                **(event_row.payload_json or {}),
+            }
+            yield payload
         return
 
-    if resolution.run is None or resolution.thread is None:  # pragma: no cover - defensive
-        return
-    yield from _execute_agent_run_stream(
-        db,
-        thread=resolution.thread,
-        run=resolution.run,
-    )
-
-
-def run_agent_turn(
-    db: Session, thread: AgentThread, user_message: AgentMessage
-) -> AgentRun:
-    run = start_agent_run(db, thread, user_message)
-    return _execute_agent_run(db, thread=thread, run=run)
+    resume_harness_run(db, run_id, streaming=True)
+    yield from ()
 
 
 def interrupt_agent_run(
     db: Session, run_id: str, *, reason: str = "Run interrupted by user."
 ) -> AgentRun | None:
-    return _interrupt_run(db, run_id=run_id, reason=reason)
+    return interrupt_harness_run(db, run_id)

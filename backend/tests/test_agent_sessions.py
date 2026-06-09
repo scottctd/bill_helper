@@ -79,9 +79,7 @@ def test_external_session_thread_exposes_marker_and_flag(client) -> None:
     detail = detail_response.json()
 
     assert detail["thread"]["initiated_by_external_agent"] is True
-    assert len(detail["messages"]) == 1
-    assert detail["messages"][0]["role"] == "system"
-    assert detail["messages"][0]["content_markdown"].startswith("This session was started by an external agent")
+    assert detail["turns"] == []
 
     list_response = client.get("/api/v1/agent/threads")
     list_response.raise_for_status()

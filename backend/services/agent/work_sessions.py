@@ -14,11 +14,10 @@ from sqlalchemy.orm import Session, selectinload
 from backend.auth.contracts import RequestPrincipal
 from backend.enums_agent import (
     AgentChangeStatus,
-    AgentMessageRole,
     AgentRunStatus,
     SUPPORTED_AGENT_CHANGE_TYPES,
 )
-from backend.models_agent import AgentChangeItem, AgentMessage, AgentRun, AgentSessionSource, AgentThread
+from backend.models_agent import AgentChangeItem, AgentRun, AgentSessionSource, AgentThread
 from backend.models_files import UserFile
 from backend.models_shared import utc_now
 from backend.schemas_agent_sessions import AgentSessionRead, AgentSessionSourceRead
@@ -33,9 +32,8 @@ from backend.services.user_files import (
 )
 from backend.services.agent.external_session import (
     EXTERNAL_AGENT_MODEL_NAME,
-    EXTERNAL_AGENT_RUN_SURFACE,
+    EXTERNAL_AGENT_RUN_ORIGIN,
     ensure_external_session_marker,
-    is_external_session_system_message,
 )
 from backend.validation.agent_threads import validate_thread_title
 
@@ -235,43 +233,7 @@ def ensure_external_agent_run(
     session_id: str,
 ) -> AgentRun:
     thread = load_agent_thread_for_principal(db, thread_id=session_id, principal=principal)
-    existing = db.scalar(
-        select(AgentRun)
-        .where(
-            AgentRun.thread_id == thread.id,
-            AgentRun.surface == EXTERNAL_AGENT_RUN_SURFACE,
-            AgentRun.model_name == EXTERNAL_AGENT_MODEL_NAME,
-        )
-        .order_by(AgentRun.created_at.asc())
-        .limit(1)
-    )
-    if existing is not None:
-        return existing
-
-    marker = db.scalar(
-        select(AgentMessage)
-        .where(
-            AgentMessage.thread_id == thread.id,
-            AgentMessage.role == AgentMessageRole.SYSTEM,
-        )
-        .order_by(AgentMessage.created_at.asc())
-        .limit(1)
-    )
-    if marker is not None and is_external_session_system_message(marker.content_markdown):
-        message = marker
-    else:
-        message = ensure_external_session_marker(db, thread_id=thread.id)
-    run = AgentRun(
-        thread_id=thread.id,
-        user_message_id=message.id,
-        status=AgentRunStatus.COMPLETED,
-        model_name=EXTERNAL_AGENT_MODEL_NAME,
-        surface=EXTERNAL_AGENT_RUN_SURFACE,
-        completed_at=utc_now(),
-    )
-    db.add(run)
-    db.flush()
-    return run
+    return ensure_external_session_marker(db, thread_id=thread.id)
 
 
 def work_session_to_read(

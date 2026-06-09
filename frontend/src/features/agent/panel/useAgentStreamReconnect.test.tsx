@@ -29,8 +29,8 @@ function buildThreadDetail(overrides: Partial<AgentThreadDetail> = {}): AgentThr
       updated_at: "2026-02-15T10:00:00Z",
       initiated_by_external_agent: false
     },
-    messages: [],
-    runs: overrides.runs ?? [buildRun({ id: "run-1", status: "running", events: [] })],
+    turns: [],
+    runs: overrides.runs ?? [buildRun({ id: "run-1", status: "running" })],
     configured_model_name: "gpt-test",
     current_context_tokens: 10,
     ...overrides
@@ -54,9 +54,11 @@ describe("useAgentStreamReconnect", () => {
   it("subscribes to a running run after thread detail loads", async () => {
     streamAgentRun.mockImplementation(async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
       onEvent({
-        type: "text_delta",
+        type: "model_delta",
         run_id: "run-1",
-        delta: "Done"
+        step_index: 1,
+        delta_type: "content",
+        text: "Done"
       });
     });
     getAgentThread.mockResolvedValue(buildThreadDetail());

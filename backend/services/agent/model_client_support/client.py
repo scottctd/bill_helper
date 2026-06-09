@@ -31,6 +31,7 @@ from backend.services.agent.langfuse_litellm import (
     langfuse_credentials_configured,
 )
 from .environment import normalize_host, normalize_secret, supports_prompt_caching
+from .messages import sanitize_messages_for_completion
 from .streaming import (
     append_stream_content,
     finalize_stream_content,
@@ -176,7 +177,7 @@ class LiteLLMModelClient:
         effective_tools = self._tools if tools is None else tools
         request: dict[str, Any] = {
             "model": self._model_name,
-            "messages": messages,
+            "messages": sanitize_messages_for_completion(messages),
         }
         if effective_tools:
             request["tools"] = effective_tools

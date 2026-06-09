@@ -1,6 +1,6 @@
 # CALLING SPEC:
 # - Purpose: build multimodal LLM parts for agent attachment bundles.
-# - Inputs: persisted ``AgentMessageAttachment`` rows and assembly options.
+# - Inputs: persisted ``AgentTranscriptAttachment`` rows and assembly options.
 # - Outputs: OpenAI-style content part dicts.
 # - Side effects: reads canonical files from disk.
 from __future__ import annotations
@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from backend.models_agent import AgentMessageAttachment
+from backend.models_agent import AgentTranscriptAttachment
 from backend.services.agent.agent_attachment_bundle import (
     is_docling_bundle_primary_stored_path,
     pdf_pages_as_png_bytes,
@@ -27,21 +27,21 @@ _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 _PAGE_PNG_RE = re.compile(r"^page-(\d+)\.png$", re.IGNORECASE)
 
 
-def is_pdf_attachment(attachment: AgentMessageAttachment) -> bool:
+def is_pdf_attachment(attachment: AgentTranscriptAttachment) -> bool:
     mime_type = (attachment.mime_type or "").lower()
     if mime_type == "application/pdf":
         return True
     return Path(attachment.file_path).suffix.lower() == ".pdf"
 
 
-def is_text_attachment(attachment: AgentMessageAttachment) -> bool:
+def is_text_attachment(attachment: AgentTranscriptAttachment) -> bool:
     return is_text_agent_attachment(
         mime_type=attachment.mime_type or "",
         original_filename=attachment.original_filename,
     )
 
 
-def attachment_display_name(attachment: AgentMessageAttachment) -> str:
+def attachment_display_name(attachment: AgentTranscriptAttachment) -> str:
     original_name = " ".join((attachment.original_filename or "").split()).strip()
     if original_name:
         return Path(original_name).name or original_name
@@ -82,7 +82,7 @@ def _vision_image_paths_for_bundle(
 
 
 def _assemble_docling_bundle_parts(
-    attachment: AgentMessageAttachment,
+    attachment: AgentTranscriptAttachment,
     *,
     attachment_name: str,
 ) -> list[dict[str, Any]]:
@@ -164,7 +164,7 @@ def _sorted_pdf_page_png_paths(bundle_dir: Path, *, primary_path: Path) -> list[
 
 
 def _assemble_pdf_visual_parts(
-    attachment: AgentMessageAttachment,
+    attachment: AgentTranscriptAttachment,
     *,
     attachment_name: str,
 ) -> list[dict[str, Any]]:
@@ -218,7 +218,7 @@ def _assemble_pdf_visual_parts(
 
 
 def _assemble_image_visual_parts(
-    attachment: AgentMessageAttachment,
+    attachment: AgentTranscriptAttachment,
     *,
     attachment_name: str,
 ) -> list[dict[str, Any]]:
@@ -232,7 +232,7 @@ def _assemble_image_visual_parts(
 
 
 def _assemble_text_attachment_parts(
-    attachment: AgentMessageAttachment,
+    attachment: AgentTranscriptAttachment,
     *,
     attachment_name: str,
 ) -> list[dict[str, Any]]:
@@ -270,7 +270,7 @@ def _non_bundle_reupload_parts(attachment_name: str, *, is_pdf: bool) -> list[di
 
 
 def assemble_pdf_attachment_parts(
-    attachment: AgentMessageAttachment,
+    attachment: AgentTranscriptAttachment,
     *,
     attachment_name: str,
 ) -> list[dict[str, Any]]:
@@ -283,7 +283,7 @@ def assemble_pdf_attachment_parts(
 
 
 def assemble_image_attachment_parts(
-    attachment: AgentMessageAttachment,
+    attachment: AgentTranscriptAttachment,
     *,
     attachment_name: str,
 ) -> list[dict[str, Any]]:
@@ -296,7 +296,7 @@ def assemble_image_attachment_parts(
 
 
 def assemble_attachment_parts(
-    attachments: list[AgentMessageAttachment],
+    attachments: list[AgentTranscriptAttachment],
     *,
     use_ocr: bool = True,
 ) -> list[dict[str, Any]]:

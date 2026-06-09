@@ -46,7 +46,7 @@ Delete one thread and its persisted timeline records. Response: `204`
 Behavior:
 
 - lookup is thread-owner scoped
-- cascades deletes for messages, runs, tool calls, change items, and review actions
+- cascades deletes for runs, canonical transcript rows, steps, tool calls, harness events, change items, and review actions
 - keeps canonical uploaded file payloads under `{data_dir}/user_files/{owner_user_id}/uploads/...`
 - rejects delete when any run in the thread is still running
 
@@ -62,20 +62,19 @@ Fetch timeline-ready thread detail. Response: `AgentThreadDetailRead`
 Includes:
 
 - `thread`
-- `messages`
-- per-message attachments with `display_name`, `mime_type`, and `attachment_url`
-- `runs`
-- per-run `change_items`
+- `turns` (user/assistant message pairs projected from each run's canonical transcript rows)
+- per-turn attachments with `display_name`, `mime_type`, and `attachment_url`
+- `runs` (work records with `steps[]`, `events[]`, `tool_calls[]`, and `change_items[]`)
 - `configured_model_name`
-- `current_context_tokens`
+- `current_context_tokens` (computed from the canonical transcript plus tool schemas)
 - `thread.initiated_by_external_agent` when the session was created by an external agent via `bh` / `POST /agent/sessions`
-- compact tool-call snapshots by default
-- ordered run `events[]`
+- compact tool-call snapshots by default (`has_full_payload=false`)
+- ordered harness `events[]` on each run
 - nullable usage counters and derived pricing fields
 
 ## Sessions And Sources
 
-Sessions are the external-agent-facing shape over the same `agent_threads` review history. They add an editable summary and session-level source links without requiring Bill Helper to know the external agent's cwd or local files. Hosted app attachments are linked into these source records automatically when they are bound to a message. Session creation also seeds a system marker message so the frontend can show an external-session hint and the hosted agent can treat follow-up chat as continuation of external work.
+Sessions are the external-agent-facing shape over the same `agent_threads` review history. They add an editable summary and session-level source links without requiring Bill Helper to know the external agent's cwd or local files. Hosted app attachments are linked into these source records automatically when they are bound to a user transcript row. Session creation also seeds a completed anchor run with a system transcript marker so the frontend can show an external-session hint and the hosted agent can treat follow-up chat as continuation of external work.
 
 ### `GET /agent/sessions`
 
@@ -178,10 +177,10 @@ Behavior:
 
 - thread lookup is owner-scoped
 - validates the combined attachment count and size limits across inline `files` plus referenced `attachment_ids`
-- persists the message, stores uploaded attachments under `{data_dir}/user_files/{owner_user_id}/uploads/...` using dated readable bundle directories (`uploads/YYYY-MM-DD/<original-stem>/`, with `(N)` suffixes for collisions) and a fixed primary filename (`raw.<ext>`), and links the files as session sources
+- persists the user turn into the run's canonical `agent_transcript_messages`, stores uploaded attachments under `{data_dir}/user_files/{owner_user_id}/uploads/...` using dated readable bundle directories (`uploads/YYYY-MM-DD/<original-stem>/`, with `(N)` suffixes for collisions) and a fixed primary filename (`raw.<ext>`), and links the files as session sources
 - referenced `attachment_ids` are attached without re-uploading; they must belong to the same principal and still be unbound drafts
-- creates an `agent_runs` row with initial `status=running` and the requested `approval_policy`
-- starts bounded tool-calling execution in background
+- creates an `agent_runs` row with initial `status=running`, a monotonic `turn_index`, and the requested `approval_policy`
+- starts bounded `AgentHarness` execution in background
 - selected models must support vision when image or PDF attachments are present; plain-text attachments do not require vision
 - images are sent as direct `image_url` parts without resizing; PDFs are sent as one rendered page image per page up to `agent_max_pdf_pages`; plain-text attachments are sent as inline `text` parts with the file body
 - provider routing resolves through LiteLLM using the requested `model_name` when supplied, otherwise the configured default model
@@ -225,21 +224,25 @@ Response content type: `text/event-stream`
 
 Event contract:
 
-- `reasoning_delta`
-- `text_delta`
-- `run_event`
-  - shape: `{ type, run_id, event, tool_call?, run_usage? }`
-  - `tool_call` is present only for tool lifecycle events and uses the compact `AgentToolCallRead` shape (`has_full_payload=false`)
-  - `run_usage` is present on **live** execution and carries the run's cumulative token counters, `context_tokens`, and derived USD fields (same pricing rules as `AgentRunRead`); it is omitted when replaying persisted events for an already-finished run so the client does not apply final totals to every historical event
-  - `rename_thread` starts streaming as a compact tool-call event before the final assistant message
-- `AgentRunEventRead` may include optional `reasoning_duration_ms` on persisted `reasoning_update` rows with `source = model_reasoning` (stream capture from first `reasoning_delta` through step persistence); clients estimate token counts from the stored `message` text
+- `model_delta`
+  - shape: `{ type: "model_delta", delta_type: "reasoning" | "content", text, step_index }`
+  - ephemeral only; not persisted as `agent_run_events` rows
+- durable harness events streamed directly by `event_type`, including:
+  - `run_started`
+  - `model_request_started`
+  - `model_decision_committed`
+  - `tool_started`
+  - `tool_finished`
+  - `step_committed`
+  - `run_finished`
+- persisted harness events replay with `{ type, run_id, sequence_index, ...payload_json fields }`
+- live replay of persisted events may include `run_usage` while the run is still `running`; historical replay omits `run_usage` so finished runs do not restamp final totals onto every past event
 
 Usage notes:
 
-- live streams include `run_usage` on each emitted `run_event` so clients can refresh usage UI without polling thread detail
+- assistant reasoning and content stream through `model_delta`; committed assistant/tool work is reconstructed from transcript rows and `steps[]` after reload
 - usage totals are persisted on the run record and read from snapshot endpoints
 - cache-aware pricing still rolls into the existing `input_cost_usd` and `total_cost_usd` fields
-- retries after partial streamed text suppress already-emitted prefixes
 - Telegram transport clients typically send `surface=telegram` here and later read `GET /agent/runs/{run_id}?surface=telegram`
 
 ## Runs And Tool Calls
@@ -256,7 +259,7 @@ Query params:
 
 Behavior:
 
-- only includes finished runs (`completed` and `failed`)
+- only includes finished runs (`completed`, `failed`, `interrupted`, and `max_steps`)
 - scopes runs through the owning thread principal, like the rest of the agent read surface
 - derives USD costs from persisted token counters and the existing LiteLLM pricing helper
 - returns summary metrics, cost-over-time buckets, token distribution, per-model rows, per-surface rows, and top expensive runs
@@ -270,7 +273,7 @@ Behavior:
 
 - lookup is owner-scoped through the parent thread
 - optional query param `surface` (`app` or `telegram`) overrides terminal-reply formatting for this read only
-- payload includes lifecycle metadata, `approval_policy`, full tool calls (`has_full_payload=true`), change items, usage counters, and derived pricing fields
+- payload includes lifecycle metadata, `approval_policy`, `steps[]`, full tool calls (`has_full_payload=true`), harness `events[]`, change items, usage counters, and derived pricing fields
 
 ### `GET /agent/runs/{run_id}/stream`
 
@@ -283,7 +286,7 @@ Query params:
 Behavior:
 
 - lookup is owner-scoped through the parent thread
-- replays persisted run events after the cursor, then replays any in-flight `reasoning_delta` / `text_delta` buffer for the active model step
+- replays persisted harness events after the cursor, then replays any in-flight `model_delta` buffer for the active model step
 - for running runs, attaches to the shared in-process stream hub worker (starting it when needed) and fans out live events until the run reaches a terminal state
 - for finished runs, replays persisted events after the cursor and closes without starting execution
 - uses the same SSE event contract as `POST /agent/threads/{thread_id}/messages/stream`
@@ -310,9 +313,9 @@ Interrupt a currently running run. Response: `AgentRunRead`
 Behavior:
 
 - lookup is owner-scoped through the parent thread
-- running runs are marked `failed` with `error_text = "Run interrupted by user."`
-- incomplete queued/running tool calls are cancelled when a run terminates; completed, failed, and cancelled tool results stay in later LLM history
-- each turn rebuilds append-only LLM context from persisted run activity (thinking, completed tool calls/results, final assistant reply); interrupted turns also insert a steering user message before the next user request
+- running runs set `stop_requested=true`; the harness marks the run `interrupted` with `error_code=interrupted`
+- incomplete queued/running tool calls are cancelled when a run terminates; completed, failed, and cancelled tool results remain in the canonical transcript for later turns
+- the next turn rebuilds model context from prior canonical transcript rows across completed runs
 - already finished runs are returned unchanged
 
 Errors:

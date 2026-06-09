@@ -8,14 +8,10 @@
 import { Fragment, memo, type Ref } from "react";
 import { ArrowDown, File, FileImage, FileText } from "lucide-react";
 
-import type { AgentMessage, AgentMessageAttachment, AgentRun, AgentRunEvent, AgentToolCall } from "../../../lib/types";
-
-/** Persisted message attachments or optimistic preview cards (no `message_id`). */
-type AssistantBubbleAttachment =
-  | AgentMessageAttachment
-  | { id: string; kind: "image" | "pdf"; url: string; name: string };
+import type { AgentRun, AgentRunStep, AgentToolCall, AgentTurn, AgentTurnAttachment } from "../../../lib/types";
 import { cn } from "../../../lib/utils";
 import { AssistantMessageRunWork } from "../AssistantMessageRunWork";
+import { runErrorText, type RunActivityItem } from "../activity";
 import { formatAgentRunErrorMarkdown } from "../formatRunError";
 import { AgentRunBlock } from "../AgentRunBlock";
 import { PendingAssistantActivityBlock } from "../AgentRunActivity";
@@ -32,16 +28,19 @@ import { resolveRunStreamBuffer } from "./helpers";
 import { agentStreamSession } from "./agentStreamSession";
 import type { PendingAssistantMessage, PendingUserMessage } from "./types";
 
+type AssistantBubbleAttachment =
+  | AgentTurnAttachment
+  | { id: string; kind: "image" | "pdf"; url: string; name: string };
+
 export interface AgentTimelineProps {
   selectedThreadId: string;
   isLoading: boolean;
   errorMessage: string | null;
   initiatedByExternalAgent: boolean;
-  messages: AgentMessage[] | undefined;
+  turns: AgentTurn[] | undefined;
   timelineScrollRef: Ref<HTMLDivElement>;
-  runsByAssistantMessageId: Map<string, AgentRun[]>;
+  runsById: Map<string, AgentRun>;
   pendingAssistantRuns: AgentRun[];
-  pendingAssistantRunsByUserMessageId: Map<string, AgentRun[]>;
   pendingUserMessage: PendingUserMessage | null;
   pendingAssistantMessage: PendingAssistantMessage | null;
   shouldShowOptimisticAssistantBubble: boolean;
@@ -51,9 +50,10 @@ export interface AgentTimelineProps {
   activeStreamText: string;
   streamedReasoningTextByRunId: Record<string, string>;
   streamedTextByRunId: Record<string, string>;
-  optimisticRunEventsByRunId: Record<string, AgentRunEvent[]>;
+  optimisticStepsByRunId: Record<string, AgentRunStep[]>;
   optimisticToolCallsByRunId: Record<string, AgentToolCall[]>;
-  activeOptimisticEvents: AgentRunEvent[];
+  liveActivityLedgerByRunId: Record<string, RunActivityItem[]>;
+  activeOptimisticSteps: AgentRunStep[];
   activeOptimisticToolCalls: AgentToolCall[];
   detachFromBottom: () => void;
   onHydrateToolCall: (runId: string, toolCallId: string) => void;
@@ -75,11 +75,10 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     isLoading,
     errorMessage,
     initiatedByExternalAgent,
-    messages,
+    turns,
     timelineScrollRef,
-    runsByAssistantMessageId,
+    runsById,
     pendingAssistantRuns,
-    pendingAssistantRunsByUserMessageId,
     pendingUserMessage,
     pendingAssistantMessage,
     shouldShowOptimisticAssistantBubble,
@@ -89,9 +88,10 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     activeStreamText,
     streamedReasoningTextByRunId = {},
     streamedTextByRunId = {},
-    optimisticRunEventsByRunId = {},
+    optimisticStepsByRunId = {},
     optimisticToolCallsByRunId = {},
-    activeOptimisticEvents = [],
+    liveActivityLedgerByRunId = {},
+    activeOptimisticSteps = [],
     activeOptimisticToolCalls = [],
     detachFromBottom,
     onHydrateToolCall,
@@ -108,8 +108,18 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     return mimeType.toLowerCase() === "application/pdf";
   }
 
-  function hasRenderableRunCard(run: AgentRun, optimisticEvents: AgentRunEvent[] = []): boolean {
-    return Boolean(run.error_text) || run.events.length > 0 || run.change_items.length > 0 || optimisticEvents.length > 0;
+  function hasRenderableRunCard(run: AgentRun, optimisticSteps: AgentRunStep[] = []): boolean {
+    return (
+      Boolean(runErrorText(run)) ||
+      run.steps.length > 0 ||
+      run.tool_calls.length > 0 ||
+      run.change_items.length > 0 ||
+      optimisticSteps.length > 0
+    );
+  }
+
+  function liveActivityItemsForRun(runId: string | null): RunActivityItem[] {
+    return runId ? liveActivityLedgerByRunId[runId] ?? [] : [];
   }
 
   function renderAssistantAttachments(attachments: AssistantBubbleAttachment[]) {
@@ -120,7 +130,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     return (
       <div className="agent-message-attachments scroll-surface">
         {attachments.map((attachment) => {
-          if ("message_id" in attachment) {
+          if ("attachment_url" in attachment) {
             if (isImageMimeType(attachment.mime_type)) {
               return (
                 <AgentMessageAttachmentImage
@@ -164,7 +174,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
   }
 
   function renderUserAttachments(
-    attachments: AgentMessage["attachments"] | PendingUserMessage["attachments"]
+    attachments: AgentTurnAttachment[] | PendingUserMessage["attachments"]
   ) {
     if (attachments.length === 0) {
       return null;
@@ -173,7 +183,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     return (
       <div className="agent-message-user-attachments scroll-surface">
         {attachments.map((attachment) => (
-          "message_id" in attachment ? (
+          "attachment_url" in attachment ? (
             <AgentMessageAttachmentRow
               key={attachment.id}
               attachmentUrl={attachment.attachment_url}
@@ -203,7 +213,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     createdAt: string;
     text: string;
     emptyText: string;
-    attachments: AgentMessage["attachments"] | PendingUserMessage["attachments"];
+    attachments: AgentTurnAttachment[] | PendingUserMessage["attachments"];
   }) {
     return (
       <>
@@ -224,11 +234,15 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     );
   }
 
-  function renderStandaloneRunError(run: AgentRun) {
-    if (!run.error_text || run.assistant_message_id) {
+  function renderStandaloneRunError(run: AgentRun | undefined, turn: AgentTurn | undefined) {
+    if (!run) {
       return null;
     }
-    return <MarkdownRenderer markdown={formatAgentRunErrorMarkdown(run.error_text)} />;
+    const errorText = runErrorText(run);
+    if (!errorText || turn?.assistant_message?.content_markdown) {
+      return null;
+    }
+    return <MarkdownRenderer markdown={formatAgentRunErrorMarkdown(errorText)} />;
   }
 
   function messageClassName(options: {
@@ -246,6 +260,17 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
     );
   }
 
+  const anchoredRunIds = new Set((turns ?? []).map((turn) => turn.run_id));
+  const activeLiveActivityItems = liveActivityItemsForRun(activeStreamRunId);
+  const showOptimisticAssistantBubble = Boolean(
+    shouldShowOptimisticAssistantBubble &&
+      pendingAssistantMessage &&
+      !(
+        pendingRunAttachedToOptimisticMessage &&
+        anchoredRunIds.has(pendingRunAttachedToOptimisticMessage.id)
+      )
+  );
+
   return (
     <div className="agent-timeline-pane">
       {!selectedThreadId ? (
@@ -257,283 +282,237 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
       {selectedThreadId ? (
         <div className="agent-timeline-scroll-wrapper">
           <div className="agent-timeline-scroll flex flex-col gap-3" ref={timelineScrollRef}>
-          {initiatedByExternalAgent ? (
-            <aside className="agent-external-session-hint" aria-label="External agent session">
-              <p>
-                This session was started by an external agent via <code>bh</code>. Use{" "}
-                <strong>Review</strong> for pending proposals. Chat history from the external agent is not shown
-                here.
-              </p>
-            </aside>
-          ) : null}
-          {(messages ?? []).map((message) => {
-            const isAssistant = message.role === "assistant";
-            const isUser = message.role === "user";
-            const shouldRenderMarkdown = !isUser;
-            const renderedContent = message.content_markdown;
-            const messageRuns = isAssistant ? runsByAssistantMessageId.get(message.id) ?? [] : [];
-            const userMessageRuns = isUser ? pendingAssistantRunsByUserMessageId.get(message.id) ?? [] : [];
-            const streamRunForMessage = isAssistant
-              ? (activeStreamRunId
-                  ? messageRuns.find((run) => run.id === activeStreamRunId)
-                  : undefined) ?? messageRuns.find((run) => run.status === "running")
-              : undefined;
-            const isLiveAssistantStream = Boolean(
-              streamRunForMessage && streamRunForMessage.status === "running"
-            );
-            const liveStreamRunId = streamRunForMessage?.id ?? null;
-            const liveStreamReasoningText = resolveRunStreamBuffer(
-              liveStreamRunId,
-              activeStreamRunId,
-              activeStreamReasoningText,
-              streamedReasoningTextByRunId
-            );
-            const liveStreamText = resolveRunStreamBuffer(
-              liveStreamRunId,
-              activeStreamRunId,
-              activeStreamText,
-              streamedTextByRunId
-            );
-            const streamedAssistantMarkdown =
-              isLiveAssistantStream && liveStreamText.length > 0 ? liveStreamText : null;
-            const assistantDisplayMarkdown = streamedAssistantMarkdown ?? renderedContent;
-
-            return (
-              <Fragment key={message.id}>
-                <article
-                  className={messageClassName({
-                    isAssistant,
-                    isUser,
-                    isActivity: messageRuns.length > 0
-                  })}
-                >
-                  {isUser ? (
-                    renderUserBubble({
-                      createdAt: message.created_at,
-                      text: renderedContent,
-                      emptyText: "(no text)",
-                      attachments: message.attachments
-                    })
-                  ) : (
-                    <>
-                      {isAssistant && messageRuns.length > 0 ? (
-                        <AssistantMessageRunWork
-                          runs={messageRuns}
-                          optimisticRunEventsByRunId={optimisticRunEventsByRunId}
-                          optimisticToolCallsByRunId={optimisticToolCallsByRunId}
-                          onInspectActivity={detachFromBottom}
-                          onHydrateToolCall={onHydrateToolCall}
-                          hydratingToolCallIds={hydratingToolCallIds}
-                          streamingReasoningText={isLiveAssistantStream ? liveStreamReasoningText : undefined}
-                          streamingReasoningStartedAt={
-                            isLiveAssistantStream ? resolveReasoningSegmentStartedAt(liveStreamRunId) : undefined
-                          }
-                        />
-                      ) : null}
-
-                      {assistantDisplayMarkdown.trim() ? (
-                        shouldRenderMarkdown ? (
-                          <MarkdownRenderer markdown={assistantDisplayMarkdown} />
-                        ) : (
-                          <p className="agent-message-text">{assistantDisplayMarkdown}</p>
-                        )
-                      ) : isLiveAssistantStream ? (
-                        <p className="agent-message-text agent-message-streaming-text">
-                          <span className="agent-message-caret">{"\u258d"}</span>
-                        </p>
-                      ) : (
-                        <p className="muted">(no text)</p>
-                      )}
-
-                      {renderAssistantAttachments(message.attachments)}
-
-                      {isAssistant
-                        ? messageRuns.map((run) => (
-                            <AgentRunBlock
-                              key={`${run.id}-summary`}
-                              run={run}
-                              onInspectActivity={detachFromBottom}
-                              onHydrateToolCall={onHydrateToolCall}
-                              hydratingToolCallIds={hydratingToolCallIds}
-                              mode="summary"
-                              optimisticEvents={optimisticRunEventsByRunId[run.id] ?? []}
-                              optimisticToolCalls={optimisticToolCallsByRunId[run.id] ?? []}
-                            />
-                          ))
-                        : null}
-
-                      <AgentMessageHeader
-                        createdAt={message.created_at}
-                        copyText={assistantDisplayMarkdown}
-                        className="agent-message-meta-only"
-                      />
-                    </>
-                  )}
-                </article>
-
-                {isUser
-                  ? userMessageRuns.map((run) => {
-                      const optimisticEvents = optimisticRunEventsByRunId[run.id] ?? [];
-                      if (!hasRenderableRunCard(run, optimisticEvents)) {
-                        return null;
-                      }
-                      const attachedToOptimisticMessage = pendingRunAttachedToOptimisticMessage && pendingRunAttachedToOptimisticMessage.id === run.id;
-                      if (attachedToOptimisticMessage) {
-                        return null;
-                      }
-                      return (
-                        <article
-                          key={`${run.id}-unattached`}
-                          className={messageClassName({
-                            isAssistant: true,
-                            isActivity: true
-                          })}
-                        >
-                          <AssistantMessageRunWork
-                            runs={[run]}
-                            optimisticRunEventsByRunId={optimisticRunEventsByRunId}
-                            optimisticToolCallsByRunId={optimisticToolCallsByRunId}
-                            onInspectActivity={detachFromBottom}
-                            onHydrateToolCall={onHydrateToolCall}
-                            hydratingToolCallIds={hydratingToolCallIds}
-                            streamingReasoningText={resolveRunStreamBuffer(
-                              run.id,
-                              activeStreamRunId,
-                              activeStreamReasoningText,
-                              streamedReasoningTextByRunId
-                            )}
-                            streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(run.id)}
-                          />
-                          {renderStandaloneRunError(run)}
-                          <AgentMessageHeader
-                            createdAt={run.created_at}
-                            copyText={run.error_text}
-                            className="agent-message-meta-only"
-                          />
-                        </article>
-                      );
-                    })
-                  : null}
-              </Fragment>
-            );
-          })}
-
-          {pendingUserMessage && pendingUserMessage.threadId === selectedThreadId ? (
-            <article className={messageClassName({ isUser: true })} key={pendingUserMessage.id}>
-              {renderUserBubble({
-                createdAt: pendingUserMessage.createdAt,
-                text: pendingUserMessage.content,
-                emptyText: "(attachment-only message)",
-                attachments: pendingUserMessage.attachments
-              })}
-            </article>
-          ) : null}
-
-          {shouldShowOptimisticAssistantBubble && pendingAssistantMessage ? (
-            <article
-              className={messageClassName({
-                isAssistant: true,
-                isActivity: true,
-                isStreaming: true
-              })}
-              key={pendingAssistantMessage.id}
-            >
-              {pendingRunAttachedToOptimisticMessage ? (
-                <AgentRunBlock
-                  run={pendingRunAttachedToOptimisticMessage}
-                  onInspectActivity={detachFromBottom}
-                  onHydrateToolCall={onHydrateToolCall}
-                  hydratingToolCallIds={hydratingToolCallIds}
-                  mode="activity"
-                  optimisticEvents={activeOptimisticEvents}
-                  optimisticToolCalls={activeOptimisticToolCalls}
-                  streamingReasoningText={activeStreamReasoningText}
-                  streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
-                />
-              ) : activeOptimisticEvents.length > 0 || activeStreamReasoningText.length > 0 || activeStreamText.length > 0 ? (
-                <PendingAssistantActivityBlock
-                  events={activeOptimisticEvents}
-                  toolCalls={activeOptimisticToolCalls}
-                  onInspectActivity={detachFromBottom}
-                  onHydrateToolCall={onHydrateToolCall}
-                  hydratingToolCallIds={hydratingToolCallIds}
-                  streamingReasoningText={activeStreamReasoningText}
-                  streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
-                />
-              ) : null}
-              {activeStreamText.length > 0 ? (
-                <MarkdownRenderer markdown={activeStreamText} className="agent-markdown" />
-              ) : null}
-              {!activeStreamReasoningText.length &&
-              !activeStreamText.length &&
-              activeOptimisticEvents.length === 0 &&
-              !pendingRunAttachedToOptimisticMessage ? (
-                <p className="agent-message-text agent-message-streaming-text">
-                  <span className="agent-message-caret">{"\u258d"}</span>
+            {initiatedByExternalAgent ? (
+              <aside className="agent-external-session-hint" aria-label="External agent session">
+                <p>
+                  This session was started by an external agent via <code>bh</code>. Use{" "}
+                  <strong>Review</strong> for pending proposals. Chat history from the external agent is not shown
+                  here.
                 </p>
-              ) : null}
-              <AgentMessageHeader
-                createdAt={pendingAssistantMessage.createdAt}
-                copyText={activeStreamText}
-                className="agent-message-meta-only"
-              />
-            </article>
-          ) : null}
+              </aside>
+            ) : null}
+            {(turns ?? []).map((turn) => {
+              const run = runsById.get(turn.run_id);
+              const isLiveAssistantStream = Boolean(
+                run && run.status === "running" && (activeStreamRunId === run.id || !turn.assistant_message)
+              );
+              const liveStreamRunId = isLiveAssistantStream ? run?.id ?? null : null;
+              const liveStreamReasoningText = resolveRunStreamBuffer(
+                liveStreamRunId,
+                activeStreamRunId,
+                activeStreamReasoningText,
+                streamedReasoningTextByRunId
+              );
+              const liveStreamText = resolveRunStreamBuffer(
+                liveStreamRunId,
+                activeStreamRunId,
+                activeStreamText,
+                streamedTextByRunId
+              );
+              const persistedAssistantMarkdown = (
+                turn.assistant_message?.content_markdown ??
+                run?.final_assistant_reply ??
+                ""
+              ).trim();
+              const assistantDisplayMarkdown =
+                persistedAssistantMarkdown.length > 0
+                  ? persistedAssistantMarkdown
+                  : liveStreamText.length > 0
+                    ? liveStreamText
+                    : "";
 
-          {pendingAssistantRuns.map((run) => {
-            const optimisticEvents = optimisticRunEventsByRunId[run.id] ?? [];
-            const attachedToOptimisticMessage = pendingRunAttachedToOptimisticMessage && pendingRunAttachedToOptimisticMessage.id === run.id;
-            const alreadyAnchoredToUserMessage = Boolean(
-              (messages ?? []).some((message) => message.id === run.user_message_id)
-            );
-            const isLivePendingRun = run.status === "running";
-            const pendingRunStreamReasoning = isLivePendingRun
-              ? resolveRunStreamBuffer(
-                  run.id,
-                  activeStreamRunId,
-                  activeStreamReasoningText,
-                  streamedReasoningTextByRunId
-                )
-              : "";
-            if (attachedToOptimisticMessage) {
-              return null;
-            }
-            if (alreadyAnchoredToUserMessage) {
-              return null;
-            }
-            if (!hasRenderableRunCard(run, optimisticEvents) && !isLivePendingRun && pendingRunStreamReasoning.length === 0) {
-              return null;
-            }
-            return (
+              return (
+                <Fragment key={turn.run_id}>
+                  <article className={messageClassName({ isUser: true })}>
+                    {renderUserBubble({
+                      createdAt: turn.user_message.created_at,
+                      text: turn.user_message.content_markdown,
+                      emptyText: "(no text)",
+                      attachments: turn.user_message.attachments
+                    })}
+                  </article>
+
+                  <article
+                    className={messageClassName({
+                      isAssistant: true,
+                      isActivity: Boolean(run && hasRenderableRunCard(run, optimisticStepsByRunId[run.id])),
+                      isStreaming: isLiveAssistantStream
+                    })}
+                  >
+                    {run ? (
+                      <AssistantMessageRunWork
+                        runs={[run]}
+                        optimisticStepsByRunId={optimisticStepsByRunId}
+                        optimisticToolCallsByRunId={optimisticToolCallsByRunId}
+                        liveActivityLedgerByRunId={liveActivityLedgerByRunId}
+                        isStreamingRun={isLiveAssistantStream}
+                        onInspectActivity={detachFromBottom}
+                        onHydrateToolCall={onHydrateToolCall}
+                        hydratingToolCallIds={hydratingToolCallIds}
+                        streamingReasoningText={isLiveAssistantStream ? liveStreamReasoningText : undefined}
+                        streamingReasoningStartedAt={
+                          isLiveAssistantStream ? resolveReasoningSegmentStartedAt(liveStreamRunId) : undefined
+                        }
+                      />
+                    ) : null}
+
+                    {assistantDisplayMarkdown.trim() ? (
+                      <MarkdownRenderer markdown={assistantDisplayMarkdown} />
+                    ) : isLiveAssistantStream ? null : run && !turn.assistant_message ? null : (
+                      <p className="muted">(no text)</p>
+                    )}
+
+                    {run ? (
+                      <AgentRunBlock
+                        key={`${run.id}-summary`}
+                        run={run}
+                        onInspectActivity={detachFromBottom}
+                        onHydrateToolCall={onHydrateToolCall}
+                        hydratingToolCallIds={hydratingToolCallIds}
+                        mode="summary"
+                        optimisticSteps={optimisticStepsByRunId[run.id] ?? []}
+                        optimisticToolCalls={optimisticToolCallsByRunId[run.id] ?? []}
+                      />
+                    ) : null}
+
+                    {renderStandaloneRunError(run, turn)}
+
+                    <AgentMessageHeader
+                      createdAt={turn.assistant_message?.created_at ?? turn.user_message.created_at}
+                      copyText={assistantDisplayMarkdown}
+                      className="agent-message-meta-only"
+                    />
+                  </article>
+                </Fragment>
+              );
+            })}
+
+            {pendingUserMessage && pendingUserMessage.threadId === selectedThreadId ? (
+              <article className={messageClassName({ isUser: true })} key={pendingUserMessage.id}>
+                {renderUserBubble({
+                  createdAt: pendingUserMessage.createdAt,
+                  text: pendingUserMessage.content,
+                  emptyText: "(attachment-only message)",
+                  attachments: pendingUserMessage.attachments
+                })}
+              </article>
+            ) : null}
+
+            {showOptimisticAssistantBubble && pendingAssistantMessage ? (
               <article
-                key={`pending-run-${run.id}`}
                 className={messageClassName({
                   isAssistant: true,
                   isActivity: true,
-                  isStreaming: isLivePendingRun
+                  isStreaming: true
                 })}
+                key={pendingAssistantMessage.id}
               >
-                <AssistantMessageRunWork
-                  runs={[run]}
-                  optimisticRunEventsByRunId={optimisticRunEventsByRunId}
-                  optimisticToolCallsByRunId={optimisticToolCallsByRunId}
-                  onInspectActivity={detachFromBottom}
-                  onHydrateToolCall={onHydrateToolCall}
-                  hydratingToolCallIds={hydratingToolCallIds}
-                  streamingReasoningText={
-                    pendingRunStreamReasoning.length > 0 ? pendingRunStreamReasoning : undefined
-                  }
-                  streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(run.id)}
-                />
-                {renderStandaloneRunError(run)}
+                {pendingRunAttachedToOptimisticMessage ? (
+                  <AgentRunBlock
+                    run={pendingRunAttachedToOptimisticMessage}
+                    onInspectActivity={detachFromBottom}
+                    onHydrateToolCall={onHydrateToolCall}
+                    hydratingToolCallIds={hydratingToolCallIds}
+                    mode="activity"
+                    optimisticSteps={activeOptimisticSteps}
+                    optimisticToolCalls={activeOptimisticToolCalls}
+                    liveActivityLedgerByRunId={liveActivityLedgerByRunId}
+                    streamingReasoningText={activeStreamReasoningText}
+                    streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
+                  />
+                ) : activeLiveActivityItems.length > 0 ||
+                  activeOptimisticSteps.length > 0 ||
+                  activeOptimisticToolCalls.length > 0 ||
+                  activeStreamReasoningText.length > 0 ||
+                  activeStreamText.length > 0 ? (
+                  <PendingAssistantActivityBlock
+                    steps={activeOptimisticSteps}
+                    toolCalls={activeOptimisticToolCalls}
+                    liveActivityItems={activeLiveActivityItems}
+                    onInspectActivity={detachFromBottom}
+                    onHydrateToolCall={onHydrateToolCall}
+                    hydratingToolCallIds={hydratingToolCallIds}
+                    streamingReasoningText={activeStreamReasoningText}
+                    streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
+                  />
+                ) : null}
+                {activeStreamText.length > 0 ? (
+                  <MarkdownRenderer markdown={activeStreamText} className="agent-markdown" />
+                ) : null}
+                {!activeStreamReasoningText.length &&
+                !activeStreamText.length &&
+                activeLiveActivityItems.length === 0 &&
+                activeOptimisticSteps.length === 0 &&
+                activeOptimisticToolCalls.length === 0 &&
+                !pendingRunAttachedToOptimisticMessage ? (
+                  <p className="agent-message-text agent-message-streaming-text">
+                    <span className="agent-message-caret">{"\u258d"}</span>
+                  </p>
+                ) : null}
                 <AgentMessageHeader
-                  createdAt={run.created_at}
-                  copyText={run.error_text}
+                  createdAt={pendingAssistantMessage.createdAt}
+                  copyText={activeStreamText}
                   className="agent-message-meta-only"
                 />
               </article>
-            );
-          })}
+            ) : null}
+
+            {pendingAssistantRuns.map((run) => {
+              const optimisticSteps = optimisticStepsByRunId[run.id] ?? [];
+              const attachedToOptimisticMessage =
+                pendingRunAttachedToOptimisticMessage && pendingRunAttachedToOptimisticMessage.id === run.id;
+              const alreadyAnchored = anchoredRunIds.has(run.id);
+              const isLivePendingRun = run.status === "running";
+              const pendingRunStreamReasoning = isLivePendingRun
+                ? resolveRunStreamBuffer(
+                    run.id,
+                    activeStreamRunId,
+                    activeStreamReasoningText,
+                    streamedReasoningTextByRunId
+                  )
+                : "";
+              if (attachedToOptimisticMessage || alreadyAnchored) {
+                return null;
+              }
+              if (
+                !hasRenderableRunCard(run, optimisticSteps) &&
+                !isLivePendingRun &&
+                pendingRunStreamReasoning.length === 0
+              ) {
+                return null;
+              }
+              return (
+                <article
+                  key={`pending-run-${run.id}`}
+                  className={messageClassName({
+                    isAssistant: true,
+                    isActivity: true,
+                    isStreaming: isLivePendingRun
+                  })}
+                >
+                  <AssistantMessageRunWork
+                    runs={[run]}
+                    optimisticStepsByRunId={optimisticStepsByRunId}
+                    optimisticToolCallsByRunId={optimisticToolCallsByRunId}
+                    liveActivityLedgerByRunId={liveActivityLedgerByRunId}
+                    isStreamingRun={isLivePendingRun}
+                    onInspectActivity={detachFromBottom}
+                    onHydrateToolCall={onHydrateToolCall}
+                    hydratingToolCallIds={hydratingToolCallIds}
+                    streamingReasoningText={
+                      pendingRunStreamReasoning.length > 0 ? pendingRunStreamReasoning : undefined
+                    }
+                    streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(run.id)}
+                  />
+                  {renderStandaloneRunError(run, undefined)}
+                  <AgentMessageHeader
+                    createdAt={run.created_at}
+                    copyText={runErrorText(run)}
+                    className="agent-message-meta-only"
+                  />
+                </article>
+              );
+            })}
           </div>
           {!isAtBottom ? (
             <button
@@ -552,5 +531,3 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
 }
 
 export const AgentTimeline = memo(AgentTimelineComponent);
-
-AgentTimeline.displayName = "AgentTimeline";

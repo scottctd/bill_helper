@@ -13,9 +13,9 @@ import { queryKeys } from "../../../lib/queryKeys";
 import type { AgentThreadDetail, AgentThreadSummary } from "../../../lib/types";
 import {
   buildThreadUsageTotals,
-  runsByAssistantMessage,
-  runsWithoutAssistantMessage,
-  runsWithoutAssistantMessageByUserMessage
+  pendingRuns,
+  runById,
+  visibleTurns
 } from "../activity";
 
 interface UseAgentPanelQueriesArgs {
@@ -95,12 +95,8 @@ export function useAgentPanelQueries({
     pruneOptimisticRunningThreadIds(threadsQuery.data);
   }, [pruneOptimisticRunningThreadIds, threadsQuery.data]);
 
-  const runsByAssistantMessageId = useMemo(() => runsByAssistantMessage(threadQuery.data), [threadQuery.data]);
-  const pendingAssistantRuns = useMemo(() => runsWithoutAssistantMessage(threadQuery.data), [threadQuery.data]);
-  const pendingAssistantRunsByUserMessageId = useMemo(
-    () => runsWithoutAssistantMessageByUserMessage(threadQuery.data),
-    [threadQuery.data]
-  );
+  const runsById = useMemo(() => runById(threadQuery.data), [threadQuery.data]);
+  const pendingAssistantRuns = useMemo(() => pendingRuns(threadQuery.data), [threadQuery.data]);
   const reviewProposalCount = useMemo(
     () => (threadQuery.data?.runs ?? []).reduce((total, run) => total + run.change_items.length, 0),
     [threadQuery.data?.runs]
@@ -115,29 +111,19 @@ export function useAgentPanelQueries({
   );
   const threadUsageTotals = useMemo(() => buildThreadUsageTotals(threadQuery.data), [threadQuery.data]);
   const initiatedByExternalAgent = threadQuery.data?.thread.initiated_by_external_agent ?? false;
-  const visibleMessages = useMemo(() => {
-    const messages = threadQuery.data?.messages;
-    if (!messages) {
-      return messages;
-    }
-    if (!initiatedByExternalAgent) {
-      return messages;
-    }
-    return messages.filter((message) => message.role !== "system");
-  }, [initiatedByExternalAgent, threadQuery.data?.messages]);
+  const visibleTurnList = useMemo(() => visibleTurns(threadQuery.data), [threadQuery.data]);
 
   return {
     displayedThreads,
     initiatedByExternalAgent,
     pendingAssistantRuns,
-    pendingAssistantRunsByUserMessageId,
     pendingReviewCount,
     reviewProposalCount,
-    runsByAssistantMessageId,
+    runsById,
     runtimeSettingsQuery,
     threadQuery,
     threadUsageTotals,
     threadsQuery,
-    visibleMessages
+    visibleTurns: visibleTurnList
   };
 }

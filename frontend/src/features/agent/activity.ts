@@ -8,20 +8,41 @@
 import type {
   AgentChangeItem,
   AgentRun,
-  AgentRunEvent,
-  AgentRunEventSource,
-  AgentRunEventType,
-  AgentThreadDetail
+  AgentRunStep,
+  AgentThreadDetail,
+  AgentToolCallStatus,
+  AgentTurn
 } from "../../lib/types";
 
 export type RunToolCall = AgentRun["tool_calls"][number];
 
-type ToolLifecycleEventType =
-  | "tool_call_queued"
-  | "tool_call_started"
-  | "tool_call_completed"
-  | "tool_call_failed"
-  | "tool_call_cancelled";
+interface RunActivityReasoningStep {
+  type: "reasoning_step";
+  key: string;
+  runId: string;
+  stepId: string;
+  message: string;
+  durationMs: number | null;
+  createdAt: string;
+}
+
+interface RunActivityProgressNote {
+  type: "progress_note";
+  key: string;
+  runId: string;
+  stepId: string;
+  message: string;
+  createdAt: string;
+}
+
+interface RunActivityAssistantMessage {
+  type: "assistant_message";
+  key: string;
+  runId: string;
+  stepId: string;
+  message: string;
+  createdAt: string;
+}
 
 interface RunActivityToolCallItem {
   type: "tool_call";
@@ -29,62 +50,78 @@ interface RunActivityToolCallItem {
   runId: string;
   toolCallId: string;
   toolCall: RunToolCall | null;
-  lifecycleEventType: ToolLifecycleEventType;
   createdAt: string;
 }
 
-interface RunActivityReasoningUpdate {
-  type: "reasoning_update";
-  key: string;
-  message: string;
-  source: AgentRunEventSource;
-  createdAt: string;
-  durationMs: number | null;
-}
-
-export type RunActivityItem = RunActivityToolCallItem | RunActivityReasoningUpdate;
+export type RunActivityItem =
+  | RunActivityReasoningStep
+  | RunActivityProgressNote
+  | RunActivityAssistantMessage
+  | RunActivityToolCallItem;
 
 function byTimestamp(left: string, right: string): number {
   return new Date(left).getTime() - new Date(right).getTime();
 }
 
 function sortedToolCalls(toolCalls: RunToolCall[]): RunToolCall[] {
-  return [...toolCalls].sort((left, right) => byTimestamp(left.created_at, right.created_at));
+  return [...toolCalls].sort((left, right) => {
+    if (left.step_id !== right.step_id) {
+      return left.step_id.localeCompare(right.step_id);
+    }
+    return left.call_index - right.call_index;
+  });
+}
+
+function sortedSteps(steps: AgentRunStep[]): AgentRunStep[] {
+  return [...steps].sort((left, right) => left.step_index - right.step_index);
 }
 
 export function sortRunsByCreatedAt(runs: AgentRun[]): AgentRun[] {
   return [...runs].sort((left, right) => byTimestamp(left.created_at, right.created_at));
 }
 
-export function runsByAssistantMessage(detail: AgentThreadDetail | undefined): Map<string, AgentRun[]> {
-  const map = new Map<string, AgentRun[]>();
-  sortRunsByCreatedAt(detail?.runs ?? []).forEach((run) => {
-    if (!run.assistant_message_id) {
-      return;
-    }
-    const runs = map.get(run.assistant_message_id);
-    if (runs) {
-      runs.push(run);
-      return;
-    }
-    map.set(run.assistant_message_id, [run]);
+export function runById(detail: AgentThreadDetail | undefined): Map<string, AgentRun> {
+  const map = new Map<string, AgentRun>();
+  (detail?.runs ?? []).forEach((run) => {
+    map.set(run.id, run);
   });
   return map;
 }
 
-export function runsWithoutAssistantMessage(detail: AgentThreadDetail | undefined): AgentRun[] {
-  return sortRunsByCreatedAt((detail?.runs ?? []).filter((run) => !run.assistant_message_id));
+export function visibleTurns(detail: AgentThreadDetail | undefined): AgentTurn[] {
+  return [...(detail?.turns ?? [])].sort((left, right) => left.turn_index - right.turn_index);
 }
 
-export function runsWithoutAssistantMessageByUserMessage(detail: AgentThreadDetail | undefined): Map<string, AgentRun[]> {
+export function pendingRuns(detail: AgentThreadDetail | undefined): AgentRun[] {
+  const completedRunIds = new Set(
+    (detail?.turns ?? [])
+      .filter((turn) => Boolean(turn.assistant_message?.content_markdown.trim()))
+      .map((turn) => turn.run_id)
+  );
+  return sortRunsByCreatedAt(
+    (detail?.runs ?? []).filter((run) => !completedRunIds.has(run.id) || run.status === "running")
+  );
+}
+
+export function pendingRunsByTurnRunId(detail: AgentThreadDetail | undefined): Map<string, AgentRun[]> {
   const map = new Map<string, AgentRun[]>();
-  runsWithoutAssistantMessage(detail).forEach((run) => {
-    const runs = map.get(run.user_message_id);
+  pendingRuns(detail).forEach((run) => {
+    const turn = (detail?.turns ?? []).find((item) => item.run_id === run.id);
+    if (!turn) {
+      const unattached = map.get("__unattached__");
+      if (unattached) {
+        unattached.push(run);
+      } else {
+        map.set("__unattached__", [run]);
+      }
+      return;
+    }
+    const runs = map.get(turn.run_id);
     if (runs) {
       runs.push(run);
       return;
     }
-    map.set(run.user_message_id, [run]);
+    map.set(turn.run_id, [run]);
   });
   return map;
 }
@@ -186,21 +223,23 @@ export function summarizeRunChangeTypes(changeItems: AgentChangeItem[]): {
   return { entryCount, tagCount, entityCount, groupCount };
 }
 
-function sortRunEvents(events: AgentRunEvent[]): AgentRunEvent[] {
-  return [...events].sort((left, right) => {
-    if (left.sequence_index !== right.sequence_index) {
-      return left.sequence_index - right.sequence_index;
+export function mergeRunSteps(persisted: AgentRunStep[], optimistic: AgentRunStep[] = []): AgentRunStep[] {
+  const byId = new Map<string, AgentRunStep>();
+  [...persisted, ...optimistic].forEach((step) => {
+    const existing = byId.get(step.id);
+    if (!existing) {
+      byId.set(step.id, step);
+      return;
     }
-    return byTimestamp(left.created_at, right.created_at);
+    byId.set(step.id, {
+      ...existing,
+      ...step,
+      reasoning_text: step.reasoning_text ?? existing.reasoning_text,
+      progress_note: step.progress_note ?? existing.progress_note,
+      reasoning_duration_ms: step.reasoning_duration_ms ?? existing.reasoning_duration_ms
+    });
   });
-}
-
-export function mergeRunEvents(persisted: AgentRunEvent[], optimistic: AgentRunEvent[] = []): AgentRunEvent[] {
-  const byId = new Map<string, AgentRunEvent>();
-  [...persisted, ...optimistic].forEach((event) => {
-    byId.set(event.id, event);
-  });
-  return sortRunEvents([...byId.values()]);
+  return sortedSteps([...byId.values()]);
 }
 
 function mergeToolCallSnapshot(current: RunToolCall, incoming: RunToolCall): RunToolCall {
@@ -209,8 +248,8 @@ function mergeToolCallSnapshot(current: RunToolCall, incoming: RunToolCall): Run
   return {
     ...current,
     ...incoming,
-    input_json: shouldPreserveCurrentPayload ? current.input_json : incoming.input_json,
-    output_json: shouldPreserveCurrentPayload ? current.output_json : incoming.output_json,
+    arguments_json: shouldPreserveCurrentPayload ? current.arguments_json : incoming.arguments_json,
+    result_content_json: shouldPreserveCurrentPayload ? current.result_content_json : incoming.result_content_json,
     output_text: shouldPreserveCurrentPayload ? current.output_text : incoming.output_text,
     has_full_payload: current.has_full_payload || incoming.has_full_payload
   };
@@ -225,72 +264,174 @@ export function mergeRunToolCalls(persisted: RunToolCall[], optimistic: RunToolC
   return sortedToolCalls([...byId.values()]);
 }
 
-function isToolLifecycleEventType(value: AgentRunEventType): value is ToolLifecycleEventType {
-  return (
-    value === "tool_call_queued" ||
-    value === "tool_call_started" ||
-    value === "tool_call_completed" ||
-    value === "tool_call_failed" ||
-    value === "tool_call_cancelled"
-  );
+/** Flat tool timeline for in-flight runs; avoids step-id churn while the harness advances steps. */
+export function buildLiveRunTimelineFromToolCalls(toolCalls: RunToolCall[]): RunActivityItem[] {
+  return mergeRunToolCalls(toolCalls).map((toolCall) => ({
+    type: "tool_call",
+    key: toolCall.id,
+    runId: toolCall.run_id,
+    toolCallId: toolCall.id,
+    toolCall,
+    createdAt: toolCall.started_at ?? toolCall.completed_at ?? toolCall.run_id
+  }));
 }
 
-export function buildRunTimelineFromEvents(events: AgentRunEvent[], toolCalls: RunToolCall[]): RunActivityItem[] {
-  const mergedEvents = sortRunEvents(events);
-  const timeline: RunActivityItem[] = [];
-  const mergedToolCalls = mergeRunToolCalls(toolCalls);
-  const toolCallById = new Map(mergedToolCalls.map((toolCall) => [toolCall.id, toolCall]));
-  const seenToolItems = new Map<string, RunActivityToolCallItem>();
+export function appendLiveActivityLedgerItem(
+  ledger: RunActivityItem[],
+  item: RunActivityItem
+): RunActivityItem[] {
+  const existingIndex = ledger.findIndex((entry) => entry.key === item.key);
+  if (existingIndex < 0) {
+    return [...ledger, item];
+  }
+  const next = [...ledger];
+  const existing = next[existingIndex];
+  next[existingIndex] =
+    existing.type === "tool_call" && item.type === "tool_call"
+      ? {
+          ...item,
+          createdAt: existing.createdAt,
+          toolCall:
+            existing.toolCall && item.toolCall
+              ? mergeToolCallSnapshot(existing.toolCall, item.toolCall)
+              : item.toolCall ?? existing.toolCall
+        }
+      : { ...item, createdAt: existing.createdAt };
+  return next;
+}
 
-  mergedEvents.forEach((event) => {
-    if (event.event_type === "reasoning_update") {
-      const normalized = (event.message || "").trim();
-      if (!normalized) {
-        return;
-      }
-      timeline.push({
-        type: "reasoning_update",
-        key: event.id,
-        message: normalized,
-        source: event.source ?? "tool_call",
-        createdAt: event.created_at,
-        durationMs: event.reasoning_duration_ms ?? null
+export function reconcileLiveActivityLedgerToolCalls(
+  ledger: RunActivityItem[],
+  toolCalls: RunToolCall[]
+): RunActivityItem[] {
+  const toolCallById = new Map(mergeRunToolCalls(toolCalls).map((toolCall) => [toolCall.id, toolCall]));
+  return ledger.map((item) => {
+    if (item.type !== "tool_call") {
+      return item;
+    }
+    const latest = toolCallById.get(item.toolCallId);
+    if (!latest) {
+      return item;
+    }
+    return {
+      ...item,
+      toolCall: latest,
+      createdAt: item.createdAt
+    };
+  });
+}
+
+export function buildLiveRunActivityItems(
+  runs: AgentRun[],
+  getOptimistic: (runId: string) => { steps: AgentRunStep[]; toolCalls: RunToolCall[] },
+  liveLedgerByRunId: Record<string, RunActivityItem[]>
+): RunActivityItem[] {
+  const merged: RunActivityItem[] = [];
+  sortRunsByCreatedAt(runs).forEach((run) => {
+    const { steps: optSteps, toolCalls: optToolCalls } = getOptimistic(run.id);
+    const mergedToolCalls = mergeRunToolCalls(run.tool_calls, optToolCalls);
+    const ledger = liveLedgerByRunId[run.id] ?? [];
+    if (ledger.length > 0) {
+      const reconciledLedger = reconcileLiveActivityLedgerToolCalls(ledger, mergedToolCalls);
+      reconciledLedger.forEach((item) => {
+        merged.push({
+          ...item,
+          key: `${run.id}:${item.key}`
+        });
       });
       return;
     }
+    const mergedSteps = mergeRunSteps(run.steps, optSteps);
+    const mergedRunItems = buildRunTimelineFromProjections(mergedSteps, mergedToolCalls);
+    mergedRunItems.sort((left, right) => byTimestamp(left.createdAt, right.createdAt));
+    mergedRunItems.forEach((item) => {
+      merged.push({
+        ...item,
+        key: `${run.id}:${item.key}`
+      });
+    });
+  });
+  return merged;
+}
 
-    if (!isToolLifecycleEventType(event.event_type) || !event.tool_call_id) {
-      return;
+function toolCallsForStep(stepId: string, toolCalls: RunToolCall[]): RunToolCall[] {
+  return toolCalls.filter((toolCall) => toolCall.step_id === stepId);
+}
+
+export function buildRunTimelineFromProjections(steps: AgentRunStep[], toolCalls: RunToolCall[]): RunActivityItem[] {
+  const mergedSteps = sortedSteps(steps);
+  const mergedToolCalls = mergeRunToolCalls(toolCalls);
+  const toolCallById = new Map(mergedToolCalls.map((toolCall) => [toolCall.id, toolCall]));
+  const timeline: RunActivityItem[] = [];
+
+  mergedSteps.forEach((step) => {
+    const reasoning = (step.reasoning_text ?? "").trim();
+    if (reasoning) {
+      timeline.push({
+        type: "reasoning_step",
+        key: `${step.id}:reasoning`,
+        runId: step.run_id,
+        stepId: step.id,
+        message: reasoning,
+        durationMs: step.reasoning_duration_ms ?? null,
+        createdAt: step.created_at
+      });
     }
 
-    const existingItem = seenToolItems.get(event.tool_call_id);
-    if (existingItem) {
-      existingItem.toolCall = existingItem.toolCall ?? toolCallById.get(event.tool_call_id) ?? null;
-      existingItem.lifecycleEventType = event.event_type;
-      existingItem.createdAt = event.created_at;
-      return;
-    }
+    toolCallsForStep(step.id, mergedToolCalls).forEach((toolCall) => {
+      timeline.push({
+        type: "tool_call",
+        key: toolCall.id,
+        runId: step.run_id,
+        toolCallId: toolCall.id,
+        toolCall: toolCallById.get(toolCall.id) ?? toolCall,
+        createdAt: toolCall.started_at ?? toolCall.completed_at ?? step.created_at
+      });
+    });
 
-    const item: RunActivityToolCallItem = {
-      type: "tool_call",
-      key: event.tool_call_id,
-      runId: event.run_id,
-      toolCallId: event.tool_call_id,
-      toolCall: toolCallById.get(event.tool_call_id) ?? null,
-      lifecycleEventType: event.event_type,
-      createdAt: event.created_at
-    };
-    seenToolItems.set(event.tool_call_id, item);
-    timeline.push(item);
+    const progressNote = (step.progress_note ?? "").trim();
+    if (progressNote) {
+      timeline.push({
+        type: "progress_note",
+        key: `${step.id}:progress`,
+        runId: step.run_id,
+        stepId: step.id,
+        message: progressNote,
+        createdAt: step.created_at
+      });
+    }
   });
 
+  const referencedToolIds = new Set(
+    timeline.filter((item): item is RunActivityToolCallItem => item.type === "tool_call").map((item) => item.toolCallId)
+  );
+  mergedToolCalls.forEach((toolCall) => {
+    if (referencedToolIds.has(toolCall.id)) {
+      return;
+    }
+    timeline.push({
+      type: "tool_call",
+      key: toolCall.id,
+      runId: toolCall.run_id,
+      toolCallId: toolCall.id,
+      toolCall,
+      createdAt: toolCall.started_at ?? toolCall.completed_at ?? toolCall.run_id
+    });
+  });
+
+  timeline.sort((left, right) => byTimestamp(left.createdAt, right.createdAt));
   return timeline;
 }
 
-export function countActivityMetrics(items: RunActivityItem[]): { toolCount: number; updateCount: number } {
+export function countActivityMetrics(items: RunActivityItem[]): {
+  toolCount: number;
+  updateCount: number;
+} {
+  const reasoningCount = items.filter((item) => item.type === "reasoning_step").length;
+  const noteCount = items.filter((item) => item.type === "progress_note" || item.type === "assistant_message").length;
   return {
     toolCount: items.filter((item) => item.type === "tool_call").length,
-    updateCount: items.filter((item) => item.type === "reasoning_update").length
+    updateCount: reasoningCount + noteCount
   };
 }
 
@@ -345,14 +486,14 @@ export function buildAgentWorkSeparatorLabel(runs: AgentRun[], items: RunActivit
 
 export function mergeRunActivityItems(
   runs: AgentRun[],
-  getOptimistic: (runId: string) => { events: AgentRunEvent[]; toolCalls: RunToolCall[] }
+  getOptimistic: (runId: string) => { steps: AgentRunStep[]; toolCalls: RunToolCall[] }
 ): RunActivityItem[] {
   const merged: RunActivityItem[] = [];
   sortRunsByCreatedAt(runs).forEach((run) => {
-    const { events: optEvents, toolCalls: optToolCalls } = getOptimistic(run.id);
-    const mergedEvents = mergeRunEvents(run.events, optEvents);
+    const { steps: optSteps, toolCalls: optToolCalls } = getOptimistic(run.id);
+    const mergedSteps = mergeRunSteps(run.steps, optSteps);
     const mergedToolCalls = mergeRunToolCalls(run.tool_calls, optToolCalls);
-    const items = buildRunTimelineFromEvents(mergedEvents, mergedToolCalls);
+    const items = buildRunTimelineFromProjections(mergedSteps, mergedToolCalls);
     items.forEach((item) => {
       merged.push({
         ...item,
@@ -364,40 +505,40 @@ export function mergeRunActivityItems(
   return merged;
 }
 
-export function toolLifecycleLabel(eventType: ToolLifecycleEventType): string {
-  switch (eventType) {
-    case "tool_call_queued":
+export function toolStatusLabel(status: AgentToolCallStatus): string {
+  switch (status) {
+    case "queued":
       return "Queued";
-    case "tool_call_started":
+    case "running":
       return "Running";
-    case "tool_call_completed":
+    case "ok":
       return "Completed";
-    case "tool_call_failed":
+    case "error":
       return "Failed";
-    case "tool_call_cancelled":
+    case "cancelled":
       return "Cancelled";
   }
 }
 
-export function toolLifecycleStatusClass(eventType: ToolLifecycleEventType): string {
-  switch (eventType) {
-    case "tool_call_queued":
+export function toolStatusClass(status: AgentToolCallStatus): string {
+  switch (status) {
+    case "queued":
       return "is-queued";
-    case "tool_call_started":
+    case "running":
       return "is-running";
-    case "tool_call_completed":
+    case "ok":
       return "is-completed";
-    case "tool_call_failed":
+    case "error":
       return "is-failed";
-    case "tool_call_cancelled":
+    case "cancelled":
       return "is-cancelled";
   }
 }
 
-export function isToolLifecycleTerminal(eventType: ToolLifecycleEventType): boolean {
-  return (
-    eventType === "tool_call_completed" ||
-    eventType === "tool_call_failed" ||
-    eventType === "tool_call_cancelled"
-  );
+export function isToolStatusTerminal(status: AgentToolCallStatus): boolean {
+  return status === "ok" || status === "error" || status === "cancelled";
+}
+
+export function runErrorText(run: AgentRun): string | null {
+  return run.error_detail?.trim() || run.error_code?.trim() || null;
 }

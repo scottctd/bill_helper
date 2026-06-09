@@ -5,18 +5,18 @@
 # - Side effects: module-defined persistence, validation, or orchestration behavior.
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from backend.enums_agent import AgentMessageRole
 from backend.models_agent import (
     AgentChangeItem,
-    AgentMessage,
     AgentReviewAction,
     AgentRun,
+    AgentTranscriptMessage,
 )
+from backend.enums_agent import AgentTranscriptRole
 from backend.services.agent.proposal_metadata import proposal_metadata_for_change_type
 
 
@@ -47,39 +47,22 @@ def _proposal_cli_command_for_change_type(change_type_value: str) -> str:
     return proposal_metadata_for_change_type(change_type_value).cli_command
 
 
-def build_review_results_prefix_for_current_turn(
-    db: Session,
-    *,
-    thread_id: str,
-    history: list[AgentMessage],
-    current_user_message_id: str | None,
-) -> str | None:
-    if not current_user_message_id:
-        return None
-
-    current_user = next(
-        (
-            message
-            for message in history
-            if message.id == current_user_message_id and message.role == AgentMessageRole.USER
-        ),
-        None,
+def build_review_results_prefix_for_thread(db: Session, *, thread_id: str) -> str | None:
+    latest_user_created_at = db.scalar(
+        select(AgentTranscriptMessage.created_at)
+        .join(AgentRun, AgentRun.id == AgentTranscriptMessage.run_id)
+        .where(
+            AgentRun.thread_id == thread_id,
+            AgentTranscriptMessage.role == AgentTranscriptRole.USER,
+        )
+        .order_by(AgentTranscriptMessage.created_at.desc())
+        .limit(1)
     )
-    if current_user is None:
-        return None
-
-    previous_user_messages = [
-        message
-        for message in history
-        if message.role == AgentMessageRole.USER and message.created_at < current_user.created_at
-    ]
-    start_exclusive = previous_user_messages[-1].created_at if previous_user_messages else None
-
     actions = _review_window_actions(
         db,
         thread_id=thread_id,
-        start_exclusive=start_exclusive,
-        end_inclusive=current_user.created_at,
+        start_exclusive=latest_user_created_at,
+        end_inclusive=datetime.now(timezone.utc),
     )
     if not actions:
         return None

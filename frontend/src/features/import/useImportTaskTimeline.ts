@@ -13,7 +13,7 @@ import { getAgentThread, getRuntimeSettings, interruptAgentRun } from "../../lib
 import { invalidateAgentThreadData } from "../../lib/queryInvalidation";
 import { queryKeys } from "../../lib/queryKeys";
 import type { AgentThreadDetail, AgentThreadSummary } from "../../lib/types";
-import { runsByAssistantMessage, runsWithoutAssistantMessage, runsWithoutAssistantMessageByUserMessage } from "../agent/activity";
+import { pendingRuns, runById } from "../agent/activity";
 import { useAgentComposerRuntime } from "../agent/panel/useAgentComposerRuntime";
 
 export function useImportTaskTimeline(threadId: string, enabled: boolean) {
@@ -115,24 +115,13 @@ export function useImportTaskTimeline(threadId: string, enabled: boolean) {
     threadDetail: threadQuery.data
   });
 
-  const runsByAssistantMessageId = useMemo(
-    () => runsByAssistantMessage(threadQuery.data),
-    [threadQuery.data]
-  );
-  const pendingAssistantRuns = useMemo(
-    () => runsWithoutAssistantMessage(threadQuery.data),
-    [threadQuery.data]
-  );
-  const pendingAssistantRunsByUserMessageId = useMemo(
-    () => runsWithoutAssistantMessageByUserMessage(threadQuery.data),
-    [threadQuery.data]
-  );
+  const runsById = useMemo(() => runById(threadQuery.data), [threadQuery.data]);
+  const pendingAssistantRuns = useMemo(() => pendingRuns(threadQuery.data), [threadQuery.data]);
 
   return {
     threadQuery,
-    runsByAssistantMessageId,
+    runsById,
     pendingAssistantRuns,
-    pendingAssistantRunsByUserMessageId,
     composer: runtime.composer,
     timeline: runtime.timeline
   };

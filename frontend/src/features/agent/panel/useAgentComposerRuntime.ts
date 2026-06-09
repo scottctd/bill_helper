@@ -171,7 +171,7 @@ export function useAgentComposerRuntime({
     threadDetail
   });
   const {
-    activeOptimisticEvents,
+    activeOptimisticSteps,
     activeOptimisticToolCalls,
     activeStreamReasoningText,
     activeStreamRunId,
@@ -180,7 +180,8 @@ export function useAgentComposerRuntime({
     handleAgentStreamEvent,
     handleHydrateToolCall,
     hydratingToolCallIds,
-    optimisticRunEventsByRunId,
+    liveActivityLedgerByRunId,
+    optimisticStepsByRunId,
     optimisticToolCallsByRunId,
     pendingRunAttachedToOptimisticMessage,
     resetOptimisticRunState,
@@ -248,12 +249,12 @@ export function useAgentComposerRuntime({
   }, [availableComposerModels, composerModelOverride]);
 
   useEffect(() => {
-    if (!selectedThreadId || !threadDetail?.messages || lastSnappedThreadRef.current === selectedThreadId) {
+    if (!selectedThreadId || !threadDetail?.turns || lastSnappedThreadRef.current === selectedThreadId) {
       return;
     }
     lastSnappedThreadRef.current = selectedThreadId;
     requestAnimationFrame(() => snapToBottom());
-  }, [selectedThreadId, snapToBottom, threadDetail?.messages]);
+  }, [selectedThreadId, snapToBottom, threadDetail?.turns]);
 
   useEffect(() => {
     autoSizeComposerTextarea();
@@ -273,33 +274,25 @@ export function useAgentComposerRuntime({
     if (!pendingUserMessage || pendingUserMessage.threadId !== selectedThreadId) {
       return;
     }
-    const latestPersistedUserMessage = [...(threadDetail?.messages ?? [])]
-      .reverse()
-      .find((message) => message.role === "user");
-    if (!latestPersistedUserMessage || latestPersistedUserMessage.id === pendingUserMessage.baselineLastUserMessageId) {
+    const latestTurn = [...(threadDetail?.turns ?? [])].sort((left, right) => right.turn_index - left.turn_index)[0];
+    if (!latestTurn || latestTurn.run_id === pendingUserMessage.baselineLastTurnRunId) {
       return;
     }
     setPendingUserMessage(selectedThreadId, null);
-  }, [pendingUserMessage, selectedThreadId, threadDetail?.messages]);
+  }, [pendingUserMessage, selectedThreadId, threadDetail?.turns]);
 
   useEffect(() => {
     if (!pendingAssistantMessage || pendingAssistantMessage.threadId !== selectedThreadId) {
       return;
     }
-    const latestPersistedAssistantMessage = [...(threadDetail?.messages ?? [])]
-      .reverse()
-      .find((message) => message.role === "assistant");
-    if (
-      !latestPersistedAssistantMessage ||
-      latestPersistedAssistantMessage.id === pendingAssistantMessage.baselineLastAssistantMessageId
-    ) {
+    const latestTurn = [...(threadDetail?.turns ?? [])].sort((left, right) => right.turn_index - left.turn_index)[0];
+    if (!latestTurn || latestTurn.run_id === pendingAssistantMessage.baselineLastTurnRunId) {
       return;
     }
-    // Drop the optimistic bubble once the real assistant row exists; keep stream buffers until
-    // the SSE finishes (handleSubmitSingleMessage) or the user stops the run — resetting here
-    // cleared streamed text while the run was still in flight.
+    // Turn is anchored in thread detail — render live activity on that card instead of a
+    // second optimistic assistant bubble. Stream buffers stay in session state until SSE ends.
     setPendingAssistantMessage(selectedThreadId, null);
-  }, [pendingAssistantMessage, selectedThreadId, threadDetail?.messages]);
+  }, [pendingAssistantMessage, selectedThreadId, threadDetail?.turns]);
 
   useEffect(() => {
     if (
@@ -311,13 +304,11 @@ export function useAgentComposerRuntime({
       return;
     }
     setPendingAssistantMessage(selectedThreadId, null);
-    resetOptimisticRunState(selectedThreadId);
     setThreadStreamHealthy(selectedThreadId, false);
   }, [
     isRunInFlight,
     pendingAssistantMessage,
     pendingUserMessage,
-    resetOptimisticRunState,
     selectedThreadId,
     setThreadStreamHealthy
   ]);
@@ -399,7 +390,7 @@ export function useAgentComposerRuntime({
       selectedModel: selectedComposerModel
     },
     timeline: {
-      activeOptimisticEvents,
+      activeOptimisticSteps,
       activeOptimisticToolCalls,
       activeStreamRunId,
       activeStreamReasoningText,
@@ -408,7 +399,8 @@ export function useAgentComposerRuntime({
       hydratingToolCallIds,
       isAtBottom,
       onHydrateToolCall: handleHydrateToolCall,
-      optimisticRunEventsByRunId,
+      liveActivityLedgerByRunId,
+      optimisticStepsByRunId,
       optimisticToolCallsByRunId,
       pendingAssistantMessage,
       pendingRunAttachedToOptimisticMessage,

@@ -44,7 +44,7 @@ class UserFile(Base):
         nullable=False,
     )
 
-    attachments: Mapped[list["AgentMessageAttachment"]] = relationship(
+    transcript_attachments: Mapped[list["AgentTranscriptAttachment"]] = relationship(
         back_populates="user_file",
         passive_deletes=True,
     )

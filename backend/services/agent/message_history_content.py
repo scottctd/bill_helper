@@ -1,22 +1,23 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `message_history_content`.
-# - Inputs: callers that import `backend/services/agent/message_history_content.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `message_history_content`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: build entity-category context and multimodal user content for harness transcripts.
+# - Inputs: SQLAlchemy session, transcript rows, review prefixes, attachment rows.
+# - Outputs: entity context strings and OpenAI-style user content parts.
+# - Side effects: reads taxonomy and attachment files from disk.
 from __future__ import annotations
 
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from backend.models_agent import AgentMessage
+from backend.models_agent import AgentTranscriptAttachment, AgentTranscriptMessage
 from backend.services.agent import attachment_content
+from backend.services.agent.serializers import content_markdown_from_transcript_row
 from backend.services.taxonomy import list_term_name_description_pairs
 
 
 def _compose_user_feedback_text(
-    message: AgentMessage,
     *,
+    content_markdown: str,
     review_results_prefix: str | None,
 ) -> str:
     prefixes = [
@@ -25,8 +26,8 @@ def _compose_user_feedback_text(
         if isinstance(prefix, str) and prefix.strip()
     ]
     if not prefixes:
-        return message.content_markdown
-    feedback = message.content_markdown.strip() or "(none)"
+        return content_markdown
+    feedback = content_markdown.strip() or "(none)"
     return f"{'\n\n'.join(prefixes)}\n\nUser feedback:\n{feedback}"
 
 
@@ -51,23 +52,50 @@ def build_entity_category_context(db: Session, *, owner_user_id: str | None) -> 
 
 
 def build_user_content(
-    message: AgentMessage,
+    message: AgentTranscriptMessage,
     *,
     model_name: str | None = None,
     review_results_prefix: str | None = None,
+    attachments_use_ocr: bool = False,
 ) -> str | list[dict[str, Any]]:
     content_text = _compose_user_feedback_text(
-        message,
+        content_markdown=content_markdown_from_transcript_row(message),
         review_results_prefix=review_results_prefix,
     )
-    if not message.attachments:
+    attachments = list(message.attachments or [])
+    if not attachments:
         return content_text
 
     parts = attachment_content.assemble_attachment_parts(
-        message.attachments,
-        use_ocr=False,
+        attachments,
+        use_ocr=attachments_use_ocr,
     )
 
+    if content_text.strip():
+        parts.append({"type": "text", "text": content_text})
+    if parts:
+        return parts
+    return content_text or "User sent attachments."
+
+
+def build_user_content_from_attachments(
+    attachments: list[AgentTranscriptAttachment],
+    *,
+    content_markdown: str = "",
+    review_results_prefix: str | None = None,
+    attachments_use_ocr: bool = False,
+) -> str | list[dict[str, Any]]:
+    content_text = _compose_user_feedback_text(
+        content_markdown=content_markdown,
+        review_results_prefix=review_results_prefix,
+    )
+    if not attachments:
+        return content_text
+
+    parts = attachment_content.assemble_attachment_parts(
+        attachments,
+        use_ocr=attachments_use_ocr,
+    )
     if content_text.strip():
         parts.append({"type": "text", "text": content_text})
     if parts:

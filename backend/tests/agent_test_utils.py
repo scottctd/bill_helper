@@ -9,11 +9,16 @@ import pymupdf
 
 def patch_model(monkeypatch, handler: Any) -> None:
     from backend.services.agent import runtime
+    from backend.services.agent.model_gateway import LiteLLMModelGateway, StreamingLiteLLMModelGateway
+    from backend.services.agent.model_gateway_support.conversion import (
+        canonical_transcript_to_provider,
+        provider_response_to_decision,
+    )
 
-    def wrapped(messages, _db, **_kwargs):
+    def wrapped(messages, **_kwargs):
         return handler(messages)
 
-    def wrapped_stream(messages, _db, **_kwargs):
+    def wrapped_stream(messages, **_kwargs):
         message = handler(messages)
         reasoning = str(message.get("reasoning") or "").strip()
         if reasoning:
@@ -23,8 +28,96 @@ def patch_model(monkeypatch, handler: Any) -> None:
             yield {"type": "text_delta", "delta": content}
         yield {"type": "done", "message": message}
 
-    monkeypatch.setattr(runtime, "call_model", wrapped)
-    monkeypatch.setattr(runtime, "call_model_stream", wrapped_stream)
+    def hydrated_transcript(gateway_self, request):
+        from backend.services.agent.model_gateway_support.transcript_hydration import (
+            hydrate_transcript_user_attachments,
+        )
+
+        transcript = request.transcript
+        run_id = str(request.trace_metadata.get("run_id") or getattr(gateway_self, "_run_id", "") or "")
+        if run_id:
+            transcript = hydrate_transcript_user_attachments(
+                gateway_self._db,
+                run_id=run_id,
+                transcript=transcript,
+                attachments_use_ocr=False,
+            )
+        return transcript
+
+    def gateway_complete(self, request, **_kwargs):
+        response = wrapped(canonical_transcript_to_provider(hydrated_transcript(self, request)))
+        return provider_response_to_decision(
+            response,
+            provider_model=request.model_params.model_name,
+        )
+
+    def gateway_stream_complete(self, request, **_kwargs):
+        from backend.services.agent.harness.contracts import ModelDeltaEvent
+
+        step_index = int(request.trace_metadata.get("step_index") or self._step_index)
+        final_message: dict[str, Any] | None = None
+        for chunk in wrapped_stream(canonical_transcript_to_provider(hydrated_transcript(self, request))):
+            chunk_type = chunk.get("type")
+            if chunk_type == "reasoning_delta":
+                self._event_sink.publish(
+                    ModelDeltaEvent(
+                        run_id=self._run_id,
+                        step_index=step_index,
+                        delta_type="reasoning",
+                        text=str(chunk.get("delta") or ""),
+                    )
+                )
+            elif chunk_type == "text_delta":
+                self._event_sink.publish(
+                    ModelDeltaEvent(
+                        run_id=self._run_id,
+                        step_index=step_index,
+                        delta_type="content",
+                        text=str(chunk.get("delta") or ""),
+                    )
+                )
+            elif chunk_type == "done":
+                final_message = chunk.get("message") or {}
+        if final_message is None:
+            raise RuntimeError("streaming model response ended without done event")
+        return provider_response_to_decision(
+            final_message,
+            provider_model=request.model_params.model_name,
+        )
+
+    monkeypatch.setattr(LiteLLMModelGateway, "complete", gateway_complete)
+    monkeypatch.setattr(StreamingLiteLLMModelGateway, "complete", gateway_stream_complete)
+    monkeypatch.setattr(runtime, "call_model", lambda messages, _db, **kwargs: wrapped(messages, **kwargs))
+    monkeypatch.setattr(
+        runtime,
+        "call_model_stream",
+        lambda messages, _db, **kwargs: wrapped_stream(messages, **kwargs),
+    )
+    for target in (
+        "backend.services.agent.model_client.LiteLLMModelClient",
+        "backend.services.agent.model_client_support.client.LiteLLMModelClient",
+    ):
+        monkeypatch.setattr(f"{target}.complete", lambda self, messages, **kwargs: wrapped(messages, **kwargs))
+        monkeypatch.setattr(
+            f"{target}.complete_stream",
+            lambda self, messages, **kwargs: wrapped_stream(messages, **kwargs),
+        )
+
+
+def sse_text_deltas(events: list[dict]) -> str:
+    return "".join(
+        event.get("text", "")
+        for event in events
+        if event.get("type") == "model_delta" and event.get("delta_type") == "content"
+    )
+
+
+def sse_reasoning_deltas(events: list[dict]) -> list[str]:
+    return [
+        event.get("text", "")
+        for event in events
+        if event.get("type") == "model_delta" and event.get("delta_type") == "reasoning"
+    ]
 
 
 def create_thread(client) -> dict:
@@ -128,6 +221,26 @@ def create_tag(
     response = client.post("/api/v1/tags", json=payload)
     response.raise_for_status()
     return response.json()
+
+
+def turn_message_roles(detail: dict) -> list[str]:
+    roles: list[str] = []
+    for turn in detail.get("turns", []):
+        roles.append(turn["user_message"]["role"])
+        assistant = turn.get("assistant_message")
+        if assistant is not None:
+            roles.append(assistant["role"])
+    return roles
+
+
+def flatten_turn_messages(detail: dict) -> list[dict]:
+    messages: list[dict] = []
+    for turn in detail.get("turns", []):
+        messages.append(turn["user_message"])
+        assistant = turn.get("assistant_message")
+        if assistant is not None:
+            messages.append(assistant)
+    return messages
 
 
 def flatten_user_content(content: object) -> str:

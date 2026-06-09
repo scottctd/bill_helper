@@ -43,16 +43,18 @@ Bill Helper is a local-first personal finance ledger with AI-assisted, review-ga
 
 ## Agent Architecture
 
+Execution is harness-first: `AgentHarness` owns the bounded tool-calling loop, canonical transcript commits, step boundaries, and harness event publication. HTTP and background callers go through `production_runtime.py`, which composes the harness with SQLAlchemy persistence, LiteLLM model gateways, production tool execution, and stream fan-out.
+
 ## Run Lifecycle
 
-1. user sends message to `/api/v1/agent/threads/{thread_id}/messages` (background) or `/api/v1/agent/threads/{thread_id}/messages/stream` (SSE)
-2. backend persists user message and attachments
-3. backend creates `agent_runs` row (`running`)
-4. runtime executes bounded tool-calling loop via LiteLLM using configured provider model
-5. each tool call is persisted to `agent_tool_calls`
+1. user sends a turn to `/api/v1/agent/threads/{thread_id}/messages` (background) or `/api/v1/agent/threads/{thread_id}/messages/stream` (SSE)
+2. `execution.py` builds the new-turn `initial_transcript` from prior canonical transcript rows plus the fresh user message and attachments
+3. `SqlAlchemyRunRepository` creates an `agent_runs` row (`running`) with a monotonic `turn_index` and seeds `agent_transcript_messages`
+4. `AgentHarness.run` / `resume` loops model steps until the assistant finishes without tool requests, hits `max_steps`, is interrupted, or fails
+5. each committed model step persists an `agent_steps` row, assistant/tool transcript rows, `agent_tool_calls`, and ordered `agent_run_events`
 6. `bh` proposal commands create `agent_change_items` (`PENDING_REVIEW`)
-7. stream path emits incremental `text_delta` plus persisted `run_event` payloads (run start/finish, reasoning updates, and per-tool lifecycle events)
-8. runtime enforces a final assistant message and marks run `completed` or `failed`
+7. stream paths emit ephemeral `model_delta` SSE events plus durable harness events (`tool_started`, `tool_finished`, `step_committed`, `run_finished`, ...)
+8. terminal runs set `final_transcript_message_id`, usage counters, and a terminal `AgentRunStatus` (`completed`, `interrupted`, `max_steps`, or `failed`)
 
 ## Review Boundary
 
@@ -83,24 +85,28 @@ Contract notes:
 - proposal lifecycle remains review-gated even though the agent now reaches it through CLI commands instead of direct proposal tools
 - thread-scoped proposal commands require the active thread and run context so proposal history stays attached to the invoking run
 
-## Agent Internal Boundaries (Refactor Baseline)
+## Agent Internal Boundaries (Harness-First)
 
-- `runtime.py`: public runtime facade and stable model-call monkeypatch seam (`call_model`, `call_model_stream`, `calculate_context_tokens`)
-- `runtime_support/`: grouped run-lifecycle and tool-turn internals behind the runtime facade
-- `runtime_state.py`: runtime event/tool-call/terminal-state persistence helpers
-- `run_orchestrator.py`: shared step-state machine used by runtime sync/stream flows and benchmark adapters
-- `message_history.py`: public thread-to-model message assembly facade
+- `harness/`: product-native coordinator (`AgentHarness`), contracts, transcript helpers, step executor, and `EventSink` / `RunRepository` protocols
+- `production_runtime.py`: compose production harness with DB repository, model gateway, tools, stop signal, and SSE fan-out
+- `production_repository.py`: SQLAlchemy `RunRepository` that persists canonical transcript rows, steps, tool calls, and harness events
+- `production_events.py`: map harness events to client SSE payloads
+- `model_gateway.py`: LiteLLM completion adapters (streaming emits `ModelDeltaEvent` into the harness event sink)
+- `thread_context.py`: build per-turn `initial_transcript` from prior canonical transcript rows and prompt context
+- `api_projection.py`: derive API `turns` and thread-detail read models from transcript rows plus per-run `steps` / `events` / `tool_calls`
+- `execution.py`: HTTP/background intake for user turns and harness run startup
+- `runtime.py`: public facade over harness execution plus stable model-call monkeypatch seams (`call_model`, `call_model_stream`, `calculate_context_tokens`)
+- `stream_hub.py`: in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers
 - `message_history_content.py`: attachment-backed user-content shaping and entity-category prompt context
-- `message_history_prefixes.py`: review-window queries for the current turn
-- `message_history_turn_context.py`: rebuild append-only per-turn LLM context for conversation history
-- `attachment_content.py`: public attachment-content seam plus vision capability checks used by attachment helpers and `read_image`
+- `message_history_prefixes.py`: review-result prefix assembly for the current turn
+- `attachment_content.py`: public attachment-content seam plus vision capability checks
 - `docling_convert.py` / `agent_attachment_bundle.py`: Docling-based agent attachment parsing and bundle layout
-- `attachment_content_assembly.py`: attachment part assembly and workspace image-path hint helpers
+- `attachment_content_assembly.py`: attachment part assembly helpers
 - `user_context.py`: current-user/account context normalization and truncation for prompt assembly
 - `model_client.py`: thin public seam for the LiteLLM client contract
-- `model_client_support/`: grouped environment, streaming, usage-normalization, and retrying client internals behind the public model-client seam
+- `model_client_support/`: grouped environment, streaming, usage-normalization, and retrying client internals
 - `tool_runtime.py`: thin public seam for tool contracts and execution entrypoints
-- `tool_runtime_support/`: grouped tool metadata, schema-building, family registries, and retry/error policy behind the public tool-runtime seam
+- `tool_runtime_support/`: grouped tool metadata, schema-building, family registries, and retry/error policy
 - `apply/`: change-type apply package for review-time resource application
 - `reviews/`: approval/rejection transitions, dependency checks, override normalization, and audit writes
 - `benchmark_interface.py`: benchmark-facing case execution contract returning normalized predictions/trace payloads

@@ -53,12 +53,12 @@ Primary tables:
 - `taxonomies`, `taxonomy_terms`, `taxonomy_assignments`: reusable categorical system for entities/tags.
 - `sessions`: password-backed bearer sessions stored as hashed token digests.
 
-Agent review tables:
+Agent harness and review tables:
 
-- `agent_threads`, `agent_messages`, `agent_runs`, `agent_tool_calls`
-- `agent_change_items`, `agent_review_actions`, `agent_message_attachments`
+- `agent_threads`, `agent_runs`, `agent_transcript_messages`, `agent_steps`, `agent_tool_calls`, `agent_run_events`
+- `agent_change_items`, `agent_review_actions`, `agent_transcript_attachments`
 - `agent_threads.owner_user_id` scopes the agent timeline and all nested run resources to a specific user
-- attachment rows now reference canonical `user_files` records under `{data_dir}/user_files/{user_id}/uploads/...`
+- transcript attachment rows reference canonical `user_files` records under `{data_dir}/user_files/{user_id}/uploads/...`
 
 Note: entry-level status has been removed; review state lives in `agent_change_items`.
 
@@ -131,8 +131,12 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
   - `backend/services/filter_group_rules.py`
   - `backend/services/finance.py`
 - Agent services:
+  - `backend/services/agent/harness/`
+  - `backend/services/agent/production_runtime.py`
+  - `backend/services/agent/production_repository.py`
+  - `backend/services/agent/model_gateway.py`
+  - `backend/services/agent/thread_context.py`
   - `backend/services/agent/runtime.py`
-  - `backend/services/agent/runtime_loop.py`
   - `backend/services/agent/tool_runtime.py`
   - `backend/services/agent/read_tools/`
   - `backend/services/agent/proposals/`

@@ -49,8 +49,19 @@ class TelegramStreamConsumer:
     async def consume_event(self, event: StreamEvent) -> None:
         if event.run_id and self.run_id is None:
             self.run_id = event.run_id
-        if event.event == "text_delta":
-            delta = str(event.payload.get("delta") or "")
+        if event.event in {"text_delta", "model_delta"}:
+            delta = str(
+                event.payload.get("delta")
+                or event.payload.get("text")
+                or ""
+            )
+            if event.event == "model_delta" and event.payload.get("delta_type") == "reasoning":
+                message = delta.strip()
+                if message:
+                    self._status_line = message
+                    if not self.assistant_text:
+                        await self._render_status_message(message)
+                return
             if not delta:
                 return
             self.assistant_text += delta

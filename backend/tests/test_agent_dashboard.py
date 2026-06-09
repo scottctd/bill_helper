@@ -5,8 +5,8 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from backend.database import build_engine
-from backend.enums_agent import AgentApprovalPolicy, AgentMessageRole, AgentRunStatus
-from backend.models_agent import AgentMessage, AgentRun, AgentThread
+from backend.enums_agent import AgentApprovalPolicy, AgentRunStatus
+from backend.models_agent import AgentRun, AgentThread
 from backend.services.agent.pricing import UsageCosts
 from backend.services.users import find_user_by_name
 
@@ -16,7 +16,7 @@ def _seed_agent_run(
     owner_user_id: str,
     thread_title: str,
     model_name: str,
-    surface: str,
+    origin: str,
     status: AgentRunStatus,
     created_at: datetime,
     input_tokens: int,
@@ -30,19 +30,14 @@ def _seed_agent_run(
             created_at=created_at,
             updated_at=created_at,
         )
-        user_message = AgentMessage(
-            thread=thread,
-            role=AgentMessageRole.USER,
-            content_markdown="seeded prompt",
-            created_at=created_at,
-        )
         run = AgentRun(
             thread=thread,
-            user_message=user_message,
+            turn_index=0,
             status=status,
             model_name=model_name,
+            principal_user_id=owner_user_id,
             approval_policy=AgentApprovalPolicy.DEFAULT,
-            surface=surface,
+            origin=origin,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cache_read_tokens=cache_read_tokens,
@@ -50,7 +45,7 @@ def _seed_agent_run(
             created_at=created_at,
             completed_at=created_at + timedelta(minutes=1),
         )
-        db.add_all([thread, user_message, run])
+        db.add_all([thread, run])
         db.commit()
         db.refresh(run)
         return run
@@ -80,12 +75,12 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
         alice_user_id = alice.id
         bob_user_id = bob.id
 
-    recent_day = datetime(2026, 3, 14, 15, 0, tzinfo=timezone.utc)
+    recent_day = datetime.now(timezone.utc).replace(hour=15, minute=0, second=0, microsecond=0)
     _seed_agent_run(
         owner_user_id=alice_user_id,
         thread_title="Budget cleanup",
         model_name="gpt-4o",
-        surface="app",
+        origin="app",
         status=AgentRunStatus.COMPLETED,
         created_at=recent_day,
         input_tokens=100,
@@ -96,7 +91,7 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
         owner_user_id=alice_user_id,
         thread_title="Receipt OCR",
         model_name="claude-3-5-sonnet",
-        surface="app",
+        origin="app",
         status=AgentRunStatus.FAILED,
         created_at=recent_day - timedelta(days=1),
         input_tokens=50,
@@ -107,7 +102,7 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
         owner_user_id=alice_user_id,
         thread_title="Telegram follow-up",
         model_name="gpt-4o",
-        surface="telegram",
+        origin="telegram",
         status=AgentRunStatus.COMPLETED,
         created_at=recent_day - timedelta(days=22),
         input_tokens=80,
@@ -118,7 +113,7 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
         owner_user_id=alice_user_id,
         thread_title="Old thread",
         model_name="gpt-4o",
-        surface="app",
+        origin="app",
         status=AgentRunStatus.COMPLETED,
         created_at=datetime(2025, 10, 1, 9, 0, tzinfo=timezone.utc),
         input_tokens=999,
@@ -129,7 +124,7 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
         owner_user_id=bob_user_id,
         thread_title="Bob private run",
         model_name="gpt-4o",
-        surface="app",
+        origin="app",
         status=AgentRunStatus.COMPLETED,
         created_at=recent_day,
         input_tokens=500,
@@ -148,9 +143,9 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
     assert payload["range_key"] == "90d"
     assert payload["granularity"] == "week"
     assert payload["available_models"] == ["claude-3-5-sonnet", "gpt-4o"]
-    assert payload["available_surfaces"] == ["app", "telegram"]
+    assert payload["available_origins"] == ["app", "telegram"]
     assert payload["selected_models"] == []
-    assert payload["selected_surfaces"] == []
+    assert payload["selected_origins"] == []
 
     metrics = payload["metrics"]
     assert metrics["total_run_count"] == 3
@@ -177,11 +172,11 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
     assert model_breakdown["gpt-4o"]["total_cost_usd"] == 0.22
     assert model_breakdown["claude-3-5-sonnet"]["failed_run_count"] == 1
 
-    surface_breakdown = {row["surface"]: row for row in payload["surface_breakdown"]}
-    assert surface_breakdown["app"]["run_count"] == 2
-    assert surface_breakdown["app"]["total_cost_usd"] == 0.18
-    assert surface_breakdown["telegram"]["run_count"] == 1
-    assert surface_breakdown["telegram"]["total_cost_usd"] == 0.1
+    origin_breakdown = {row["origin"]: row for row in payload["origin_breakdown"]}
+    assert origin_breakdown["app"]["run_count"] == 2
+    assert origin_breakdown["app"]["total_cost_usd"] == 0.18
+    assert origin_breakdown["telegram"]["run_count"] == 1
+    assert origin_breakdown["telegram"]["total_cost_usd"] == 0.1
 
     token_distribution = {row["label"]: row for row in payload["token_distribution"]}
     assert token_distribution["Input"]["token_count"] == 230
@@ -202,7 +197,7 @@ def test_agent_dashboard_aggregates_usage_and_respects_filters(client, auth_head
     assert filtered_payload["range_key"] == "all"
     assert filtered_payload["granularity"] == "month"
     assert filtered_payload["selected_models"] == ["gpt-4o"]
-    assert filtered_payload["selected_surfaces"] == ["telegram"]
+    assert filtered_payload["selected_origins"] == ["telegram"]
     assert filtered_payload["metrics"]["total_run_count"] == 1
     assert filtered_payload["metrics"]["total_tokens"] == 100
     assert filtered_payload["top_runs"][0]["thread_title"] == "Telegram follow-up"

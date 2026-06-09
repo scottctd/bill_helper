@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: provide the `models_agent` module.
-# - Inputs: callers that import `backend/models_agent.py` and pass module-defined arguments or framework events.
-# - Outputs: module exports from `models_agent`.
-# - Side effects: module-local behavior only.
+# - Purpose: harness-first agent ORM models for threads, runs, transcript, steps, tools, events.
+# - Inputs: SQLAlchemy session operations from repositories and API routers.
+# - Outputs: mapped tables for canonical agent execution state.
+# - Side effects: database persistence through SQLAlchemy.
 from __future__ import annotations
 
 import logging
@@ -18,12 +18,12 @@ from backend.enums_agent import (
     AgentApprovalPolicy,
     AgentChangeStatus,
     AgentChangeType,
-    AgentMessageRole,
     AgentReviewActionType,
-    AgentRunEventSource,
     AgentRunEventType,
     AgentRunStatus,
+    AgentStepStatus,
     AgentToolCallStatus,
+    AgentTranscriptRole,
 )
 from backend.models_shared import utc_now, uuid_str
 
@@ -31,7 +31,6 @@ _logger = logging.getLogger(__name__)
 
 
 def _coerce_approval_policy(raw: object) -> AgentApprovalPolicy:
-    """Map DB/API strings to StrEnum; tolerate legacy ALL_CAPS or PG enum labels."""
     if isinstance(raw, AgentApprovalPolicy):
         return raw
     key = (str(raw) if raw is not None else "").strip().lower()
@@ -48,8 +47,6 @@ def _coerce_approval_policy(raw: object) -> AgentApprovalPolicy:
 
 
 class _AgentApprovalPolicyColumn(TypeDecorator):
-    """Persist as VARCHAR (`0039`); avoids SQLAlchemy/PG enum name vs StrEnum value mismatches (`default`/`yolo`)."""
-
     impl = String(32)
     cache_ok = True
 
@@ -83,11 +80,6 @@ class AgentThread(Base):
         nullable=False,
     )
 
-    messages: Mapped[list[AgentMessage]] = relationship(
-        back_populates="thread",
-        cascade="all, delete-orphan",
-        order_by="AgentMessage.created_at",
-    )
     runs: Mapped[list[AgentRun]] = relationship(
         back_populates="thread",
         cascade="all, delete-orphan",
@@ -100,49 +92,124 @@ class AgentThread(Base):
     )
 
 
-class AgentMessage(Base):
-    __tablename__ = "agent_messages"
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        UniqueConstraint("thread_id", "turn_index", name="uq_agent_runs_thread_turn"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    thread_id: Mapped[str] = mapped_column(
-        ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False, index=True
+    thread_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    role: Mapped[AgentMessageRole] = mapped_column(
-        Enum(AgentMessageRole), nullable=False, index=True
+    turn_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[AgentRunStatus] = mapped_column(
+        Enum(AgentRunStatus), nullable=False, index=True
     )
-    content_markdown: Mapped[str] = mapped_column(Text, nullable=False)
-    attachments_use_ocr: Mapped[bool] = mapped_column(
-        Boolean,
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    principal_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    principal_user_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    origin: Mapped[str] = mapped_column(String(64), nullable=False, default="app")
+    approval_policy: Mapped[AgentApprovalPolicy] = mapped_column(
+        _AgentApprovalPolicyColumn(),
         nullable=False,
-        default=True,
-        server_default=text("1"),
+        default=AgentApprovalPolicy.DEFAULT,
     )
+    max_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    final_transcript_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_transcript_messages.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_cost_usd: Mapped[float | None] = mapped_column(nullable=True)
+    output_cost_usd: Mapped[float | None] = mapped_column(nullable=True)
+    total_cost_usd: Mapped[float | None] = mapped_column(nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stop_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False, index=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    thread: Mapped[AgentThread | None] = relationship(back_populates="runs")
+    transcript_messages: Mapped[list[AgentTranscriptMessage]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="AgentTranscriptMessage.sequence_index",
+        foreign_keys="AgentTranscriptMessage.run_id",
+    )
+    steps: Mapped[list[AgentStep]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="AgentStep.step_index",
+    )
+    tool_calls: Mapped[list[AgentToolCall]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="AgentToolCall.call_index",
+    )
+    events: Mapped[list[AgentRunEvent]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="AgentRunEvent.sequence_index",
+    )
+    change_items: Mapped[list[AgentChangeItem]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="AgentChangeItem.created_at",
+    )
+
+
+class AgentTranscriptMessage(Base):
+    __tablename__ = "agent_transcript_messages"
+    __table_args__ = (
+        UniqueConstraint("run_id", "sequence_index", name="uq_agent_transcript_run_sequence"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[AgentTranscriptRole] = mapped_column(
+        Enum(AgentTranscriptRole), nullable=False, index=True
+    )
+    content_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    reasoning_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tool_request_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tool_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
 
-    thread: Mapped[AgentThread] = relationship(back_populates="messages")
-    attachments: Mapped[list[AgentMessageAttachment]] = relationship(
-        back_populates="message",
+    run: Mapped[AgentRun] = relationship(
+        back_populates="transcript_messages",
+        foreign_keys=[run_id],
+    )
+    attachments: Mapped[list[AgentTranscriptAttachment]] = relationship(
+        back_populates="transcript_message",
         cascade="all, delete-orphan",
-        order_by="AgentMessageAttachment.created_at",
-    )
-    user_runs: Mapped[list[AgentRun]] = relationship(
-        back_populates="user_message",
-        foreign_keys="AgentRun.user_message_id",
-    )
-    assistant_runs: Mapped[list[AgentRun]] = relationship(
-        back_populates="assistant_message",
-        foreign_keys="AgentRun.assistant_message_id",
+        order_by="AgentTranscriptAttachment.created_at",
     )
 
 
-class AgentMessageAttachment(Base):
-    __tablename__ = "agent_message_attachments"
+class AgentTranscriptAttachment(Base):
+    __tablename__ = "agent_transcript_attachments"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    message_id: Mapped[str] = mapped_column(
-        ForeignKey("agent_messages.id", ondelete="CASCADE"), nullable=False, index=True
+    transcript_message_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_transcript_messages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     user_file_id: Mapped[str] = mapped_column(
         ForeignKey("user_files.id", ondelete="CASCADE"), nullable=False, index=True
@@ -151,8 +218,8 @@ class AgentMessageAttachment(Base):
         DateTime(timezone=True), default=utc_now, nullable=False
     )
 
-    message: Mapped[AgentMessage] = relationship(back_populates="attachments")
-    user_file: Mapped["UserFile"] = relationship(back_populates="attachments")
+    transcript_message: Mapped[AgentTranscriptMessage] = relationship(back_populates="attachments")
+    user_file: Mapped["UserFile"] = relationship(back_populates="transcript_attachments")
 
     @property
     def mime_type(self) -> str:
@@ -167,6 +234,103 @@ class AgentMessageAttachment(Base):
         from backend.services.user_files import resolve_user_file_path
 
         return str(resolve_user_file_path(self.user_file))
+
+
+class AgentStep(Base):
+    __tablename__ = "agent_steps"
+    __table_args__ = (
+        UniqueConstraint("run_id", "step_index", name="uq_agent_steps_run_step"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    assistant_transcript_message_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_transcript_messages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[AgentStepStatus] = mapped_column(
+        Enum(AgentStepStatus), nullable=False, index=True
+    )
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    finish_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    diagnostic_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    run: Mapped[AgentRun] = relationship(back_populates="steps")
+    assistant_message: Mapped[AgentTranscriptMessage] = relationship(
+        foreign_keys=[assistant_transcript_message_id]
+    )
+    tool_calls: Mapped[list[AgentToolCall]] = relationship(
+        back_populates="step",
+        cascade="all, delete-orphan",
+        order_by="AgentToolCall.call_index",
+    )
+
+
+class AgentToolCall(Base):
+    __tablename__ = "agent_tool_calls"
+    __table_args__ = (
+        UniqueConstraint("step_id", "call_index", name="uq_agent_tool_calls_step_call"),
+        UniqueConstraint("run_id", "tool_request_id", name="uq_agent_tool_calls_run_request"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    step_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_steps.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    call_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    tool_request_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    arguments_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    status: Mapped[AgentToolCallStatus] = mapped_column(
+        Enum(AgentToolCallStatus), nullable=False, index=True
+    )
+    result_content_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    run: Mapped[AgentRun] = relationship(back_populates="tool_calls")
+    step: Mapped[AgentStep] = relationship(back_populates="tool_calls")
+
+
+class AgentRunEvent(Base):
+    __tablename__ = "agent_run_events"
+    __table_args__ = (
+        UniqueConstraint("run_id", "sequence_index", name="uq_agent_run_events_run_sequence"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[AgentRunEventType] = mapped_column(
+        Enum(AgentRunEventType), nullable=False, index=True
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    run: Mapped[AgentRun] = relationship(back_populates="events")
 
 
 class AgentSessionSource(Base):
@@ -193,136 +357,6 @@ class AgentSessionSource(Base):
 
     thread: Mapped[AgentThread] = relationship(back_populates="sources")
     user_file: Mapped["UserFile"] = relationship(back_populates="session_sources")
-
-
-class AgentRun(Base):
-    __tablename__ = "agent_runs"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    thread_id: Mapped[str] = mapped_column(
-        ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    user_message_id: Mapped[str] = mapped_column(
-        ForeignKey("agent_messages.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    assistant_message_id: Mapped[str | None] = mapped_column(
-        ForeignKey("agent_messages.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    status: Mapped[AgentRunStatus] = mapped_column(
-        Enum(AgentRunStatus), nullable=False, index=True
-    )
-    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    approval_policy: Mapped[AgentApprovalPolicy] = mapped_column(
-        _AgentApprovalPolicyColumn(),
-        nullable=False,
-        default=AgentApprovalPolicy.DEFAULT,
-    )
-    surface: Mapped[str] = mapped_column(String(32), nullable=False, default="app")
-    context_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    cache_read_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    error_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False, index=True
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    thread: Mapped[AgentThread] = relationship(back_populates="runs")
-    user_message: Mapped[AgentMessage] = relationship(
-        back_populates="user_runs", foreign_keys=[user_message_id]
-    )
-    assistant_message: Mapped[AgentMessage | None] = relationship(
-        back_populates="assistant_runs",
-        foreign_keys=[assistant_message_id],
-    )
-    tool_calls: Mapped[list[AgentToolCall]] = relationship(
-        back_populates="run",
-        cascade="all, delete-orphan",
-        order_by="AgentToolCall.created_at",
-    )
-    events: Mapped[list[AgentRunEvent]] = relationship(
-        back_populates="run",
-        cascade="all, delete-orphan",
-        order_by="AgentRunEvent.sequence_index",
-    )
-    change_items: Mapped[list[AgentChangeItem]] = relationship(
-        back_populates="run",
-        cascade="all, delete-orphan",
-        order_by="AgentChangeItem.created_at",
-    )
-
-
-class AgentToolCall(Base):
-    __tablename__ = "agent_tool_calls"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    run_id: Mapped[str] = mapped_column(
-        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    llm_tool_call_id: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, index=True
-    )
-    tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    input_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    output_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    output_text: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[AgentToolCallStatus] = mapped_column(
-        Enum(AgentToolCallStatus), nullable=False, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False
-    )
-    started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    run: Mapped[AgentRun] = relationship(back_populates="tool_calls")
-    events: Mapped[list[AgentRunEvent]] = relationship(back_populates="tool_call")
-
-
-class AgentRunEvent(Base):
-    __tablename__ = "agent_run_events"
-    __table_args__ = (
-        UniqueConstraint(
-            "run_id", "sequence_index", name="uq_agent_run_events_run_sequence"
-        ),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    run_id: Mapped[str] = mapped_column(
-        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    sequence_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    event_type: Mapped[AgentRunEventType] = mapped_column(
-        Enum(AgentRunEventType), nullable=False, index=True
-    )
-    source: Mapped[AgentRunEventSource | None] = mapped_column(
-        Enum(AgentRunEventSource), nullable=True
-    )
-    message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tool_call_id: Mapped[str | None] = mapped_column(
-        ForeignKey("agent_tool_calls.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False
-    )
-    reasoning_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    run: Mapped[AgentRun] = relationship(back_populates="events")
-    tool_call: Mapped[AgentToolCall | None] = relationship(back_populates="events")
 
 
 class AgentChangeItem(Base):

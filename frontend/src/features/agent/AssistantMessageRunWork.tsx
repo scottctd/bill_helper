@@ -8,15 +8,22 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-import type { AgentRun, AgentRunEvent, AgentToolCall } from "../../lib/types";
+import type { AgentRun, AgentRunStep, AgentToolCall } from "../../lib/types";
 import { cn } from "../../lib/utils";
-import { buildAgentWorkSeparatorLabel, mergeRunActivityItems } from "./activity";
+import {
+  buildAgentWorkSeparatorLabel,
+  buildLiveRunActivityItems,
+  mergeRunActivityItems,
+  type RunActivityItem
+} from "./activity";
 import { AgentRunActivityRows } from "./AgentRunActivity";
 
 export interface AssistantMessageRunWorkProps {
   runs: AgentRun[];
-  optimisticRunEventsByRunId: Record<string, AgentRunEvent[]>;
+  optimisticStepsByRunId: Record<string, AgentRunStep[]>;
   optimisticToolCallsByRunId: Record<string, AgentToolCall[]>;
+  liveActivityLedgerByRunId?: Record<string, RunActivityItem[]>;
+  isStreamingRun?: boolean;
   streamingReasoningText?: string;
   streamingReasoningStartedAt?: number | null;
   onInspectActivity?: () => void;
@@ -26,8 +33,10 @@ export interface AssistantMessageRunWorkProps {
 
 export function AssistantMessageRunWork({
   runs,
-  optimisticRunEventsByRunId,
+  optimisticStepsByRunId,
   optimisticToolCallsByRunId,
+  liveActivityLedgerByRunId = {},
+  isStreamingRun = false,
   streamingReasoningText = "",
   streamingReasoningStartedAt,
   onInspectActivity,
@@ -36,32 +45,26 @@ export function AssistantMessageRunWork({
 }: AssistantMessageRunWorkProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const mergedItems = useMemo(
-    () =>
-      mergeRunActivityItems(runs, (runId) => ({
-        events: optimisticRunEventsByRunId[runId] ?? [],
-        toolCalls: optimisticToolCallsByRunId[runId] ?? []
-      })),
-    [runs, optimisticRunEventsByRunId, optimisticToolCallsByRunId]
-  );
+  const mergedItems = useMemo(() => {
+    const getOptimistic = (runId: string) => ({
+      steps: optimisticStepsByRunId[runId] ?? [],
+      toolCalls: optimisticToolCallsByRunId[runId] ?? []
+    });
+    if (isStreamingRun) {
+      return buildLiveRunActivityItems(runs, getOptimistic, liveActivityLedgerByRunId);
+    }
+    return mergeRunActivityItems(runs, getOptimistic);
+  }, [isStreamingRun, liveActivityLedgerByRunId, runs, optimisticStepsByRunId, optimisticToolCallsByRunId]);
 
   const hasStreamingReasoningText = streamingReasoningText.trim().length > 0;
   const anyRunning = runs.some((run) => run.status === "running");
-  /** Flat stream only while the run is in flight or reasoning is still streaming. */
-  const isLive = anyRunning || hasStreamingReasoningText;
-
-  /** Running turn with no timeline rows yet (waiting for first event or interleaved empty state). */
-  const placeholderActive =
-    anyRunning && mergedItems.length === 0 && !hasStreamingReasoningText;
-
-  const hasRenderableActivity =
-    mergedItems.length > 0 || hasStreamingReasoningText || placeholderActive;
-
+  const isLive = isStreamingRun || anyRunning || hasStreamingReasoningText;
+  const placeholderActive = anyRunning && mergedItems.length === 0 && !hasStreamingReasoningText;
+  const hasRenderableActivity = mergedItems.length > 0 || hasStreamingReasoningText || placeholderActive;
   const separatorLabel = useMemo(
     () => buildAgentWorkSeparatorLabel(runs, mergedItems),
     [runs, mergedItems]
   );
-
   const showCompletedChrome = !isLive && hasRenderableActivity;
 
   if (!hasRenderableActivity) {
@@ -79,6 +82,7 @@ export function AssistantMessageRunWork({
           streamingReasoningText={streamingReasoningText}
           streamingReasoningStartedAt={streamingReasoningStartedAt}
           showStreamingPlaceholder={placeholderActive}
+          defaultOpenReasoningSteps
         />
       </div>
     );

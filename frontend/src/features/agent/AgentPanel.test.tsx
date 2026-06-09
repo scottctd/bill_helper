@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../lib/api";
 import { renderWithQueryClient } from "../../test/renderWithQueryClient";
-import { buildChangeItem, buildRun, buildRunEvent, buildToolCall } from "../../test/factories/agent";
+import { buildChangeItem, buildRun, buildToolCall } from "../../test/factories/agent";
 import { AgentPanel } from "./AgentPanel";
 
 vi.mock("../../lib/api", async () => {
@@ -60,7 +60,7 @@ function buildThreadDetail(
       created_at: overrides.created_at ?? "2026-03-06T10:00:00Z",
       updated_at: overrides.updated_at ?? "2026-03-06T10:05:00Z"
     },
-    messages: [],
+    turns: [],
     runs,
     configured_model_name: "gpt-test",
     current_context_tokens: 42
@@ -153,16 +153,18 @@ describe("AgentPanel", () => {
       buildRun({}).tool_calls[0] ?? {
         id: "tool-call-1",
         run_id: "run-1",
-        llm_tool_call_id: null,
+        step_id: "step-1",
+        call_index: 0,
+        tool_request_id: "tool-request-1",
         tool_name: "list_entries",
         display_label: "Listed entries",
         display_detail: null,
-        input_json: {},
-        output_json: {},
+        arguments_json: {},
+        result_content_json: {},
         output_text: "",
         has_full_payload: true,
         status: "ok",
-        created_at: "2026-03-06T10:00:00Z",
+        error_code: null,
         started_at: "2026-03-06T10:00:00Z",
         completed_at: "2026-03-06T10:00:00Z"
       }
@@ -174,7 +176,7 @@ describe("AgentPanel", () => {
     vi.mocked(api.reopenAgentChangeItem).mockResolvedValue(buildChangeItem({ status: "PENDING_REVIEW" }));
     vi.mocked(api.deleteAgentThread).mockResolvedValue();
     vi.mocked(api.deleteAgentDraftAttachment).mockResolvedValue();
-    vi.mocked(api.interruptAgentRun).mockResolvedValue(buildRun({ status: "failed", error_text: "Run interrupted by user." }));
+    vi.mocked(api.interruptAgentRun).mockResolvedValue(buildRun({ status: "failed", error_detail: "Run interrupted by user." }));
     vi.mocked(api.renameAgentThread).mockResolvedValue({
       id: "thread-1",
       title: "Review thread",
@@ -190,7 +192,6 @@ describe("AgentPanel", () => {
     vi.mocked(api.sendAgentMessage).mockResolvedValue(
       buildRun({
         status: "running",
-        assistant_message_id: null,
         completed_at: null
       })
     );
@@ -203,7 +204,6 @@ describe("AgentPanel", () => {
       buildThreadDetail([
         buildRun({
           id: "run-1",
-          assistant_message_id: null,
           change_items: [
             buildChangeItem({
               id: "change-1",
@@ -235,7 +235,6 @@ describe("AgentPanel", () => {
       buildThreadDetail([
         buildRun({
           id: "run-1",
-          assistant_message_id: null,
           change_items: []
         })
       ])
@@ -254,7 +253,6 @@ describe("AgentPanel", () => {
       buildThreadDetail([
         buildRun({
           id: "run-1",
-          assistant_message_id: null,
           change_items: [
             buildChangeItem({ id: "change-1", run_id: "run-1", status: "PENDING_REVIEW" }),
             buildChangeItem({ id: "change-2", run_id: "run-1", status: "PENDING_REVIEW" })
@@ -471,13 +469,11 @@ describe("AgentPanel", () => {
       activeStreams += 1;
       maxActiveStreams = Math.max(maxActiveStreams, activeStreams);
       onEvent({
-        type: "run_event",
+        type: "model_delta",
         run_id: `run-${threadId}`,
-        event: buildRunEvent({
-          id: `event-${threadId}`,
-          run_id: `run-${threadId}`,
-          event_type: "run_started"
-        })
+        step_index: 1,
+        delta_type: "reasoning",
+        text: "Thinking"
       });
       await new Promise<void>((resolve) => {
         streamResolvers[threadId] = () => {
@@ -530,13 +526,11 @@ describe("AgentPanel", () => {
     );
     vi.mocked(api.streamAgentMessage).mockImplementation(({ threadId, signal, onEvent }) => {
       onEvent({
-        type: "run_event",
+        type: "model_delta",
         run_id: `run-${threadId}`,
-        event: buildRunEvent({
-          id: `event-${threadId}`,
-          run_id: `run-${threadId}`,
-          event_type: "run_started"
-        })
+        step_index: 1,
+        delta_type: "reasoning",
+        text: "Thinking"
       });
       return new Promise<void>((resolve, reject) => {
         const abortHandler = () => reject(new DOMException("The operation was aborted.", "AbortError"));
@@ -584,8 +578,8 @@ describe("AgentPanel", () => {
         id: "tool-call-rename",
         run_id: "run-1",
         tool_name: "rename_thread",
-        input_json: { title: "Budget Review" },
-        output_json: { status: "ok", title: "Budget Review" },
+        arguments_json: { title: "Budget Review" },
+        result_content_json: { status: "ok", title: "Budget Review" },
         output_text: "OK\nsummary: renamed thread to Budget Review",
         has_full_payload: true,
         status: "ok"
@@ -594,24 +588,11 @@ describe("AgentPanel", () => {
     vi.mocked(api.streamAgentMessage).mockImplementation(async ({ onEvent }) => {
       await act(async () => {
         onEvent({
-          type: "run_event",
+          type: "tool_started",
           run_id: "run-1",
-          event: buildRunEvent({
-            id: "event-started",
-            run_id: "run-1",
-            event_type: "tool_call_started",
-            tool_call_id: "tool-call-rename"
-          }),
-          tool_call: buildToolCall({
-            id: "tool-call-rename",
-            run_id: "run-1",
-            tool_name: "rename_thread",
-            has_full_payload: false,
-            input_json: null,
-            output_json: null,
-            output_text: null,
-            status: "running"
-          })
+          step_index: 1,
+          tool_call_id: "tool-call-rename",
+          tool_name: "rename_thread"
         });
       });
       await new Promise<void>((resolve) => {

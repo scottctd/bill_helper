@@ -1,18 +1,19 @@
 # CALLING SPEC:
 # - Purpose: define external-agent session markers and thread detection helpers.
-# - Inputs: thread ids, persisted message content, SQLAlchemy sessions.
-# - Outputs: marker text, detection predicates, and marker persistence helpers.
-# - Side effects: may insert a system message row when seeding an external session.
+# - Inputs: thread ids and SQLAlchemy sessions.
+# - Outputs: marker text, detection predicates, and anchor-run persistence helpers.
+# - Side effects: may insert a completed anchor run with a system transcript row.
 from __future__ import annotations
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.enums_agent import AgentMessageRole
-from backend.models_agent import AgentMessage, AgentRun
+from backend.enums_agent import AgentRunStatus, AgentTranscriptRole
+from backend.models_agent import AgentRun, AgentThread, AgentTranscriptMessage
+from backend.models_shared import utc_now
 
 EXTERNAL_AGENT_MODEL_NAME = "external-agent"
-EXTERNAL_AGENT_RUN_SURFACE = "cli"
+EXTERNAL_AGENT_RUN_ORIGIN = "cli"
 EXTERNAL_SESSION_MARKER_PREFIX = "This session was started by an external agent"
 LEGACY_EXTERNAL_RUN_ANCHOR_MESSAGE = "External agent session actions."
 
@@ -35,50 +36,50 @@ def is_external_session_system_message(content: str) -> bool:
     return stripped == LEGACY_EXTERNAL_RUN_ANCHOR_MESSAGE
 
 
-def ensure_external_session_marker(db: Session, *, thread_id: str) -> AgentMessage:
-    existing = db.scalar(
-        select(AgentMessage)
+def _existing_external_anchor_run(db: Session, *, thread_id: str) -> AgentRun | None:
+    return db.scalar(
+        select(AgentRun)
         .where(
-            AgentMessage.thread_id == thread_id,
-            AgentMessage.role == AgentMessageRole.SYSTEM,
+            AgentRun.thread_id == thread_id,
+            AgentRun.origin == EXTERNAL_AGENT_RUN_ORIGIN,
+            AgentRun.model_name == EXTERNAL_AGENT_MODEL_NAME,
         )
-        .order_by(AgentMessage.created_at.asc())
+        .order_by(AgentRun.created_at.asc())
         .limit(1)
     )
-    if existing is not None and is_external_session_system_message(existing.content_markdown):
+
+
+def ensure_external_session_marker(db: Session, *, thread_id: str) -> AgentRun:
+    existing = _existing_external_anchor_run(db, thread_id=thread_id)
+    if existing is not None:
         return existing
 
-    message = AgentMessage(
+    thread = db.get(AgentThread, thread_id)
+    if thread is None:
+        raise LookupError(f"thread not found: {thread_id}")
+    run = AgentRun(
         thread_id=thread_id,
-        role=AgentMessageRole.SYSTEM,
-        content_markdown=external_session_system_message(),
-        attachments_use_ocr=False,
+        turn_index=None,
+        status=AgentRunStatus.COMPLETED,
+        model_name=EXTERNAL_AGENT_MODEL_NAME,
+        principal_user_id=thread.owner_user_id,
+        metadata_json={},
+        origin=EXTERNAL_AGENT_RUN_ORIGIN,
+        completed_at=utc_now(),
     )
-    db.add(message)
+    db.add(run)
     db.flush()
-    return message
+    db.add(
+        AgentTranscriptMessage(
+            run_id=run.id,
+            sequence_index=0,
+            role=AgentTranscriptRole.SYSTEM,
+            content_json={"content": external_session_system_message()},
+        )
+    )
+    db.flush()
+    return run
 
 
 def thread_initiated_by_external_agent(db: Session, *, thread_id: str) -> bool:
-    if db.scalar(
-        select(AgentMessage.id)
-        .where(
-            AgentMessage.thread_id == thread_id,
-            AgentMessage.role == AgentMessageRole.SYSTEM,
-            AgentMessage.content_markdown.startswith(EXTERNAL_SESSION_MARKER_PREFIX),
-        )
-        .limit(1)
-    ):
-        return True
-    return (
-        db.scalar(
-            select(AgentRun.id)
-            .where(
-                AgentRun.thread_id == thread_id,
-                AgentRun.surface == EXTERNAL_AGENT_RUN_SURFACE,
-                AgentRun.model_name == EXTERNAL_AGENT_MODEL_NAME,
-            )
-            .limit(1)
-        )
-        is not None
-    )
+    return _existing_external_anchor_run(db, thread_id=thread_id) is not None
