@@ -362,8 +362,8 @@ Response: `{ months: string[] }`
 
 Behavior:
 
-- returns the ascending list of visible `YYYY-MM` periods that have expense activity in the dashboard currency
-- excludes internal account-to-account transfers using the same rules as the main dashboard analytics
+- returns the ascending list of visible `YYYY-MM` periods that have expense or cash-withdrawal activity in the dashboard currency
+- excludes internal account-to-account transfers from expense activity using the same rules as the main dashboard analytics
 - results are principal-scoped and drive the frontend's discrete month/year timeline picker
 
 ### `GET /dashboard`
@@ -397,6 +397,7 @@ Behavior:
 - built-in filter groups are provisioned and persisted on first dashboard read
 - totals and reconciliation are principal-scoped
 - analytics exclude internal transfers when both endpoints resolve to account-backed entity roots
+- entries tagged `cash_withdrawal` are excluded from spending analytics and exposed as `kpis.cash_withdrawal_total_minor`
 
 ### `GET /dashboard/batch`
 

@@ -77,6 +77,7 @@ function buildDashboard(month: string): Dashboard {
       expense_total_minor: base + 12_000,
       income_total_minor: base + 35_000,
       net_total_minor: 23_000,
+      cash_withdrawal_total_minor: 0,
       average_expense_day_minor: 2_500,
       median_expense_day_minor: 2_200,
       spending_days: 18,

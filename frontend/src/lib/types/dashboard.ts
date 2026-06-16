@@ -24,6 +24,7 @@ export interface DashboardKpis {
   expense_total_minor: number;
   income_total_minor: number;
   net_total_minor: number;
+  cash_withdrawal_total_minor: number;
   average_expense_day_minor: number;
   median_expense_day_minor: number;
   spending_days: number;

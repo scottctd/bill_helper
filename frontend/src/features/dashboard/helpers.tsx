@@ -306,7 +306,11 @@ export function buildYearOverYearData(
 export function sumDashboardKpiForMonths(
   monthKeys: string[],
   dashboardsByMonth: Map<string, Dashboard>,
-  key: "expense_total_minor" | "income_total_minor" | "net_total_minor"
+  key:
+    | "expense_total_minor"
+    | "income_total_minor"
+    | "net_total_minor"
+    | "cash_withdrawal_total_minor"
 ): number {
   return monthKeys.reduce((sum, monthKey) => sum + (dashboardsByMonth.get(monthKey)?.kpis[key] ?? 0), 0);
 }

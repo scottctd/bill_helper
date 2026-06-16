@@ -37,7 +37,7 @@ def test_resolve_year_month_keys_filters_timeline() -> None:
 
 
 def test_resolve_year_month_keys_errors_when_empty() -> None:
-    with pytest.raises(CliError, match="No dashboard expense months"):
+    with pytest.raises(CliError, match="No dashboard activity months"):
         resolve_year_month_keys(["2025-12"], "2026")
 
 

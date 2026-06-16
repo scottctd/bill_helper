@@ -72,13 +72,23 @@ describe("breakdownHelpers", () => {
     const janDashboard = {
       month: "2026-01",
       currency_code: "CAD",
-      kpis: { expense_total_minor: 2_000, income_total_minor: 0, net_total_minor: 0 },
+      kpis: {
+        expense_total_minor: 2_000,
+        income_total_minor: 0,
+        net_total_minor: 0,
+        cash_withdrawal_total_minor: 0
+      },
       filter_groups: [groupTemplate]
     } as unknown as Dashboard;
     const febDashboard = {
       month: "2026-02",
       currency_code: "CAD",
-      kpis: { expense_total_minor: 1_500, income_total_minor: 0, net_total_minor: 0 },
+      kpis: {
+        expense_total_minor: 1_500,
+        income_total_minor: 0,
+        net_total_minor: 0,
+        cash_withdrawal_total_minor: 0
+      },
       filter_groups: [
         {
           ...groupTemplate,

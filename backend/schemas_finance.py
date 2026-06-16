@@ -510,6 +510,7 @@ class DashboardKpisRead(BaseModel):
     expense_total_minor: int
     income_total_minor: int
     net_total_minor: int
+    cash_withdrawal_total_minor: int = 0
     average_expense_day_minor: int
     median_expense_day_minor: int
     spending_days: int

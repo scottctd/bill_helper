@@ -101,7 +101,7 @@ export function DashboardPeriodControls({
           onKeyDown={onMonthKeyDown}
           disabled={!monthView}
           empty={!hasTimelineYears}
-          emptyMessage={monthView ? "No expense months yet." : "Switch to month view to pick a month."}
+          emptyMessage={monthView ? "No dashboard months yet." : "Switch to month view to pick a month."}
         >
           {calendarMonthKeys.map((monthKey) => {
             const hasData = timelineMonthSet.has(monthKey);

@@ -49,6 +49,7 @@ from backend.services.runtime_settings import resolve_runtime_settings
 
 DASHBOARD_DEFAULT_CURRENCY_CODE = "CAD"
 DASHBOARD_DESTINATION_BREAKDOWN_LIMIT = 20
+CASH_WITHDRAWAL_TAG = "cash_withdrawal"
 WEEKDAY_LABELS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 DashboardFilter = ColumnElement[bool]
 
@@ -178,6 +179,18 @@ def _is_internal_account_transfer(entry: Entry, account_entity_ids: set[str]) ->
     )
 
 
+def _entry_has_tag(entry: Entry, tag_name: str) -> bool:
+    normalized_tag_name = tag_name.strip().lower()
+    return any((tag.name or "").strip().lower() == normalized_tag_name for tag in entry.tags)
+
+
+def _is_cash_withdrawal_entry(entry: Entry) -> bool:
+    return entry.kind in {EntryKind.EXPENSE, EntryKind.TRANSFER} and _entry_has_tag(
+        entry,
+        CASH_WITHDRAWAL_TAG,
+    )
+
+
 def _list_entries_for_window(
     db: Session,
     start: date,
@@ -212,28 +225,28 @@ def list_dashboard_expense_months(
         db,
         account_filter=account_owner_filter(principal),
     )
-    rows = db.execute(
-        select(Entry.occurred_at, Entry.from_entity_id, Entry.to_entity_id)
+    entries = db.scalars(
+        select(Entry)
         .where(
             Entry.is_deleted.is_(False),
-            Entry.kind == EntryKind.EXPENSE,
             Entry.currency_code == currency_code.upper(),
             entry_owner_filter(principal),
         )
+        .options(selectinload(Entry.tags))
         .order_by(Entry.occurred_at.asc(), Entry.created_at.asc())
     ).all()
 
     months: list[str] = []
     seen_months: set[str] = set()
-    for occurred_at, from_entity_id, to_entity_id in rows:
-        if (
-            from_entity_id is not None
-            and to_entity_id is not None
-            and from_entity_id in account_entity_ids
-            and to_entity_id in account_entity_ids
-        ):
+    for entry in entries:
+        is_visible_expense = (
+            entry.kind == EntryKind.EXPENSE
+            and not _is_internal_account_transfer(entry, account_entity_ids)
+            and not _is_cash_withdrawal_entry(entry)
+        )
+        if not is_visible_expense and not _is_cash_withdrawal_entry(entry):
             continue
-        month_key = occurred_at.strftime("%Y-%m")
+        month_key = entry.occurred_at.strftime("%Y-%m")
         if month_key in seen_months:
             continue
         seen_months.add(month_key)
@@ -258,7 +271,7 @@ def _build_breakdown_items(totals: dict[str, int], limit: int = 8) -> list[Dashb
     ]
 
 
-def _list_non_transfer_entries_for_window(
+def _list_spending_analytics_entries_for_window(
     db: Session,
     *,
     start: date,
@@ -277,6 +290,7 @@ def _list_non_transfer_entries_for_window(
             entry_filter=entry_filter,
         )
         if not _is_internal_account_transfer(entry, account_entity_ids)
+        and not _is_cash_withdrawal_entry(entry)
     ]
 
 
@@ -398,6 +412,7 @@ def _build_dashboard_kpis(
     *,
     rollup: _ExpenseAnalyticsRollup,
     income_total_minor: int,
+    cash_withdrawal_total_minor: int,
 ) -> DashboardKpisRead:
     expense_total_minor = sum(rollup.expense_totals_by_date.values())
     expense_day_values = list(rollup.expense_totals_by_date.values())
@@ -428,6 +443,7 @@ def _build_dashboard_kpis(
         expense_total_minor=expense_total_minor,
         income_total_minor=income_total_minor,
         net_total_minor=income_total_minor - expense_total_minor,
+        cash_withdrawal_total_minor=cash_withdrawal_total_minor,
         average_expense_day_minor=average_expense_day_minor,
         median_expense_day_minor=median_expense_day_minor,
         spending_days=len(expense_day_values),
@@ -473,7 +489,7 @@ def _build_monthly_trend(
 ) -> list[DashboardMonthlyTrendPoint]:
     normalized_trend_months = max(trend_months, 1)
     trend_start = _shift_month(start, -(normalized_trend_months - 1))
-    trend_entries = _list_non_transfer_entries_for_window(
+    trend_entries = _list_spending_analytics_entries_for_window(
         db,
         start=trend_start,
         end=end,
@@ -638,14 +654,22 @@ def build_dashboard_analytics(
         db,
         account_filter=analytics_options.account_filter,
     )
-    month_entries = _list_non_transfer_entries_for_window(
+    all_month_entries = _list_entries_for_window(
         db,
         start=start,
         end=end,
         currency_code=normalized_currency,
-        account_entity_ids=account_entity_ids,
         entry_filter=analytics_options.entry_filter,
     )
+    cash_withdrawal_total_minor = sum(
+        entry.amount_minor for entry in all_month_entries if _is_cash_withdrawal_entry(entry)
+    )
+    month_entries = [
+        entry
+        for entry in all_month_entries
+        if not _is_internal_account_transfer(entry, account_entity_ids)
+        and not _is_cash_withdrawal_entry(entry)
+    ]
     expense_entries = [entry for entry in month_entries if entry.kind == EntryKind.EXPENSE]
     rollup = _rollup_expense_entries(
         expense_entries,
@@ -669,6 +693,7 @@ def build_dashboard_analytics(
     kpis = _build_dashboard_kpis(
         rollup=rollup,
         income_total_minor=income_total_minor,
+        cash_withdrawal_total_minor=cash_withdrawal_total_minor,
     )
     daily_spending = _build_daily_spending_points(
         start=start,

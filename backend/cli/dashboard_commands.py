@@ -35,7 +35,7 @@ _DASHBOARD_ROOT_HELP = """\
 Finance and agent-cost dashboard reads backed by the same analytics as the web dashboard.
 
 Subcommands:
-  timeline  List calendar months with dashboard expense activity.
+  timeline  List calendar months with dashboard activity.
   finance   Personal finance dashboard stats (income, expense, breakdowns).
   agent     Agent usage and cost dashboard stats.
 
@@ -43,7 +43,7 @@ Run `bh dashboard <subcommand> --help` for command-specific guidance.
 """
 
 _TIMELINE_HELP = """\
-List ascending YYYY-MM months that have expense activity in the dashboard currency.
+List ascending YYYY-MM months that have visible expense or cash-withdrawal activity in the dashboard currency.
 
 Use this to discover valid `--month` values or to resolve `--year` batch scopes.
 """
@@ -139,7 +139,7 @@ def add_dashboard_parser(subparsers, add_format_option) -> None:
 
     timeline_parser = dashboard.add_parser(
         "timeline",
-        help="List dashboard expense months.",
+        help="List dashboard activity months.",
         description=_TIMELINE_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

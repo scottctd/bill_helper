@@ -133,7 +133,7 @@ def resolve_year_month_keys(timeline_months: list[str], year: str) -> list[str]:
     normalized_year = validate_year_key(year)
     matched = [month for month in timeline_months if month.startswith(f"{normalized_year}-")]
     if not matched:
-        raise CliError(f"No dashboard expense months found for year {normalized_year}.")
+        raise CliError(f"No dashboard activity months found for year {normalized_year}.")
     return matched
 
 

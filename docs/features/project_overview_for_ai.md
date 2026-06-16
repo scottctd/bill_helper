@@ -222,19 +222,19 @@ The most recent snapshot produces one **open interval** from that snapshot to to
 
 **Rule model:** Each editable filter group has include and exclude conditions. Rules support: entry kind, tag inclusion, tag exclusion, internal-transfer flag, nested AND/OR logic. Default groups other than `untagged` can be edited; custom groups can overlap with each other.
 
-**Usage:** Filter groups power dashboard expense breakdowns, daily/monthly charts, projections, and largest-expense classification. Entries list can open filtered by a chosen group. Internal transfers (both from and to are accounts) are excluded from dashboard KPIs and charts.
+**Usage:** Filter groups power dashboard expense breakdowns, daily/monthly charts, projections, and largest-expense classification. Entries list can open filtered by a chosen group. Internal transfers (both from and to are accounts) are excluded from dashboard KPIs and charts. Cash withdrawals are excluded from expense analytics and shown as a separate dashboard KPI.
 
 ### 7.7 Dashboard
 
-**Data rules:** Uses a single configurable dashboard currency; entries in other currencies are excluded from all calculations. Internal account-to-account transfers are excluded from KPIs, charts, and projections.
+**Data rules:** Uses a single configurable dashboard currency; entries in other currencies are excluded from all calculations. Internal account-to-account transfers are excluded from KPIs, charts, and projections. Entries tagged `cash_withdrawal` are reported separately instead of counted as spending.
 
 **Tabs and behavior:**
-- **Overview:** Month/year toggle; KPI cards (expense, income, net); income vs expense trend bar (stacked by filter group); builtin filter-group spend breakdown in trend-order with per-group tag facets and explicit sqrt-scale labeling on both ranked and facet bars; projection bars for current month with solid actual spend, translucent forecast extensions, and explicit sqrt-scale labeling.
+- **Overview:** Month/year toggle; KPI cards (expense, income, net) with a smaller secondary row for expense minus one-time and cash withdrawn; income vs expense trend bar (stacked by filter group); builtin filter-group spend breakdown in trend-order with per-group tag facets and explicit sqrt-scale labeling on both ranked and facet bars; projection bars for current month with solid actual spend, translucent forecast extensions, and explicit sqrt-scale labeling.
 - **Daily Expense:** Day-to-day daily bar chart with average/median spend metrics; yearly mode switches to monthly filter-group bars.
 - **Breakdowns:** Summary tag, destination, and source charts above a filter-group → tag → destination drill-down tree.
 - **Insights:** Largest expenses with filter group badges.
 
-**Navigation:** Scrollable timeline of months with expense activity; no manual month picker. Yearly view assembled from repeated month-scoped reads.
+**Navigation:** Scrollable timeline of months with visible expense or cash-withdrawal activity; no manual month picker. Yearly view assembled from repeated month-scoped reads.
 
 ### 7.8 Catalogs
 

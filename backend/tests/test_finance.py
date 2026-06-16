@@ -306,8 +306,30 @@ def test_dashboard_monthly_aggregations(client):
         client,
         account["id"],
         "EXPENSE",
-        700,
+        2500,
+        "2026-01-03",
+        name="ATM cash withdrawal",
+        tags=["cash_withdrawal"],
+        from_entity="Checking",
+        to_entity="ATM",
+    )
+    create_entry(
+        client,
+        account["id"],
+        "TRANSFER",
+        1500,
         "2026-01-04",
+        name="Cash account withdrawal",
+        tags=["cash_withdrawal"],
+        from_entity="Checking",
+        to_entity="Cash wallet",
+    )
+    create_entry(
+        client,
+        account["id"],
+        "EXPENSE",
+        700,
+        "2026-01-05",
         name="Move to card",
         tags=["e_transfer"],
         from_entity="Checking",
@@ -318,7 +340,7 @@ def test_dashboard_monthly_aggregations(client):
         other_currency_account["id"],
         "INCOME",
         700,
-        "2026-01-04",
+        "2026-01-05",
         name="Transfer in",
         tags=["transfer"],
         from_entity="Checking",
@@ -353,18 +375,26 @@ def test_dashboard_monthly_aggregations(client):
     assert payload["kpis"]["income_total_minor"] == 10000
     assert payload["kpis"]["average_expense_day_minor"] == 850
     assert payload["kpis"]["median_expense_day_minor"] == 850
+    assert payload["kpis"]["cash_withdrawal_total_minor"] == 4000
     assert payload["kpis"]["spending_days"] == 2
 
     filter_groups = {item["key"]: item for item in payload["filter_groups"]}
     assert filter_groups["day_to_day"]["total_minor"] == 1200
     assert filter_groups["one_time"]["total_minor"] == 500
     assert filter_groups["fixed"]["total_minor"] == 0
+    assert filter_groups["transfers"]["total_minor"] == 0
     assert filter_groups["untagged"]["total_minor"] == 0
 
     jan_second = next(point for point in payload["daily_spending"] if point["date"] == "2026-01-02")
     jan_third = next(point for point in payload["daily_spending"] if point["date"] == "2026-01-03")
     assert jan_second["filter_group_totals"]["day_to_day"] == 1200
+    assert jan_third["expense_total_minor"] == 500
     assert jan_third["filter_group_totals"]["one_time"] == 500
+    assert jan_third["filter_group_totals"]["transfers"] == 0
+    jan_fourth = next(point for point in payload["daily_spending"] if point["date"] == "2026-01-04")
+    assert jan_fourth["expense_total_minor"] == 0
+    jan_fifth = next(point for point in payload["daily_spending"] if point["date"] == "2026-01-05")
+    assert jan_fifth["expense_total_minor"] == 0
 
     january = next(point for point in payload["monthly_trend"] if point["month"] == "2026-01")
     assert january["expense_total_minor"] == 1700
@@ -375,6 +405,7 @@ def test_dashboard_monthly_aggregations(client):
     assert any(item["label"] == "Checking" and item["total_minor"] == 1700 for item in payload["spending_by_from"])
     assert any(item["label"] == "Employer" and item["total_minor"] == 10000 for item in payload["income_by_from"])
     assert any(item["label"] == "Coffee Shop" and item["total_minor"] == 1200 for item in payload["spending_by_to"])
+    assert not any(item["label"] == "ATM" for item in payload["spending_by_to"])
     assert not any(item["label"] == "Travel Card" for item in payload["spending_by_to"])
     assert any(item["label"] == "coffee_snacks" and item["total_minor"] == 1200 for item in payload["spending_by_tag"])
     assert payload["projection"]["is_current_month"] is False
@@ -464,6 +495,17 @@ def test_dashboard_timeline_only_lists_months_with_visible_expenses(client):
         client,
         account["id"],
         "EXPENSE",
+        600,
+        "2026-02-08",
+        name="ATM cash",
+        tags=["cash_withdrawal"],
+        from_entity="Checking",
+        to_entity="ATM",
+    )
+    create_entry(
+        client,
+        account["id"],
+        "EXPENSE",
         700,
         "2026-02-09",
         name="Card transfer out",
@@ -495,7 +537,7 @@ def test_dashboard_timeline_only_lists_months_with_visible_expenses(client):
     response = client.get("/api/v1/dashboard/timeline")
     response.raise_for_status()
 
-    assert response.json() == {"months": ["2025-11", "2026-01"]}
+    assert response.json() == {"months": ["2025-11", "2026-01", "2026-02"]}
 
 
 def test_dashboard_batch_returns_multiple_months(client):

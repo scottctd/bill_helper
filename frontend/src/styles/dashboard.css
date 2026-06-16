@@ -176,11 +176,23 @@
   }
 
   .dashboard-summary-hero {
-    @apply grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center sm:p-6;
+    @apply rounded-xl border border-border bg-card p-4 sm:p-6;
+  }
+
+  .dashboard-summary-hero-equation {
+    @apply grid gap-4 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center;
+  }
+
+  .dashboard-summary-hero-secondary {
+    @apply mt-4 grid gap-3 border-t border-border/70 pt-4 sm:grid-cols-2;
   }
 
   .dashboard-summary-hero-item {
     @apply rounded-lg border border-border/60 bg-muted/20 px-4 py-3;
+  }
+
+  .dashboard-summary-hero-secondary-item {
+    @apply px-3 py-2.5;
   }
 
   .dashboard-summary-hero-label {
@@ -193,6 +205,10 @@
 
   .dashboard-summary-hero-value {
     @apply text-2xl font-semibold tabular-nums tracking-tight;
+  }
+
+  .dashboard-summary-hero-secondary-item .dashboard-summary-hero-value {
+    @apply text-xl;
   }
 
   .dashboard-summary-hero-operator {
@@ -233,6 +249,24 @@
   .dashboard-summary-hero-net-negative .dashboard-summary-hero-label,
   .dashboard-summary-hero-net-negative .dashboard-summary-hero-value {
     @apply text-red-700 dark:text-red-400;
+  }
+
+  .dashboard-summary-hero-cash {
+    @apply border-amber-500/25 bg-amber-500/5;
+  }
+
+  .dashboard-summary-hero-cash .dashboard-summary-hero-label,
+  .dashboard-summary-hero-cash .dashboard-summary-hero-value {
+    @apply text-amber-700 dark:text-amber-400;
+  }
+
+  .dashboard-summary-hero-core-spend {
+    @apply border-sky-500/25 bg-sky-500/5;
+  }
+
+  .dashboard-summary-hero-core-spend .dashboard-summary-hero-label,
+  .dashboard-summary-hero-core-spend .dashboard-summary-hero-value {
+    @apply text-sky-700 dark:text-sky-400;
   }
 
   .dashboard-expense-breakdown-grid {

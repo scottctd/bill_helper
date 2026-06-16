@@ -109,7 +109,7 @@ _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("dashboard_timeline", "month"),
     CompactSchema(
         "dashboard_kpis",
-        "expense_minor|income_minor|net_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor",
+        "expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor",
     ),
     CompactSchema("dashboard_filter_groups", "key|name|total_minor|share"),
     CompactSchema("dashboard_breakdown", "kind|label|total_minor|share"),
@@ -539,9 +539,9 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
     ),
     CommandSpec(
         "bh dashboard timeline",
-        "List dashboard expense months in ascending YYYY-MM order.",
+        "List dashboard activity months in ascending YYYY-MM order.",
         notes=(
-            "Returns months with expense activity in the dashboard currency.",
+            "Returns months with visible expense or cash-withdrawal activity in the dashboard currency.",
             "Use before `--year` batch reads or to pick a valid `--month` value.",
         ),
     ),

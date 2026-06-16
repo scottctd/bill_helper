@@ -328,6 +328,12 @@ export function DashboardPage() {
   const selectedYearExpenseTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "expense_total_minor");
   const selectedYearIncomeTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "income_total_minor");
   const selectedYearNetTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "net_total_minor");
+  const selectedYearOneTimeTotalMinor = sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, "one_time");
+  const selectedYearCashWithdrawalTotalMinor = sumDashboardKpiForMonths(
+    selectedYearMonths,
+    yearlyDashboardsByMonth,
+    "cash_withdrawal_total_minor"
+  );
   const yearlyExpenseMonths = yearlyOverviewData.map((point) => point.expense_total_minor);
   const yearlyAverageExpenseMonthMinor =
     yearlyExpenseMonths.length > 0 ? Math.round(selectedYearExpenseTotalMinor / yearlyExpenseMonths.length) : 0;
@@ -387,6 +393,11 @@ export function DashboardPage() {
   const heroIncomeTotalMinor = viewMode === "year" ? selectedYearIncomeTotalMinor : data.kpis.income_total_minor;
   const heroExpenseTotalMinor = viewMode === "year" ? selectedYearExpenseTotalMinor : data.kpis.expense_total_minor;
   const heroNetTotalMinor = viewMode === "year" ? selectedYearNetTotalMinor : data.kpis.net_total_minor;
+  const heroCashWithdrawalTotalMinor =
+    viewMode === "year" ? selectedYearCashWithdrawalTotalMinor : data.kpis.cash_withdrawal_total_minor;
+  const heroOneTimeTotalMinor =
+    viewMode === "year" ? selectedYearOneTimeTotalMinor : filterGroupTotalForMonth(data, "one_time");
+  const heroExpenseLessOneTimeTotalMinor = Math.max(0, heroExpenseTotalMinor - heroOneTimeTotalMinor);
 
   const showFinanceChrome = activeTab !== "agent";
 
@@ -402,6 +413,8 @@ export function DashboardPage() {
               incomeTotalMinor={heroIncomeTotalMinor}
               expenseTotalMinor={heroExpenseTotalMinor}
               netTotalMinor={heroNetTotalMinor}
+              cashWithdrawalTotalMinor={heroCashWithdrawalTotalMinor}
+              expenseLessOneTimeTotalMinor={heroExpenseLessOneTimeTotalMinor}
             />
 
             <Card>

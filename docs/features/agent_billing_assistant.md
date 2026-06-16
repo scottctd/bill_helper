@@ -474,11 +474,11 @@ Command specifications:
 - Optional arguments: none.
 
 ### `bh dashboard timeline`
-- Purpose: List dashboard expense months in ascending YYYY-MM order.
+- Purpose: List dashboard activity months in ascending YYYY-MM order.
 - Required arguments: none.
 - Optional arguments: none.
 - Notes:
-  - Returns months with expense activity in the dashboard currency.
+  - Returns months with visible expense or cash-withdrawal activity in the dashboard currency.
   - Use before `--year` batch reads or to pick a valid `--month` value.
 
 ### `bh dashboard finance get`
@@ -522,7 +522,7 @@ Compact output schemas:
 - `sessions_detail` -> `id|title|pending|running|updated_at`
 - `proposals_list` -> `id|status|change_type|summary`
 - `dashboard_timeline` -> `month`
-- `dashboard_kpis` -> `expense_minor|income_minor|net_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor`
+- `dashboard_kpis` -> `expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor`
 - `dashboard_filter_groups` -> `key|name|total_minor|share`
 - `dashboard_breakdown` -> `kind|label|total_minor|share`
 - `dashboard_agent_metrics` -> `total_cost_usd|total_tokens|total_runs|completed_runs|failed_runs|avg_cost_usd|avg_tokens|cache_hit_rate|most_used_model|failure_rate`

@@ -52,6 +52,7 @@ def test_dashboard_finance_get_renders_compact(monkeypatch) -> None:
             "expense_total_minor": 1000,
             "income_total_minor": 2000,
             "net_total_minor": 1000,
+            "cash_withdrawal_total_minor": 300,
             "average_expense_day_minor": 100,
             "median_expense_day_minor": 90,
             "spending_days": 10,
@@ -62,7 +63,7 @@ def test_dashboard_finance_get_renders_compact(monkeypatch) -> None:
     }
     rendered = render_output(payload, output_format="compact", render_key="dashboard_finance")
     assert "dashboard kpis" in rendered
-    assert "1000|2000|1000" in rendered
+    assert "1000|2000|1000|300" in rendered
 
 
 def test_dashboard_agent_get_renders_json(monkeypatch) -> None:

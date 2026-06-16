@@ -16,7 +16,7 @@ This doc is the fast path for understanding dashboard metrics, filter-group clas
 - Dashboard analytics use the runtime-configured dashboard currency (`/settings.dashboard_currency_code`).
 - Entries in other currencies are excluded from dashboard calculations.
 - Entries whose `from_entity_id` and `to_entity_id` both resolve to account-backed entity roots (`accounts.id` membership) are treated as internal transfers and excluded from dashboard KPIs, expense charts, breakdowns, largest-expense ranking, and projection math.
-- Entries whose `from_entity_id` and `to_entity_id` both resolve to account-backed entity roots (`accounts.id` membership) are treated as internal transfers and excluded from dashboard KPIs, expense charts, breakdowns, largest-expense ranking, and projection math.
+- Entries tagged `cash_withdrawal` are excluded from expense analytics and reported separately as `kpis.cash_withdrawal_total_minor`.
 
 ## Filter-Group Classification
 
@@ -31,10 +31,6 @@ Built-in groups are lazily provisioned per user on first dashboard or `/filter-g
 - `untagged`
 - `salary` (income with tag `salary_wages`)
 - `other_income` (income not matching salary; catch-all)
-- `salary` (income with tag `salary_wages`)
-- `other_income` (income not matching salary)
-- `salary` (income with tag `salary_wages`)
-- `other_income` (income not matching salary; e.g. bonus, interest)
 
 Current rule engine supports:
 
@@ -53,6 +49,7 @@ Default groups other than `untagged` can have their rules edited, but their name
 2. `backend/services/filter_groups.py` loads or creates the caller's saved filter groups and returns parsed rule definitions.
 3. `backend/services/finance_dashboard.py` resolves dashboard currency/runtime settings, computes:
    - overall expense/income/net KPIs
+   - cash-withdrawal total for the selected period
    - filter-group month totals
    - daily expense series by filter group
    - monthly expense trend by filter group
@@ -71,6 +68,7 @@ Default groups other than `untagged` can have their rules edited, but their name
 
 - Persistent finance chrome (hidden on the `Agent` tab):
   - unified Income / Expense / Net summary hero with color-coded values
+  - secondary summary row with `Expense - One-Time` derived from total expense minus the built-in `one_time` filter-group total, plus cash withdrawn for the selected month or year
   - `Income vs Expense Trend` bar chart that always uses the last six calendar months ending at the **real** current month (`YYYY-MM` from the client clock), independent of the timeline selection; stacked income segments (salary, other income) plus stacked expense segments by filter group
   - explicit `Month` / `Year` mode toggle and timeline strip in the dashboard workspace toolbar
 - `Spending` tab:
@@ -124,5 +122,5 @@ Use `--format json --sections filter_groups` when the agent needs the full filte
 - Default filter groups are persisted on read so later edits target stable row ids.
 - Shares in `dashboard.filter_groups[*].share` are calculated against total monthly expense; overlapping custom groups can make the summed shares exceed `1.0`.
 - The yearly dashboard view is assembled on the frontend from repeated month-scoped `GET /api/v1/dashboard` reads for the selected year and its previous year; no separate yearly endpoint exists yet.
-- `GET /api/v1/dashboard/timeline` returns the discrete month list that drives the floating picker rail; the frontend derives the visible year list from that month feed.
+- `GET /api/v1/dashboard/timeline` returns the discrete month list with visible expense or cash-withdrawal activity; the frontend derives the visible year list from that month feed.
 - Agent usage analytics are range-based rather than month/year-based; the `Agent` tab keeps its own filters and does not reuse the finance dashboard period selection state for queries.
