@@ -42,6 +42,7 @@ from backend.services.agent.harness.step_executor import (
 from backend.services.agent.harness.tools import ToolExecutor
 from backend.services.agent.harness.tools import ToolExecutionResult
 from backend.services.agent.harness.transcript import model_visible_transcript
+from backend.services.agent.tool_call_display import build_tool_call_display
 
 logger = logging.getLogger(__name__)
 
@@ -227,17 +228,23 @@ class AgentHarness:
         ]:
             if tool_call.status in {"ok", "error", "cancelled"}:
                 continue
+            request = requests[tool_call.tool_request_id]
             if tool_call.status == "queued":
                 current = self._repository.mark_tool_running(current.run_id, tool_call.id)
+                started_display = build_tool_call_display(
+                    tool_call.tool_name,
+                    input_json=request.arguments_json,
+                )
                 self._publish(
                     ToolStartedEvent(
                         run_id=current.run_id,
                         step_index=step.step_index,
                         tool_call_id=tool_call.id,
                         tool_name=tool_call.tool_name,
+                        display_label=started_display.label,
+                        display_detail=started_display.detail,
                     )
                 )
-                request = requests[tool_call.tool_request_id]
                 try:
                     result = execute_tool_request(
                         request,
@@ -267,6 +274,11 @@ class AgentHarness:
                 tool_call.id,
                 result,
             )
+            finished_display = build_tool_call_display(
+                tool_call.tool_name,
+                input_json=request.arguments_json,
+                output_json=result.output_json,
+            )
             self._publish(
                 ToolFinishedEvent(
                     run_id=current.run_id,
@@ -274,6 +286,8 @@ class AgentHarness:
                     tool_call_id=tool_call.id,
                     tool_name=tool_call.tool_name,
                     status="error" if result.is_error else "ok",
+                    display_label=finished_display.label,
+                    display_detail=finished_display.detail,
                 )
             )
         current = self._repository.finalize_step(current.run_id, step_id)

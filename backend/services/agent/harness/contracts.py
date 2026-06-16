@@ -306,6 +306,8 @@ class ToolStartedEvent(BaseModel):
     step_index: int
     tool_call_id: str
     tool_name: str
+    display_label: str | None = None
+    display_detail: str | None = None
 
 
 class ToolFinishedEvent(BaseModel):
@@ -317,6 +319,8 @@ class ToolFinishedEvent(BaseModel):
     tool_call_id: str
     tool_name: str
     status: str
+    display_label: str | None = None
+    display_detail: str | None = None
 
 
 class StepCommittedEvent(BaseModel):

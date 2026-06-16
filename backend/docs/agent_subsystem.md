@@ -230,7 +230,7 @@ Endpoints:
 - draft attachment uploads prepare vision content eagerly before send so the frontend can show upload progress, then page-preparation progress, while the user is still composing
 - repeated draft uploads of the same bytes for the same owner reuse an existing canonical file row by SHA-256 while still creating a fresh draft attachment row so removal semantics stay independent
 - each run persists a `surface` hint so later execution and polling can distinguish Telegram-originated runs from default app runs
-- streamed runs emit ephemeral `model_delta` events (`delta_type=reasoning|content`) plus durable harness events such as `tool_started`, `tool_finished`, `step_committed`, and `run_finished`
+- streamed runs emit ephemeral `model_delta` events (`delta_type=reasoning|content`) plus durable harness events such as `tool_started`, `tool_finished`, `step_committed`, and `run_finished`; tool lifecycle events include backend-computed `display_label` / `display_detail` fields when available
 - committed assistant rows store `reasoning_text`; reload reconstructs per-step reasoning/content from transcript rows and `steps[]` instead of legacy timeline message rows
 - live replay of persisted harness events may include `run_usage` while the run is still `running`; historical replay omits `run_usage` so past events do not carry the finished run's final totals
 - tool-call payloads now include backend-computed `display_label` / `display_detail` fields so clients can render high-signal summaries without duplicating formatter logic

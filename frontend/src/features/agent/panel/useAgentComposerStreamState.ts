@@ -109,8 +109,8 @@ function buildOptimisticToolCallFromStarted(
     call_index: 0,
     tool_request_id: event.tool_call_id,
     tool_name: event.tool_name,
-    display_label: event.tool_name,
-    display_detail: null,
+    display_label: event.display_label ?? event.tool_name,
+    display_detail: event.display_detail ?? null,
     arguments_json: null,
     result_content_json: null,
     output_text: null,
@@ -582,14 +582,22 @@ export function useAgentComposerStreamState({
         const existingToolCalls = optimisticToolCallsRef.current[event.run_id] ?? [];
         const matched = existingToolCalls.find((toolCall) => toolCall.id === event.tool_call_id);
         const patch: AgentToolCall = matched
-          ? { ...matched, status, completed_at: completedAt }
+          ? {
+              ...matched,
+              display_label: event.display_label ?? matched.display_label,
+              display_detail: event.display_detail ?? matched.display_detail,
+              status,
+              completed_at: completedAt
+            }
           : {
               ...buildOptimisticToolCallFromStarted({
                 type: "tool_started",
                 run_id: event.run_id,
                 step_index: event.step_index,
                 tool_call_id: event.tool_call_id,
-                tool_name: event.tool_name
+                tool_name: event.tool_name,
+                display_label: event.display_label,
+                display_detail: event.display_detail
               }),
               status,
               completed_at: completedAt

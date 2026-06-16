@@ -46,10 +46,11 @@ def patch_model(monkeypatch, handler: Any) -> None:
 
     def gateway_complete(self, request, **_kwargs):
         response = wrapped(canonical_transcript_to_provider(hydrated_transcript(self, request)))
-        return provider_response_to_decision(
+        decision = provider_response_to_decision(
             response,
             provider_model=request.model_params.model_name,
         )
+        return self._normalize_decision_for_thread(decision, thread=self._resolve_thread(request))
 
     def gateway_stream_complete(self, request, **_kwargs):
         from backend.services.agent.harness.contracts import ModelDeltaEvent
@@ -80,10 +81,11 @@ def patch_model(monkeypatch, handler: Any) -> None:
                 final_message = chunk.get("message") or {}
         if final_message is None:
             raise RuntimeError("streaming model response ended without done event")
-        return provider_response_to_decision(
+        decision = provider_response_to_decision(
             final_message,
             provider_model=request.model_params.model_name,
         )
+        return self._normalize_decision_for_thread(decision, thread=self._resolve_thread(request))
 
     monkeypatch.setattr(LiteLLMModelGateway, "complete", gateway_complete)
     monkeypatch.setattr(StreamingLiteLLMModelGateway, "complete", gateway_stream_complete)

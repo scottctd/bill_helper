@@ -2205,8 +2205,10 @@ def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasonin
         event.get("type") == "model_delta" and event.get("delta_type") == "content"
         for event in events
     )
-    assert any(event.get("type") == "tool_started" for event in events)
-    assert any(event.get("type") == "tool_finished" for event in events)
+    tool_started = next(event for event in events if event.get("type") == "tool_started")
+    tool_finished = next(event for event in events if event.get("type") == "tool_finished")
+    assert tool_started["display_label"] == "bh tags list"
+    assert tool_finished["display_label"] == "bh tags list"
     text = "".join(
         event.get("text", "")
         for event in events

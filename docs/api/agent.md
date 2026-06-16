@@ -231,8 +231,8 @@ Event contract:
   - `run_started`
   - `model_request_started`
   - `model_decision_committed`
-  - `tool_started`
-  - `tool_finished`
+  - `tool_started` with backend-computed `display_label` / `display_detail` when available
+  - `tool_finished` with backend-computed `display_label` / `display_detail` when available
   - `step_committed`
   - `run_finished`
 - persisted harness events replay with `{ type, run_id, sequence_index, ...payload_json fields }`

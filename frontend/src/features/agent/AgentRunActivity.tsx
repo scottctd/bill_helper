@@ -304,7 +304,7 @@ export function PendingAssistantActivityBlock({
   hydratingToolCallIds,
   streamingReasoningText = "",
   streamingReasoningStartedAt,
-  defaultOpenReasoningSteps = true
+  defaultOpenReasoningSteps = false
 }: {
   steps: AgentRunStep[];
   toolCalls?: AgentToolCall[];

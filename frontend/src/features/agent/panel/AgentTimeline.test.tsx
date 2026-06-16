@@ -546,7 +546,7 @@ describe("AgentTimeline", () => {
     expect(screen.getByText("Thinking through the follow-up after tools.")).toBeInTheDocument();
   });
 
-  it("shows committed reasoning content expanded while the run is still live", () => {
+  it("collapses committed reasoning content while the run is still live", async () => {
     const run = buildRun({
       id: "run-live-committed-reasoning",
       status: "running",
@@ -568,6 +568,12 @@ describe("AgentTimeline", () => {
       runsById: new Map([[run.id, run]]),
       activeStreamRunId: run.id
     });
+
+    const summary = screen.getByText(/Thought .* tokens/);
+    expect(summary).toBeInTheDocument();
+    expect(screen.queryByText("I need to inspect recent entries before choosing the tool.")).not.toBeInTheDocument();
+
+    await userEvent.click(summary);
 
     expect(screen.getByText("I need to inspect recent entries before choosing the tool.")).toBeInTheDocument();
   });

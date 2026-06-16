@@ -313,6 +313,8 @@ export type AgentStreamEvent =
       step_index: number;
       tool_call_id: string;
       tool_name: string;
+      display_label?: string | null;
+      display_detail?: string | null;
       sequence_index?: number;
     }
   | {
@@ -322,6 +324,8 @@ export type AgentStreamEvent =
       tool_call_id: string;
       tool_name: string;
       status: string;
+      display_label?: string | null;
+      display_detail?: string | null;
       sequence_index?: number;
     }
   | {

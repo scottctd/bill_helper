@@ -58,8 +58,8 @@ function buildCachedToolCallFromStarted(
     call_index: 0,
     tool_request_id: event.tool_call_id,
     tool_name: event.tool_name,
-    display_label: event.tool_name,
-    display_detail: null,
+    display_label: event.display_label ?? event.tool_name,
+    display_detail: event.display_detail ?? null,
     arguments_json: null,
     result_content_json: null,
     output_text: null,
@@ -186,14 +186,22 @@ export function patchAgentThreadCacheFromStreamEvent(
       return patchRunInDetail(current, event.run_id, (run) => {
         const existing = run.tool_calls.find((toolCall) => toolCall.id === event.tool_call_id);
         const patch: AgentToolCall = existing
-          ? { ...existing, status, completed_at: now }
+          ? {
+              ...existing,
+              display_label: event.display_label ?? existing.display_label,
+              display_detail: event.display_detail ?? existing.display_detail,
+              status,
+              completed_at: now
+            }
           : {
               ...buildCachedToolCallFromStarted({
                 type: "tool_started",
                 run_id: event.run_id,
                 step_index: event.step_index,
                 tool_call_id: event.tool_call_id,
-                tool_name: event.tool_name
+                tool_name: event.tool_name,
+                display_label: event.display_label,
+                display_detail: event.display_detail
               }),
               status,
               completed_at: now

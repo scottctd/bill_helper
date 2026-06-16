@@ -82,7 +82,6 @@ export function AssistantMessageRunWork({
           streamingReasoningText={streamingReasoningText}
           streamingReasoningStartedAt={streamingReasoningStartedAt}
           showStreamingPlaceholder={placeholderActive}
-          defaultOpenReasoningSteps
         />
       </div>
     );
