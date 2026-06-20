@@ -329,6 +329,17 @@ describe("DashboardPage", () => {
     expect(screen.queryByText("Spending by Tags")).not.toBeInTheDocument();
   });
 
+  it("switches the tag breakdown facet when a filter group is selected", async () => {
+    renderDashboardPage();
+
+    expect(await screen.findByText("Day-to-Day by Tag")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /2\. Fixed/ }));
+
+    expect(await screen.findByText("Fixed by Tag")).toBeInTheDocument();
+    expect(screen.queryByText("Day-to-Day by Tag")).not.toBeInTheDocument();
+  });
+
   it("renders the income tab with source breakdown chart", async () => {
     renderDashboardPage();
 

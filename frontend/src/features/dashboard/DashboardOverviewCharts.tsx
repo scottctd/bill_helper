@@ -6,6 +6,8 @@
  * - Side effects: React rendering only.
  */
 
+import { useState } from "react";
+
 import {
   Bar,
   BarChart,
@@ -19,6 +21,7 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { formatMinor, formatMinorCompact } from "../../lib/format";
+import { cn } from "../../lib/utils";
 import type { Dashboard, DashboardFilterGroupSummary } from "../../lib/types";
 import {
   BUILTIN_FILTER_GROUP_ORDER,
@@ -77,16 +80,17 @@ export function DashboardExpenseGroupBreakdownCard({
   yearlyQueryError
 }: DashboardExpenseGroupBreakdownCardProps) {
   const expenseGroups = buildFixedExpenseRankedGroups(filterGroups);
-  const dayToDayGroup = expenseGroups.find((group) => group.key === DAY_TO_DAY_FILTER_GROUP_KEY) ?? null;
-  const dayToDayChartData = dayToDayGroup ? buildFacetChartRows(dayToDayGroup) : [];
-  const dayToDayHasTags = dayToDayChartData.length > 0;
+  const [selectedKey, setSelectedKey] = useState<string>(DAY_TO_DAY_FILTER_GROUP_KEY);
+  const selectedGroup = expenseGroups.find((group) => group.key === selectedKey) ?? expenseGroups[0] ?? null;
+  const selectedChartData = selectedGroup ? buildFacetChartRows(selectedGroup) : [];
+  const selectedHasTags = selectedChartData.length > 0;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{titlePrefix}Expense by Filter Group</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Ranked groups on the left; day-to-day tag breakdown on the right. Sqrt scale on bars.
+          Ranked groups on the left. Click a group to show its tag breakdown on the right. Sqrt scale on bars.
         </p>
       </CardHeader>
       <CardContent>
@@ -109,7 +113,11 @@ export function DashboardExpenseGroupBreakdownCard({
                       <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.18)" }} formatter={(value) => tooltipAmount(currencyCode, value)} />
                       <Bar dataKey="total_minor" radius={[0, 8, 8, 0]}>
                         {expenseGroups.map((group) => (
-                          <Cell key={group.key} fill={group.chart_color} />
+                          <Cell
+                            key={group.key}
+                            fill={group.chart_color}
+                            fillOpacity={selectedGroup?.key === group.key ? 1 : 0.35}
+                          />
                         ))}
                         <HorizontalBarValueLabels dataKey="total_minor" />
                       </Bar>
@@ -117,43 +125,57 @@ export function DashboardExpenseGroupBreakdownCard({
                   )}
                 </DashboardChartContainer>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {expenseGroups.map((group, index) => (
-                  <div key={group.key} className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-2 font-medium">
-                        <span className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: group.chart_color }} />
-                        {index + 1}. {group.name}
-                      </span>
-                      <span className="text-muted-foreground">{formatShare(group.share)}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">{formatMinor(group.total_minor, currencyCode)}</div>
-                  </div>
-                ))}
+              <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Select filter group for tag breakdown">
+                {expenseGroups.map((group, index) => {
+                  const isSelected = selectedGroup?.key === group.key;
+                  return (
+                    <button
+                      key={group.key}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedKey(group.key)}
+                      className={cn(
+                        "dashboard-expense-breakdown-group rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                        isSelected
+                          ? "dashboard-expense-breakdown-group-active"
+                          : "dashboard-expense-breakdown-group-idle"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-2 font-medium">
+                          <span className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: group.chart_color }} aria-hidden />
+                          {index + 1}. {group.name}
+                        </span>
+                        <span className="text-muted-foreground">{formatShare(group.share)}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">{formatMinor(group.total_minor, currencyCode)}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             <div className="dashboard-expense-breakdown-facets">
-              {dayToDayGroup ? (
+              {selectedGroup ? (
                 <div className="dashboard-expense-facet-card rounded-xl border border-border/70 bg-muted/10 p-4">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">{dayToDayGroup.name} by Tag</p>
+                      <p className="text-sm font-medium">{selectedGroup.name} by Tag</p>
                     </div>
-                    <Badge variant="outline" style={{ borderColor: dayToDayGroup.chart_color, color: dayToDayGroup.chart_color }}>
-                      {formatMinor(dayToDayGroup.total_minor, currencyCode)}
+                    <Badge variant="outline" style={{ borderColor: selectedGroup.chart_color, color: selectedGroup.chart_color }}>
+                      {formatMinor(selectedGroup.total_minor, currencyCode)}
                     </Badge>
                   </div>
                   <div className="dashboard-expense-facet-chart min-w-0" style={{ height: FIXED_FACET_CHART_HEIGHT }}>
-                    {dayToDayHasTags ? (
+                    {selectedHasTags ? (
                       <DashboardChartContainer>
                         {({ width, height }) => (
-                          <BarChart width={width} height={height} data={dayToDayChartData} layout="vertical" margin={{ left: 8, right: 40, top: 4 }}>
+                          <BarChart width={width} height={height} data={selectedChartData} layout="vertical" margin={{ left: 8, right: 40, top: 4 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.15} />
                             <XAxis type="number" tickFormatter={axisTick} scale="sqrt" domain={[0, "dataMax"]} hide />
                             <YAxis dataKey="tag" type="category" width={88} tick={{ fontSize: 11 }} />
                             <Tooltip formatter={(value) => tooltipAmount(currencyCode, value)} />
-                            <Bar dataKey="total_minor" name="Amount" fill={dayToDayGroup.chart_color} radius={[0, 4, 4, 0]}>
+                            <Bar dataKey="total_minor" name="Amount" fill={selectedGroup.chart_color} radius={[0, 4, 4, 0]}>
                               <HorizontalBarValueLabels dataKey="total_minor" />
                             </Bar>
                           </BarChart>
@@ -165,7 +187,7 @@ export function DashboardExpenseGroupBreakdownCard({
                   </div>
                 </div>
               ) : (
-                <p className="muted text-sm">Day-to-day filter group is not configured.</p>
+                <p className="muted text-sm">No expense filter group selected.</p>
               )}
             </div>
           </div>

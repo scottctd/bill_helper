@@ -277,6 +277,18 @@
     @apply min-h-[18rem];
   }
 
+  .dashboard-expense-breakdown-group {
+    @apply w-full text-left;
+  }
+
+  .dashboard-expense-breakdown-group-idle {
+    @apply border-border/60 bg-muted/20 hover:border-border hover:bg-muted/40;
+  }
+
+  .dashboard-expense-breakdown-group-active {
+    @apply border-primary/40 bg-primary/10 text-foreground;
+  }
+
   .dashboard-destination-columns {
     @apply min-h-0;
   }
