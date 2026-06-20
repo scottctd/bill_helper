@@ -9,6 +9,7 @@
 import { Suspense, lazy, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { WorkspaceToolbar } from "../components/layout/WorkspaceToolbar";
 import { Button } from "../components/ui/button";
@@ -576,9 +577,11 @@ export function DashboardPage() {
         ) : null}
 
         {activeTab === "agent" ? (
-          <Suspense fallback={<DashboardTabFallback />}>
-            <LazyAgentCostDashboard />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<DashboardTabFallback />}>
+              <LazyAgentCostDashboard />
+            </Suspense>
+          </ErrorBoundary>
         ) : null}
       </div>
     </div>
