@@ -8,7 +8,7 @@
 import type { FilterGroup, FilterGroupRule } from "../../lib/types";
 import { buildDefaultRule, normalizeRule } from "./filterGroupRuleUtils";
 
-export const DEFAULT_FILTER_GROUP_COLOR = "#64748b";
+export const DEFAULT_FILTER_GROUP_COLOR = "#8f8f8f";
 export const UNTAGGED_FILTER_GROUP_KEY = "untagged";
 
 export type FilterGroupEditorTarget = { kind: "new" } | { kind: "existing"; filterGroupId: string };

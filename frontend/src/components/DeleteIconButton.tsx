@@ -21,7 +21,7 @@ export function DeleteIconButton({ label, className, type = "button", variant = 
       variant={variant}
       size={size}
       className={cn(
-        "h-8 w-8 shrink-0 rounded-md p-0 text-muted-foreground shadow-none hover:bg-destructive/10 hover:text-destructive",
+        "h-8 w-8 shrink-0 rounded-sm p-0 text-muted-foreground shadow-none hover:bg-destructive/10 hover:text-destructive",
         className
       )}
       aria-label={label}

@@ -16,7 +16,7 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1.25rem 1.25rem 0.75rem;
-  border-bottom: 1px solid hsl(var(--border));
+  border-bottom: 1px solid rgb(var(--border));
 }
 
 .import-task-dialog-header-main {

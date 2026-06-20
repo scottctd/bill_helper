@@ -13,6 +13,17 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { NotificationProvider } from "./components/ui/notification-center";
 import { AuthProvider } from "./features/auth";
+
+// Geist fonts (self-hosted via Fontsource). Import before styles.css so the
+// @font-face declarations are available before the stylesheet applies them.
+import "@fontsource/geist/400.css";
+import "@fontsource/geist/500.css";
+import "@fontsource/geist/600.css";
+import "@fontsource/geist/700.css";
+import "@fontsource/geist-mono/400.css";
+import "@fontsource/geist-mono/500.css";
+import "@fontsource/geist-mono/600.css";
+
 import "./styles.css";
 
 const queryClient = new QueryClient({

@@ -8,6 +8,7 @@ These rules apply to any coding agent working in this repository.
 - Use `uv` for Python dependency management, scripts, tests, and tooling.
 - Keep docs synchronized with code changes in the same work item.
 - Except for preserved special filenames such as `README.md`, `AGENTS.md`, and `SKILL.md`, name non-code files in lowercase ASCII with hyphens between semantic fields, underscores within each field, and dates written as `YYYY_MM_DD`, for example `2026_03_13-agent_workspace.md`.
+- Personal preference: prefer muted/desaturated colors for dashboard charts over vivid/saturated palettes.
 
 ## LLM-Oriented Design
 

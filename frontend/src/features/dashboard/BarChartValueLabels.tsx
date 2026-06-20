@@ -11,7 +11,7 @@ import { LabelList } from "recharts";
 import { axisTick, toMinorValue } from "./helpers";
 
 export const BAR_VALUE_LABEL_STYLE = {
-  fill: "hsl(var(--foreground) / 0.72)",
+  fill: "rgb(var(--foreground) / 0.72)",
   fontSize: 11,
   fontWeight: 500
 } as const;

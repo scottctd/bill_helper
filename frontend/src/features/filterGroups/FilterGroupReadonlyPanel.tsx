@@ -35,12 +35,12 @@ export function FilterGroupReadonlyPanel({ filterGroup }: FilterGroupReadonlyPan
       </CardHeader>
 
       <CardContent className="grid gap-4">
-        <div className="grid gap-2 rounded-2xl border border-border bg-secondary/25 p-4">
+        <div className="grid gap-2 rounded-md border border-border bg-secondary/25 p-4">
           <h3 className="text-sm font-semibold">Computed automatically</h3>
           <p className="text-sm text-muted-foreground">{filterGroup.description}</p>
         </div>
 
-        <div className="grid gap-2 rounded-2xl border border-dashed border-border p-4">
+        <div className="grid gap-2 rounded-md border border-dashed border-border p-4">
           <h3 className="text-sm font-semibold">Matching rule</h3>
           <p className="text-sm text-muted-foreground">{filterGroup.rule_summary}</p>
         </div>

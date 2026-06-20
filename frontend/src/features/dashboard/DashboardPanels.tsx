@@ -161,11 +161,11 @@ export function DashboardSpendingPanel({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2 md:grid-cols-3">
-                <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">
+                <p className="rounded-sm border border-border/70 bg-muted/30 px-3 py-2 text-copy-14">
                   <span className="block text-xs text-muted-foreground">Spent to date</span>
                   <strong>{formatMinor(data.projection.spent_to_date_minor, data.currency_code)}</strong>
                 </p>
-                <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">
+                <p className="rounded-sm border border-border/70 bg-muted/30 px-3 py-2 text-copy-14">
                   <span className="block text-xs text-muted-foreground">Projected total</span>
                   <strong>
                     {data.projection.projected_total_minor === null
@@ -173,7 +173,7 @@ export function DashboardSpendingPanel({
                       : formatMinor(data.projection.projected_total_minor, data.currency_code)}
                   </strong>
                 </p>
-                <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">
+                <p className="rounded-sm border border-border/70 bg-muted/30 px-3 py-2 text-copy-14">
                   <span className="block text-xs text-muted-foreground">Projected remaining</span>
                   <strong>
                     {data.projection.projected_remaining_minor === null
@@ -182,7 +182,7 @@ export function DashboardSpendingPanel({
                   </strong>
                 </p>
               </div>
-              <div className="rounded-lg border border-border/70">
+              <div className="rounded-md border border-border/70">
                 <div className="p-4">
                   <DashboardProjectionChart
                     projection={data.projection}

@@ -183,7 +183,7 @@ export function TagsSection(props: TagsSectionProps) {
                 <TableRow key={tag.id} className="cursor-pointer" onDoubleClick={() => onStartEditTag(tag)}>
                   <TableCell>
                     <span className="tag-color-cell">
-                      <span className="tag-color-dot" style={{ backgroundColor: tag.color || "hsl(var(--muted))" }} />
+                      <span className="tag-color-dot" style={{ backgroundColor: tag.color || "rgb(var(--muted))" }} />
                       {tag.name}
                     </span>
                   </TableCell>
@@ -234,7 +234,7 @@ export function TagsSection(props: TagsSectionProps) {
               />
             </FormField>
             <FormField label="Color">
-              <Input placeholder="e.g. #7fb069" value={newTagColor} onChange={(event) => onNewTagColorChange(event.target.value)} />
+              <Input placeholder="e.g. #28a948" value={newTagColor} onChange={(event) => onNewTagColorChange(event.target.value)} />
             </FormField>
             <FormField label="Description">
               <Input
@@ -296,7 +296,7 @@ export function TagsSection(props: TagsSectionProps) {
               />
             </FormField>
             <FormField label="Color">
-              <Input placeholder="e.g. #7fb069" value={editingTagColor} onChange={(event) => onEditingTagColorChange(event.target.value)} />
+              <Input placeholder="e.g. #28a948" value={editingTagColor} onChange={(event) => onEditingTagColorChange(event.target.value)} />
             </FormField>
             <FormField label="Description">
               <Input

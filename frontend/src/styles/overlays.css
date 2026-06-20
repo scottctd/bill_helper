@@ -1,6 +1,6 @@
 @layer components {
   .entry-editor-sheet {
-    @apply gap-3 border-border bg-popover p-5 shadow-[var(--shadow-lg)] sm:p-6;
+    @apply gap-3 border-border bg-popover p-5 shadow-geist-lg sm:p-6;
   }
 
   .entry-editor-header {
@@ -26,7 +26,7 @@
   }
 
   .entry-property-label {
-    @apply pt-0.5 text-sm font-medium text-muted-foreground;
+    @apply pt-0.5 text-copy-14 font-medium text-muted-foreground;
   }
 
   .entry-property-group {
@@ -67,7 +67,7 @@
   }
 
   .entry-property-inline-label {
-    @apply whitespace-nowrap text-sm font-medium text-muted-foreground;
+    @apply whitespace-nowrap text-copy-14 font-medium text-muted-foreground;
   }
 
   .entry-property-input {
@@ -100,13 +100,14 @@
 
   .entry-editor-blocknote .bn-container {
     min-height: 360px;
-    background: hsl(var(--card));
-    --bn-colors-editor-background: hsl(var(--card));
-    --bn-colors-menu-background: hsl(var(--card));
-    --bn-colors-tooltip-background: hsl(var(--card));
-    --bn-colors-hovered-background: hsl(var(--secondary));
+    background: rgb(var(--card));
+    --bn-colors-editor-background: rgb(var(--card));
+    --bn-colors-menu-background: rgb(var(--card));
+    --bn-colors-tooltip-background: rgb(var(--card));
+    --bn-colors-hovered-background: rgb(var(--secondary));
     --bn-font-family:
-      "Public Sans",
+      "Geist",
+      "Geist",
       "Segoe UI Variable Text",
       "Segoe UI",
       "Helvetica Neue",
@@ -116,7 +117,7 @@
 
   .entry-editor-blocknote .bn-editor,
   .entry-editor-blocknote .ProseMirror {
-    background: hsl(var(--card));
+    background: rgb(var(--card));
   }
 
   .account-edit-dialog {
@@ -134,7 +135,7 @@
   }
 
   .account-edit-details-card {
-    @apply shrink-0 rounded-lg border border-border/75 bg-secondary/20 p-4 lg:max-h-[min(32vh,16rem)] lg:overflow-y-auto;
+    @apply shrink-0 rounded-md border border-border/75 bg-secondary/20 p-4 lg:max-h-[min(32vh,16rem)] lg:overflow-y-auto;
   }
 
   .account-edit-details-grid {
@@ -142,7 +143,7 @@
   }
 
   .account-edit-active-toggle {
-    @apply inline-flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors hover:bg-secondary/55;
+    @apply inline-flex h-10 items-center gap-2 rounded-sm border border-input bg-background px-3 text-copy-14 text-foreground transition-colors hover:bg-secondary/55 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   .account-edit-active-toggle:has(button[data-state="checked"]),
@@ -168,7 +169,7 @@
   }
 
   .account-edit-history-column {
-    @apply min-h-0 min-w-0 rounded-lg border border-border/75 bg-secondary/20 lg:flex-1 lg:overflow-hidden;
+    @apply min-h-0 min-w-0 rounded-md border border-border/75 bg-secondary/20 lg:flex-1 lg:overflow-hidden;
   }
 
   .account-edit-history-scroll {
@@ -184,7 +185,7 @@
   }
 
   .account-snapshot-create-panel {
-    @apply h-fit w-full rounded-lg border border-border/75 bg-card p-4;
+    @apply h-fit w-full rounded-md border border-border/75 bg-card p-4;
   }
 
   .account-snapshot-create-form {
@@ -198,7 +199,7 @@
   }
 
   .single-select-control {
-    @apply flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none transition-colors hover:bg-secondary/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60;
+    @apply flex h-10 w-full items-center justify-between rounded-sm border border-input bg-background px-3 py-2 text-copy-14 shadow-none transition-colors hover:bg-secondary/55 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60;
   }
 
   .single-select-value {
@@ -216,13 +217,13 @@
   .single-select-menu,
   .creatable-select-menu,
   .tag-multiselect-menu {
-    @apply max-h-56 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-lg)];
+    @apply max-h-56 overflow-auto rounded-md border border-border bg-popover p-1 shadow-geist-md;
   }
 
   .single-select-option,
   .creatable-select-option,
   .tag-multiselect-option {
-    @apply flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent px-2.5 py-2 text-left text-sm;
+    @apply flex w-full items-center gap-2 rounded-sm border border-transparent bg-transparent px-2.5 py-2 text-left text-copy-14;
   }
 
   .tag-multiselect-option {
@@ -256,11 +257,11 @@
   }
 
   .creatable-select-control {
-    @apply flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-none transition-colors hover:bg-secondary/55 focus-within:ring-2 focus-within:ring-ring disabled:opacity-60;
+    @apply flex h-10 w-full items-center rounded-sm border border-input bg-background px-3 py-1.5 text-copy-14 shadow-none transition-colors hover:bg-secondary/55 focus-within:shadow-[var(--focus-ring)] disabled:opacity-60;
   }
 
   .creatable-select-input {
-    @apply min-w-0 flex-1 border-none bg-transparent p-0 text-sm outline-none;
+    @apply min-w-0 flex-1 border-none bg-transparent p-0 text-copy-14 outline-none;
   }
 
   .creatable-select-input:disabled {
@@ -268,24 +269,24 @@
   }
 
   .creatable-select-toggle {
-    @apply inline-flex h-6 w-6 items-center justify-center rounded-md border-none bg-transparent p-0 opacity-75 transition hover:bg-accent hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45;
+    @apply inline-flex h-6 w-6 items-center justify-center rounded-sm border-none bg-transparent p-0 opacity-75 transition hover:bg-accent hover:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-45;
   }
 
   .tag-multiselect-control {
-    @apply flex min-h-[2.5rem] w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-none transition-colors hover:bg-secondary/55;
+    @apply flex min-h-[2.5rem] w-full flex-wrap items-center gap-1.5 rounded-sm border border-input bg-background px-3 py-1.5 text-copy-14 shadow-none transition-colors hover:bg-secondary/55;
     cursor: text;
   }
 
   .tag-multiselect-control:focus-within {
-    @apply ring-2 ring-ring;
+    @apply outline-none shadow-[var(--focus-ring)];
   }
 
   .tag-multiselect-input {
-    @apply min-w-[100px] flex-1 rounded-none border-none bg-transparent px-1 py-0.5 text-sm shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0;
+    @apply min-w-[100px] flex-1 rounded-none border-none bg-transparent px-1 py-0.5 text-copy-14 shadow-none outline-none focus-visible:ring-0;
   }
 
   .tag-chip {
-    @apply inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2 py-1 text-[11px] font-medium;
+    @apply inline-flex items-center gap-1.5 rounded-sm border border-border bg-secondary px-2 py-1 text-label-12 font-medium;
   }
 
   .tag-chip-color {
@@ -293,7 +294,7 @@
   }
 
   .tag-chip-remove {
-    @apply inline-flex h-5 w-5 items-center justify-center rounded-md bg-transparent opacity-65 transition hover:bg-accent hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    @apply inline-flex h-5 w-5 items-center justify-center rounded-sm bg-transparent opacity-65 transition hover:bg-accent hover:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
     border: none;
     margin: 0;
     padding: 0;
@@ -316,15 +317,15 @@
   }
 
   .tag-option-check {
-    @apply text-xs font-semibold text-primary;
+    @apply text-label-12 font-semibold text-primary;
   }
 
   .tag-multiselect-empty {
-    @apply m-2 text-xs text-muted-foreground;
+    @apply m-2 text-label-12 text-muted-foreground;
   }
 
   .tag-multiselect-compact-trigger {
-    @apply flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none transition-colors hover:bg-secondary/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60;
+    @apply flex h-10 w-full items-center justify-between gap-2 rounded-sm border border-input bg-background px-3 py-2 text-copy-14 shadow-none transition-colors hover:bg-secondary/55 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60;
     cursor: pointer;
   }
 
@@ -345,7 +346,7 @@
   }
 
   .tag-multiselect-menu-search-input {
-    @apply h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    @apply h-9 w-full rounded-sm border border-input bg-background px-3 py-1 text-copy-14 shadow-none outline-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   .tooltip-root {
@@ -353,7 +354,7 @@
   }
 
   .tooltip-content {
-    @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover/95 px-3 py-2 text-left text-xs leading-5 text-popover-foreground shadow-[var(--shadow-lg)];
+    @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-64 -translate-x-1/2 rounded-md border border-border bg-popover/95 px-3 py-2 text-left text-label-12 leading-5 text-popover-foreground shadow-geist-md;
   }
 
   .tooltip-content-open {
@@ -365,8 +366,8 @@
   }
 
   .notification-toast {
-    @apply pointer-events-auto grid grid-cols-[auto_1fr_auto] items-start gap-3 rounded-xl border border-border bg-popover/95 px-4 py-3 text-sm text-popover-foreground shadow-[var(--shadow-lg)];
-    animation: notification-toast-enter 220ms ease-out;
+    @apply pointer-events-auto grid grid-cols-[auto_1fr_auto] items-start gap-3 rounded-md border border-border bg-popover/95 px-4 py-3 text-copy-14 text-popover-foreground shadow-geist-md;
+    animation: notification-toast-enter 200ms ease-out;
   }
 
   .notification-toast-info {
@@ -386,7 +387,7 @@
   }
 
   .notification-toast-success .notification-toast-icon {
-    @apply text-success;
+    @apply text-geist-green-900;
   }
 
   .notification-toast-error .notification-toast-icon {
@@ -398,15 +399,15 @@
   }
 
   .notification-toast-title {
-    @apply truncate text-sm font-semibold leading-5 text-popover-foreground;
+    @apply truncate text-copy-14 font-semibold leading-5 text-popover-foreground;
   }
 
   .notification-toast-description {
-    @apply mt-0.5 text-xs leading-5 text-muted-foreground;
+    @apply mt-0.5 text-label-12 leading-5 text-muted-foreground;
   }
 
   .notification-toast-dismiss {
-    @apply mt-0.5 !h-6 !w-6 rounded-md text-muted-foreground hover:bg-background hover:text-foreground;
+    @apply mt-0.5 !h-6 !w-6 rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   @keyframes notification-toast-enter {

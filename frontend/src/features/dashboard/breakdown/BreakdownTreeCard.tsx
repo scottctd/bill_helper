@@ -176,7 +176,7 @@ export function BreakdownTreeCard({ filterGroups, currencyCode, expenseTotalMino
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search groups or tags"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              className="h-9 w-full rounded-sm border border-input bg-background px-3 text-copy-14"
             />
           </label>
           <Button type="button" variant="secondary" size="sm" onClick={() => setTagSort(nextSortToggle(tagSort))}>
@@ -195,7 +195,7 @@ export function BreakdownTreeCard({ filterGroups, currencyCode, expenseTotalMino
               const groupColor = resolveGroupColor(group);
 
               return (
-                <div key={group.key} role="treeitem" aria-expanded={groupExpanded} aria-level={1} className="rounded-lg border border-border/70">
+                <div key={group.key} role="treeitem" aria-expanded={groupExpanded} aria-level={1} className="rounded-md border border-border/70">
                   <button
                     type="button"
                     className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/20"
@@ -235,7 +235,7 @@ export function BreakdownTreeCard({ filterGroups, currencyCode, expenseTotalMino
                               <button
                                 type="button"
                                 className={cn(
-                                  "flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted/20",
+                                  "flex w-full items-center gap-3 rounded-sm px-2 py-2 text-left text-copy-14 transition-colors hover:bg-muted/20",
                                   tagExpanded && "bg-muted/10"
                                 )}
                                 onClick={() => toggleTag(selection)}
@@ -274,7 +274,7 @@ export function BreakdownTreeCard({ filterGroups, currencyCode, expenseTotalMino
                                         <button
                                           type="button"
                                           className={cn(
-                                            "flex w-full items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/20",
+                                            "flex w-full items-center gap-2 rounded-sm border border-border/60 bg-muted/10 px-3 py-2 text-left text-copy-14 transition-colors hover:bg-muted/20",
                                             toExpanded && "bg-muted/20"
                                           )}
                                           onClick={() => toggleTo(group.key, tagRow.tag, toItem.label)}

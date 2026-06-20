@@ -18,11 +18,11 @@
   }
 
   .sidebar-title {
-    @apply flex-1 truncate text-[15px] font-semibold tracking-tight;
+    @apply flex-1 truncate text-heading-16 tracking-tight;
   }
 
   .sidebar-toggle {
-    @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border-none bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm border-none bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   .sidebar-collapsed .sidebar-header {
@@ -38,7 +38,7 @@
   }
 
   .sidebar-link {
-    @apply relative flex min-w-0 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
+    @apply relative flex min-w-0 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-sm px-3 py-2 text-copy-14 font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
   }
 
   .sidebar-link-active {
@@ -80,7 +80,7 @@
   }
 
   .session-gate-card {
-    @apply w-full max-w-lg border-border shadow-[var(--shadow-lg)];
+    @apply w-full max-w-lg border-border shadow-geist-lg;
   }
 
   .panel-resize-handle {
@@ -115,7 +115,7 @@
     scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
-    background: hsl(var(--muted));
+    background: rgb(var(--muted));
   }
 
   .app-main-immersive {
@@ -200,7 +200,7 @@
   }
 
   .page-kicker {
-    @apply m-0 text-[12px] font-medium text-muted-foreground;
+    @apply m-0 text-label-12 text-muted-foreground;
   }
 
   .page-heading {
@@ -208,11 +208,11 @@
   }
 
   .page-title {
-    @apply m-0 text-[1.9rem] font-semibold tracking-tight text-foreground;
+    @apply m-0 text-heading-32 tracking-tight text-foreground;
   }
 
   .page-description {
-    @apply m-0 max-w-[62ch] text-sm leading-6 text-muted-foreground;
+    @apply m-0 max-w-[62ch] text-copy-14 leading-6 text-muted-foreground;
   }
 
   .page-header-actions {
@@ -221,7 +221,7 @@
 
   @media (max-width: 768px) {
     .sidebar {
-      @apply fixed inset-y-0 left-0 z-40 w-56 -translate-x-full shadow-[var(--shadow-lg)];
+      @apply fixed inset-y-0 left-0 z-40 w-56 -translate-x-full shadow-geist-lg;
       transition: transform 0.2s ease, width 0.2s ease;
     }
 
@@ -242,7 +242,7 @@
     }
 
     .page-title {
-      @apply text-[1.55rem];
+      @apply text-heading-24;
     }
 
     .page-header-actions {

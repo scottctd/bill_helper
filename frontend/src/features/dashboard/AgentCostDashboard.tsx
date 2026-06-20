@@ -123,8 +123,8 @@ export function AgentCostDashboard() {
     total_cost_usd: point.total_cost_usd,
     ...point.costs_by_model
   }));
-  const surfaceChartData = data.surface_breakdown.map((point) => ({
-    surface: point.surface === "app" ? "App" : point.surface === "telegram" ? "Telegram" : point.surface,
+  const surfaceChartData = data.origin_breakdown.map((point) => ({
+    surface: point.origin === "app" ? "App" : point.origin === "telegram" ? "Telegram" : point.origin,
     total_cost_usd: point.total_cost_usd,
     ...point.costs_by_model
   }));
@@ -253,7 +253,7 @@ export function AgentCostDashboard() {
                 <DashboardChartContainer>
                   {({ width, height }) => (
                     <AreaChart width={width} height={height} data={costSeriesData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.18} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--muted-foreground))" opacity={0.18} />
                       <XAxis dataKey="bucket_label" />
                       <YAxis tickFormatter={formatUsdTick} />
                       <Tooltip formatter={(value, name) => [formatUsd(Number(value ?? 0)), String(name ?? "")]} />
@@ -315,7 +315,7 @@ export function AgentCostDashboard() {
                 <DashboardChartContainer>
                   {({ width, height }) => (
                     <BarChart width={width} height={height} data={surfaceChartData} margin={{ top: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.18} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--muted-foreground))" opacity={0.18} />
                       <XAxis dataKey="surface" />
                       <YAxis tickFormatter={formatUsdTick} />
                       <Tooltip formatter={(value, name) => [formatUsd(Number(value ?? 0)), String(name ?? "")]} />
@@ -342,7 +342,7 @@ export function AgentCostDashboard() {
                 <CardTitle>Model Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="rounded-lg border border-border/70">
+                <div className="rounded-md border border-border/70">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -386,7 +386,7 @@ export function AgentCostDashboard() {
               <CardTitle>Top Expensive Runs</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="rounded-lg border border-border/70">
+              <div className="rounded-md border border-border/70">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -416,13 +416,13 @@ export function AgentCostDashboard() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize">
-                            {run.surface}
+                            {run.origin}
                           </Badge>
                         </TableCell>
                         <TableCell>{formatUsd(run.total_cost_usd)}</TableCell>
                         <TableCell>{formatTokenCount(run.total_tokens)}</TableCell>
                         <TableCell>
-                          <Badge variant={statusTone(run.status)} className={cn(run.status === "completed" ? "text-success" : "")}>
+                          <Badge variant={statusTone(run.status)} className={cn(run.status === "completed" ? "text-geist-green-900" : "")}>
                             {run.status}
                           </Badge>
                         </TableCell>

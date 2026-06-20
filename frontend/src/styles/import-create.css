@@ -3,9 +3,9 @@
   flex-wrap: wrap;
   gap: 0.625rem;
   padding: 0.75rem;
-  border-radius: calc(var(--radius) - 2px);
-  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, rgb(var(--foreground)) 8%, transparent);
+  background: color-mix(in srgb, rgb(var(--foreground)) 3%, transparent);
 }
 
 .import-create-step {
@@ -15,16 +15,17 @@
   min-width: 0;
   padding: 0.375rem 0.625rem;
   border: 1px solid transparent;
-  border-radius: calc(var(--radius) - 2px);
-  color: var(--muted-foreground);
-  background: var(--card);
+  border-radius: 4px;
+  color: rgb(var(--muted-foreground));
+  background: rgb(var(--card));
   font-size: 0.8125rem;
+  letter-spacing: -0.26px;
 }
 
 .import-create-step.is-active {
-  border-color: color-mix(in srgb, var(--foreground) 14%, transparent);
-  color: var(--foreground);
-  background: color-mix(in srgb, var(--foreground) 4%, var(--card));
+  border-color: color-mix(in srgb, rgb(var(--foreground)) 14%, transparent);
+  color: rgb(var(--foreground));
+  background: color-mix(in srgb, rgb(var(--foreground)) 4%, rgb(var(--card)));
 }
 
 .import-create-step-index {
@@ -34,14 +35,14 @@
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: color-mix(in srgb, rgb(var(--foreground)) 8%, transparent);
   font-size: 0.75rem;
   font-weight: 600;
 }
 
 .import-create-step.is-active .import-create-step-index {
-  background: color-mix(in srgb, var(--foreground) 12%, transparent);
-  color: var(--foreground);
+  background: color-mix(in srgb, rgb(var(--foreground)) 12%, transparent);
+  color: rgb(var(--foreground));
 }
 
 .import-launch-grid {
@@ -67,18 +68,18 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1rem;
-  border-radius: calc(var(--radius) - 2px);
-  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, rgb(var(--foreground)) 10%, transparent);
+  background: color-mix(in srgb, rgb(var(--foreground)) 3%, transparent);
 }
 
 .import-config-panel-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--foreground);
-  font-size: 0.875rem;
+  color: rgb(var(--foreground));
   font-weight: 600;
+  font-size: 0.875rem;
 }
 
 .import-config-fields {
@@ -96,7 +97,7 @@
 }
 
 .import-field-label {
-  color: var(--muted-foreground);
+  color: rgb(var(--muted-foreground));
 }
 
 .import-field-value {
@@ -108,9 +109,9 @@
 .import-model-select {
   width: 100%;
   min-height: 2.625rem;
-  border-radius: calc(var(--radius) - 2px);
-  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-  background: var(--card);
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, rgb(var(--foreground)) 12%, transparent);
+  background: rgb(var(--card));
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
 }
@@ -118,9 +119,9 @@
 .import-worker-input {
   width: 100%;
   min-height: 2.625rem;
-  border-radius: calc(var(--radius) - 2px);
-  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-  background: var(--card);
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, rgb(var(--foreground)) 12%, transparent);
+  background: rgb(var(--card));
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -137,15 +138,15 @@
   padding: 2rem;
   border-width: 1px;
   border-style: dashed;
-  border-color: color-mix(in srgb, var(--foreground) 20%, transparent);
-  border-radius: calc(var(--radius) - 2px);
-  background: color-mix(in srgb, var(--foreground)  2%, var(--card));
+  border-color: color-mix(in srgb, rgb(var(--foreground)) 20%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, rgb(var(--foreground)) 2%, rgb(var(--card)));
   transition: border-color 160ms ease, background 160ms ease;
 }
 
 .import-dropzone.is-active {
-  border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  border-color: rgb(var(--primary));
+  background: color-mix(in srgb, rgb(var(--primary)) 8%, rgb(var(--card)));
 }
 
 .import-dropzone-icon-wrap {
@@ -154,9 +155,9 @@
   justify-content: center;
   width: 3rem;
   height: 3rem;
-  border-radius: calc(var(--radius) - 2px);
-  background: color-mix(in srgb, var(--primary) 10%, var(--background));
-  color: var(--primary);
+  border-radius: 4px;
+  background: color-mix(in srgb, rgb(var(--primary)) 10%, rgb(var(--background)));
+  color: rgb(var(--primary));
 }
 
 .import-dropzone-icon {
@@ -176,7 +177,7 @@
 
 .import-dropzone-subtitle {
   margin: 0.25rem 0 0;
-  color: var(--muted-foreground);
+  color: rgb(var(--muted-foreground));
   font-size: 0.875rem;
 }
 
@@ -193,9 +194,9 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  border-radius: calc(var(--radius) - 2px);
-  background: color-mix(in srgb, var(--card) 96%, var(--background));
-  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, rgb(var(--card)) 96%, rgb(var(--background)));
+  border: 1px solid color-mix(in srgb, rgb(var(--foreground)) 8%, transparent);
 }
 
 .import-file-summary-actions {
@@ -214,10 +215,10 @@
 }
 
 .import-file-row {
-  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
-  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid color-mix(in srgb, rgb(var(--foreground)) 10%, transparent);
+  border-radius: 4px;
   padding: 0.875rem;
-  background: var(--card);
+  background: rgb(var(--card));
   transition: opacity 160ms ease;
 }
 
@@ -245,14 +246,14 @@
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  border-radius: calc(var(--radius) - 2px);
-  background: color-mix(in srgb, var(--primary) 10%, var(--background));
-  color: var(--primary);
+  border-radius: 4px;
+  background: color-mix(in srgb, rgb(var(--primary)) 10%, rgb(var(--background)));
+  color: rgb(var(--primary));
 }
 
 .import-file-icon.is-history {
-  background: color-mix(in srgb, hsl(var(--warning)) 12%, var(--background));
-  color: hsl(var(--warning-foreground));
+  background: color-mix(in srgb, rgb(var(--warning)) 12%, rgb(var(--background)));
+  color: rgb(var(--warning-foreground));
 }
 
 .import-file-name {
@@ -266,7 +267,7 @@
   align-items: center;
   gap: 0.25rem;
   margin-top: 0.5rem;
-  color: var(--muted-foreground);
+  color: rgb(var(--muted-foreground));
   font-size: 0.8125rem;
 }
 
@@ -274,18 +275,18 @@
   display: inline-flex;
   flex: 0 0 auto;
   padding: 0.125rem;
-  border-radius: calc(var(--radius) - 2px);
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--secondary));
+  border-radius: 4px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--secondary));
 }
 
 .import-segment {
   min-width: 4.25rem;
   padding: 0.375rem 0.75rem;
   border: 1px solid transparent;
-  border-radius: calc(var(--radius) - 4px);
+  border-radius: 2px;
   background: transparent;
-  color: hsl(var(--muted-foreground));
+  color: rgb(var(--muted-foreground));
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.25;
@@ -293,19 +294,19 @@
 }
 
 .import-segment:hover {
-  color: hsl(var(--foreground));
+  color: rgb(var(--foreground));
 }
 
 .import-segment.is-active {
-  border-color: hsl(var(--border));
-  background: hsl(var(--card));
-  color: hsl(var(--foreground));
+  border-color: rgb(var(--border));
+  background: rgb(var(--card));
+  color: rgb(var(--foreground));
   box-shadow: var(--shadow-sm);
 }
 
 .import-segment:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px hsl(var(--ring));
+  box-shadow: var(--focus-ring);
 }
 
 .import-instructions-label {
@@ -313,6 +314,7 @@
   flex-direction: column;
   gap: 0.5rem;
   font-size: 0.875rem;
+  line-height: 1.35;
 }
 
 .import-instructions-textarea {

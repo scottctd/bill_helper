@@ -31,7 +31,7 @@ export function FilterRuleConditionRow({
   onRemove
 }: FilterRuleConditionRowProps) {
   return (
-    <div className="rounded-xl border border-border bg-card/80 p-3">
+    <div className="rounded-md border border-border bg-card/80 p-3">
       <div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)_auto] lg:items-start">
         <label className="field min-w-0">
           <span>Condition</span>

@@ -19,11 +19,11 @@ interface FormFieldProps extends React.HTMLAttributes<HTMLLabelElement> {
 
 export function FormField({ className, label, htmlFor, hint, error, children, ...props }: FormFieldProps) {
   return (
-    <label className={cn("grid gap-2 text-sm", className)} htmlFor={htmlFor} {...props}>
+    <label className={cn("grid gap-2 text-copy-14", className)} htmlFor={htmlFor} {...props}>
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
-      {error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
-      {!error && hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {error ? <p className="text-label-12 font-medium text-destructive">{error}</p> : null}
+      {!error && hint ? <p className="text-label-12 text-muted-foreground">{hint}</p> : null}
     </label>
   );
 }

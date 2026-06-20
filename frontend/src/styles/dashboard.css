@@ -4,7 +4,7 @@
   }
 
   .dashboard-tab-button {
-    @apply rounded-md;
+    @apply rounded-sm;
   }
 
   .dashboard-tab-active {
@@ -46,15 +46,15 @@
   }
 
   .dashboard-view-toggle {
-    @apply box-border flex h-10 w-full items-stretch gap-0.5 rounded-md border border-input bg-secondary p-0.5;
+    @apply box-border flex h-10 w-full items-stretch gap-0.5 rounded-sm border border-input bg-secondary p-0.5;
   }
 
   .dashboard-view-toggle-button {
-    @apply inline-flex min-h-0 flex-1 items-center justify-center rounded-sm px-2 py-0 text-sm font-medium text-muted-foreground transition-colors;
+    @apply inline-flex min-h-0 flex-1 items-center justify-center rounded-sm px-2 py-0 text-button-14 text-muted-foreground transition-colors;
   }
 
   .dashboard-view-toggle-button-active {
-    @apply bg-card text-foreground shadow-sm;
+    @apply bg-card text-foreground shadow-geist-sm;
   }
 
   .dashboard-timeline-strip-field {
@@ -62,7 +62,7 @@
   }
 
   .dashboard-timeline-strip {
-    @apply box-border flex h-10 min-h-10 max-w-full items-center gap-1.5 overflow-x-auto overscroll-x-contain rounded-md border border-input bg-muted/30 px-1;
+    @apply box-border flex h-10 min-h-10 max-w-full items-center gap-1.5 overflow-x-auto overscroll-x-contain rounded-sm border border-input bg-muted/30 px-1;
     scrollbar-width: none;
     -ms-overflow-style: none;
     scroll-snap-type: x proximity;
@@ -74,17 +74,17 @@
   }
 
   .dashboard-timeline-strip:focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+    @apply outline-none shadow-[var(--focus-ring)];
   }
 
   .dashboard-month-chip-toolbar {
-    @apply shrink-0 snap-end rounded-md border border-border/70 bg-background px-2.5 py-0 text-left shadow-sm transition-[border-color,background-color,color,box-shadow] duration-150 hover:border-primary/30 hover:bg-accent/60;
+    @apply shrink-0 snap-end rounded-sm border border-border/70 bg-background px-2.5 py-0 text-left shadow-geist-sm transition-[border-color,background-color,color,box-shadow] duration-150 hover:border-primary/30 hover:bg-accent/60;
     min-width: 3.25rem;
     height: 2rem;
   }
 
   .dashboard-month-chip-toolbar-active {
-    @apply border-primary/40 bg-accent shadow-sm;
+    @apply border-primary/40 bg-accent shadow-geist-sm;
   }
 
   .dashboard-month-chip-toolbar-unavailable {
@@ -100,7 +100,7 @@
   }
 
   .dashboard-month-chip-toolbar-label {
-    @apply block whitespace-nowrap text-sm font-medium leading-none text-foreground;
+    @apply block whitespace-nowrap text-button-14 leading-none text-foreground;
   }
 
   .dashboard-month-chip-toolbar-sub {
@@ -108,11 +108,11 @@
   }
 
   .dashboard-timeline-empty {
-    @apply flex min-h-24 items-center justify-center rounded-xl border border-dashed border-border/75 bg-background/60 px-4 text-center text-sm text-muted-foreground;
+    @apply flex min-h-24 items-center justify-center rounded-md border border-dashed border-border/75 bg-background/60 px-4 text-center text-copy-14 text-muted-foreground;
   }
 
   .dashboard-timeline-empty-inline {
-    @apply flex h-full min-h-0 w-full items-center justify-center px-2 text-center text-xs text-muted-foreground;
+    @apply flex h-full min-h-0 w-full items-center justify-center px-2 text-center text-label-12 text-muted-foreground;
   }
 
   .dashboard-comparison-grid {
@@ -120,23 +120,23 @@
   }
 
   .dashboard-comparison-card {
-    @apply grid gap-3 rounded-lg border border-border bg-secondary/45 p-4;
+    @apply grid gap-3 rounded-md border border-border bg-secondary/45 p-4;
   }
 
   .dashboard-scope-note {
-    @apply rounded-lg border border-border bg-secondary/55 px-4 py-3 text-sm text-foreground/85;
+    @apply rounded-md border border-border bg-secondary/55 px-4 py-3 text-copy-14 text-foreground/85;
   }
 
   .dashboard-delta {
-    @apply text-sm font-medium;
+    @apply text-copy-14 font-medium;
   }
 
   .dashboard-delta-up {
-    @apply text-warning;
+    @apply text-geist-amber-900;
   }
 
   .dashboard-delta-down {
-    @apply text-success;
+    @apply text-geist-green-900;
   }
 
   .dashboard-delta-flat {
@@ -144,7 +144,7 @@
   }
 
   .dashboard-skeleton-block {
-    @apply animate-pulse rounded-md bg-muted/60;
+    @apply animate-pulse rounded-sm bg-muted/60;
   }
 
   .dashboard-skeleton-title {
@@ -152,7 +152,7 @@
   }
 
   .dashboard-skeleton-chart {
-    @apply w-full rounded-lg;
+    @apply w-full rounded-md;
   }
 
   .dashboard-skeleton-control {
@@ -160,23 +160,23 @@
   }
 
   .dashboard-skeleton-timeline {
-    @apply box-border flex h-10 min-h-10 items-center gap-1.5 overflow-hidden rounded-md border border-input bg-muted/30 px-1;
+    @apply box-border flex h-10 min-h-10 items-center gap-1.5 overflow-hidden rounded-sm border border-input bg-muted/30 px-1;
   }
 
   .dashboard-skeleton-chip {
-    @apply h-8 w-14 shrink-0 rounded-md;
+    @apply h-8 w-14 shrink-0 rounded-sm;
   }
 
   .dashboard-skeleton-stat {
-    @apply h-24 w-full rounded-xl;
+    @apply h-24 w-full rounded-md;
   }
 
   .dashboard-skeleton-card {
-    @apply w-full rounded-xl;
+    @apply w-full rounded-md;
   }
 
   .dashboard-summary-hero {
-    @apply rounded-xl border border-border bg-card p-4 sm:p-6;
+    @apply rounded-md border border-border bg-card p-4 sm:p-6;
   }
 
   .dashboard-summary-hero-equation {
@@ -188,7 +188,7 @@
   }
 
   .dashboard-summary-hero-item {
-    @apply rounded-lg border border-border/60 bg-muted/20 px-4 py-3;
+    @apply rounded-md border border-border/60 bg-muted/20 px-4 py-3;
   }
 
   .dashboard-summary-hero-secondary-item {
@@ -196,7 +196,7 @@
   }
 
   .dashboard-summary-hero-label {
-    @apply mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground;
+    @apply mb-1 flex items-center gap-1.5 text-label-12 font-medium uppercase tracking-wide text-muted-foreground;
   }
 
   .dashboard-summary-hero-icon {
@@ -204,11 +204,11 @@
   }
 
   .dashboard-summary-hero-value {
-    @apply text-2xl font-semibold tabular-nums tracking-tight;
+    @apply text-heading-24 tabular-nums tracking-tight;
   }
 
   .dashboard-summary-hero-secondary-item .dashboard-summary-hero-value {
-    @apply text-xl;
+    @apply text-heading-20;
   }
 
   .dashboard-summary-hero-operator {
@@ -216,57 +216,57 @@
   }
 
   .dashboard-summary-hero-income {
-    @apply border-emerald-500/25 bg-emerald-500/5;
+    @apply border-geist-green-500/25 bg-geist-green-500/5;
   }
 
   .dashboard-summary-hero-income .dashboard-summary-hero-label,
   .dashboard-summary-hero-income .dashboard-summary-hero-value {
-    @apply text-emerald-700 dark:text-emerald-400;
+    @apply text-geist-green-900;
   }
 
   .dashboard-summary-hero-expense {
-    @apply border-red-500/20 bg-red-500/5;
+    @apply border-geist-red-500/20 bg-geist-red-500/5;
   }
 
   .dashboard-summary-hero-expense .dashboard-summary-hero-label,
   .dashboard-summary-hero-expense .dashboard-summary-hero-value {
-    @apply text-red-700 dark:text-red-400;
+    @apply text-geist-red-900;
   }
 
   .dashboard-summary-hero-net-positive {
-    @apply border-emerald-500/25 bg-emerald-500/5;
+    @apply border-geist-green-500/25 bg-geist-green-500/5;
   }
 
   .dashboard-summary-hero-net-positive .dashboard-summary-hero-label,
   .dashboard-summary-hero-net-positive .dashboard-summary-hero-value {
-    @apply text-emerald-700 dark:text-emerald-400;
+    @apply text-geist-green-900;
   }
 
   .dashboard-summary-hero-net-negative {
-    @apply border-red-500/20 bg-red-500/5;
+    @apply border-geist-red-500/20 bg-geist-red-500/5;
   }
 
   .dashboard-summary-hero-net-negative .dashboard-summary-hero-label,
   .dashboard-summary-hero-net-negative .dashboard-summary-hero-value {
-    @apply text-red-700 dark:text-red-400;
+    @apply text-geist-red-900;
   }
 
   .dashboard-summary-hero-cash {
-    @apply border-amber-500/25 bg-amber-500/5;
+    @apply border-geist-amber-500/25 bg-geist-amber-500/5;
   }
 
   .dashboard-summary-hero-cash .dashboard-summary-hero-label,
   .dashboard-summary-hero-cash .dashboard-summary-hero-value {
-    @apply text-amber-700 dark:text-amber-400;
+    @apply text-geist-amber-900;
   }
 
   .dashboard-summary-hero-core-spend {
-    @apply border-sky-500/25 bg-sky-500/5;
+    @apply border-geist-blue-500/25 bg-geist-blue-500/5;
   }
 
   .dashboard-summary-hero-core-spend .dashboard-summary-hero-label,
   .dashboard-summary-hero-core-spend .dashboard-summary-hero-value {
-    @apply text-sky-700 dark:text-sky-400;
+    @apply text-geist-blue-700;
   }
 
   .dashboard-expense-breakdown-grid {
@@ -294,6 +294,6 @@
   }
 
   .dashboard-skeleton-hero {
-    @apply h-24 w-full rounded-xl;
+    @apply h-24 w-full rounded-md;
   }
 }

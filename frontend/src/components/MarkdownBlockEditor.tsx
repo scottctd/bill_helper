@@ -40,7 +40,7 @@ function MarkdownTextareaFallback({
       {mode === "loading" ? (
         <p className="text-xs text-muted-foreground">Loading rich markdown editor...</p>
       ) : IS_DEV ? (
-        <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+        <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-copy-14">
           <p className="font-medium text-foreground">Rich markdown editor failed to load.</p>
           <p className="mt-1 text-muted-foreground">
             Dev mode kept the plain textarea active so the form stays usable while surfacing the runtime error.

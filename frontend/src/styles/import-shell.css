@@ -21,9 +21,9 @@
   justify-content: center;
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: calc(var(--radius) - 2px);
-  background: color-mix(in srgb, var(--primary) 12%, var(--background));
-  color: var(--primary);
+  border-radius: 6px;
+  background: color-mix(in srgb, rgb(var(--primary)) 12%, rgb(var(--background)));
+  color: rgb(var(--primary));
 }
 
 .import-toolbar-title {
@@ -34,7 +34,7 @@
 .import-toolbar-subtitle {
   margin: 0.25rem 0 0;
   font-size: 0.875rem;
-  color: var(--muted-foreground);
+  color: rgb(var(--muted-foreground));
 }
 
 .import-detail-nav {
@@ -73,7 +73,7 @@
 
 .import-summary-grid .stat-block {
   min-height: 6.25rem;
-  border-radius: calc(var(--radius) - 2px);
+  border-radius: 6px;
 }
 
 .import-active-badge,

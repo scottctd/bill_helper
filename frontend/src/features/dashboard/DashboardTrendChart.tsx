@@ -61,7 +61,7 @@ export function DashboardTrendChart({ data: chartData, trendGroups, incomeTrendG
                   const active = payload?.find((p) => p.dataKey === hoveredKey) ?? payload?.[0];
                   if (!active) return null;
                   return (
-                    <div className="rounded-md border border-border bg-popover px-3 py-2 text-sm shadow-md">
+                    <div className="rounded-md border border-border bg-popover px-3 py-2 text-copy-14 shadow-geist-md">
                       <p className="text-muted-foreground mb-1">{String(label)}</p>
                       <p className="font-medium">
                         {String(active.name)}: {tooltipAmount(currencyCode, active.value)}
@@ -103,7 +103,7 @@ export function DashboardTrendChart({ data: chartData, trendGroups, incomeTrendG
         aria-label="Income and expense segment legend"
       >
         <div className="space-y-1">
-          <p className="text-[0.7rem] font-medium uppercase tracking-wide text-foreground">Income</p>
+          <p className="text-label-12 font-medium uppercase tracking-wide text-foreground">Income</p>
           <ul className="flex flex-wrap gap-x-3 gap-y-1">
             {incomeTrendGroups.map((group) => (
               <li key={group.key} className="flex items-center gap-1.5">
@@ -118,7 +118,7 @@ export function DashboardTrendChart({ data: chartData, trendGroups, incomeTrendG
           </ul>
         </div>
         <div className="space-y-1">
-          <p className="text-[0.7rem] font-medium uppercase tracking-wide text-foreground">Expense</p>
+          <p className="text-label-12 font-medium uppercase tracking-wide text-foreground">Expense</p>
           <ul className="flex flex-wrap gap-x-3 gap-y-1">
             {trendGroups.map((group) => (
               <li key={group.key} className="flex items-center gap-1.5">

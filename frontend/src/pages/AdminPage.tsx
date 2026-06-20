@@ -209,7 +209,7 @@ export function AdminPage() {
               />
             </FormField>
             <FormField label="Admin">
-              <div className="flex h-10 items-center gap-2 rounded-md border border-input px-3">
+              <div className="flex h-10 items-center gap-2 rounded-sm border border-input px-3">
                 <Checkbox
                   checked={createIsAdmin}
                   onCheckedChange={(checked) => setCreateIsAdmin(checked === true)}

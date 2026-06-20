@@ -69,17 +69,15 @@
   body {
     @apply font-sans text-foreground antialiased;
     font-family:
-      "Public Sans",
+      "Geist",
       "Segoe UI Variable Text",
       "Segoe UI",
       "Helvetica Neue",
       Arial,
       sans-serif;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-    line-height: 1.45;
     margin: 0;
-    background: hsl(var(--background));
+    background: rgb(var(--background));
   }
 
   a {
@@ -95,7 +93,7 @@
   input:not([type="checkbox"]):not([type="file"]):not(.agent-thread-input),
   select,
   textarea {
-    @apply rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60;
+    @apply rounded-sm border border-input bg-background px-3 py-2 text-copy-14 shadow-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-muted/50 disabled:opacity-60;
   }
 
   textarea {
@@ -104,15 +102,15 @@
   }
 
   input[type="checkbox"] {
-    @apply h-4 w-4 rounded border-input accent-primary;
+    @apply h-4 w-4 rounded-sm border-input;
   }
 
   button:not([class]) {
-    @apply inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-55;
+    @apply inline-flex h-10 items-center justify-center rounded-sm bg-primary px-4 py-2 text-button-14 font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-55;
   }
 
   table {
-    @apply w-full border-collapse text-sm;
+    @apply w-full border-collapse text-copy-14;
   }
 
   thead tr {
@@ -120,7 +118,7 @@
   }
 
   th {
-    @apply px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground;
+    @apply px-3 py-2.5 text-left text-label-12 font-semibold text-muted-foreground;
   }
 
   td {

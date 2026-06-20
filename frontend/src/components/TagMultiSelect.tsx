@@ -431,7 +431,7 @@ export function TagMultiSelect({
         <div className="tag-multiselect-control" onClick={focusInput} ref={inlineControlRef}>
           {selected.map((tag, index) => (
             <span key={tag.key} className="tag-chip" style={{ borderColor: tag.color ?? undefined }}>
-              <span className="tag-chip-color" style={{ backgroundColor: tag.color || "hsl(var(--muted))" }} />
+              <span className="tag-chip-color" style={{ backgroundColor: tag.color || "rgb(var(--muted))" }} />
               <span>{tag.name}</span>
               <button
                 type="button"

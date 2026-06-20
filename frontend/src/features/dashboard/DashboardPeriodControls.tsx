@@ -58,7 +58,7 @@ export function DashboardPeriodControls({
   return (
     <>
       <div className="field dashboard-toolbar-year dashboard-timeline-strip-field">
-        <span className="text-[12px] font-medium text-muted-foreground">Year</span>
+        <span className="text-label-12 font-medium text-muted-foreground">Year</span>
         <DashboardScrollStrip
           ariaLabel="Year timeline"
           scrollRef={yearScrollRef}
@@ -94,7 +94,7 @@ export function DashboardPeriodControls({
       </div>
 
       <div className="field dashboard-toolbar-month dashboard-timeline-strip-field min-w-0">
-        <span className="text-[12px] font-medium text-muted-foreground">Month</span>
+        <span className="text-label-12 font-medium text-muted-foreground">Month</span>
         <DashboardScrollStrip
           ariaLabel="Month timeline"
           scrollRef={monthScrollRef}

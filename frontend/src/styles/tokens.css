@@ -1,108 +1,205 @@
+/*
+ * Geist design system tokens (light theme).
+ *
+ * Opaque colors are RGB triples consumed via `rgb(var(--x))` so Tailwind's
+ * `/opacity` modifier works everywhere (utilities and @apply) via
+ * `rgb(var(--x) / <alpha>)`. The `gray-alpha-*` scale stays 8-digit hex
+ * (`var(--geist-gray-alpha-x)`) because translucency is its purpose; it is used
+ * directly without opacity modifiers. Chart tokens are RGB triples consumed via
+ * `rgb(var(--chart-x))` so recharts/d3 receive complete colors.
+ *
+ * P3 wide-gamut oklch variants (`*-p3`) from the Geist spec are deferred; the
+ * sRGB values below render correctly on all displays.
+ */
 @layer base {
   :root {
-    --background: 220 18% 97%;
-    --foreground: 222 20% 14%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 20% 14%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 20% 14%;
-    --primary: 214 45% 26%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 220 17% 94%;
-    --secondary-foreground: 222 18% 20%;
-    --muted: 220 17% 95%;
-    --muted-foreground: 220 10% 43%;
-    --accent: 216 18% 92%;
-    --accent-foreground: 222 20% 14%;
-    --destructive: 1 67% 52%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 88%;
-    --border-strong: 220 12% 76%;
-    --input: 220 15% 88%;
-    --ring: 214 45% 26%;
-    --success: 152 43% 39%;
-    --success-foreground: 152 52% 16%;
-    --warning: 36 76% 45%;
-    --warning-foreground: 35 92% 13%;
-    --chart-income: 55 145 118;
-    --chart-expense: 186 95 59;
-    --chart-net: 56 117 178;
-    --chart-destination: 107 96 181;
-    --chart-source: 186 133 59;
-    --chart-segment-1: 94 129 172;
-    --chart-segment-2: 235 203 139;
-    --chart-segment-3: 143 188 187;
-    --chart-segment-4: 191 97 106;
-    --chart-segment-5: 136 192 208;
-    --chart-segment-6: 180 142 173;
-    --chart-segment-7: 163 190 140;
-    --chart-segment-8: 208 135 112;
-    --chart-pie-1: 94 129 172;
-    --chart-pie-2: 235 203 139;
-    --chart-pie-3: 143 188 187;
-    --chart-pie-4: 191 97 106;
-    --chart-pie-5: 136 192 208;
-    --chart-pie-6: 180 142 173;
-    --chart-pie-7: 163 190 140;
-    --chart-pie-8: 208 135 112;
-    --scrollbar-track: hsl(var(--background) / 0);
-    --scrollbar-thumb: hsl(var(--muted-foreground) / 0.24);
-    --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.4);
-    --shadow-sm: 0 1px 2px hsl(var(--foreground) / 0.04), 0 14px 34px hsl(var(--foreground) / 0.05);
-    --shadow-lg: 0 18px 46px hsl(var(--foreground) / 0.14);
-    --radius: 0.5rem;
-    --page-max-width: 82rem;
-  }
+    /* === Semantic surface + content tokens (Geist light, RGB triples) === */
+    --background: 255 255 255;            /* background-100 */
+    --foreground: 23 23 23;               /* gray-1000 */
+    --card: 255 255 255;                  /* background-100 */
+    --card-foreground: 23 23 23;          /* gray-1000 */
+    --popover: 255 255 255;               /* background-100 */
+    --popover-foreground: 23 23 23;       /* gray-1000 */
+    --primary: 23 23 23;                  /* gray-1000 (solid fill) */
+    --primary-foreground: 255 255 255;    /* white on primary */
+    --secondary: 242 242 242;             /* gray-100 */
+    --secondary-foreground: 23 23 23;     /* gray-1000 */
+    --muted: 250 250 250;                 /* background-200 */
+    --muted-foreground: 77 77 77;         /* gray-900 */
+    --accent: 242 242 242;                /* gray-100 (hover wash) */
+    --accent-foreground: 23 23 23;        /* gray-1000 */
+    --destructive: 234 0 29;              /* red-800 */
+    --destructive-foreground: 255 255 255;/* white */
+    --border: 235 235 235;                /* gray-200 (solid equiv of gray-alpha-400 on white) */
+    --border-strong: 143 143 143;         /* gray-700 */
+    --input: 235 235 235;                 /* gray-200 */
+    --ring: 0 107 255;                    /* blue-700 (focus) */
+    --success: 40 169 72;                 /* green-700 (fill/accent) */
+    --success-foreground: 16 125 50;      /* green-900 (dark text on light green tints) */
+    --warning: 255 147 0;                 /* amber-800 (fill/icon) */
+    --warning-foreground: 86 25 0;        /* amber-1000 (dark text on amber tint) */
 
-  .dark {
-    --background: 222 18% 12%;
-    --foreground: 210 36% 96%;
-    --card: 222 18% 15%;
-    --card-foreground: 210 36% 96%;
-    --popover: 222 18% 15%;
-    --popover-foreground: 210 36% 96%;
-    --primary: 213 74% 72%;
-    --primary-foreground: 222 18% 12%;
-    --secondary: 223 16% 19%;
-    --secondary-foreground: 210 36% 96%;
-    --muted: 223 15% 17%;
-    --muted-foreground: 218 14% 66%;
-    --accent: 223 16% 22%;
-    --accent-foreground: 210 36% 96%;
-    --destructive: 1 72% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 223 14% 24%;
-    --border-strong: 223 12% 34%;
-    --input: 223 14% 24%;
-    --ring: 213 74% 72%;
-    --success: 152 42% 47%;
-    --success-foreground: 152 60% 88%;
-    --warning: 36 88% 56%;
-    --warning-foreground: 36 92% 14%;
-    --chart-income: 62 158 132;
-    --chart-expense: 200 106 69;
-    --chart-net: 69 133 195;
-    --chart-destination: 120 112 192;
-    --chart-source: 200 146 74;
-    --chart-segment-1: 94 129 172;
-    --chart-segment-2: 235 203 139;
-    --chart-segment-3: 143 188 187;
-    --chart-segment-4: 191 97 106;
-    --chart-segment-5: 136 192 208;
-    --chart-segment-6: 180 142 173;
-    --chart-segment-7: 163 190 140;
-    --chart-segment-8: 208 135 112;
-    --chart-pie-1: 94 129 172;
-    --chart-pie-2: 235 203 139;
-    --chart-pie-3: 143 188 187;
-    --chart-pie-4: 191 97 106;
-    --chart-pie-5: 136 192 208;
-    --chart-pie-6: 180 142 173;
-    --chart-pie-7: 163 190 140;
-    --chart-pie-8: 208 135 112;
-    --scrollbar-thumb: hsl(var(--muted-foreground) / 0.34);
-    --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.52);
-    --shadow-sm: 0 1px 2px hsl(var(--background) / 0.25), 0 16px 34px hsl(var(--background) / 0.26);
-    --shadow-lg: 0 22px 54px hsl(var(--background) / 0.44);
+    /* === Geist gray scale (RGB triples) === */
+    --geist-gray-100: 242 242 242;
+    --geist-gray-200: 235 235 235;
+    --geist-gray-300: 230 230 230;
+    --geist-gray-400: 234 234 234;
+    --geist-gray-500: 201 201 201;
+    --geist-gray-600: 168 168 168;
+    --geist-gray-700: 143 143 143;
+    --geist-gray-800: 125 125 125;
+    --geist-gray-900: 77 77 77;
+    --geist-gray-1000: 23 23 23;
+
+    /* === Geist gray-alpha scale (8-digit hex; use without opacity modifiers) === */
+    --geist-gray-alpha-100: #0000000d;
+    --geist-gray-alpha-200: #00000015;
+    --geist-gray-alpha-300: #0000001a;
+    --geist-gray-alpha-400: #00000014;
+    --geist-gray-alpha-500: #00000036;
+    --geist-gray-alpha-600: #0000003d;
+    --geist-gray-alpha-700: #00000070;
+    --geist-gray-alpha-800: #00000082;
+    --geist-gray-alpha-900: #000000b3;
+    --geist-gray-alpha-1000: #000000e8;
+
+    /* === Geist background surfaces (RGB triples) === */
+    --geist-bg-100: 255 255 255;
+    --geist-bg-200: 250 250 250;
+
+    /* === Geist blue scale === */
+    --geist-blue-100: 240 247 255;
+    --geist-blue-200: 233 244 255;
+    --geist-blue-300: 223 239 255;
+    --geist-blue-400: 202 231 255;
+    --geist-blue-500: 148 204 255;
+    --geist-blue-600: 72 174 255;
+    --geist-blue-700: 0 107 255;
+    --geist-blue-800: 0 89 236;
+    --geist-blue-900: 0 95 242;
+    --geist-blue-1000: 0 35 89;
+
+    /* === Geist red scale === */
+    --geist-red-100: 255 238 239;
+    --geist-red-200: 255 232 234;
+    --geist-red-300: 255 227 228;
+    --geist-red-400: 255 215 214;
+    --geist-red-500: 255 177 179;
+    --geist-red-600: 255 103 109;
+    --geist-red-700: 252 0 53;
+    --geist-red-800: 234 0 29;
+    --geist-red-900: 216 0 27;
+    --geist-red-1000: 71 0 12;
+
+    /* === Geist amber scale === */
+    --geist-amber-100: 255 246 222;
+    --geist-amber-200: 255 244 207;
+    --geist-amber-300: 255 241 193;
+    --geist-amber-400: 255 220 115;
+    --geist-amber-500: 255 197 67;
+    --geist-amber-600: 255 166 0;
+    --geist-amber-700: 255 174 0;
+    --geist-amber-800: 255 147 0;
+    --geist-amber-900: 170 77 0;
+    --geist-amber-1000: 86 25 0;
+
+    /* === Geist green scale === */
+    --geist-green-100: 236 253 236;
+    --geist-green-200: 229 252 231;
+    --geist-green-300: 211 250 209;
+    --geist-green-400: 185 245 188;
+    --geist-green-500: 130 235 141;
+    --geist-green-600: 76 225 94;
+    --geist-green-700: 40 169 72;
+    --geist-green-800: 39 145 65;
+    --geist-green-900: 16 125 50;
+    --geist-green-1000: 0 58 0;
+
+    /* === Geist teal scale === */
+    --geist-teal-100: 222 255 251;
+    --geist-teal-200: 221 254 246;
+    --geist-teal-300: 204 249 241;
+    --geist-teal-400: 177 247 236;
+    --geist-teal-500: 82 240 219;
+    --geist-teal-600: 0 227 196;
+    --geist-teal-700: 0 172 150;
+    --geist-teal-800: 0 146 127;
+    --geist-teal-900: 0 127 112;
+    --geist-teal-1000: 0 63 52;
+
+    /* === Geist purple scale === */
+    --geist-purple-100: 250 240 255;
+    --geist-purple-200: 249 240 255;
+    --geist-purple-300: 246 232 255;
+    --geist-purple-400: 242 217 255;
+    --geist-purple-500: 223 167 255;
+    --geist-purple-600: 201 121 255;
+    --geist-purple-700: 160 0 248;
+    --geist-purple-800: 133 0 209;
+    --geist-purple-900: 125 0 204;
+    --geist-purple-1000: 47 0 78;
+
+    /* === Geist pink scale === */
+    --geist-pink-100: 255 232 246;
+    --geist-pink-200: 255 232 243;
+    --geist-pink-300: 255 223 235;
+    --geist-pink-400: 255 211 225;
+    --geist-pink-500: 253 179 204;
+    --geist-pink-600: 249 126 167;
+    --geist-pink-700: 242 39 130;
+    --geist-pink-800: 228 16 110;
+    --geist-pink-900: 196 21 98;
+    --geist-pink-1000: 70 5 35;
+
+    /* === Chart palette (RGB triples consumed via rgb(var(--chart-x))) ===
+     * Custom muted/desaturated mid-tones (sage, dusty rose, slate blue, sand,
+     * lavender, teal, mauve, slate) — soft and not bright. The Geist scales
+     * stay vivid even at light steps, so charts use this derived muted set
+     * (Geist defines no chart palette) for gentle large fills. */
+    --chart-income: 126 168 134;      /* muted sage */
+    --chart-expense: 196 125 125;     /* muted dusty rose */
+    --chart-net: 111 143 184;         /* muted slate blue */
+    --chart-destination: 157 131 184; /* muted lavender */
+    --chart-source: 207 168 99;       /* muted sand */
+    --chart-segment-1: 111 143 184;   /* muted slate blue */
+    --chart-segment-2: 126 168 134;   /* muted sage */
+    --chart-segment-3: 207 168 99;    /* muted sand */
+    --chart-segment-4: 196 125 125;   /* muted dusty rose */
+    --chart-segment-5: 157 131 184;   /* muted lavender */
+    --chart-segment-6: 107 176 168;   /* muted teal */
+    --chart-segment-7: 196 125 158;   /* muted mauve */
+    --chart-segment-8: 143 163 181;   /* muted slate (lighter, distinct from 1) */
+    --chart-pie-1: 111 143 184;
+    --chart-pie-2: 126 168 134;
+    --chart-pie-3: 207 168 99;
+    --chart-pie-4: 196 125 125;
+    --chart-pie-5: 157 131 184;
+    --chart-pie-6: 107 176 168;
+    --chart-pie-7: 196 125 158;
+    --chart-pie-8: 143 163 181;
+
+    /* === Scrollbar (derived from muted-foreground) === */
+    --scrollbar-track: rgb(var(--background) / 0);
+    --scrollbar-thumb: rgb(var(--muted-foreground) / 0.24);
+    --scrollbar-thumb-hover: rgb(var(--muted-foreground) / 0.4);
+
+    /* === Elevation (Geist light shadows, subtle) === */
+    --shadow-sm: 0 2px 2px rgba(0, 0, 0, 0.04); /* raised cards */
+    --shadow-md: 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04),
+      0 16px 24px -8px rgba(0, 0, 0, 0.06); /* popovers / menus */
+    --shadow-lg: 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04),
+      0 24px 32px -8px rgba(0, 0, 0, 0.06); /* modals / dialogs */
+
+    /* === Shapes === */
+    --radius: 6px; /* backward-compat for legacy calc(var(--radius) - Npx) */
+    --radius-sm: 6px; /* everyday surfaces + controls */
+    --radius-md: 12px; /* menus + modals */
+    --radius-lg: 16px; /* fullscreen surfaces */
+
+    /* === Focus ring (Geist two-layer: white gap + blue-700) === */
+    --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #006bff;
+
+    /* === Layout === */
+    --page-max-width: 1200px; /* Geist centered column */
   }
 }

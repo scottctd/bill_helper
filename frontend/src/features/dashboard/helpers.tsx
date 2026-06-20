@@ -48,7 +48,7 @@ export function builtinGroupColor(key: string): string {
 
 export function builtinIncomeGroupColor(key: string): string {
   const index = INCOME_BAR_SEGMENT_ORDER.indexOf(key as IncomeFilterGroupKey);
-  if (index >= 0) return ["#047857", "#059669"][index] ?? CHART_COLORS.income;
+  if (index >= 0) return ["#7ea886", "#5e8f6a"][index] ?? CHART_COLORS.income;
   return CHART_COLORS.income;
 }
 
@@ -86,7 +86,7 @@ export const CHART_COLORS = {
   income: "rgb(var(--chart-income))",
   expense: "rgb(var(--chart-expense))",
   net: "rgb(var(--chart-net))",
-  muted: "hsl(var(--muted-foreground))",
+  muted: "rgb(var(--muted-foreground))",
   destination: "rgb(var(--chart-destination))",
   source: "rgb(var(--chart-source))"
 };

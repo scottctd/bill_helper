@@ -62,7 +62,7 @@ export function FilterGroupsManager({ model }: FilterGroupsManagerProps) {
                 />
               )
             ) : (
-              <div className="rounded-2xl border border-dashed border-border bg-secondary/25 p-6 text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-border bg-secondary/25 p-6 text-copy-14 text-muted-foreground">
                 No filter groups are available yet.
               </div>
             )}

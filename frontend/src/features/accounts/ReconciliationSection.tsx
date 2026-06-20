@@ -87,7 +87,7 @@ export function ReconciliationSection(props: ReconciliationSectionProps) {
             <article
               key={`${interval.start_snapshot.id}:${interval.end_snapshot?.id ?? "open"}`}
               className={[
-                "rounded-lg border p-4",
+                "rounded-md border p-4",
                 interval.is_open
                   ? "border-primary/20 bg-primary/8"
                   : isMismatch
@@ -114,13 +114,13 @@ export function ReconciliationSection(props: ReconciliationSectionProps) {
               ) : (
                 <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                   <div>
-                    <dt className="text-[12px] font-medium text-muted-foreground">Tracked</dt>
+                    <dt className="text-label-12 font-medium text-muted-foreground">Tracked</dt>
                     <dd className="mt-1 font-medium">
                       {formatMinor(interval.tracked_change_minor, reconciliation.currency_code)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-[12px] font-medium text-muted-foreground">Bank</dt>
+                    <dt className="text-label-12 font-medium text-muted-foreground">Bank</dt>
                     <dd className="mt-1 font-medium">
                       {interval.bank_change_minor === null
                         ? "Waiting for next snapshot"
@@ -128,7 +128,7 @@ export function ReconciliationSection(props: ReconciliationSectionProps) {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-[12px] font-medium text-muted-foreground">
+                    <dt className="text-label-12 font-medium text-muted-foreground">
                       {interval.is_open ? "Status" : "Delta"}
                     </dt>
                     <dd className="mt-1 font-medium">

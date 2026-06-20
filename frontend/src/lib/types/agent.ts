@@ -215,8 +215,8 @@ export interface AgentDashboardModelBreakdown {
   avg_cost_per_run_usd: number;
 }
 
-export interface AgentDashboardSurfaceBreakdown {
-  surface: string;
+export interface AgentDashboardOriginBreakdown {
+  origin: string;
   run_count: number;
   total_tokens: number;
   total_cost_usd: number;
@@ -228,7 +228,7 @@ export interface AgentDashboardTopRun {
   thread_id: string;
   thread_title: string | null;
   model_name: string;
-  surface: string;
+  origin: string;
   status: AgentRunStatus;
   created_at: string;
   completed_at: string | null;
@@ -240,14 +240,14 @@ export interface AgentDashboard {
   range_key: AgentDashboardRangeKey;
   granularity: AgentDashboardGranularity;
   available_models: string[];
-  available_surfaces: string[];
+  available_origins: string[];
   selected_models: string[];
-  selected_surfaces: string[];
+  selected_origins: string[];
   metrics: AgentDashboardMetrics;
   cost_series: AgentDashboardCostPoint[];
   token_distribution: AgentDashboardTokenSlice[];
   model_breakdown: AgentDashboardModelBreakdown[];
-  surface_breakdown: AgentDashboardSurfaceBreakdown[];
+  origin_breakdown: AgentDashboardOriginBreakdown[];
   top_runs: AgentDashboardTopRun[];
 }
 

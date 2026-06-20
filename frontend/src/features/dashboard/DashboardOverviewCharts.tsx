@@ -110,7 +110,7 @@ export function DashboardExpenseGroupBreakdownCard({
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} opacity={0.18} />
                       <XAxis type="number" tickFormatter={axisTick} scale="sqrt" domain={[0, "dataMax"]} />
                       <YAxis dataKey="name" type="category" width={108} tick={{ fontSize: 12 }} />
-                      <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.18)" }} formatter={(value) => tooltipAmount(currencyCode, value)} />
+                      <Tooltip cursor={{ fill: "rgb(var(--muted) / 0.18)" }} formatter={(value) => tooltipAmount(currencyCode, value)} />
                       <Bar dataKey="total_minor" radius={[0, 8, 8, 0]}>
                         {expenseGroups.map((group) => (
                           <Cell
@@ -135,7 +135,7 @@ export function DashboardExpenseGroupBreakdownCard({
                       aria-pressed={isSelected}
                       onClick={() => setSelectedKey(group.key)}
                       className={cn(
-                        "dashboard-expense-breakdown-group rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                        "dashboard-expense-breakdown-group rounded-sm border px-3 py-2 text-left text-copy-14 transition-colors",
                         isSelected
                           ? "dashboard-expense-breakdown-group-active"
                           : "dashboard-expense-breakdown-group-idle"
@@ -157,7 +157,7 @@ export function DashboardExpenseGroupBreakdownCard({
 
             <div className="dashboard-expense-breakdown-facets">
               {selectedGroup ? (
-                <div className="dashboard-expense-facet-card rounded-xl border border-border/70 bg-muted/10 p-4">
+                <div className="dashboard-expense-facet-card rounded-md border border-border/70 bg-muted/10 p-4">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium">{selectedGroup.name} by Tag</p>
@@ -228,7 +228,7 @@ function DestinationColumnChart({
         tick={{ fontSize: 10 }}
       />
       <YAxis dataKey="label" type="category" width={84} tick={{ fontSize: 10 }} />
-      <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.18)" }} formatter={(value) => tooltipAmount(currencyCode, value)} />
+      <Tooltip cursor={{ fill: "rgb(var(--muted) / 0.18)" }} formatter={(value) => tooltipAmount(currencyCode, value)} />
       <Bar dataKey="total_minor" name="Total" fill={CHART_COLORS.destination} radius={[0, 6, 6, 0]}>
         <HorizontalBarValueLabels dataKey="total_minor" />
       </Bar>
@@ -308,7 +308,7 @@ export function DashboardProjectionChart({ projection, filterGroups, currencyCod
         <span>Sqrt scale</span>
       </div>
       <div className="space-y-3">
-        <div className="grid grid-cols-[7rem_minmax(0,1fr)_16rem] items-end gap-3 text-[11px] uppercase tracking-wide text-muted-foreground">
+        <div className="grid grid-cols-[7rem_minmax(0,1fr)_16rem] items-end gap-3 text-label-12 uppercase tracking-wide text-muted-foreground">
           <span />
           <div className="relative h-4">
             {scaleTicks.map((tick) => (
@@ -339,7 +339,7 @@ export function DashboardProjectionChart({ projection, filterGroups, currencyCod
           {rows.map((row) => (
             <div key={row.key} className="grid grid-cols-[7rem_minmax(0,1fr)_16rem] items-center gap-3">
               <div className="text-sm font-medium text-foreground">{row.name}</div>
-              <div className="relative h-12 overflow-hidden rounded-lg bg-muted/20">
+              <div className="relative h-12 overflow-hidden rounded-md bg-muted/20">
                 <div className="absolute inset-0 flex">
                   <div
                     className="h-full"
@@ -362,13 +362,13 @@ export function DashboardProjectionChart({ projection, filterGroups, currencyCod
                   {scaleTicks.slice(1, -1).map((tick) => (
                     <span
                       key={tick.value}
-                      className="absolute inset-y-0 w-px bg-slate-400/20"
+                      className="absolute inset-y-0 w-px bg-geist-gray-alpha-200"
                       style={{ left: `${tick.position_percent}%` }}
                     />
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-[1fr_1.5rem_1fr] gap-2 text-[0.95rem] font-semibold tracking-tight tabular-nums text-foreground">
+              <div className="grid grid-cols-[1fr_1.5rem_1fr] gap-2 text-heading-16 tabular-nums text-foreground">
                 <span className="text-left">{row.spent_label}</span>
                 <span className="text-left text-muted-foreground" aria-hidden>→</span>
                 <span className="text-left">{row.projected_label}</span>

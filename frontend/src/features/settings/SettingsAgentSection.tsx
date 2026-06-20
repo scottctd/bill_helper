@@ -116,7 +116,7 @@ function ProviderOverrideCard({ formState, onFormPatch }: SettingsFormPatchHandl
         <CardDescription>Optional endpoint and API key override stored in runtime settings instead of server env.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start justify-between gap-4 rounded-md border border-border/70 bg-muted/20 px-4 py-3">
           <div className="grid gap-1">
             <p className="text-sm font-medium text-foreground">Use custom provider override</p>
             <p className="text-xs text-muted-foreground">

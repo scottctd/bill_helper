@@ -150,7 +150,7 @@ export function FilterGroupEditorPanel({
             }
           />
         ) : (
-          <div className="rounded-2xl border border-dashed border-border bg-secondary/25 p-4">
+          <div className="rounded-md border border-dashed border-border bg-secondary/25 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="grid gap-1">
                 <h3 className="text-sm font-semibold">Exclude when</h3>

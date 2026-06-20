@@ -54,7 +54,7 @@ export function formatBreakdownShare(share: number): string {
 }
 
 export function resolveGroupColor(group: DashboardFilterGroupSummary): string {
-  return group.color ?? "hsl(var(--muted-foreground))";
+  return group.color ?? "rgb(var(--muted-foreground))";
 }
 
 export function getTagBreakdown(group: DashboardFilterGroupSummary, tag: string) {

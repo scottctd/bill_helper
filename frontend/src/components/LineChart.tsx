@@ -24,8 +24,8 @@ export function LineChart({ points, currencyCode }: LineChartProps) {
   const maxY = Math.max(...filtered.map((point) => point.total_minor), 1);
   const minX = 0;
   const maxX = Math.max(filtered.length - 1, 1);
-  const axisColor = "hsl(var(--border))";
-  const trendColor = "hsl(var(--primary))";
+  const axisColor = "rgb(var(--border))";
+  const trendColor = "rgb(var(--primary))";
 
   const coords = filtered.map((point, index) => {
     const x = padding + ((index - minX) / (maxX - minX || 1)) * (width - padding * 2);

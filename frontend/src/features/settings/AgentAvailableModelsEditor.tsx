@@ -120,7 +120,7 @@ function ModelRowEditor({
         <span className={cn(rowActionClass, "inline-flex")} aria-hidden />
       )}
       <div className="grid min-w-0 gap-0.5">
-        <label className="text-[11px] font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-id-${row.clientId}`}>
+        <label className="text-label-12 font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-id-${row.clientId}`}>
           Model id
         </label>
         <Input
@@ -134,7 +134,7 @@ function ModelRowEditor({
         />
       </div>
       <div className="grid min-w-0 gap-0.5">
-        <label className="text-[11px] font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-label-${row.clientId}`}>
+        <label className="text-label-12 font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-label-${row.clientId}`}>
           Display name
         </label>
         <Input
@@ -316,7 +316,7 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
             className={cn(
               MODEL_ROW_GRID_CLASS,
               MODEL_ROW_PAD_CLASS,
-              "sticky top-0 z-10 hidden border-b border-border/50 bg-background py-1 text-[11px] font-medium text-muted-foreground sm:grid"
+              "sticky top-0 z-10 hidden border-b border-border/50 bg-background py-1 text-label-12 font-medium text-muted-foreground sm:grid"
             )}
             aria-hidden
           >

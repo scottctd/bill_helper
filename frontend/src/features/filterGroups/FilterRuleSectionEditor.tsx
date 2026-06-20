@@ -63,7 +63,7 @@ function GuidedRuleEditor({
 
   return (
     <div className="grid gap-3">
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-border/80 bg-secondary/35 p-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border border-border/80 bg-secondary/35 p-3">
         <label className="field min-w-[180px]">
           <span>Match using</span>
           <NativeSelect
@@ -184,7 +184,7 @@ function AdvancedRuleGroupEditor({
   return (
     <div
       className={cn(
-        "grid gap-3 rounded-xl border border-border p-3",
+        "grid gap-3 rounded-md border border-border p-3",
         isRoot ? "bg-secondary/35" : "bg-background"
       )}
     >
@@ -279,7 +279,7 @@ export function FilterRuleSectionEditor({
   }
 
   return (
-    <section className="grid gap-3 rounded-2xl border border-border bg-card p-4">
+    <section className="grid gap-3 rounded-md border border-border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <h3 className="text-sm font-semibold">{title}</h3>
@@ -307,7 +307,7 @@ export function FilterRuleSectionEditor({
       </div>
 
       {hasNestedGroups ? (
-        <p className="rounded-lg border border-border/80 bg-secondary/35 px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-sm border border-border/80 bg-secondary/35 px-3 py-2 text-copy-14 text-muted-foreground">
           This section already uses nested groups, so guided mode stays locked until the nested structure is removed in advanced mode.
         </p>
       ) : null}

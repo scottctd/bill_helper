@@ -37,7 +37,7 @@ function FilterGroupsSidebarItem({
     <button
       type="button"
       className={cn(
-        "grid w-full gap-2 rounded-xl border p-3 text-left transition-colors",
+        "grid w-full gap-2 rounded-sm border p-3 text-left transition-colors",
         isActive ? "border-border bg-accent" : "border-border/80 bg-card hover:bg-secondary/35"
       )}
       onClick={onClick}
@@ -47,7 +47,7 @@ function FilterGroupsSidebarItem({
           <span
             aria-hidden="true"
             className="mt-0.5 h-3 w-3 shrink-0 rounded-full border border-black/10"
-            style={{ backgroundColor: color ?? "hsl(var(--muted))" }}
+            style={{ backgroundColor: color ?? "rgb(var(--muted))" }}
           />
           <span className="min-w-0 truncate text-sm font-medium text-foreground">{label}</span>
         </div>
@@ -67,7 +67,7 @@ export function FilterGroupsSidebar({
   const isDraftSelected = selectedTarget?.kind === "new";
 
   return (
-    <div className="grid gap-4 rounded-2xl border border-border bg-card p-4">
+    <div className="grid gap-4 rounded-md border border-border bg-card p-4">
       <div className="grid gap-2">
         <div className="grid gap-1">
           <h2 className="text-sm font-semibold">Filter groups</h2>

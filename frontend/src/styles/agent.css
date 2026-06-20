@@ -1,6 +1,6 @@
 @layer components {
   .agent-panel {
-    @apply grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-sm)];
+    @apply grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-md border border-border bg-card shadow-geist-sm;
   }
 
   .agent-panel-page {
@@ -20,7 +20,7 @@
   }
 
   .agent-panel-header h2 {
-    @apply m-0 shrink-0 text-lg font-semibold tracking-tight text-foreground;
+    @apply m-0 shrink-0 text-heading-20 tracking-tight text-foreground;
   }
 
   .agent-panel-header p {
@@ -44,7 +44,7 @@
   }
 
   .agent-panel-review-badge {
-    @apply min-w-5 justify-center border-border bg-card text-[11px] leading-none text-foreground;
+    @apply min-w-5 justify-center border-border bg-card text-label-12 leading-none text-foreground;
   }
 
   .agent-panel-review-button.is-pending .agent-panel-review-badge {
@@ -71,7 +71,7 @@
 
   .agent-thread-list h3,
   .agent-thread-timeline h3 {
-    @apply mb-2 mt-0 text-[12px] font-medium text-muted-foreground;
+    @apply mb-2 mt-0 text-label-12 text-muted-foreground;
   }
 
   .agent-thread-list-scroll {
@@ -84,7 +84,7 @@
   }
 
   .agent-thread-row {
-    @apply relative grid h-10 shrink-0 items-center gap-1.5 overflow-hidden rounded-md border border-transparent bg-transparent transition-colors duration-150;
+    @apply relative grid h-10 shrink-0 items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-transparent transition-colors duration-150;
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -109,7 +109,7 @@
   }
 
   .agent-thread-button {
-    @apply m-0 flex h-full min-w-0 appearance-none items-center justify-start rounded-md border-0 bg-transparent px-3 py-0 text-left text-sm font-medium leading-5 shadow-none outline-none hover:bg-transparent focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0;
+    @apply m-0 flex h-full min-w-0 appearance-none items-center justify-start rounded-sm border-0 bg-transparent px-3 py-0 text-left text-button-14 leading-5 shadow-none outline-none hover:bg-transparent focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0;
     grid-column: 1;
     align-self: center;
     height: calc(100% - 2px);
@@ -125,21 +125,21 @@
   }
 
   .agent-thread-edit-slot {
-    @apply flex h-full min-w-0 items-center rounded-md border border-border bg-card px-3 transition-colors;
+    @apply flex h-full min-w-0 items-center rounded-sm border border-border bg-card px-3 transition-colors;
     grid-column: 1;
     height: calc(100% - 2px);
   }
 
   .agent-thread-edit-slot:focus-within {
-    @apply border-ring/70 ring-1 ring-ring/30;
+    @apply shadow-[var(--focus-ring)];
   }
 
   .agent-thread-input {
-    @apply m-0 h-5 w-full appearance-none rounded-none border-0 bg-transparent px-0 py-0 text-left text-sm font-medium leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0;
+    @apply m-0 h-5 w-full appearance-none rounded-none border-0 bg-transparent px-0 py-0 text-left text-copy-14 font-medium leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0;
     -webkit-appearance: none;
     font-family: inherit;
     color: inherit;
-    caret-color: hsl(var(--foreground));
+    caret-color: rgb(var(--foreground));
     letter-spacing: inherit;
     font-feature-settings: inherit;
   }
@@ -169,7 +169,7 @@
   }
 
   .agent-thread-delete-button {
-    @apply pointer-events-none absolute inset-0 inline-flex h-6 w-6 items-center justify-center rounded-md border-none bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-opacity duration-150 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0;
+    @apply pointer-events-none absolute inset-0 inline-flex h-6 w-6 items-center justify-center rounded-sm border-none bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-opacity duration-150 focus-visible:shadow-[var(--focus-ring)];
     min-height: 0;
   }
 
@@ -213,7 +213,7 @@
   }
 
   .agent-timeline-empty {
-    @apply flex flex-1 items-center justify-center text-sm;
+    @apply flex flex-1 items-center justify-center text-copy-14;
   }
 
   .agent-timeline-scroll {
@@ -221,7 +221,7 @@
   }
 
   .agent-external-session-hint {
-    @apply rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground;
+    @apply rounded-md border border-border bg-muted/40 px-3 py-2 text-copy-14 text-muted-foreground;
   }
 
   .agent-external-session-hint p {
@@ -229,7 +229,7 @@
   }
 
   .agent-external-session-hint code {
-    @apply rounded bg-background px-1 py-0.5 font-mono text-xs text-foreground;
+    @apply rounded bg-background px-1 py-0.5 font-mono text-label-12 text-foreground;
   }
 
   .agent-external-session-hint strong {
@@ -237,7 +237,7 @@
   }
 
   .agent-scroll-to-bottom {
-    @apply absolute bottom-3 left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-md border border-border bg-card text-muted-foreground shadow-[var(--shadow-sm)] transition-colors duration-150 hover:bg-background hover:text-foreground;
+    @apply absolute bottom-3 left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-geist-sm transition-colors duration-150 hover:bg-background hover:text-foreground;
   }
 
   .agent-message {
@@ -245,7 +245,7 @@
   }
 
   .agent-message-meta-row {
-    @apply flex items-center justify-between gap-2 text-[12px] text-muted-foreground;
+    @apply flex items-center justify-between gap-2 text-label-12 text-muted-foreground;
   }
 
   .agent-message-meta-row > .muted,
@@ -282,7 +282,7 @@
   }
 
   .agent-message-text {
-    @apply m-0 whitespace-pre-wrap break-words text-sm leading-6 text-foreground;
+    @apply m-0 whitespace-pre-wrap break-words text-copy-14 leading-6 text-foreground;
   }
 
   .agent-message-assistant > .agent-message-text,
@@ -295,7 +295,7 @@
   }
 
   .agent-message-user-bubble {
-    @apply ml-auto grid w-fit max-w-[min(92%,40rem)] min-w-0 gap-2 rounded-xl border border-primary/10 bg-secondary px-4 py-3;
+    @apply ml-auto grid w-fit max-w-[min(92%,40rem)] min-w-0 gap-2 rounded-md border border-primary/10 bg-secondary px-4 py-3;
   }
 
   .agent-message-user-meta {
@@ -312,7 +312,7 @@
   }
 
   .agent-message-user-attachments {
-    @apply grid min-h-0 max-h-[min(40vh,14rem)] gap-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain rounded-md border border-border bg-secondary/30 p-1.5 pr-2;
+    @apply grid min-h-0 max-h-[min(40vh,14rem)] gap-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain rounded-sm border border-border bg-secondary/30 p-1.5 pr-2;
   }
 
   .agent-message-attachment-row {
@@ -320,7 +320,7 @@
   }
 
   .agent-message-attachment-row-meta {
-    @apply inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground;
+    @apply inline-flex min-w-0 items-center gap-1.5 text-label-12 text-muted-foreground;
   }
 
   .agent-message-attachment-row-meta svg {
@@ -332,15 +332,15 @@
   }
 
   .agent-markdown {
-    @apply grid gap-2 text-sm leading-6 text-foreground;
+    @apply grid gap-2 text-copy-14 leading-6 text-foreground;
   }
 
   .agent-markdown.agent-run-interleaved-markdown {
-    @apply gap-2 text-xs font-medium leading-5 text-foreground;
+    @apply gap-2 text-label-12 leading-5 text-foreground;
   }
 
   .agent-run-interleaved-placeholder {
-    @apply text-xs font-medium leading-5 text-foreground;
+    @apply text-label-12 leading-5 text-foreground;
   }
 
   .agent-markdown p,
@@ -386,7 +386,7 @@
   }
 
   .agent-markdown table {
-    @apply w-full border-collapse overflow-hidden rounded-md border border-border text-xs;
+    @apply w-full border-collapse overflow-hidden rounded-sm border border-border text-label-12;
   }
 
   .agent-markdown thead {
@@ -411,8 +411,8 @@
   }
 
   .agent-markdown code {
-    @apply rounded-sm bg-secondary px-1 py-0.5 text-xs;
-    font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    @apply rounded-sm bg-secondary px-1 py-0.5 text-label-12;
+    font-family: "Geist Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   }
 
   .agent-markdown-pre-shell {
@@ -429,8 +429,8 @@
   }
 
   .agent-markdown pre {
-    @apply overflow-x-hidden whitespace-pre-wrap break-words rounded-md border border-border bg-secondary/65 p-2 pr-10 text-xs;
-    font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    @apply overflow-x-hidden whitespace-pre-wrap break-words rounded-sm border border-border bg-secondary/65 p-2 pr-10 text-label-12;
+    font-family: "Geist Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   }
 
   .agent-markdown pre code {
@@ -438,11 +438,11 @@
   }
 
   .agent-message-attachments {
-    @apply flex min-h-0 max-h-[min(40vh,14rem)] flex-wrap gap-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain rounded-md border border-border bg-secondary/30 p-1.5 pr-2;
+    @apply flex min-h-0 max-h-[min(40vh,14rem)] flex-wrap gap-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain rounded-sm border border-border bg-secondary/30 p-1.5 pr-2;
   }
 
   .agent-message-attachment-image {
-    @apply block rounded-md border border-border bg-background object-contain;
+    @apply block rounded-sm border border-border bg-background object-contain;
     width: auto;
     height: auto;
     max-width: min(100%, 26rem);
@@ -450,22 +450,22 @@
   }
 
   .agent-message-attachment-image-card {
-    @apply relative block rounded-md bg-transparent p-0 text-left;
+    @apply relative block rounded-sm bg-transparent p-0 text-left;
     border: 0;
   }
 
   .agent-message-attachment-image-card:focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2;
+    @apply outline-none shadow-[var(--focus-ring)];
   }
 
   .agent-message-attachment-image-loading {
-    @apply animate-pulse rounded-md border border-border bg-secondary/70;
+    @apply animate-pulse rounded-sm border border-border bg-secondary/70;
     width: min(100%, 18rem);
     height: 12rem;
   }
 
   .agent-message-attachment-pdf {
-    @apply flex flex-col overflow-hidden rounded-md border border-border bg-background;
+    @apply flex flex-col overflow-hidden rounded-sm border border-border bg-background;
     width: min(100%, 18rem);
   }
 
@@ -484,7 +484,7 @@
   }
 
   .agent-message-attachment-pdf-label {
-    @apply flex items-center justify-between gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground;
+    @apply flex items-center justify-between gap-1.5 px-2 py-1.5 text-label-12 text-muted-foreground;
   }
 
   .agent-message-attachment-pdf-meta {
@@ -501,16 +501,16 @@
   }
 
   .agent-message-attachment-open-button {
-    @apply h-6 px-1.5 text-[11px];
+    @apply h-6 px-1.5 text-label-12;
   }
 
   .agent-message-attachment-open-chip {
-    @apply pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-border/80 bg-background px-2 py-1 text-[11px] font-medium text-foreground shadow-sm backdrop-blur;
+    @apply pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-border/80 bg-background px-2 py-1 text-label-12 text-foreground shadow-geist-sm backdrop-blur;
     opacity: 0.92;
   }
 
   .agent-message-attachment-file {
-    @apply inline-flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1.5 text-[11px] font-medium text-muted-foreground;
+    @apply inline-flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1.5 text-label-12 text-muted-foreground;
   }
 
   .agent-message-attachment-file span {
@@ -544,7 +544,7 @@
   }
 
   .agent-work-separator {
-    @apply flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent py-2 text-left text-xs text-muted-foreground transition-colors hover:text-foreground;
+    @apply flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent py-2 text-left text-label-12 text-muted-foreground transition-colors hover:text-foreground;
   }
 
   .agent-work-separator-line {
@@ -573,12 +573,12 @@
   }
 
   .agent-reasoning-segment summary {
-    @apply flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 py-0.5 text-xs transition-colors hover:bg-secondary/80;
+    @apply flex min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 py-0.5 text-label-12 transition-colors hover:bg-secondary/80;
     list-style: none;
   }
 
   .agent-reasoning-segment-label {
-    @apply min-w-0 truncate text-xs font-medium text-muted-foreground;
+    @apply min-w-0 truncate text-label-12 text-muted-foreground;
   }
 
   .agent-reasoning-segment-streaming .agent-reasoning-segment-label {
@@ -586,7 +586,7 @@
   }
 
   .agent-reasoning-segment-time {
-    @apply ml-auto shrink-0 text-[11px] opacity-0 transition-opacity duration-150;
+    @apply ml-auto shrink-0 text-label-12 opacity-0 transition-opacity duration-150;
   }
 
   .agent-reasoning-segment summary:hover .agent-reasoning-segment-time {
@@ -605,15 +605,15 @@
     @apply pointer-events-none absolute inset-x-0 top-0;
     content: "";
     height: 1.25rem;
-    background: linear-gradient(to bottom, hsl(var(--card)), transparent);
+    background: linear-gradient(to bottom, rgb(var(--card)), transparent);
   }
 
   .agent-tool-call-name {
-    @apply min-w-0 truncate text-xs font-medium text-muted-foreground;
+    @apply min-w-0 truncate text-label-12 text-muted-foreground;
   }
 
   .agent-run-changes-summary {
-    @apply grid gap-2 rounded-lg border border-border bg-secondary/55 p-3;
+    @apply grid gap-2 rounded-md border border-border bg-secondary/55 p-3;
   }
 
   .agent-run-change-chips {
@@ -621,26 +621,26 @@
   }
 
   .agent-run-change-chip {
-    @apply inline-flex items-center rounded-md border border-border bg-card px-2 py-0.5 text-[11px] font-medium text-muted-foreground;
+    @apply inline-flex items-center rounded-sm border border-border bg-card px-2 py-0.5 text-label-12 text-muted-foreground;
   }
 
   .agent-tool-call,
   .agent-tool-call-static {
-    @apply rounded-md;
+    @apply rounded-sm;
   }
 
   .agent-tool-call-static > summary,
   .agent-tool-call summary {
-    @apply flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 py-0.5 text-xs transition-colors hover:bg-secondary/80;
+    @apply flex min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 py-0.5 text-label-12 transition-colors hover:bg-secondary/80;
     list-style: none;
   }
 
   .agent-tool-call-pending-detail {
-    @apply m-0 text-xs;
+    @apply m-0 text-label-12;
   }
 
   .agent-tool-call-time {
-    @apply ml-auto shrink-0 text-[11px] opacity-0 transition-opacity duration-150;
+    @apply ml-auto shrink-0 text-label-12 opacity-0 transition-opacity duration-150;
   }
 
   .agent-tool-call summary:hover .agent-tool-call-time {
@@ -687,17 +687,17 @@
   }
 
   .agent-tool-call-details-label {
-    @apply m-0 text-[11px] font-medium text-muted-foreground;
+    @apply m-0 text-label-12 text-muted-foreground;
   }
 
   .agent-change-item {
-    @apply grid gap-1.5 rounded-md border border-border bg-card p-2;
+    @apply grid gap-1.5 rounded-sm border border-border bg-card p-2;
   }
 
   .agent-tool-call pre,
   .agent-change-item pre {
-    @apply mt-0 overflow-auto rounded-md border border-border bg-secondary/65 p-2 text-xs;
-    font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    @apply mt-0 overflow-auto rounded-sm border border-border bg-secondary/65 p-2 text-label-12;
+    font-family: "Geist Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   }
 
   .agent-tool-call-output,
@@ -708,7 +708,7 @@
   }
 
   .agent-entry-override {
-    @apply grid gap-1.5 text-xs;
+    @apply grid gap-1.5 text-label-12;
   }
 
   .agent-entry-override textarea {
@@ -725,7 +725,7 @@
   }
 
   .agent-thread-usage-item {
-    @apply inline-flex shrink-0 items-baseline gap-1 text-[11px] text-muted-foreground/85;
+    @apply inline-flex shrink-0 items-baseline gap-1 text-label-12 text-muted-foreground/85;
   }
 
   .agent-thread-usage-item-emphasis,
@@ -734,7 +734,7 @@
   }
 
   .agent-thread-usage-label {
-    @apply shrink-0 text-[10px] font-medium text-muted-foreground/75;
+    @apply shrink-0 text-label-12 text-muted-foreground/75;
   }
 
   .agent-page {
@@ -754,15 +754,15 @@
   }
 
   .agent-composer-drop-active {
-    @apply rounded-lg border border-dashed border-primary/50 bg-secondary/65 p-2;
+    @apply rounded-md border border-dashed border-primary/50 bg-secondary/65 p-2;
   }
 
   .agent-composer-box {
-    @apply grid overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-sm)] transition-colors duration-150 focus-within:border-primary/20;
+    @apply grid overflow-hidden rounded-md border border-border bg-card shadow-geist-sm transition-colors duration-150 focus-within:border-primary/20;
   }
 
   .agent-composer-textarea {
-    @apply resize-none rounded-none bg-transparent px-3.5 pb-2 pt-3 text-sm leading-6;
+    @apply resize-none rounded-none bg-transparent px-3.5 pb-2 pt-3 text-copy-14 leading-6;
     min-height: 2.9rem;
     max-height: 13.75rem;
   }
@@ -776,7 +776,7 @@
   }
 
   .agent-composer-attach-text {
-    @apply text-xs font-medium;
+    @apply text-label-12;
   }
 
   .agent-composer-secondary-actions {
@@ -784,7 +784,7 @@
   }
 
   .agent-composer-bulk-toggle {
-    @apply inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5 text-label-12 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
   }
 
   .agent-composer-bulk-toggle-label {
@@ -792,7 +792,7 @@
   }
 
   .agent-composer-bulk-tooltip-trigger {
-    @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   .agent-composer-primary-actions {
@@ -802,8 +802,8 @@
   /* Shared native <select> chrome for model + policy (match height, type scale, border). */
   .agent-composer-model-select,
   .agent-composer-policy-select {
-    @apply h-8 rounded-md border border-border/70 bg-transparent px-2 text-xs font-medium leading-none text-foreground shadow-none;
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply h-8 rounded-sm border border-border/70 bg-transparent px-2 text-label-12 leading-none text-foreground shadow-none;
+    @apply focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   .agent-composer-model-select {
@@ -819,7 +819,7 @@
   }
 
   .agent-composer-policy-label {
-    @apply hidden shrink-0 text-xs font-medium text-muted-foreground sm:inline;
+    @apply hidden shrink-0 text-label-12 text-muted-foreground sm:inline;
   }
 
   .agent-composer-policy-select {
@@ -827,7 +827,7 @@
   }
 
   .agent-composer-policy-help {
-    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   .agent-composer-send {
@@ -835,11 +835,11 @@
   }
 
   .agent-draft-attachments {
-    @apply grid min-h-0 max-h-[min(38vh,13rem)] gap-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain rounded-md border border-border bg-secondary/30 p-1.5 pr-2;
+    @apply grid min-h-0 max-h-[min(38vh,13rem)] gap-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain rounded-sm border border-border bg-secondary/30 p-1.5 pr-2;
   }
 
   .agent-draft-attachment-file {
-    @apply inline-flex min-w-0 flex-1 items-center gap-1.5 text-xs text-foreground;
+    @apply inline-flex min-w-0 flex-1 items-center gap-1.5 text-label-12 text-foreground;
   }
 
   .agent-draft-attachment-file svg {
@@ -871,11 +871,11 @@
   }
 
   .agent-draft-attachment-inline-label {
-    @apply inline-flex shrink-0 items-center text-[11px] text-muted-foreground;
+    @apply inline-flex shrink-0 items-center text-label-12 text-muted-foreground;
   }
 
   .agent-draft-attachment-status {
-    @apply text-xs text-muted-foreground;
+    @apply text-label-12 text-muted-foreground;
   }
 
   .agent-draft-attachment-status-live {
@@ -896,7 +896,7 @@
   }
 
   .agent-draft-attachment-progress-bar.is-ready {
-    @apply bg-emerald-500;
+    @apply bg-geist-green-500;
   }
 
   .agent-draft-attachment-progress-bar.is-failed {
@@ -939,7 +939,7 @@
   }
 
   .agent-thread-panel-title {
-    @apply text-[12px] font-medium text-muted-foreground;
+    @apply text-label-12 text-muted-foreground;
   }
 
   .agent-thread-panel-toggle-btn {

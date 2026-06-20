@@ -156,7 +156,7 @@ export function GroupGraphView({ graph }: GroupGraphViewProps) {
         markerEnd:
           edge.group_type === "BUNDLE"
             ? undefined
-            : { type: MarkerType.ArrowClosed, color: "hsl(var(--muted-foreground))" },
+            : { type: MarkerType.ArrowClosed, color: "rgb(var(--muted-foreground))" },
         className: "group-flow-edge",
       })),
     [graph.edges]

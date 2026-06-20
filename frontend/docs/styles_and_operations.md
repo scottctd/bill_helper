@@ -45,13 +45,18 @@
 
 ## Visual Contract
 
-- Bill Helper now uses a compact "ledger workstation" visual system instead of the earlier soft SaaS styling.
+- Bill Helper uses Vercel's Geist design system (light theme).
 - The shared contract is:
-  - solid neutral canvas and card surfaces
-  - one deep ink-blue primary accent plus restrained semantic tones
-  - 8px base radii and stronger borders instead of blur-heavy softness
-  - Public Sans for UI/body and JetBrains Mono for code-adjacent metadata
+  - neutral high-contrast surfaces: `background-100` white canvas and cards, `gray-1000` (`#171717`) primary fill and text
+  - `blue-700` (`#006bff`) as the tertiary/focus accent; restrained semantic tones (red-800 destructive, green-700 success, amber-800 warning)
+  - a 6/12/16px radius family (`rounded-sm`/`rounded-md`/`rounded-lg`) instead of a uniform 8px
+  - subtle tonal elevation (`shadow-geist-sm`/`-md`/`-lg`) rather than blur-heavy softness
+  - Geist Sans for UI/body and Geist Mono for code-adjacent metadata
+  - a two-layer focus ring (2px white gap + 2px blue-700) on every interactive element
   - tabular numerals enabled by default for ledger and analytic surfaces
+- Colors flow through CSS custom properties in `tokens.css` (opaque scales as RGB triples consumed via `rgb(var(--x))`) and a `geist.*` Tailwind color namespace; the RGB-triple form keeps Tailwind `/opacity` modifiers working, while `gray-alpha-*` stays 8-digit hex for translucent borders and hover washes. Dark theme is intentionally not shipped.
+- The full Geist token reference (colors, typography, spacing, elevation, motion, components) lives in `geist_design.md`.
+- Dashboard chart colors use a custom muted/desaturated palette (sage, dusty rose, slate blue, sand, lavender, teal, mauve) defined in the `--chart-*` tokens in `tokens.css` — not Geist scale steps, because Geist's scales read as too bright for large fills and Geist defines no chart palette.
 - The home route points to the agent sessions surface and renders inside the same page header and content shell contract as the rest of the app.
 
 ## Styling
@@ -74,7 +79,7 @@
 
 Key ownership boundaries:
 
-- `tokens.css`: semantic theme variables, chart colors, radii, and elevation tokens
+- `tokens.css`: Geist color scales and semantic tokens (opaque values as RGB triples consumed via `rgb(var(--x))`), `gray-alpha-*` translucent hex, chart palette, Geist radii (6/12/16px), elevation shadows, the two-layer focus ring, and the page max-width
 - `base.css`: Tailwind layers, reset styles, global typography, scrollbars, and element defaults
 - `shell.css`: app shell, sidebar, content frame, page headers, top-level layout helpers, and the main route scroll container behavior that keeps page widths stable when some routes need vertical scrollbars and others do not while auto-hiding the route scrollbar thumb until active scrolling begins
 - `workspaces.css`: shared workspace sections, table/form patterns, settings, entries, properties, and groups
@@ -84,7 +89,7 @@ Key ownership boundaries:
 - custom select/tag menus render in a floating portal anchored by `hooks/useFloatingMenuPosition.ts`, so short cards, empty states, and other clipped containers do not truncate the menu body
 - `agent.css`: agent panel, thread rail, timeline, and composer styling
 - `review.css`: shared proposal review panel shell, TOC, structured diff card, and status styling (`agent-review-*` classes) reused by the Agent review modal and the Import job review
-- `import-shell.css` / `import-create.css` / `import-jobs.css` / `import-task-dialog.css` / `import-review.css`: Import tab page shell, create panel, job list/detail, task conversation popup, and job review dialog shell; all use the system spacing scale and `var(--radius)` radii (no undefined `--space-*`/`--radius-md` tokens) and semantic `--warning` tokens for re-import accents
+- `import-shell.css` / `import-create.css` / `import-jobs.css` / `import-task-dialog.css` / `import-review.css`: Import tab page shell, create panel, job list/detail, task conversation popup, and job review dialog shell; all use the 4px spacing scale and Geist `--radius-sm`/`--radius-md` radii and semantic `--warning` tokens for re-import accents
 
 ## Design System And Config
 
@@ -92,7 +97,7 @@ Key ownership boundaries:
 - PostCSS config: `frontend/postcss.config.js`
 - shadcn manifest: `frontend/components.json`
 - utility merge helper: `frontend/src/lib/utils.ts`
-- font loading entrypoint: `frontend/index.html`
+- font loading: Geist Sans + Geist Mono are self-hosted via `@fontsource/geist` and `@fontsource/geist-mono`, imported in `frontend/src/main.tsx`; `frontend/index.html` no longer loads web fonts
 
 ## Operational Impact
 

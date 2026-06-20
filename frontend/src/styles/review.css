@@ -20,7 +20,7 @@
 }
 
 .agent-review-header-pill {
-  @apply border-border bg-secondary text-xs font-medium text-muted-foreground;
+  @apply border-border bg-secondary text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-shell {
@@ -48,7 +48,7 @@
 }
 
 .agent-review-controls-message {
-  @apply m-0 text-sm;
+  @apply m-0 text-copy-14;
 }
 
 .agent-review-controls-group {
@@ -112,13 +112,13 @@
 }
 
 .agent-review-toc-section-header h3 {
-  @apply m-0 text-[12px] font-medium text-muted-foreground;
+  @apply m-0 text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-toc-section-header span,
 .agent-review-toc-type-header span,
 .agent-review-toc-destination-header span {
-  @apply text-[11px] font-medium text-muted-foreground;
+  @apply text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-toc-type-header {
@@ -126,7 +126,7 @@
 }
 
 .agent-review-toc-type-header h4 {
-  @apply m-0 text-[11px] font-semibold text-foreground/80;
+  @apply m-0 text-label-12 font-semibold text-foreground/80;
 }
 
 .agent-review-toc-destination-header {
@@ -134,7 +134,7 @@
 }
 
 .agent-review-toc-destination-header h5 {
-  @apply m-0 text-[11px] font-medium text-muted-foreground;
+  @apply m-0 text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-toc-list {
@@ -146,7 +146,7 @@
 }
 
 .agent-review-toc-item {
-  @apply flex items-start justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2.5 text-left transition-colors duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  @apply flex items-start justify-between gap-2 rounded-sm border border-border bg-card px-2.5 py-2.5 text-left transition-colors duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
 }
 
 .agent-review-toc-item.is-active {
@@ -159,17 +159,17 @@
 
 .agent-review-toc-item.is-create {
   @apply border-l-4;
-  border-left-color: color-mix(in srgb, hsl(var(--success)) 55%, transparent);
+  border-left-color: color-mix(in srgb, rgb(var(--success)) 55%, transparent);
 }
 
 .agent-review-toc-item.is-update {
   @apply border-l-4;
-  border-left-color: color-mix(in srgb, hsl(var(--primary)) 50%, transparent);
+  border-left-color: color-mix(in srgb, rgb(var(--primary)) 50%, transparent);
 }
 
 .agent-review-toc-item.is-delete {
   @apply border-l-4;
-  border-left-color: color-mix(in srgb, var(--destructive) 32%, transparent);
+  border-left-color: color-mix(in srgb, rgb(var(--destructive)) 32%, transparent);
 }
 
 .agent-review-toc-item.is-snapshot {
@@ -181,11 +181,11 @@
 }
 
 .agent-review-toc-item-title {
-  @apply truncate text-sm font-medium text-foreground;
+  @apply truncate text-copy-14 font-medium text-foreground;
 }
 
 .agent-review-toc-item-meta {
-  @apply text-xs font-medium leading-snug text-foreground/75;
+  @apply text-label-12 font-medium leading-snug text-foreground/75;
 }
 
 .agent-review-toc-item.is-active .agent-review-toc-item-meta {
@@ -201,7 +201,7 @@
 }
 
 .agent-review-toc-item-kind-sign.is-income {
-  color: hsl(var(--success));
+  color: rgb(var(--geist-green-900));
 }
 
 .agent-review-toc-item-kind-sign.is-transfer {
@@ -209,7 +209,7 @@
 }
 
 .agent-review-toc-status-indicator {
-  @apply inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border border-transparent bg-secondary text-muted-foreground;
+  @apply inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm border border-transparent bg-secondary text-muted-foreground;
 }
 
 .agent-review-toc-status-indicator.is-approved {
@@ -253,11 +253,11 @@
 }
 
 .agent-review-card-kicker {
-  @apply flex flex-wrap items-center gap-2 text-[12px] font-medium text-muted-foreground;
+  @apply flex flex-wrap items-center gap-2 text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-card-header h3 {
-  @apply m-0 text-lg font-semibold text-foreground;
+  @apply m-0 text-heading-20 text-foreground;
 }
 
 .agent-review-card-metadata {
@@ -265,7 +265,7 @@
 }
 
 .agent-review-card-metadata-row {
-  @apply grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-2 text-xs;
+  @apply grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-2 text-label-12;
 }
 
 .agent-review-card-metadata-row dt {
@@ -281,7 +281,7 @@
 }
 
 .agent-review-metadata-link {
-  @apply inline border-0 bg-transparent p-0 text-left text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-primary;
+  @apply inline border-0 bg-transparent p-0 text-left text-copy-14 font-medium text-foreground underline decoration-border underline-offset-2 hover:text-primary;
 }
 
 .agent-review-metadata-link-sep {
@@ -301,15 +301,15 @@
 }
 
 .agent-review-section-heading h4 {
-  @apply m-0 text-sm font-semibold text-foreground;
+  @apply m-0 text-heading-16 text-foreground;
 }
 
 .agent-review-section-heading p {
-  @apply m-0 text-xs text-muted-foreground;
+  @apply m-0 text-label-12 text-muted-foreground;
 }
 
 .agent-review-outcome-note {
-  @apply m-0 rounded-lg border border-border bg-secondary/55 px-3 py-2.5 text-sm leading-5 text-foreground/90;
+  @apply m-0 rounded-md border border-border bg-secondary/55 px-3 py-2.5 text-copy-14 text-foreground/90;
 }
 
 .agent-review-item-stats,
@@ -318,7 +318,7 @@
 }
 
 .agent-review-summary {
-  @apply m-0 text-base leading-7 text-foreground/85;
+  @apply m-0 text-copy-16 leading-7 text-foreground/85;
 }
 
 .agent-review-summary-highlight {
@@ -330,7 +330,7 @@
 }
 
 .agent-review-context-line {
-  @apply text-sm leading-6 text-muted-foreground;
+  @apply text-copy-14 leading-6 text-muted-foreground;
 }
 
 .agent-review-context-line.is-warning {
@@ -342,7 +342,7 @@
 }
 
 .agent-review-outcome-list {
-  @apply m-0 grid gap-2 rounded-lg border border-border bg-secondary/35 p-3;
+  @apply m-0 grid gap-2 rounded-md border border-border bg-secondary/35 p-3;
 }
 
 .agent-review-outcome-row {
@@ -350,15 +350,15 @@
 }
 
 .agent-review-outcome-label {
-  @apply m-0 text-xs font-medium text-muted-foreground;
+  @apply m-0 text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-outcome-value {
-  @apply m-0 text-sm text-foreground;
+  @apply m-0 text-copy-14 text-foreground;
 }
 
 .agent-review-outcome-code {
-  @apply m-0 overflow-x-auto rounded-md border border-border bg-card px-3 py-2 font-mono text-xs leading-5 text-foreground;
+  @apply m-0 overflow-x-auto rounded-sm border border-border bg-card px-3 py-2 font-mono text-label-12 leading-5 text-foreground;
 }
 
 .agent-review-outcome-code code {
@@ -366,7 +366,7 @@
 }
 
 .agent-review-field-panel {
-  @apply rounded-lg border border-border bg-secondary/35 p-3;
+  @apply rounded-md border border-border bg-secondary/35 p-3;
 }
 
 .agent-review-field-list {
@@ -378,11 +378,11 @@
 }
 
 .agent-review-field-label {
-  @apply m-0 text-xs font-medium text-muted-foreground;
+  @apply m-0 text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-field-value {
-  @apply m-0 text-sm text-foreground;
+  @apply m-0 text-copy-14 text-foreground;
 }
 
 .agent-review-field-change {
@@ -390,19 +390,19 @@
 }
 
 .agent-review-field-before {
-  @apply text-sm text-muted-foreground line-through decoration-muted-foreground/60;
+  @apply text-copy-14 text-muted-foreground line-through decoration-muted-foreground/60;
 }
 
 .agent-review-field-arrow {
-  @apply text-xs text-muted-foreground;
+  @apply text-label-12 text-muted-foreground;
 }
 
 .agent-review-field-after {
-  @apply text-sm font-medium text-foreground;
+  @apply text-copy-14 font-medium text-foreground;
 }
 
 .agent-review-field-deleted {
-  @apply text-sm text-muted-foreground line-through decoration-muted-foreground/60;
+  @apply text-copy-14 text-muted-foreground line-through decoration-muted-foreground/60;
 }
 
 .agent-review-dependency-list {
@@ -410,7 +410,7 @@
 }
 
 .agent-review-dependency-chip {
-  @apply flex flex-wrap items-start justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2;
+  @apply flex flex-wrap items-start justify-between gap-2 rounded-md border border-border bg-card px-3 py-2;
 }
 
 .agent-review-dependency-chip-copy {
@@ -418,11 +418,11 @@
 }
 
 .agent-review-dependency-chip-label {
-  @apply text-[11px] font-medium text-muted-foreground;
+  @apply text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-dependency-chip-title {
-  @apply text-sm font-medium text-foreground;
+  @apply text-copy-14 font-medium text-foreground;
 }
 
 .agent-review-member-preview {
@@ -430,7 +430,7 @@
 }
 
 .agent-review-diff-stat {
-  @apply border-border bg-secondary text-xs font-medium text-muted-foreground;
+  @apply border-border bg-secondary text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-diff-stat.is-added {
@@ -446,7 +446,7 @@
 }
 
 .agent-review-metadata-pill {
-  @apply inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1;
+  @apply inline-flex items-center gap-1.5 rounded-sm border border-border bg-secondary px-2.5 py-1;
 }
 
 .agent-review-metadata-pill.is-warning {
@@ -458,11 +458,11 @@
 }
 
 .agent-review-metadata-label {
-  @apply text-[11px] font-medium text-muted-foreground;
+  @apply text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-metadata-value {
-  @apply text-xs font-medium text-foreground;
+  @apply text-label-12 font-medium text-foreground;
 }
 
 .agent-review-status-badge {
@@ -490,11 +490,11 @@
 }
 
 .agent-review-diff {
-  @apply grid gap-1 rounded-lg border border-border bg-secondary/45 p-2;
+  @apply grid gap-1 rounded-md border border-border bg-secondary/45 p-2;
 }
 
 .agent-review-diff-line {
-  @apply grid grid-cols-[auto_minmax(9rem,15rem)_minmax(0,1fr)] items-start gap-2 rounded-md px-2 py-1;
+  @apply grid grid-cols-[auto_minmax(9rem,15rem)_minmax(0,1fr)] items-start gap-2 rounded-sm px-2 py-1;
 }
 
 .agent-review-diff-line.is-added {
@@ -508,31 +508,31 @@
 .agent-review-diff-sign,
 .agent-review-diff-path,
 .agent-review-diff-value {
-  font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  font-family: "Geist Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 .agent-review-diff-sign {
-  @apply mt-0.5 text-xs font-semibold;
+  @apply mt-0.5 text-label-12 font-semibold;
 }
 
 .agent-review-diff-path {
-  @apply break-words text-xs font-medium text-muted-foreground;
+  @apply break-words text-label-12 font-medium text-muted-foreground;
 }
 
 .agent-review-diff-value {
-  @apply break-words text-xs text-foreground;
+  @apply break-words text-label-12 text-foreground;
 }
 
 .agent-review-item-note {
-  @apply m-0 text-xs;
+  @apply m-0 text-label-12;
 }
 
 .agent-review-batch-summary {
-  @apply grid gap-1 rounded-md border border-border bg-secondary/55 p-2;
+  @apply grid gap-1 rounded-sm border border-border bg-secondary/55 p-2;
 }
 
 .agent-review-batch-summary p {
-  @apply m-0 text-sm font-medium;
+  @apply m-0 text-copy-14 font-medium;
 }
 
 .agent-review-failed-links {
