@@ -314,14 +314,7 @@ export function useAgentComposerRuntime({
   ]);
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) {
-      return;
-    }
-
-    const hasMultipleLines = event.currentTarget.value.includes("\n");
-    const hasSubmitModifier = event.metaKey || event.ctrlKey;
-    const shouldSubmit = hasSubmitModifier || (!hasMultipleLines && !event.shiftKey);
-    if (!shouldSubmit) {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing || event.shiftKey) {
       return;
     }
 

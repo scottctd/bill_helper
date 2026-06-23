@@ -112,7 +112,7 @@ Supporting modules include:
 - shows an `Agent model` dropdown beside the policy control and sources options from runtime settings `available_agent_models` in the same order; option text uses `agent_model_display_names` when set, otherwise the raw model id
 - initializes the picker from the latest run model when a thread has history, otherwise falls back through the thread's configured model and runtime default `agent_model`
 - changing the picker only affects the next `POST /api/v1/agent/threads/{thread_id}/messages` or `/messages/stream` request; existing thread history is still sent unchanged
-- `Cmd/Ctrl+Enter` always submits; plain `Enter` submits only for a single-line draft
+- `Enter` submits; `Shift+Enter` inserts a newline
 - idle primary action is `Send`; active-run primary action is `Stop`
 - switching to an idle thread restores that thread's own composer state immediately, even if another thread continues streaming in the background
 - stop actions are selected-thread scoped: the composer only shows `Stop` when the selected thread itself is running, and interrupt requests target that selected thread's current run only
