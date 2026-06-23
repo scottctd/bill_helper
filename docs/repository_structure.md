@@ -52,7 +52,7 @@
 - `versions/0032_add_filter_groups.py`: adds principal-owned saved filter-group definitions for dashboard classification and analytics slices.
 - `versions/0033_multi_user_security.py`: adds password hashes and sessions, makes owned resources explicitly user-scoped, and migrates user deletion to cascade semantics.
 - `versions/0034_add_entry_tagging_model_to_runtime_settings.py`: adds the optional runtime override for inline AI entry tag suggestions (`runtime_settings.entry_tagging_model`).
-- `versions/0035_add_user_files_and_agent_workspace.py`: adds the canonical `user_files` registry, rewires historical agent attachments to it, and introduces per-user workspace provisioning support.
+- `versions/0035_add_user_files_and_agent_workspace.py`: adds the canonical `user_files` registry and rewires historical agent attachments to it.
 - `versions/0036_add_agent_run_created_at_index.py`: adds an index on `agent_runs.created_at` for range-based agent dashboard analytics reads.
 - `versions/0046_entry_category_lifecycle.py`: replaces tag/filter-group expense partitioning with entry-category assignments and lifecycle values.
 - `versions/0047_entry_category_schedule.py`: installs the canonical entry-category schedule and remaps legacy assignments to safe fallback leaves.
@@ -93,7 +93,6 @@
 - `schemas_import.py`: import workflow request/response schemas.
 - `schemas_auth.py`: auth, admin-user, and admin-session request/response schemas.
 - `schemas_settings.py`: runtime settings request/response schemas.
-- `schemas_workspace.py`: legacy current-user workspace snapshot and recursive file-tree schemas.
 - `auth/`: request-principal contracts, explicit dev-session header parsing, and FastAPI auth dependencies.
 - `cli/`: `bh` command entrypoint, auth/session/source command groups, output rendering, and HTTP client support for hosted and external agents.
 - `validation/`: neutral validation/normalization helpers plus shared contract field types used by schemas, services, and tool-input models.
@@ -119,7 +118,6 @@
 - `settings.py`: runtime settings read/update endpoints backed by `models_settings.py` / `schemas_settings.py`, with env fallback where applicable and DB-backed list-form `user_memory`.
 - `agent_sessions.py`: external-agent session CRUD plus text/file source attachment endpoints.
 - `import_jobs.py`: import preflight, job lifecycle, and aggregated proposal review endpoints.
-- `workspace.py`: legacy current-user workspace snapshot, explicit start/stop endpoints, IDE launch endpoint, and same-origin IDE proxy routes for the per-user sandbox.
 - non-admin principal scope applies to owned-resource routes (`accounts`, `entries`, `users`, `groups`, `dashboard`).
 - shared dictionary mutation routes (`entities`, `tags`, `taxonomies` POST/PATCH, plus entity and tag DELETE) require admin principal.
 
@@ -145,10 +143,6 @@
 - `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional `agent_model_display_names`, the PDF page cap, plus derived vision-capable model lists for the composer.
 - `user_files.py`: canonical per-user upload path management, atomic writes/imports, hashing, and readable stored-filename helpers.
 - `import_workflow/`: backend-orchestrated import jobs (`jobs.py`, `preflight.py`, `scheduler.py`, `proposals.py`, `dedup.py`, `serializers.py`).
-- `docker_cli.py`: legacy thin Docker CLI adapter for image/volume/container lifecycle helpers.
-- `agent_workspace.py`: legacy deterministic per-user workspace spec construction plus Docker-backed provisioning/start-stop/remove helpers, disabled by default.
-- `workspace_browser.py`: legacy current-user workspace snapshot shaping for lifecycle and IDE launch state.
-- `workspace_ide.py`: legacy IDE launch-cookie helpers plus same-origin proxy header policy for `code-server`.
 - `agent/`: harness-first agent runtime, canonical transcript persistence, tool execution, prompt-size counting, serialization, prompt/model adapters, and review apply handlers.
   - `tool_args/`: focused tool-input package for read filters, thread rename, and pending-proposal admin wrappers.
   - `session_tools/`: session-scoped non-proposal tool handlers for add-only memory appends and thread rename operations.
@@ -196,7 +190,6 @@
 - `test_taxonomies.py`: taxonomy endpoints and tag/entity category assignment behavior tests.
 - `test_auth_boundaries.py`: app-level principal dependency boundary regression tests.
 - `test_agent_sessions.py`: external-agent session/source and CLI proposal ownership coverage.
-- `test_workspace.py`: legacy current-user workspace API coverage for snapshot scoping and disabled-mode lifecycle semantics.
 - `test_benchmark_seed_workflows.py`: benchmark/seed workflow regression tests.
 
 ## Frontend (`/frontend`)
@@ -292,8 +285,6 @@
 
 - `types.ts`: shared TS API/data types.
 - `api.ts`: fetch wrappers and API request functions, including shared bearer-token injection plus admin/auth helpers.
-- `types/workspace.ts`: legacy workspace snapshot and recursive file-tree contracts.
-- `api/workspace.ts`: legacy current-user workspace snapshot and start/stop request helpers.
 - `api/import.ts`: import preflight, job lifecycle, and aggregated proposal review helpers.
 - `format.ts`: money formatting and date helpers.
 - `queryKeys.ts`: centralized TanStack Query key factory for all domains.

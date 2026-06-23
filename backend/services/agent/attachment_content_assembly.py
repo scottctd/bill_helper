@@ -16,7 +16,6 @@ from backend.models_agent import AgentTranscriptAttachment
 from backend.services.agent.agent_attachment_bundle import (
     is_docling_bundle_primary_stored_path,
     pdf_pages_as_png_bytes,
-    workspace_uploads_prefix_for_primary_stored_path,
 )
 from backend.services.agent.attachment_mime_types import is_text_agent_attachment
 
@@ -100,31 +99,8 @@ def _assemble_docling_bundle_parts(
             }
         ]
     md_text = parsed_path.read_text(encoding="utf-8", errors="replace")
-    stored = attachment.user_file.stored_relative_path
-    prefix = workspace_uploads_prefix_for_primary_stored_path(stored)
-    path_lines = ""
-    image_paths = _vision_image_paths_for_bundle(bundle_dir, md_text, primary_path=primary)
-    has_visual_paths = bool(image_paths) or (
-        not is_pdf_attachment(attachment) and primary.suffix.lower() in _IMAGE_SUFFIXES
-    )
-    if prefix:
-        path_lines = (
-            "Workspace paths:\n"
-            f"- {prefix}/{primary.name}\n"
-            f"- {prefix}/parsed.md\n"
-        )
-        for img in image_paths:
-            path_lines += f"- {prefix}/{img.name}\n"
-    image_note = ""
-    if has_visual_paths:
-        image_note = (
-            "\nRelated images are available in the workspace. "
-            "Use `read_image` with the listed `/workspace/...` paths only if visual inspection is needed."
-        )
     header = (
-        f"Attachment {attachment_name} (Docling markdown + related workspace images).\n"
-        f"{path_lines}\n"
-        f"{image_note}\n"
+        f"Attachment {attachment_name} (Docling markdown).\n"
         f"--- parsed.md ---\n{md_text}"
     )
     return [{"type": "text", "text": header}]

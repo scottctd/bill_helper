@@ -64,8 +64,6 @@
   - session-tool package: `memory.py` for add-only persistent memory appends and `threads.py` for short thread-topic updates
 - `backend/services/agent/terminal.py`
   - hosted `bh` CLI execution helper that injects per-command auth/session/run context and rejects general shell commands
-- `backend/services/agent/read_image.py`
-  - archived on-demand image reader retained for historical workspace experiments; it is not exposed in the active model tool catalog
 - `backend/services/agent/proposals/`
   - proposal-family package: `common.py` for shared proposal/thread helpers, `catalog.py` for tag/entity/account proposals, `entries.py` for entry proposal handlers, `groups.py` for group CRUD proposal flows, `group_memberships/` for membership canonicalization, validation, and handlers, family-owned normalization modules plus a small `normalization.py` registry for proposal payload canonicalization
 - `backend/services/agent/entry_references.py`
@@ -86,10 +84,6 @@
   - message-to-canonical-file linkage helpers
 - `backend/services/user_files.py`
   - canonical per-user upload storage, hashing, and path management helpers
-- `backend/services/agent_workspace.py`
-  - legacy per-user workspace spec building plus Docker-backed workspace provisioning/start-stop helpers, disabled by default
-- `backend/services/docker_cli.py`
-  - legacy thin Docker CLI adapter for image, volume, container, and exec lifecycle commands
 - `backend/services/agent/attachment_content.py`
   - public attachment-content seam for message-history callers and tests (vision detection plus assembly exports)
 - `backend/services/agent/attachment_text_normalize.py`
@@ -120,7 +114,7 @@
 - `Current User Context` includes timezone/date bullets plus `Entity Category Reference` and `Account Context`
 - `Agent Memory` is rendered as a markdown unordered list built from persisted runtime-setting memory items
 - the model-visible tool catalog is intentionally small: `rename_thread`, `add_user_memory`, and `run_bh`
-- app-state reads and proposal lifecycle work flow through `run_bh` running local `bh ...` commands rather than through a Docker shell or the older large direct read/proposal tool list
+- app-state reads and proposal lifecycle work flow through `run_bh` running local `bh ...` commands rather than through the older large direct read/proposal tool list
 - duplicate-entry checks should happen before new entry proposals
 - tag/entity naming should stay canonical and generalized
 - tag-delete proposals may proceed while referenced; proposal previews should surface impact counts and apply removes entry junction rows by cascade

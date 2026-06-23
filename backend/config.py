@@ -30,8 +30,6 @@ DEFAULT_CORS_SCHEME = "http"
 DEFAULT_CORS_HOST = "localhost"
 DEFAULT_CORS_PORT = 5173
 DEFAULT_AGENT_MODEL = "bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0"
-DEFAULT_AGENT_WORKSPACE_IMAGE = "bill-helper-agent-workspace:latest"
-DEFAULT_WORKSPACE_BACKEND_BASE_URL = "http://host.docker.internal:8000/api/v1"
 DEFAULT_AGENT_CLI_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 
@@ -130,10 +128,6 @@ class Settings(BaseSettings):
             "BILL_HELPER_AGENT_API_KEY",
         ),
     )
-    agent_workspace_enabled: bool = False
-    agent_workspace_image: str = DEFAULT_AGENT_WORKSPACE_IMAGE
-    agent_workspace_docker_binary: str = "docker"
-    workspace_backend_base_url: str = DEFAULT_WORKSPACE_BACKEND_BASE_URL
     agent_cli_base_url: str = Field(
         default=DEFAULT_AGENT_CLI_BASE_URL,
         validation_alias=AliasChoices(

@@ -120,20 +120,9 @@ def _add_user_memory_display(input_json: dict[str, Any] | None, output_json: dic
     return ToolCallDisplay(label="Added memory item")
 
 
-def _read_image_display(input_json: dict[str, Any] | None, output_json: dict[str, Any] | None) -> ToolCallDisplay:
-    image_count = (output_json or {}).get("image_count")
-    if isinstance(image_count, int) and image_count >= 0:
-        return ToolCallDisplay(label=_count_label("Loaded", image_count, "image", "images"))
-    paths = (input_json or {}).get("paths")
-    if isinstance(paths, list) and all(isinstance(path, str) for path in paths):
-        return ToolCallDisplay(label=_count_label("Loaded", len(paths), "image", "images"))
-    return ToolCallDisplay(label="Loaded image")
-
-
 _DISPLAY_BUILDERS: dict[str, Callable[[dict[str, Any] | None, dict[str, Any] | None], ToolCallDisplay]] = {
     "add_user_memory": _add_user_memory_display,
     "rename_thread": _rename_thread_display,
-    "read_image": _read_image_display,
     "run_bh": _run_bh_display,
     "terminal": _run_bh_display,
 }

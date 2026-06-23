@@ -21,7 +21,6 @@ This file is the API index. Use it to find the focused API docs under `docs/api/
 - `api/catalogs_and_settings.md`: auth, admin, users, entities, tags, taxonomies, currencies, and runtime settings endpoints.
 - `api/agent.md`: session, source, thread, proposal, message, run, tool-call, review, and attachment endpoints.
 - `api/import_workflow.md`: import preflight, jobs, task progress, and aggregated proposal review.
-- `api/workspace.md`: legacy opt-in per-user sandbox lifecycle and file-tree endpoints.
 
 ## Related Docs
 

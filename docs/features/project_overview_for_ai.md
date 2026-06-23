@@ -58,7 +58,7 @@
 
 ### 2.4 Agent Features
 
-- **Attachments:** Image and PDF; uploads are parsed with Docling into inline `parsed.md` plus workspace image-path hints, and the agent can call `read_image` later when visual inspection is needed.
+- **Attachments:** Image and PDF; uploads are prepared as vision content (PyMuPDF page renders for PDFs) and sent directly to vision-capable models. Plain-text attachments are inlined as file content.
 - **Surface context:** Telegram gets adapted prompts/replies.
 - **Model selection:** Dropdown to pick from available models; can change mid-conversation.
 - **Import tab:** Backend-orchestrated multi-file import jobs with worker pool, re-import detection, and aggregated proposal review.

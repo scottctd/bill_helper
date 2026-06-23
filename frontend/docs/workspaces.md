@@ -181,21 +181,6 @@
 - nested rule groups still work, but they are moved behind an `Advanced` mode that opens automatically for already-nested rules
 - each saved group exposes a direct `View matching entries` link that opens the entries workspace scoped to that group
 
-## Workspace
-
-### `frontend/src/pages/WorkspacePage.tsx`
-
-- legacy current-user workspace page retained without an active app route
-- route is IDE-first and strips away extra page chrome: when the workspace is healthy, the page is just the embedded `code-server` iframe rather than a tree-first CRUD layout
-- the workspace shell stays mounted under the authenticated app chrome, so switching from `/workspace` to another in-app route and back reuses the same iframe instead of remounting `code-server`
-- the IDE opens the `/workspace` volume root, which now contains two user-facing top-level folders: `scratch/` for writable working files and `uploads/` for the direct read-only canonical upload tree
-- the workspace image ships with the web-compatible `chocolatedesue.modern-pdf-preview` extension preinstalled so PDFs in `uploads/` open inside the browser IDE instead of falling back to binary text
-- the embedded `code-server` runtime writes default user settings that disable built-in VS Code AI surfaces, suppress the welcome page on launch, trust the opened folder by default, move the workbench side bar to the right to avoid fighting the app-level nav on the left, and open PDFs in single-page mode by default
-- on entry, the page calls `POST /workspace/ide/session` to start the workspace if needed, mint the narrow workspace cookie, and load the proxied IDE
-- while the IDE session or iframe is still starting, the stage shows a centered loading spinner instead of static copy cards
-- degraded or narrow/mobile states now use one minimal fallback card only; the old in-app file-tree/details surface was removed instead of being kept as a compatibility panel
-- narrow/mobile viewports do not embed the IDE; they show a desktop-first message only
-
 ## Import
 
 ### `frontend/src/pages/ImportPage.tsx`

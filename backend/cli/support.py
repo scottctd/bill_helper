@@ -35,7 +35,6 @@ from backend.cli.rendering import render_output
 
 
 _RUN_ID_HEADER = "X-Bill-Helper-Agent-Run-Id"
-_WORKSPACE_CLI_CONFIG_PATH = Path("/workspace/.ide/bh-env.json")
 _LOCAL_CLI_CONFIG_PATH = Path.home() / ".config" / "bill-helper" / "bh-env.json"
 
 
@@ -395,12 +394,7 @@ def _optional_env(name: str) -> str | None:
 
 
 def _load_cli_config() -> dict[str, Any]:
-    merged: dict[str, Any] = {}
-    for path in (_WORKSPACE_CLI_CONFIG_PATH, _LOCAL_CLI_CONFIG_PATH):
-        payload = _load_cli_config_path(path)
-        if payload:
-            merged.update(payload)
-    return merged
+    return _load_cli_config_path(_LOCAL_CLI_CONFIG_PATH)
 
 
 def _load_cli_config_path(path: Path) -> dict[str, Any]:

@@ -7,7 +7,6 @@ from backend.services.agent.agent_attachment_bundle import (
     bundle_directory_segment_for_relocate,
     bundle_upload_date_str_for_created_at,
     is_docling_bundle_primary_stored_path,
-    workspace_uploads_prefix_for_primary_stored_path,
 )
 
 
@@ -61,12 +60,3 @@ def test_is_docling_bundle_primary_stored_path_detects_bundles() -> None:
         "uploads/2026-03-22/February Statement/raw.pdf"
     )
     assert not is_docling_bundle_primary_stored_path("uploads/flat-uuid.pdf")
-
-
-def test_workspace_uploads_prefix_for_primary_stored_path_returns_absolute_workspace_path() -> None:
-    assert (
-        workspace_uploads_prefix_for_primary_stored_path(
-            "uploads/2026-03-22/February Statement/raw.pdf"
-        )
-        == "/workspace/uploads/2026-03-22/February Statement"
-    )

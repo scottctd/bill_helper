@@ -35,7 +35,6 @@ def _session_for_tmp_db(tmp_path: Path) -> Session:
 
 def test_store_user_file_bytes_writes_canonical_upload_and_hash(tmp_path, monkeypatch):
     monkeypatch.setenv("BILL_HELPER_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("BILL_HELPER_AGENT_WORKSPACE_ENABLED", "0")
     get_settings.cache_clear()
 
     db = _session_for_tmp_db(tmp_path)
@@ -69,7 +68,6 @@ def test_store_user_file_bytes_writes_canonical_upload_and_hash(tmp_path, monkey
 
 def test_store_user_file_bytes_deduplicates_by_sha256(tmp_path, monkeypatch):
     monkeypatch.setenv("BILL_HELPER_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("BILL_HELPER_AGENT_WORKSPACE_ENABLED", "0")
     get_settings.cache_clear()
 
     db = _session_for_tmp_db(tmp_path)
@@ -112,7 +110,6 @@ def test_store_user_file_bytes_deduplicates_by_sha256(tmp_path, monkeypatch):
 
 def test_create_user_file_for_existing_canonical_bundle_primary(tmp_path, monkeypatch):
     monkeypatch.setenv("BILL_HELPER_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("BILL_HELPER_AGENT_WORKSPACE_ENABLED", "0")
     get_settings.cache_clear()
 
     db = _session_for_tmp_db(tmp_path)
@@ -152,7 +149,6 @@ def test_relocate_agent_upload_bundle_primary_moves_to_readable_raw_layout(
     tmp_path, monkeypatch
 ):
     monkeypatch.setenv("BILL_HELPER_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("BILL_HELPER_AGENT_WORKSPACE_ENABLED", "0")
     get_settings.cache_clear()
 
     db_path = tmp_path / "user-files.sqlite"

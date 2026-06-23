@@ -18,4 +18,3 @@ export * from "./api/entries";
 export * from "./api/filterGroups";
 export * from "./api/groups";
 export * from "./api/settings";
-export * from "./api/workspace";

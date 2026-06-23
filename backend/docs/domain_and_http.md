@@ -36,7 +36,6 @@ Current behavior:
 - `backend/schemas_agent_sessions.py`: external-agent session and source contracts
 - `backend/schemas_settings.py`: runtime settings request/response contracts
 - `backend/schemas_auth.py`: login, session, admin-user, and admin-session contracts
-- `backend/schemas_workspace.py`: legacy per-user workspace snapshot, IDE launch, and recursive file-tree contracts
 
 Important read models:
 
@@ -61,8 +60,6 @@ Important read models:
 - `backend/services/access_scope.py`
 - `backend/services/runtime_settings.py`
 - `backend/services/agent/work_sessions.py`
-- `backend/services/workspace_browser.py`
-- `backend/services/workspace_ide.py`
 
 Shared policy helpers:
 
@@ -97,7 +94,6 @@ Protected routers:
 - `currencies.py`
 - `settings.py`
 - `agent_sessions.py`
-- `workspace.py` (legacy opt-in)
 - split agent routers under `backend/routers/agent_*`
 
 Router behavior:
@@ -110,7 +106,6 @@ Router behavior:
 - account and entry create/update flows default `owner_user_id` to the current principal unless an admin explicitly assigns another user on supported finance routes
 - entity, tag, and taxonomy mutations are authenticated-user accessible and create records for the caller's own scope
 - settings writes stay admin-only because runtime settings are app-global
-- legacy workspace snapshot/start/stop routes are bearer-authenticated and current-user scoped, while the proxied IDE subroutes are current-user scoped through the narrow workspace cookie issued by `POST /workspace/ide/session`
 
 ## Agent HTTP Ownership
 
@@ -129,5 +124,4 @@ Current rules:
 - `docs/api/core_ledger.md`
 - `docs/api/catalogs_and_settings.md`
 - `docs/api/agent.md`
-- `docs/api/workspace.md`
 - `docs/data_model.md`

@@ -74,14 +74,10 @@ BILL_HELPER_DATA_DIR=./.data
 | `BILL_HELPER_AGENT_MAX_IMAGES_PER_MESSAGE` | `4` | Max image/PDF uploads per message |
 | `BILL_HELPER_AGENT_MAX_PDF_PAGES` | `10` | Max pages accepted for PDF vision rendering |
 | `BILL_HELPER_AGENT_CLI_BASE_URL` | `http://127.0.0.1:8000/api/v1` | Backend API base URL injected into hosted `run_bh` CLI commands |
-| `BILL_HELPER_AGENT_WORKSPACE_ENABLED` | `false` | Enable legacy per-user Docker workspace provisioning |
-| `BILL_HELPER_AGENT_WORKSPACE_IMAGE` | `bill-helper-agent-workspace:latest` | Legacy prebuilt image tag for per-user workspaces |
-| `BILL_HELPER_AGENT_WORKSPACE_DOCKER_BINARY` | `docker` | Docker CLI binary used for legacy workspace lifecycle commands |
-| `BILL_HELPER_WORKSPACE_BACKEND_BASE_URL` | `http://host.docker.internal:8000/api/v1` | Backend API base URL used by the legacy workspace IDE terminal |
 | `AGENT_BASE_URL` / `BILL_HELPER_AGENT_BASE_URL` | _(none)_ | Optional custom provider endpoint |
 | `AGENT_API_KEY` / `BILL_HELPER_AGENT_API_KEY` | _(none)_ | Optional custom provider API key |
 
-## Agent CLI And Legacy Workspace
+## Agent CLI
 
 The hosted agent `run_bh` tool executes only approved `bh ...` commands through the local CLI module. It injects a temporary bearer token and the current session/run identifiers for each command, so app-state reads and proposal creation go through the same backend APIs as external agents. Hosted runs cannot call external setup, session navigation, or source-management commands; they may only update the current session summary/title with `bh sessions update`.
 
@@ -113,43 +109,6 @@ Then configure auth and a current session:
 printf '%s\n' '<password>' | bh login --api-base-url http://localhost:8000/api/v1 --username admin --password-stdin
 bh sessions list
 bh sessions create --title "May receipts" --use
-```
-
-The legacy workspace feature is still available behind `BILL_HELPER_AGENT_WORKSPACE_ENABLED=1`. When enabled, it provisions one deterministic workspace definition per user:
-
-- host files: `{data_dir}/user_files/{user_id}/uploads`
-- named volume: `bill-helper-workspace-{user_id}`
-- named container: `bill-helper-sandbox-{user_id}`
-- mounts: `/workspace/uploads` read-only from the user's canonical uploads and `/workspace` from the named volume
-
-Build the local image before using legacy workspace endpoints:
-
-```bash
-docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .
-```
-
-Behavior notes:
-
-- the backend does not auto-build this image
-- workspace provisioning is disabled by default and no longer runs during login, logout, user creation, or admin session revocation
-- set `BILL_HELPER_AGENT_WORKSPACE_ENABLED=1` only in environments where you intentionally want the legacy Docker-backed workspace
-- if the backend itself runs inside Docker, it still needs host-daemon access through `/var/run/docker.sock` or `DOCKER_HOST` to manage sibling user workspaces
-
-Legacy workspace refresh notes:
-
-- The workspace image is built from the checked-out repo and installs `bill-helper` during `docker build`; running sandbox containers do not see later source edits automatically.
-- `docker/agent-workspace-requirements.txt` must include the full `bh` CLI import closure even though the package itself is installed with `--no-deps`; verify `bh dashboard finance get --help` inside a fresh image.
-- Rebuild the image after changes to files copied into `docker/agent-workspace.dockerfile`, especially `backend/`, `telegram/`, `pyproject.toml`, `README.md`, `docker/agent-workspace.dockerfile`, or `docker/agent-workspace-entrypoint.sh`.
-- Recreate any running `bill-helper-sandbox-*` containers after that rebuild so the backend launches new workspaces from the new image. This refresh keeps the named workspace volume unless you remove it separately.
-- When the changed behavior affects installed legacy workspace tools, verify the result from inside a fresh sandbox container instead of only running the command from the host checkout.
-
-Refresh workflow:
-
-```bash
-docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .
-for name in $(docker ps --format '{{.Names}}' | grep '^bill-helper-sandbox-'); do
-  docker rm -f "$name"
-done
 ```
 
 ## Provider Credentials
@@ -359,22 +318,11 @@ Run these after behavior, schema, API, tooling, or UI changes:
 
 ```bash
 uv run python -m py_compile backend
-OPENROUTER_API_KEY=test uv run pytest backend/tests -q -m "not workspace_docker"
-# Run this as well when touching workspace lifecycle or IDE proxy behavior:
-OPENROUTER_API_KEY=test uv run pytest backend/tests/test_agent_workspace.py -q -m workspace_docker
+OPENROUTER_API_KEY=test uv run pytest backend/tests -q
 uv run python scripts/check_llm_design.py
 cd frontend && npm run test && npm run test:e2e && npm run build
 cd ..
 uv run python scripts/check_docs_sync.py
-```
-
-When the agent workspace image changes, rebuild it locally and recreate any running sandbox containers:
-
-```bash
-docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .
-for name in $(docker ps --format '{{.Names}}' | grep '^bill-helper-sandbox-'); do
-  docker rm -f "$name"
-done
 ```
 
 ## Migration Workflow
@@ -499,7 +447,7 @@ Operational impact:
 
 - Before scanning, review generated/runtime/vendor/build directories and exclude only obvious non-source paths directly; questionable exclude candidates must be surfaced to the user first.
 - Typical commands are `uv run desloppify scan --path .`, `uv run desloppify next`, the printed `uv run desloppify resolve ...` command for each completed item, and periodic `uv run desloppify plan` / `scan` refreshes when the queue shifts.
-- Behavior, schema, or tooling fixes that come out of the queue must still pass the repository verification gates, including `OPENROUTER_API_KEY=test uv run pytest backend/tests -q -m "not workspace_docker"` and `uv run python scripts/check_docs_sync.py`. Also run `OPENROUTER_API_KEY=test uv run pytest backend/tests/test_agent_workspace.py -q -m workspace_docker` when the change touches workspace lifecycle or IDE proxy behavior.
+- Behavior, schema, or tooling fixes that come out of the queue must still pass the repository verification gates, including `OPENROUTER_API_KEY=test uv run pytest backend/tests -q` and `uv run python scripts/check_docs_sync.py`.
 
 Affected files/modules:
 
@@ -578,8 +526,7 @@ Any behavior, schema, API, tooling, or UI change must update the relevant stable
 
 Recommended before merging:
 
-1. `OPENROUTER_API_KEY=test uv run pytest backend/tests -q -m "not workspace_docker"`
-2. `OPENROUTER_API_KEY=test uv run pytest backend/tests/test_agent_workspace.py -q -m workspace_docker` when touching workspace lifecycle or IDE proxy behavior
-3. `npm run build` (from `frontend/`)
-4. `uv run python scripts/check_docs_sync.py`
+1. `OPENROUTER_API_KEY=test uv run pytest backend/tests -q`
+2. `npm run build` (from `frontend/`)
+3. `uv run python scripts/check_docs_sync.py`
 The Playwright harness starts the backend on disposable non-default ports and copies the shared app data directory into a temporary location before applying migrations, so browser coverage stays isolated from the primary local database.

@@ -82,9 +82,6 @@ export const queryKeys = {
     job: (jobId: string) => ["import", "job", jobId] as const,
     proposals: (jobId: string) => ["import", "job", jobId, "proposals"] as const
   },
-  workspace: {
-    snapshot: ["workspace", "snapshot"] as const
-  },
   admin: {
     users: ["admin", "users"] as const,
     sessions: ["admin", "sessions"] as const

@@ -42,26 +42,25 @@ def _get_subparser(parser: argparse.ArgumentParser, *names: str) -> argparse.Arg
     return current
 
 
-def test_build_cli_context_reads_workspace_cli_config_when_env_missing(monkeypatch, tmp_path) -> None:
+def test_build_cli_context_reads_local_cli_config_when_env_missing(monkeypatch, tmp_path) -> None:
     config_path = tmp_path / "bh-env.json"
     config_path.write_text(
         json.dumps(
             {
-                "api_base_url": "http://host.docker.internal:8000/api/v1",
-                "auth_token": "workspace-token",
+                "api_base_url": "http://127.0.0.1:8000/api/v1",
+                "auth_token": "config-token",
             }
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", tmp_path / "missing-local.json")
-    monkeypatch.setattr("backend.cli.support._WORKSPACE_CLI_CONFIG_PATH", config_path)
+    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", config_path)
     monkeypatch.delenv("BH_API_BASE_URL", raising=False)
     monkeypatch.delenv("BH_AUTH_TOKEN", raising=False)
 
     context = build_cli_context(output_format="json")
 
-    assert context.api_base_url == "http://host.docker.internal:8000/api/v1"
-    assert context.auth_token == "workspace-token"
+    assert context.api_base_url == "http://127.0.0.1:8000/api/v1"
+    assert context.auth_token == "config-token"
 
 
 def test_build_cli_context_reads_session_id_from_cli_config(monkeypatch, tmp_path) -> None:
@@ -76,8 +75,7 @@ def test_build_cli_context_reads_session_id_from_cli_config(monkeypatch, tmp_pat
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", tmp_path / "missing-local.json")
-    monkeypatch.setattr("backend.cli.support._WORKSPACE_CLI_CONFIG_PATH", config_path)
+    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", config_path)
     monkeypatch.delenv("BH_API_BASE_URL", raising=False)
     monkeypatch.delenv("BH_AUTH_TOKEN", raising=False)
     monkeypatch.delenv("BH_SESSION_ID", raising=False)
@@ -88,35 +86,7 @@ def test_build_cli_context_reads_session_id_from_cli_config(monkeypatch, tmp_pat
     assert context.thread_id == "session-123"
 
 
-def test_build_cli_context_merges_local_session_with_workspace_auth(monkeypatch, tmp_path) -> None:
-    workspace_config = tmp_path / "workspace-bh-env.json"
-    local_config = tmp_path / "local-bh-env.json"
-    workspace_config.write_text(
-        json.dumps(
-            {
-                "api_base_url": "http://workspace/api/v1",
-                "auth_token": "workspace-token",
-                "session_id": "workspace-session",
-            }
-        ),
-        encoding="utf-8",
-    )
-    local_config.write_text(json.dumps({"session_id": "local-session"}), encoding="utf-8")
-    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", local_config)
-    monkeypatch.setattr("backend.cli.support._WORKSPACE_CLI_CONFIG_PATH", workspace_config)
-    monkeypatch.delenv("BH_API_BASE_URL", raising=False)
-    monkeypatch.delenv("BH_AUTH_TOKEN", raising=False)
-    monkeypatch.delenv("BH_SESSION_ID", raising=False)
-    monkeypatch.delenv("BH_THREAD_ID", raising=False)
-
-    context = build_cli_context(output_format="json")
-
-    assert context.api_base_url == "http://workspace/api/v1"
-    assert context.auth_token == "workspace-token"
-    assert context.thread_id == "local-session"
-
-
-def test_build_cli_context_prefers_bh_env_over_workspace_cli_config(monkeypatch, tmp_path) -> None:
+def test_build_cli_context_prefers_bh_env_over_local_cli_config(monkeypatch, tmp_path) -> None:
     config_path = tmp_path / "bh-env.json"
     config_path.write_text(
         json.dumps(
@@ -127,8 +97,7 @@ def test_build_cli_context_prefers_bh_env_over_workspace_cli_config(monkeypatch,
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", tmp_path / "missing-local.json")
-    monkeypatch.setattr("backend.cli.support._WORKSPACE_CLI_CONFIG_PATH", config_path)
+    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", config_path)
     monkeypatch.setenv("BH_API_BASE_URL", "http://from-env/api/v1")
     monkeypatch.setenv("BH_AUTH_TOKEN", "env-token")
 
@@ -140,7 +109,6 @@ def test_build_cli_context_prefers_bh_env_over_workspace_cli_config(monkeypatch,
 
 def test_build_cli_context_raises_helpful_error_when_cli_context_missing(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", tmp_path / "missing-local.json")
-    monkeypatch.setattr("backend.cli.support._WORKSPACE_CLI_CONFIG_PATH", tmp_path / "missing.json")
     monkeypatch.delenv("BH_API_BASE_URL", raising=False)
     monkeypatch.delenv("BH_AUTH_TOKEN", raising=False)
 
@@ -156,8 +124,7 @@ def test_build_cli_context_defaults_to_compact_when_stdout_is_not_tty(monkeypatc
         json.dumps({"api_base_url": "http://example/api/v1", "auth_token": "workspace-token"}),
         encoding="utf-8",
     )
-    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", tmp_path / "missing-local.json")
-    monkeypatch.setattr("backend.cli.support._WORKSPACE_CLI_CONFIG_PATH", config_path)
+    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", config_path)
     monkeypatch.setattr("backend.cli.support.sys.stdout.isatty", lambda: False)
 
     context = build_cli_context()
@@ -171,8 +138,7 @@ def test_build_cli_context_defaults_to_text_when_stdout_is_tty(monkeypatch, tmp_
         json.dumps({"api_base_url": "http://example/api/v1", "auth_token": "workspace-token"}),
         encoding="utf-8",
     )
-    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", tmp_path / "missing-local.json")
-    monkeypatch.setattr("backend.cli.support._WORKSPACE_CLI_CONFIG_PATH", config_path)
+    monkeypatch.setattr("backend.cli.support._LOCAL_CLI_CONFIG_PATH", config_path)
     monkeypatch.setattr("backend.cli.support.sys.stdout.isatty", lambda: True)
 
     context = build_cli_context()

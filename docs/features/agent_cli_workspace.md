@@ -155,10 +155,6 @@ Review routes remain frontend-driven human review endpoints:
 - `POST /api/v1/agent/change-items/{item_id}/reject`
 - `POST /api/v1/agent/change-items/{item_id}/reopen`
 
-## Legacy Workspace
-
-The Docker workspace/IDE implementation is retained as a legacy opt-in surface behind `BILL_HELPER_AGENT_WORKSPACE_ENABLED=1`, but the default hosted agent path no longer provisions Docker resources and no longer executes inside a workspace container.
-
 ## Verification Expectations
 
 When this surface changes, useful checks include:

@@ -97,8 +97,6 @@ Telegram polling is skipped by default. To opt in:
 | ⚡ API | `http://localhost:8000/api/v1` |
 | 📖 API docs | `http://localhost:8000/docs` |
 
-The optional agent workspace image installs a focused `bh` CLI dependency set rather than the full API dependency graph; see `docs/development.md` for rebuild and smoke-test commands.
-
 Sign in at `/login` and you're live.
 
 ---
@@ -113,7 +111,6 @@ All settings use the `BILL_HELPER_` prefix and can be set via `.env` or the in-a
 | `BILL_HELPER_AGENT_MAX_STEPS` | `100` | Max tool-call steps per run |
 | `BILL_HELPER_AGENT_MAX_PDF_PAGES` | `10` | Max PDF pages accepted for vision preparation |
 | `BILL_HELPER_AGENT_CLI_BASE_URL` | `http://127.0.0.1:8000/api/v1` | API URL injected into internal `run_bh` CLI runs |
-| `BILL_HELPER_AGENT_WORKSPACE_ENABLED` | `false` | Legacy opt-in Docker workspace/IDE surface |
 | `BILL_HELPER_DEFAULT_CURRENCY_CODE` | `CAD` | Default currency for new entries |
 | `BILL_HELPER_DASHBOARD_CURRENCY_CODE` | `CAD` | Currency shown in the dashboard |
 | `CURRENT_USER_TIMEZONE` | `America/Toronto` | Timezone for agent date context |
@@ -177,8 +174,8 @@ uv run bill-helper-api
 # Frontend only
 cd frontend && npm run dev
 
-# Backend tests (fast)
-OPENROUTER_API_KEY=test uv run pytest backend/tests -q -m "not workspace_docker"
+# Backend tests
+OPENROUTER_API_KEY=test uv run pytest backend/tests -q
 
 # Frontend tests
 cd frontend && npm run test
@@ -202,7 +199,7 @@ frontend/         React + Vite web app
 ios/              SwiftUI iOS app (partial coverage)
 telegram/         Telegram bot transport
 alembic/          Database migrations
-docker/           Legacy Docker workspace artifacts plus packaging experiments
+docker/           Packaging experiments
 scripts/          Dev, seed, and maintenance scripts
 docs/             Extended documentation
 ```

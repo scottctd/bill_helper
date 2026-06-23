@@ -1,8 +1,10 @@
+> **Status: cancelled.** The Docker agent workspace feature was removed (see `docs/adr/0008-remove_docker_agent_workspace.md`). This optional SQLite context-layer plan is archived without implementation.
+
 # Agent Workspace DB Extension - Optional SQLite Context Layer
 
 ## Status
 
-- Proposed
+- Cancelled
 - Later phase, not part of Agent Workspace V1
 
 ## Priority
@@ -12,7 +14,7 @@
 
 ## Depends on
 
-- Agent Workspace V1
+- Agent Workspace V1 (removed)
 
 ## Summary
 

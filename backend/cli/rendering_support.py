@@ -3,8 +3,6 @@
 CALLING SPEC:
     render_status_compact(payload) -> str
     render_status_text(payload) -> str
-    render_workspace_status_compact(payload) -> str
-    render_workspace_status_text(payload) -> str
     render_compact_fallback(payload) -> str
     render_text_fallback(payload) -> str
     compact_table(...) -> str
@@ -89,41 +87,6 @@ def render_status_text(payload: dict[str, Any]) -> str:
             f"Run: {context.get('run_id') or '-'}",
             f"API Base URL: {context.get('api_base_url') or '-'}",
         ]
-    )
-
-
-def render_workspace_status_compact(payload: dict[str, Any]) -> str:
-    return "\n".join(
-        [
-            "OK",
-            "schema: status|workspace_enabled|starts_on_login|ide_ready|container|volume|degraded_reason",
-            compact_row(
-                [
-                    payload.get("status") or "-",
-                    bool_text(payload.get("workspace_enabled")),
-                    bool_text(payload.get("starts_on_login")),
-                    bool_text(payload.get("ide_ready")),
-                    payload.get("container_name") or "-",
-                    payload.get("volume_name") or "-",
-                    payload.get("degraded_reason") or "-",
-                ]
-            ),
-        ]
-    )
-
-
-def render_workspace_status_text(payload: dict[str, Any]) -> str:
-    return detail_block(
-        "Workspace",
-        [
-            ("Status", payload.get("status")),
-            ("Workspace Enabled", bool_text(payload.get("workspace_enabled"))),
-            ("Starts On Login", bool_text(payload.get("starts_on_login"))),
-            ("IDE Ready", bool_text(payload.get("ide_ready"))),
-            ("Container", payload.get("container_name") or "-"),
-            ("Volume", payload.get("volume_name") or "-"),
-            ("Reason", payload.get("degraded_reason") or "-"),
-        ],
     )
 
 

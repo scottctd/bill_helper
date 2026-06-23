@@ -10,7 +10,6 @@
 - LiteLLM for model-provider routing
 - PyMuPDF for high-resolution PDF page rendering in agent vision attachments
 - Docling/EasyOCR code retained only for archived historical bundle support
-- Docker CLI retained only for the legacy opt-in workspace/IDE surface
 
 ## Entry Points
 
@@ -51,10 +50,6 @@ Agent settings:
 - image and attachment limit fields
 - `AGENT_MAX_PDF_PAGES`
 - `AGENT_CLI_BASE_URL` / `BILL_HELPER_AGENT_CLI_BASE_URL`
-- `AGENT_WORKSPACE_ENABLED`
-- `AGENT_WORKSPACE_IMAGE`
-- `AGENT_WORKSPACE_DOCKER_BINARY`
-- `WORKSPACE_BACKEND_BASE_URL`
 - `AGENT_BASE_URL` / `BILL_HELPER_AGENT_BASE_URL`
 - `AGENT_API_KEY` / `BILL_HELPER_AGENT_API_KEY`
 
@@ -87,18 +82,13 @@ Behavior notes:
 - env-file variables are mirrored into `os.environ` so provider SDKs and LiteLLM can see shared secrets
 - `get_settings()` caches environment settings with `lru_cache`
 
-## Agent Files, CLI, And Legacy Workspace
+## Agent Files And CLI
 
 Relevant modules:
 
 - `backend/services/user_files.py`
 - `backend/services/agent/work_sessions.py`
 - `backend/services/agent/terminal.py`
-- `backend/services/agent_workspace.py`
-- `backend/services/workspace_browser.py`
-- `backend/services/workspace_ide.py`
-- `backend/services/docker_cli.py`
-- `docker/agent-workspace.dockerfile`
 
 Current behavior:
 
@@ -107,23 +97,6 @@ Current behavior:
 - external agents use `bh login` for saved CLI auth and `bh sessions list|create --use|use|update` to select named sessions, update summaries, attach source text/files, and create review proposals without requiring a hosted run id
 - `bh entry-categories list|get|create|update|remove` directly manages the authenticated user's two-level entry-category taxonomy; references accept names, paths, full ids, or unique id prefixes, and lifecycle defaults use `fixed`, `day_to_day`, or `one_time`
 - canonical user source uploads are stored once per owner by content hash; attaching the same source to the same session returns the existing link
-- when `agent_workspace_enabled=true`, legacy workspace endpoints can still provision the named Docker volume `bill-helper-workspace-{user_id}` and the named `code-server` container definition `bill-helper-sandbox-{user_id}`
-- Docker workspace provisioning is disabled by default and is not started by login, logout, user creation, or admin session operations
-- the provisioned container mounts the user's canonical upload root at `/workspace/uploads` as read-only and a named volume at `/workspace` for writable scratch files plus IDE state
-- the workspace image runs `code-server` as its main process, publishes its IDE port to localhost only, and uses a direct volume root where editable files live under `/workspace/scratch`, read-only uploads live under `/workspace/uploads`, and persisted IDE state lives in `/workspace/.ide`
-- the workspace image installs `bh` via `pip install --no-deps` on the local package after an explicit `docker/agent-workspace-requirements.txt` pass (V1 scientific stack plus the CLI import closure: `httpx`, `pydantic`, `jinja2`, and `sqlalchemy`) - it does **not** install the full API dependency graph from `pyproject.toml`; rebuild `bill-helper-agent-workspace:latest` and recreate running `bill-helper-sandbox-*` containers after changing the workspace Dockerfile or requirements file
-- the workspace image preinstalls the OpenVSX web-compatible PDF viewer extension `chocolatedesue.modern-pdf-preview`, syncs it into each workspace, and seeds minimal `code-server` user defaults so first launch skips the welcome page, keeps folders trusted, and opens mounted PDFs in single-page mode without manual setup
-- the workspace entrypoint expects the current layout only: `/workspace/scratch`, `/workspace/uploads`, and `/workspace/.ide`; it does not migrate older nested-workspace or legacy mirror layouts
-- `ensure_user_workspace_provisioned()` enforces the current image/label/port/mount contract and recreates mismatched containers onto the current revision without compatibility shims for older mount layouts
-- `GET /api/v1/workspace` reports current container state, IDE readiness, and degraded launch reason for the authenticated user
-- when the configured workspace image is missing, `GET /api/v1/workspace` returns a snapshot with `status="image_missing"` so the UI can still explain the missing image instead of returning `503`
-- `POST /api/v1/workspace/start` and `POST /api/v1/workspace/stop` remain explicit legacy lifecycle controls
-- `POST /api/v1/workspace/ide/session` mints a narrow `HttpOnly` workspace cookie for `/api/v1/workspace/ide/` and launches the same-origin IDE proxy without inventing a second auth model
-- backend shutdown now runs a best-effort sweep that stops all running user workspace containers so app termination does not leave sandboxes running
-- the backend assumes `agent_workspace_image` already exists and returns a provisioning error if it does not
-- the image can be built locally with `docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .`
-- container creation adds `host.docker.internal -> host-gateway` so local terminal sessions can reach the configured backend base URL on Linux as well as Docker Desktop setups
-- if the backend itself runs inside Docker, it still needs host-daemon access via `/var/run/docker.sock` or `DOCKER_HOST` to manage sibling user workspaces
 
 ## Session Auth Runtime
 

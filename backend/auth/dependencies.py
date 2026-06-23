@@ -5,7 +5,7 @@
 # - Side effects: module-local behavior only.
 from __future__ import annotations
 
-from fastapi import Cookie, Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -64,22 +64,6 @@ def get_current_principal(
     auth_context: AuthenticatedSessionContext = Depends(get_current_auth_context),
 ) -> RequestPrincipal:
     return auth_context.principal
-
-
-def get_current_principal_from_cookie(
-    cookie_name: str,
-):
-    def _dependency(
-        db: Session = Depends(get_db),
-        session_cookie: str | None = Cookie(default=None, alias=cookie_name),
-    ) -> RequestPrincipal:
-        return _build_authenticated_session_context(
-            db=db,
-            token=session_cookie,
-            missing_detail="Missing workspace session cookie.",
-        ).principal
-
-    return _dependency
 
 
 def require_admin_principal(

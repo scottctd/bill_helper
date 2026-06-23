@@ -212,7 +212,6 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
 - Operational commands:
   - `uv run alembic upgrade head`
   - `uv run python scripts/bootstrap_admin.py --name <user> --password <pass>`
-  - `docker build -t bill-helper-agent-workspace:latest -f docker/agent-workspace.dockerfile .`
   - `uv run bill-helper-api`
   - `uv run pytest`
   - `uv run python scripts/check_docs_sync.py`
@@ -221,8 +220,6 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
   - `BILL_HELPER_DEFAULT_CURRENCY_CODE`
   - `BILL_HELPER_DASHBOARD_CURRENCY_CODE`
   - `BILL_HELPER_AGENT_MODEL`
-  - `BILL_HELPER_AGENT_WORKSPACE_ENABLED`
-  - `BILL_HELPER_AGENT_WORKSPACE_IMAGE`
   - provider credentials for selected model (for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`)
 
 ## Current Constraints and Limitations

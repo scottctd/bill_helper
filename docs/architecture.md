@@ -10,13 +10,12 @@ Bill Helper is a local-first personal finance ledger with AI-assisted, review-ga
 - Backend API: FastAPI (`http://localhost:8000`)
 - Database: SQLite (`{data_dir}/bill_helper.db`, default `~/.local/share/bill_helper/`)
 - Canonical user file storage: local filesystem under `{data_dir}/user_files/{user_id}/uploads`
-- Per-user agent workspace resources: one named Docker volume plus one stopped-by-default named container definition per user
 
 ## High-Level Components
 
 - `frontend`: UI pages, agent panel, API calls, cache orchestration
 - `backend/routers`: HTTP endpoint layer
-- `backend/services`: domain logic, canonical file storage, agent runtime/review logic, and per-user workspace provisioning
+- `backend/services`: domain logic, canonical file storage, and agent runtime/review logic
 - `backend/models_finance.py` + `backend/models_agent.py` + `backend/models_files.py`: SQLAlchemy ORM tables
 - `alembic`: schema migrations
 
@@ -31,7 +30,7 @@ Bill Helper is a local-first personal finance ledger with AI-assisted, review-ga
 - AI boundary is append-only proposal creation plus explicit human review apply/reject
 - direct API deletes and agent-applied deletes use the same canonical semantics for tag/entity/account removal
 - durable user-visible files are canonicalized into a per-user registry before higher-level agent attachment linkage
-- user creation/bootstrap eagerly provisions deterministic host and Docker workspace resources for later execution tooling
+- user creation/bootstrap eagerly provisions the per-user upload root under `{data_dir}/user_files/{user_id}/uploads`
 
 ## Backend Layering
 
@@ -161,7 +160,6 @@ Cross-page consistency:
 - review apply uses the approving reviewer principal for scoped entry resolution and owner attribution, not mutable runtime settings identity
 - image, PDF, and plain-text attachments are accepted in agent messages; images and PDFs require a vision-capable model, while plain-text attachments are inlined as file content
 - active agent runs execute Bill Helper app operations through `run_bh`; external file work stays outside the app
-- provisioned workspaces mount only the owning user's canonical upload root at `/workspace/uploads` as read-only and do not expose `bill_helper.db`
 
 ## Out of Scope (Current)
 

@@ -18,16 +18,6 @@ def test_add_user_memory_display_uses_count():
     assert display.label == "Added 2 memory items"
 
 
-def test_read_image_display_uses_image_count():
-    display = build_tool_call_display(
-        "read_image",
-        input_json={"paths": ["/workspace/a.png", "/workspace/b.png"]},
-        output_json={"image_count": 2},
-    )
-
-    assert display.label == "Loaded 2 images"
-
-
 def test_run_bh_display_summarizes_bh_command_without_flags():
     display = build_tool_call_display(
         "run_bh",

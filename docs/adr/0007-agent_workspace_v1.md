@@ -1,6 +1,8 @@
+> **Superseded by [0008-remove_docker_agent_workspace.md](0008-remove_docker_agent_workspace.md).** The canonical per-user file layer remains; Docker workspace provisioning, IDE proxying, and related API routes were removed.
+
 # ADR 0007: Canonical User Files and Per-User Agent Workspace IDE
 
-- Status: accepted
+- Status: superseded
 - Date: 2026-03-14
 - Deciders: Bill Helper maintainers
 

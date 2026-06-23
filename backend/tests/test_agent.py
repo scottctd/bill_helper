@@ -73,7 +73,7 @@ def _patch_terminal_success(monkeypatch, *, stdout: str = "schema: name|type\ngr
                 "OK\n"
                 "summary: bh command completed\n"
                 "exit_code: 0\n"
-                "cwd: /workspace/scratch\n"
+                "cwd: /tmp/bh\n"
                 "duration_ms: 1\n"
                 "stdout_truncated: False\n"
                 "stderr_truncated: False\n"

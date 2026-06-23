@@ -17,4 +17,3 @@ export * from "./types/entries";
 export * from "./types/filterGroups";
 export * from "./types/groups";
 export * from "./types/settings";
-export * from "./types/workspace";

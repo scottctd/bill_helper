@@ -10,7 +10,8 @@ Use ADRs for durable technical decisions that affect architecture, data contract
 - `0004-entity_root_account_subtype.md`: made `Account` a shared-primary-key `Entity` subtype and standardized delete semantics around that model.
 - `0005-filter_group_analytics.md`: replaced dashboard-local daily/non-daily tagging with saved filter-group analytics classification.
 - `0006-llm-oriented-design-policy.md`: adopted the non-iOS LLM-oriented design baseline and documented the temporary iOS defer.
-- `0007-agent_workspace_v1.md`: canonicalized per-user durable files and introduced eager per-user Docker workspace provisioning.
+- `0007-agent_workspace_v1.md`: canonicalized per-user durable files and introduced eager per-user Docker workspace provisioning. Superseded by `0008`.
+- `0008-remove_docker_agent_workspace.md`: removed Docker-backed per-user workspace provisioning, IDE proxying, and related API routes while keeping canonical `user_files` storage.
 
 ## Naming
 

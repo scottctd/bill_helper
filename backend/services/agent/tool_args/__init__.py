@@ -15,7 +15,6 @@ from .read import (
     ListSnapshotsArgs,
     ListTagsArgs,
 )
-from .read_image import ReadImageArgs
 from .shared import EmptyArgs
 from .terminal import RunBhArgs, RunTerminalArgs
 from .threads import RenameThreadArgs
@@ -32,7 +31,6 @@ __all__ = [
     "ListSnapshotsArgs",
     "ListTagsArgs",
     "ProposeUpdateGroupMembershipArgs",
-    "ReadImageArgs",
     "RenameThreadArgs",
     "RunBhArgs",
     "RunTerminalArgs",

@@ -422,10 +422,3 @@ def bundle_upload_date_str_for_created_at(created_at: datetime, *, timezone_name
         raise PolicyViolation.bad_request("Invalid derived bundle date segment.")
     return date_str
 
-
-def workspace_uploads_prefix_for_primary_stored_path(stored_relative_path: str) -> str | None:
-    """Return ``/workspace/uploads/YYYY-MM-DD/<bundle_dir>`` for bundle primaries."""
-    if not is_docling_bundle_primary_stored_path(stored_relative_path):
-        return None
-    parts = Path(normalize_bundle_relative_path(stored_relative_path)).parts
-    return f"/workspace/{parts[0]}/{parts[1]}/{parts[2]}"

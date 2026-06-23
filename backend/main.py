@@ -5,8 +5,6 @@
 # - Side effects: module-local behavior only.
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-
 import uvicorn
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,30 +25,20 @@ from backend.routers import (
     tags,
     taxonomies,
     users,
-    workspace,
 )
 from backend.routers.agent import router as agent_router
 from backend.routers.import_jobs import router as import_jobs_router
 from backend.routers.accounts import router as accounts_router
 from backend.services.crud_policy import PolicyViolation
 from backend.services.agent.langfuse_litellm import ensure_langfuse_litellm_configured
-from backend.services.agent_workspace import stop_all_user_workspaces_best_effort
-
-
-@asynccontextmanager
-async def _app_lifespan(_app: FastAPI):
-    ensure_langfuse_litellm_configured()
-    try:
-        yield
-    finally:
-        stop_all_user_workspaces_best_effort()
 
 
 def create_app() -> FastAPI:
     app_settings = get_settings()
     app_settings.ensure_data_dir()
+    ensure_langfuse_litellm_configured()
 
-    app = FastAPI(title=app_settings.app_name, lifespan=_app_lifespan)
+    app = FastAPI(title=app_settings.app_name)
 
     @app.exception_handler(PolicyViolation)
     def handle_policy_violation(_request: Request, error: PolicyViolation) -> JSONResponse:
@@ -93,7 +81,6 @@ def create_app() -> FastAPI:
             prefix=app_settings.api_prefix,
             dependencies=protected_dependencies,
         )
-    app.include_router(workspace.router, prefix=app_settings.api_prefix)
     return app
 
 
