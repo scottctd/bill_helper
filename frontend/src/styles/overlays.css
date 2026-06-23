@@ -57,6 +57,19 @@
     @apply flex-wrap gap-2 md:flex-nowrap;
   }
 
+  .entry-property-group-category {
+    @apply flex-wrap gap-2 md:flex-nowrap;
+  }
+
+  .entry-property-group-category > .single-select:first-child {
+    @apply min-w-[180px] flex-1;
+    max-width: none;
+  }
+
+  .entry-property-group-category > .single-select:last-child {
+    @apply shrink-0;
+  }
+
   .entry-property-group-group > .single-select:first-child {
     @apply min-w-0 flex-1;
     max-width: none;
@@ -206,6 +219,22 @@
     @apply text-foreground;
   }
 
+  .single-select-tone-label {
+    @apply inline-flex min-w-0 max-w-full items-center gap-2 text-foreground;
+  }
+
+  .single-select-tone-dot {
+    @apply size-2.5 shrink-0 rounded-full border border-black/10;
+  }
+
+  .select-option-tone-label {
+    @apply inline-flex min-w-0 flex-1 items-center gap-2;
+  }
+
+  .select-option-tone-dot {
+    @apply size-2.5 shrink-0 rounded-full border border-black/10;
+  }
+
   .single-select-placeholder {
     @apply text-muted-foreground;
   }
@@ -214,10 +243,26 @@
     @apply h-4 w-4 text-muted-foreground;
   }
 
-  .single-select-menu,
-  .creatable-select-menu,
-  .tag-multiselect-menu {
-    @apply max-h-56 overflow-auto rounded-md border border-border bg-popover p-1 shadow-geist-md;
+  .select-menu-surface {
+    @apply flex min-h-0 flex-col overflow-hidden rounded-md border border-border bg-popover shadow-geist-md;
+    pointer-events: auto;
+  }
+
+  .select-menu-search {
+    @apply shrink-0 border-b border-border bg-popover p-2;
+  }
+
+  .select-menu-search-input {
+    @apply h-9 w-full rounded-sm border border-input bg-background px-3 py-1 text-copy-14 shadow-none outline-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
+  }
+
+  .select-menu-options {
+    @apply min-h-0 flex-1 overflow-y-auto overscroll-contain p-1;
+    scrollbar-gutter: stable;
+  }
+
+  .floating-menu-portal-host {
+    @apply pointer-events-none fixed inset-0 z-[60];
   }
 
   .single-select-option,
@@ -339,14 +384,6 @@
 
   .tag-multiselect-compact-caret {
     @apply h-4 w-4 shrink-0 text-muted-foreground;
-  }
-
-  .tag-multiselect-menu-search {
-    @apply sticky top-0 z-10 border-b border-border bg-popover p-2;
-  }
-
-  .tag-multiselect-menu-search-input {
-    @apply h-9 w-full rounded-sm border border-input bg-background px-3 py-1 text-copy-14 shadow-none outline-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
   .tooltip-root {

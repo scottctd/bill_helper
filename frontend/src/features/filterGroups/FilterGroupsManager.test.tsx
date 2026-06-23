@@ -33,7 +33,7 @@ function createFilterGroupFixture(overrides: Partial<FilterGroup> & Pick<FilterG
     name: overrides.name,
     description: overrides.description ?? `${overrides.name} description`,
     color: overrides.color ?? "#64748b",
-    is_default: overrides.is_default ?? true,
+    is_default: false,
     position: overrides.position,
     rule:
       overrides.rule ??
@@ -82,7 +82,7 @@ describe("FilterGroupsPage", () => {
         key: "day_to_day",
         name: "day-to-day",
         position: 0,
-        is_default: true,
+        is_default: false,
         rule_summary:
           "(kind is expense and tags include alcohol_bars, coffee_snacks, dining_out, entertainment, fitness, grocery, health_medical, home, personal_care, pets, pharmacy, subscriptions, or transportation); excluding (tags include one_time or is an internal transfer)"
       }),
@@ -99,17 +99,8 @@ describe("FilterGroupsPage", () => {
         key: "fixed",
         name: "Fixed",
         position: 2,
-        is_default: true,
+        is_default: false,
         description: "Recurring obligations."
-      }),
-      createFilterGroupFixture({
-        id: "fg-untagged",
-        key: "untagged",
-        name: "untagged",
-        position: 3,
-        is_default: true,
-        description: "Expense entries with no tags, or tagged expense entries that do not match any other saved filter group. This group is computed automatically and cannot be edited.",
-        rule_summary: "kind is expense and is not an internal transfer and (has no tags or matches no other saved filter group)"
       })
     ];
 
@@ -221,18 +212,13 @@ describe("FilterGroupsPage", () => {
     expect(await screen.findByDisplayValue("Fixed")).toBeInTheDocument();
   });
 
-  it("renders untagged as a read-only system panel and hides the header save action", async () => {
+  it("accepts an empty saved-group list and still offers group creation", async () => {
     const user = userEvent.setup();
+    currentFilterGroups = [];
     renderPage();
 
-    await screen.findByDisplayValue("day-to-day");
-    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
-
-    await user.click(screen.getByRole("button", { name: /untagged/i }));
-
-    expect(await screen.findByText("Computed automatically")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View matching entries" })).toHaveAttribute("href", "/entries?filter_group_id=fg-untagged");
+    expect(await screen.findByText("No filter groups are available yet.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New custom group" }));
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 });

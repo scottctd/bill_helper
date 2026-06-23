@@ -20,7 +20,6 @@ import { DashboardIncomePanel, DashboardSpendingPanel } from "../features/dashbo
 import { DashboardPeriodControls, TIMELINE_ITEM_KEY } from "../features/dashboard/DashboardPeriodControls";
 import { DashboardSummaryHero } from "../features/dashboard/DashboardSummaryHero";
 import { DashboardTrendChart } from "../features/dashboard/DashboardTrendChart";
-import { mergeFilterGroupsForYearTree } from "../features/dashboard/breakdown/breakdownHelpers";
 import { usePrefetchDashboard } from "../features/dashboard/usePrefetchDashboard";
 import {
   DASHBOARD_TABS,
@@ -30,20 +29,17 @@ import {
   buildMonthlyChartData,
   buildTimelineYears,
   buildYearMonthKeys,
-  buildYearlyFilterGroupsWithTagTotals,
+  buildYearlyCategoryTotals,
+  buildYearlyFilterGroupTotals,
+  buildYearlyLifecycleTotals,
   buildYearlyOverviewData,
-  filterGroupTotalForMonth,
-  isIncomeFilterGroupKey,
   median,
   DESTINATION_BREAKDOWN_LIMIT,
   mergeBreakdownItems,
+  sumDashboardKpiForMonths,
+  sumLifecycleForMonths,
   takeLastTrendMonthPoints,
   pickTimelineMonthForYear,
-  sortByBuiltinOrder,
-  sortByIncomeBarOrder,
-  sortByIncomeTrendOrder,
-  sumDashboardKpiForMonths,
-  sumFilterGroupForMonths,
   formatMonthLong
 } from "../features/dashboard/helpers";
 import { getDashboard, getDashboardBatch, getDashboardTimeline } from "../lib/api";
@@ -294,7 +290,7 @@ export function DashboardPage() {
     viewMode === "year" && yearBatchQuery.isError ? (yearBatchQuery.error as Error) : undefined;
   const dailyChartData = buildDailyChartData(data);
   const monthlyChartData = buildMonthlyChartData(data);
-  const yearlyOverviewData = buildYearlyOverviewData(selectedYearMonths, yearlyDashboardsByMonth, data.filter_groups);
+  const yearlyOverviewData = buildYearlyOverviewData(selectedYearMonths, yearlyDashboardsByMonth);
 
   const monthViewTrendSourceDashboard =
     viewMode === "month"
@@ -308,28 +304,14 @@ export function DashboardPage() {
         ? buildMonthlyChartData(monthViewTrendSourceDashboard)
         : []
       : monthlyChartData;
-  const trendGroupSourcePoints = viewMode === "month" ? monthViewTrendChartData : monthlyChartData;
-
-  const sortedFilterGroups = sortByBuiltinOrder(data.filter_groups);
-  const expenseGroups = sortedFilterGroups.filter((g) => !isIncomeFilterGroupKey(g.key));
-  const incomeGroups = sortedFilterGroups.filter((g) => isIncomeFilterGroupKey(g.key));
-  const monthlyExpenseTrendGroups = expenseGroups.filter((group) =>
-    trendGroupSourcePoints.some((point) => Number((point as Record<string, unknown>)[group.key] ?? 0) > 0)
-  );
-  const yearlyExpenseTrendGroupsRaw = expenseGroups.filter((group) =>
-    yearlyOverviewData.some((point) => Number((point as Record<string, unknown>)[group.key] ?? 0) > 0)
-  );
-  const monthlyIncomeTrendGroups = incomeGroups.filter((group) =>
-    trendGroupSourcePoints.some((point) => Number((point as Record<string, unknown>)[group.key] ?? 0) > 0)
-  );
-  const incomeTrendGroups = sortByIncomeBarOrder(
-    monthlyIncomeTrendGroups.length > 0 ? monthlyIncomeTrendGroups : incomeGroups
-  );
-
   const selectedYearExpenseTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "expense_total_minor");
   const selectedYearIncomeTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "income_total_minor");
   const selectedYearNetTotalMinor = sumDashboardKpiForMonths(selectedYearMonths, yearlyDashboardsByMonth, "net_total_minor");
-  const selectedYearOneTimeTotalMinor = sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, "one_time");
+  const selectedYearOneTimeTotalMinor = sumLifecycleForMonths(
+    selectedYearMonths,
+    yearlyDashboardsByMonth,
+    "one_time"
+  );
   const selectedYearCashWithdrawalTotalMinor = sumDashboardKpiForMonths(
     selectedYearMonths,
     yearlyDashboardsByMonth,
@@ -342,21 +324,19 @@ export function DashboardPage() {
 
   const trendChartData =
     viewMode === "month" ? takeLastTrendMonthPoints(monthViewTrendChartData) : yearlyOverviewData;
-  const expenseOnlyGroups = sortedFilterGroups.filter((g) => !isIncomeFilterGroupKey(g.key));
-  const expenseTrendGroupsFiltered =
-    viewMode === "month"
-      ? (monthlyExpenseTrendGroups.length > 0 ? monthlyExpenseTrendGroups : expenseOnlyGroups).filter(
-          (g) => !isIncomeFilterGroupKey(g.key)
-        )
-      : (yearlyExpenseTrendGroupsRaw.length > 0 ? yearlyExpenseTrendGroupsRaw : expenseOnlyGroups).filter(
-          (g) => !isIncomeFilterGroupKey(g.key)
-        );
-  const trendGroups = sortByIncomeTrendOrder(viewMode === "month" ? expenseTrendGroupsFiltered : expenseTrendGroupsFiltered);
   const trendTitle = viewMode === "month" ? "Income vs Expense Trend" : `${selectedYear} Income vs Expense Trend`;
 
+  const spendingCategories =
+    viewMode === "year"
+      ? buildYearlyCategoryTotals(selectedYearMonths, yearlyDashboardsByMonth)
+      : data.categories;
+  const spendingLifecycles =
+    viewMode === "year"
+      ? buildYearlyLifecycleTotals(selectedYearMonths, yearlyDashboardsByMonth)
+      : data.lifecycles;
   const spendingFilterGroups =
     viewMode === "year"
-      ? buildYearlyFilterGroupsWithTagTotals(data.filter_groups, selectedYearMonths, yearlyDashboardsByMonth)
+      ? buildYearlyFilterGroupTotals(selectedYearMonths, yearlyDashboardsByMonth)
       : data.filter_groups;
 
   const spendingByDestination =
@@ -367,10 +347,10 @@ export function DashboardPage() {
         )
       : data.spending_by_to;
 
-  const breakdownFilterGroups =
+  const breakdownCategories =
     viewMode === "year"
-      ? mergeFilterGroupsForYearTree(data.filter_groups, selectedYearMonths, yearlyDashboardsByMonth)
-      : data.filter_groups;
+      ? buildYearlyCategoryTotals(selectedYearMonths, yearlyDashboardsByMonth)
+      : data.categories;
 
   const breakdownScopeLabel = viewMode === "year" ? String(selectedYear) : formatMonthLong(month);
   const breakdownExpenseTotalMinor =
@@ -382,22 +362,13 @@ export function DashboardPage() {
           selectedYearMonths.map((monthKey) => yearlyDashboardsByMonth.get(monthKey)?.income_by_from ?? [])
         )
       : data.income_by_from;
-  const salaryTotalMinor =
-    viewMode === "year"
-      ? sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, "salary")
-      : filterGroupTotalForMonth(data, "salary");
-  const otherIncomeTotalMinor =
-    viewMode === "year"
-      ? sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, "other_income")
-      : filterGroupTotalForMonth(data, "other_income");
-
   const heroIncomeTotalMinor = viewMode === "year" ? selectedYearIncomeTotalMinor : data.kpis.income_total_minor;
   const heroExpenseTotalMinor = viewMode === "year" ? selectedYearExpenseTotalMinor : data.kpis.expense_total_minor;
   const heroNetTotalMinor = viewMode === "year" ? selectedYearNetTotalMinor : data.kpis.net_total_minor;
   const heroCashWithdrawalTotalMinor =
     viewMode === "year" ? selectedYearCashWithdrawalTotalMinor : data.kpis.cash_withdrawal_total_minor;
   const heroOneTimeTotalMinor =
-    viewMode === "year" ? selectedYearOneTimeTotalMinor : filterGroupTotalForMonth(data, "one_time");
+    viewMode === "year" ? selectedYearOneTimeTotalMinor : data.kpis.one_time_total_minor;
   const heroExpenseLessOneTimeTotalMinor = Math.max(0, heroExpenseTotalMinor - heroOneTimeTotalMinor);
 
   const showFinanceChrome = activeTab !== "agent";
@@ -430,12 +401,7 @@ export function DashboardPage() {
                 ) : viewMode === "month" && needsTrendAnchorQuery && trendAnchorDashboardQuery.isError ? (
                   <p className="error">Failed to load trend: {(trendAnchorDashboardQuery.error as Error).message}</p>
                 ) : (
-                  <DashboardTrendChart
-                    data={trendChartData}
-                    trendGroups={trendGroups}
-                    incomeTrendGroups={incomeTrendGroups}
-                    currencyCode={data.currency_code}
-                  />
+                  <DashboardTrendChart data={trendChartData} currencyCode={data.currency_code} />
                 )}
               </CardContent>
             </Card>
@@ -542,7 +508,9 @@ export function DashboardPage() {
             viewMode={viewMode}
             selectedYear={selectedYear}
             data={data}
-            spendingFilterGroups={spendingFilterGroups}
+            categories={spendingCategories}
+            lifecycles={spendingLifecycles}
+            filterGroups={spendingFilterGroups}
             spendingByDestination={spendingByDestination}
             dailyChartData={dailyChartData}
             yearlyQueriesLoading={yearlyQueriesLoading}
@@ -556,7 +524,7 @@ export function DashboardPage() {
         {activeTab === "breakdown" ? (
           <DashboardBreakdownPanel
             scopeLabel={breakdownScopeLabel}
-            filterGroups={breakdownFilterGroups}
+            categories={breakdownCategories}
             currencyCode={data.currency_code}
             expenseTotalMinor={breakdownExpenseTotalMinor}
             yearlyQueriesLoading={yearlyQueriesLoading}
@@ -570,8 +538,6 @@ export function DashboardPage() {
             selectedYear={selectedYear}
             currencyCode={data.currency_code}
             incomeByFrom={incomeByFromItems}
-            salaryTotalMinor={salaryTotalMinor}
-            otherIncomeTotalMinor={otherIncomeTotalMinor}
             yearlyQueriesLoading={yearlyQueriesLoading}
           />
         ) : null}

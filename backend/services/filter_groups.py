@@ -20,8 +20,6 @@ from backend.schemas_finance import (
     FilterGroupRead,
     FilterGroupRule,
     FilterGroupUpdate,
-    FilterRuleCondition,
-    FilterRuleGroup,
 )
 from backend.services.access_scope import account_owner_filter, load_filter_group_for_principal
 from backend.services.crud_policy import PolicyViolation
@@ -31,36 +29,6 @@ from backend.services.filter_group_rules import (
     summarize_filter_group_rule,
 )
 from backend.services.tags import normalize_tag_color
-
-DEFAULT_FILTER_GROUP_COLORS = {
-    "day_to_day": "#0f766e",
-    "one_time": "#b45309",
-    "fixed": "#1d4ed8",
-    "transfers": "#6d28d9",
-    "untagged": "#6b7280",
-    "salary": "#047857",
-    "other_income": "#059669",
-}
-UNTAGGED_FILTER_GROUP_KEY = "untagged"
-OTHER_INCOME_FILTER_GROUP_KEY = "other_income"
-INCOME_FILTER_GROUP_KEYS = frozenset({"salary", "other_income"})
-UNTAGGED_FILTER_GROUP_DESCRIPTION = (
-    "Expense entries with no tags, or tagged expense entries that do not match "
-    "any other saved filter group. This group is computed automatically and "
-    "cannot be edited."
-)
-UNTAGGED_FILTER_GROUP_RULE_SUMMARY = (
-    "kind is expense and is not an internal transfer and "
-    "(has no tags or matches no other saved filter group)"
-)
-OTHER_INCOME_FILTER_GROUP_DESCRIPTION = (
-    "Income entries that do not match any other income filter group, e.g. bonus, "
-    "interest, or other income without the salary_wages tag."
-)
-OTHER_INCOME_FILTER_GROUP_RULE_SUMMARY = (
-    "kind is income and is not an internal transfer and matches no other income filter group"
-)
-
 
 @dataclass(frozen=True, slots=True)
 class FilterGroupDefinition:
@@ -76,205 +44,6 @@ class FilterGroupDefinition:
     updated_at: datetime
 
 
-@dataclass(frozen=True, slots=True)
-class _DefaultFilterGroupSpec:
-    key: str
-    name: str
-    description: str
-    color: str
-    position: int
-    rule: FilterGroupRule
-
-
-def _condition(
-    *,
-    field: str,
-    operator: str,
-    value: str | bool | list[str],
-) -> FilterRuleCondition:
-    return FilterRuleCondition(field=field, operator=operator, value=value)
-
-
-def _group(operator: str, *children) -> FilterRuleGroup:
-    return FilterRuleGroup(operator=operator, children=list(children))
-
-
-DEFAULT_FILTER_GROUP_SPECS: tuple[_DefaultFilterGroupSpec, ...] = (
-    _DefaultFilterGroupSpec(
-        key="day_to_day",
-        name="day-to-day",
-        description=(
-            "Routine living costs such as grocery, dining out, coffee or snacks, "
-            "transportation, personal care, pharmacy, alcohol or bars, fitness, "
-            "entertainment, subscriptions, home, and pets."
-        ),
-        color=DEFAULT_FILTER_GROUP_COLORS["day_to_day"],
-        position=0,
-        rule=FilterGroupRule(
-            include=_group(
-                "AND",
-                _condition(field="entry_kind", operator="is", value="EXPENSE"),
-                _condition(
-                    field="tags",
-                    operator="has_any",
-                    value=[
-                        "grocery",
-                        "dining_out",
-                        "coffee_snacks",
-                        "transportation",
-                        "personal_care",
-                        "pharmacy",
-                        "alcohol_bars",
-                        "fitness",
-                        "entertainment",
-                        "subscriptions",
-                        "home",
-                        "pets",
-                        "health_medical",
-                    ],
-                ),
-            ),
-            exclude=_group(
-                "OR",
-                _condition(field="tags", operator="has_any", value=["one_time"]),
-                _condition(field="is_internal_transfer", operator="is", value=True),
-            ),
-        ),
-    ),
-    _DefaultFilterGroupSpec(
-        key="one_time",
-        name="one-time",
-        description=(
-            "Irregular or exceptional purchases, primarily identified with the "
-            "one_time tag."
-        ),
-        color=DEFAULT_FILTER_GROUP_COLORS["one_time"],
-        position=1,
-        rule=FilterGroupRule(
-            include=_group(
-                "AND",
-                _condition(field="entry_kind", operator="is", value="EXPENSE"),
-                _condition(field="tags", operator="has_any", value=["one_time"]),
-            ),
-            exclude=_group(
-                "AND",
-                _condition(field="is_internal_transfer", operator="is", value=True),
-            ),
-        ),
-    ),
-    _DefaultFilterGroupSpec(
-        key="fixed",
-        name="fixed",
-        description=(
-            "Predictable recurring obligations such as housing, utilities, "
-            "internet or mobile, insurance, interest expense, taxes, and debt payments."
-        ),
-        color=DEFAULT_FILTER_GROUP_COLORS["fixed"],
-        position=2,
-        rule=FilterGroupRule(
-            include=_group(
-                "AND",
-                _condition(field="entry_kind", operator="is", value="EXPENSE"),
-                _condition(
-                    field="tags",
-                    operator="has_any",
-                    value=[
-                        "housing",
-                        "utilities",
-                        "internet_mobile",
-                        "insurance",
-                        "interest_expense",
-                        "taxes",
-                        "debt_payment",
-                    ],
-                ),
-            ),
-            exclude=_group(
-                "AND",
-                _condition(field="is_internal_transfer", operator="is", value=True),
-            ),
-        ),
-    ),
-    _DefaultFilterGroupSpec(
-        key="transfers",
-        name="transfers",
-        description=(
-            "External transfer-like activity such as e-transfer and cash withdrawal, "
-            "kept separate from ordinary spending."
-        ),
-        color=DEFAULT_FILTER_GROUP_COLORS["transfers"],
-        position=3,
-        rule=FilterGroupRule(
-            include=_group(
-                "OR",
-                _condition(field="entry_kind", operator="is", value="TRANSFER"),
-                _condition(
-                    field="tags",
-                    operator="has_any",
-                    value=["e_transfer", "cash_withdrawal", "savings_investments"],
-                ),
-            ),
-            exclude=_group(
-                "AND",
-                _condition(field="is_internal_transfer", operator="is", value=True),
-            ),
-        ),
-    ),
-    _DefaultFilterGroupSpec(
-        key=UNTAGGED_FILTER_GROUP_KEY,
-        name="untagged",
-        description=UNTAGGED_FILTER_GROUP_DESCRIPTION,
-        color=DEFAULT_FILTER_GROUP_COLORS["untagged"],
-        position=4,
-        rule=FilterGroupRule(
-            include=_group(
-                "AND",
-                _condition(field="entry_kind", operator="is", value="EXPENSE"),
-            ),
-            exclude=_group(
-                "AND",
-                _condition(field="is_internal_transfer", operator="is", value=True),
-            ),
-        ),
-    ),
-    _DefaultFilterGroupSpec(
-        key="salary",
-        name="salary",
-        description="Regular salary, wages, and payroll income identified by the salary_wages tag.",
-        color=DEFAULT_FILTER_GROUP_COLORS["salary"],
-        position=5,
-        rule=FilterGroupRule(
-            include=_group(
-                "AND",
-                _condition(field="entry_kind", operator="is", value="INCOME"),
-                _condition(field="tags", operator="has_any", value=["salary_wages"]),
-            ),
-            exclude=_group(
-                "AND",
-                _condition(field="is_internal_transfer", operator="is", value=True),
-            ),
-        ),
-    ),
-    _DefaultFilterGroupSpec(
-        key=OTHER_INCOME_FILTER_GROUP_KEY,
-        name="other income",
-        description=OTHER_INCOME_FILTER_GROUP_DESCRIPTION,
-        color=DEFAULT_FILTER_GROUP_COLORS["other_income"],
-        position=6,
-        rule=FilterGroupRule(
-            include=_group(
-                "AND",
-                _condition(field="entry_kind", operator="is", value="INCOME"),
-            ),
-            exclude=_group(
-                "AND",
-                _condition(field="is_internal_transfer", operator="is", value=True),
-            ),
-        ),
-    ),
-)
-
-
 def normalize_filter_group_name(name: str) -> str:
     normalized = " ".join(name.split()).strip()
     if not normalized:
@@ -287,7 +56,6 @@ def list_filter_group_definitions(
     *,
     principal: RequestPrincipal,
 ) -> list[FilterGroupDefinition]:
-    ensure_default_filter_groups(db, principal=principal)
     rows = list(
         db.scalars(
             select(FilterGroup)
@@ -326,7 +94,6 @@ def create_filter_group(
     payload: FilterGroupCreate,
     principal: RequestPrincipal,
 ) -> FilterGroupDefinition:
-    ensure_default_filter_groups(db, principal=principal)
     normalized_name = normalize_filter_group_name(payload.name)
     _assert_unique_name(db, principal=principal, name=normalized_name)
 
@@ -366,13 +133,9 @@ def update_filter_group(
         filter_group_id=filter_group_id,
         principal=principal,
     )
-    if row.key == UNTAGGED_FILTER_GROUP_KEY:
-        raise PolicyViolation.conflict("The untagged filter group is computed automatically and cannot be edited")
 
     if "name" in payload.model_fields_set:
         normalized_name = normalize_filter_group_name(payload.name or "")
-        if row.is_default and normalized_name != row.name:
-            raise PolicyViolation.conflict("Default filter group names cannot be renamed")
         _assert_unique_name(db, principal=principal, name=normalized_name, current_id=row.id)
         row.name = normalized_name
 
@@ -399,42 +162,7 @@ def delete_filter_group(
         filter_group_id=filter_group_id,
         principal=principal,
     )
-    if row.is_default:
-        raise PolicyViolation.conflict("Default filter groups cannot be deleted")
     db.delete(row)
-    db.flush()
-
-
-def ensure_default_filter_groups(
-    db: Session,
-    *,
-    principal: RequestPrincipal,
-) -> None:
-    existing_by_key = {
-        row.key: row
-        for row in db.scalars(
-            select(FilterGroup).where(FilterGroup.owner_user_id == principal.user_id)
-        )
-    }
-    missing_rows = []
-    for spec in DEFAULT_FILTER_GROUP_SPECS:
-        if spec.key in existing_by_key:
-            continue
-        missing_rows.append(
-            FilterGroup(
-                owner_user_id=principal.user_id,
-                key=spec.key,
-                name=spec.name,
-                description=spec.description,
-                color=spec.color,
-                is_default=True,
-                position=spec.position,
-                definition_json=spec.rule.model_dump(mode="json"),
-            )
-        )
-    if not missing_rows:
-        return
-    db.add_all(missing_rows)
     db.flush()
 
 
@@ -511,31 +239,16 @@ def matching_filter_group_keys(
     context: FilterEntryContext,
     filter_groups: list[FilterGroupDefinition],
 ) -> list[str]:
-    catch_all_keys = {UNTAGGED_FILTER_GROUP_KEY, OTHER_INCOME_FILTER_GROUP_KEY}
-    regular_matches = {
+    """Return every filter-group key whose rule matches the context.
+
+    Filter groups are user-defined auxiliary bundles. An entry may match several
+    cross-cuts, so all matching keys are returned in definition order.
+    """
+    return [
         filter_group.key
         for filter_group in filter_groups
-        if filter_group.key not in catch_all_keys
-        and evaluate_filter_group_rule(filter_group.rule, context)
-    }
-    include_untagged = _context_matches_untagged(context, has_other_matches=bool(regular_matches))
-    income_matches = regular_matches & INCOME_FILTER_GROUP_KEYS
-    include_other_income = _context_matches_other_income(
-        context, has_other_income_matches=bool(income_matches)
-    )
-    matching_keys: list[str] = []
-    for filter_group in filter_groups:
-        if filter_group.key == UNTAGGED_FILTER_GROUP_KEY:
-            if include_untagged:
-                matching_keys.append(filter_group.key)
-            continue
-        if filter_group.key == OTHER_INCOME_FILTER_GROUP_KEY:
-            if include_other_income:
-                matching_keys.append(filter_group.key)
-            continue
-        if filter_group.key in regular_matches:
-            matching_keys.append(filter_group.key)
-    return matching_keys
+        if evaluate_filter_group_rule(filter_group.rule, context)
+    ]
 
 
 def _assert_unique_name(
@@ -578,35 +291,9 @@ def _normalize_optional_text(value: str | None) -> str | None:
     return normalized or None
 
 
-def _context_matches_untagged(
-    context: FilterEntryContext,
-    *,
-    has_other_matches: bool,
-) -> bool:
-    if context.kind != EntryKind.EXPENSE or context.is_internal_transfer:
-        return False
-    return not context.tag_names or not has_other_matches
-
-
-def _context_matches_other_income(
-    context: FilterEntryContext,
-    *,
-    has_other_income_matches: bool,
-) -> bool:
-    if context.kind != EntryKind.INCOME or context.is_internal_transfer:
-        return False
-    return not has_other_income_matches
-
-
 def _filter_group_description(definition: FilterGroupDefinition) -> str | None:
-    if definition.key == UNTAGGED_FILTER_GROUP_KEY:
-        return UNTAGGED_FILTER_GROUP_DESCRIPTION
     return definition.description
 
 
 def _filter_group_rule_summary(definition: FilterGroupDefinition) -> str:
-    if definition.key == UNTAGGED_FILTER_GROUP_KEY:
-        return UNTAGGED_FILTER_GROUP_RULE_SUMMARY
-    if definition.key == OTHER_INCOME_FILTER_GROUP_KEY:
-        return OTHER_INCOME_FILTER_GROUP_RULE_SUMMARY
     return summarize_filter_group_rule(definition.rule)

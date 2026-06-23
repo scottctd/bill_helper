@@ -64,7 +64,7 @@ export function FilterGroupEditorPanel({
           <div className="grid gap-2">
             <CardTitle>{title}</CardTitle>
             <div className="flex flex-wrap gap-2">
-              <Badge variant={session.isDefault ? "secondary" : "outline"}>{session.isDefault ? "Default" : session.kind === "new" ? "Draft" : "Custom"}</Badge>
+              <Badge variant="outline">{session.kind === "new" ? "Draft" : "Saved"}</Badge>
               {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
             </div>
           </div>
@@ -86,7 +86,6 @@ export function FilterGroupEditorPanel({
             <Input
               value={session.formState.name}
               onChange={(event) => updateFormState({ name: event.target.value })}
-              disabled={session.kind === "existing" && session.isDefault}
               placeholder="e.g. Routine spending"
             />
           </label>

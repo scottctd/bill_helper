@@ -36,7 +36,7 @@ def build_entry_group_path(entry: Entry) -> list[EntryGroupRefRead]:
     ]
 
 
-def entry_to_schema(entry: Entry) -> EntryRead:
+def entry_to_schema(entry: Entry, *, category_path: str | None = None) -> EntryRead:
     from_entity_missing = bool(entry.from_entity and entry.from_entity_id is None)
     to_entity_missing = bool(entry.to_entity and entry.to_entity_id is None)
     group_path = build_entry_group_path(entry)
@@ -57,6 +57,8 @@ def entry_to_schema(entry: Entry) -> EntryRead:
         to_entity_missing=to_entity_missing,
         owner=entry.owner,
         markdown_body=entry.markdown_body,
+        lifecycle=entry.lifecycle,
+        category=category_path,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         tags=[tag_to_summary(tag) for tag in entry.tags],
@@ -66,5 +68,5 @@ def entry_to_schema(entry: Entry) -> EntryRead:
     )
 
 
-def entry_to_detail_schema(entry: Entry) -> EntryDetailRead:
-    return EntryDetailRead(**entry_to_schema(entry).model_dump())
+def entry_to_detail_schema(entry: Entry, *, category_path: str | None = None) -> EntryDetailRead:
+    return EntryDetailRead(**entry_to_schema(entry, category_path=category_path).model_dump())

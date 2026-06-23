@@ -130,6 +130,7 @@ Query params:
 
 - `start_date`, `end_date`
 - `kind`, `tag`, `currency`
+- `category` (entry-category leaf or top-level parent name; `uncategorized` matches entries without a category)
 - `source`
 - `from_entity` (repeatable; case-insensitive exact match on the entry's preserved `from_entity` label)
 - `to_entity` (repeatable; case-insensitive exact match on the entry's preserved `to_entity` label)
@@ -143,6 +144,7 @@ Response: `EntryListResponse`
 Behavior:
 
 - list results are principal-scoped by `owner_user_id`
+- category filtering matches one leaf exactly or all assigned child categories under a selected top-level parent
 - when `filter_group_id` is provided, results are further reduced to entries matching the caller's saved filter-group rule
 - each row includes `from_entity_missing` / `to_entity_missing`
 - each row includes `direct_group` and `group_path`
@@ -314,10 +316,9 @@ List the caller's saved filter groups. Response: `FilterGroupRead[]`
 
 Behavior:
 
-- provisions and persists the built-in default groups on first read
 - results are always scoped to the requesting principal
 - each row includes the recursive `rule` tree plus `rule_summary`
-- the built-in `untagged` row is a computed system group: it matches expense entries with no tags, or tagged expense entries that match no other saved filter group; internal transfers stay excluded
+- returns an empty list until the caller creates a group
 
 ### `POST /filter-groups`
 
@@ -340,19 +341,12 @@ Update one saved filter group. Response: `FilterGroupRead`
 
 Behavior:
 
-- default groups other than `untagged` may update `description`, `color`, and `rule`
-- default groups cannot be renamed
-- the built-in `untagged` group is computed and cannot be edited
-- custom groups may be renamed
+- saved groups may update `name`, `description`, `color`, and `rule`
 - `422` when no updatable fields are provided
 
 ### `DELETE /filter-groups/{filter_group_id}`
 
-Delete one custom filter group. Response: `204`
-
-Behavior:
-
-- default groups cannot be deleted
+Delete one saved filter group. Response: `204`
 
 ## Dashboard
 
@@ -393,8 +387,8 @@ Current sections include:
 
 Behavior:
 
-- dashboard expense classification uses saved filter groups instead of hard-coded daily/non-daily tags
-- built-in filter groups are provisioned and persisted on first dashboard read
+- dashboard expense classification uses the entry-category partition and lifecycle axis
+- user-created filter groups appear only as optional overlapping cross-cuts
 - totals and reconciliation are principal-scoped
 - analytics exclude internal transfers when both endpoints resolve to account-backed entity roots
 - entries tagged `cash_withdrawal` are excluded from spending analytics and exposed as `kpis.cash_withdrawal_total_minor`

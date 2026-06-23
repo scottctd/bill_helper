@@ -1,17 +1,17 @@
 /**
  * CALLING SPEC:
  * - Purpose: render the breakdown tab panel with the expense drill-down tree.
- * - Inputs: scoped filter groups, scope label, and loading state for year aggregation.
+ * - Inputs: scoped categories, scope label, and loading state for year aggregation.
  * - Outputs: breakdown tab panel React element.
  * - Side effects: React rendering only.
  */
 
-import type { DashboardFilterGroupSummary } from "../../lib/types";
+import type { DashboardCategorySummary } from "../../lib/types";
 import { BreakdownTreeCard } from "./breakdown/BreakdownTreeCard";
 
 type DashboardBreakdownPanelProps = {
   scopeLabel: string;
-  filterGroups: DashboardFilterGroupSummary[];
+  categories: DashboardCategorySummary[];
   currencyCode: string;
   expenseTotalMinor: number;
   yearlyQueriesLoading?: boolean;
@@ -20,7 +20,7 @@ type DashboardBreakdownPanelProps = {
 
 export function DashboardBreakdownPanel({
   scopeLabel,
-  filterGroups,
+  categories,
   currencyCode,
   expenseTotalMinor,
   yearlyQueriesLoading = false,
@@ -34,7 +34,7 @@ export function DashboardBreakdownPanel({
         <p className="error">Failed to load yearly breakdown tree: {yearlyQueryError.message}</p>
       ) : (
         <BreakdownTreeCard
-          filterGroups={filterGroups}
+          categories={categories}
           currencyCode={currencyCode}
           expenseTotalMinor={expenseTotalMinor}
           scopeLabel={scopeLabel}

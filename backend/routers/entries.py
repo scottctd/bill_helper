@@ -10,13 +10,13 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, aliased, selectinload
 
 from backend.auth.contracts import RequestPrincipal
 from backend.auth.dependencies import get_current_principal
 from backend.database import get_db
 from backend.enums_finance import EntryKind
-from backend.models_finance import Entry, Tag
+from backend.models_finance import Entry, Tag, Taxonomy, TaxonomyAssignment, TaxonomyTerm
 from backend.schemas_finance import (
     EntryCreate,
     EntryDetailRead,
@@ -50,6 +50,8 @@ from backend.services.filter_groups import (
 )
 from backend.services.groups import entry_group_options
 from backend.services.serializers import entry_to_detail_schema, entry_to_schema
+from backend.services.taxonomy import get_entry_category_path_map, normalize_term_name
+from backend.services.taxonomy_constants import ENTRY_CATEGORY_SUBJECT_TYPE, ENTRY_CATEGORY_TAXONOMY_KEY
 from backend.validation.finance_names import normalize_tag_name
 
 router = APIRouter(prefix="/entries", tags=["entries"])
@@ -65,6 +67,7 @@ class EntryListQueryParams(BaseModel):
     currency: str | None = None
     source: str | None = None
     account_id: str | None = None
+    category: str | None = None
     filter_group_id: str | None = None
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
@@ -133,6 +136,8 @@ def _entry_create_command_from_request(payload: EntryCreate) -> EntryCreateComma
         tags=payload.tags,
         direct_group_id=payload.direct_group_id,
         direct_group_member_role=payload.direct_group_member_role,
+        category=payload.category,
+        lifecycle=payload.lifecycle,
     )
 
 
@@ -193,6 +198,20 @@ def _get_entry_or_404(
     )
 
 
+def _entry_category_paths(db: Session, entries: list[Entry]) -> dict[str, str]:
+    return get_entry_category_path_map(db, entry_ids=[entry.id for entry in entries])
+
+
+def _serialize_entry_read(db: Session, entry: Entry) -> EntryRead:
+    paths = _entry_category_paths(db, [entry])
+    return entry_to_schema(entry, category_path=paths.get(entry.id))
+
+
+def _serialize_entry_detail(db: Session, entry: Entry) -> EntryDetailRead:
+    paths = _entry_category_paths(db, [entry])
+    return entry_to_detail_schema(entry, category_path=paths.get(entry.id))
+
+
 @router.post("", response_model=EntryRead, status_code=status.HTTP_201_CREATED)
 def create_entry(
     payload: EntryCreate,
@@ -206,7 +225,7 @@ def create_entry(
     )
 
     db.commit()
-    return entry_to_schema(_get_entry_or_404(db, entry.id, principal))
+    return _serialize_entry_read(db, _get_entry_or_404(db, entry.id, principal))
 
 
 def _entry_entity_filter_conditions(
@@ -238,6 +257,31 @@ def _entry_entity_filter_conditions(
                 )
             )
     return conditions
+
+
+def _entry_category_filter_condition(category: str):
+    normalized_category = normalize_term_name(category.rsplit("/", 1)[-1])
+    assigned_term = aliased(TaxonomyTerm)
+    parent_term = aliased(TaxonomyTerm)
+    category_assignment = (
+        select(TaxonomyAssignment.id)
+        .join(Taxonomy, Taxonomy.id == TaxonomyAssignment.taxonomy_id)
+        .join(assigned_term, assigned_term.id == TaxonomyAssignment.term_id)
+        .outerjoin(parent_term, parent_term.id == assigned_term.parent_term_id)
+        .where(
+            Taxonomy.key == ENTRY_CATEGORY_TAXONOMY_KEY,
+            TaxonomyAssignment.subject_type == ENTRY_CATEGORY_SUBJECT_TYPE,
+            TaxonomyAssignment.subject_id == Entry.id,
+        )
+    )
+    if normalized_category == "uncategorized":
+        return ~category_assignment.exists()
+    return category_assignment.where(
+        or_(
+            assigned_term.normalized_name == normalized_category,
+            parent_term.normalized_name == normalized_category,
+        )
+    ).exists()
 
 
 @router.get("", response_model=EntryListResponse)
@@ -274,6 +318,8 @@ def list_entries(
                 Entry.to_entity.ilike(pattern),
             )
         )
+    if filters.category is not None:
+        conditions.append(_entry_category_filter_condition(filters.category))
     conditions.extend(_entry_entity_filter_conditions(from_entity=from_entity, to_entity=to_entity))
 
     stmt = (
@@ -319,8 +365,12 @@ def list_entries(
         total = int(db.scalar(count_stmt) or 0)
         entries = list(db.scalars(stmt.limit(filters.limit).offset(filters.offset)))
 
+    category_paths = _entry_category_paths(db, entries)
     return EntryListResponse(
-        items=[entry_to_schema(entry) for entry in entries],
+        items=[
+            entry_to_schema(entry, category_path=category_paths.get(entry.id))
+            for entry in entries
+        ],
         total=total,
         limit=filters.limit,
         offset=filters.offset,
@@ -334,14 +384,13 @@ def suggest_tags_for_entry(
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> EntryTagSuggestionResponse:
     try:
-        suggested_tags = suggest_entry_tags(
+        return suggest_entry_tags(
             db,
             principal=principal,
             draft=payload,
         )
     except EntryTagSuggestionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
-    return EntryTagSuggestionResponse(suggested_tags=suggested_tags)
 
 
 @router.get("/{entry_id}", response_model=EntryDetailRead)
@@ -351,7 +400,7 @@ def get_entry(
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> EntryDetailRead:
     entry = _get_entry_or_404(db, entry_id, principal)
-    return entry_to_detail_schema(entry)
+    return _serialize_entry_detail(db, entry)
 
 
 @router.patch("/{entry_id}", response_model=EntryRead)
@@ -369,7 +418,7 @@ def update_entry(
     )
 
     db.commit()
-    return entry_to_schema(_get_entry_or_404(db, entry.id, principal))
+    return _serialize_entry_read(db, _get_entry_or_404(db, entry.id, principal))
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)

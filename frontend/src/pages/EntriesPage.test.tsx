@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -7,7 +7,7 @@ import { EntriesPage } from "./EntriesPage";
 import { formatMinorCompact } from "../lib/format";
 import { fallbackTagColor } from "../lib/tagColors";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
-import type { Entry, RuntimeSettings } from "../lib/types";
+import type { Entry, RuntimeSettings, TaxonomyTerm } from "../lib/types";
 import {
   createEntry,
   deleteEntry,
@@ -17,6 +17,7 @@ import {
   listEntries,
   listFilterGroups,
   listTags,
+  listTaxonomyTerms,
   listUsers,
   updateEntry
 } from "../lib/api";
@@ -31,6 +32,7 @@ vi.mock("../lib/api", async () => {
     listFilterGroups: vi.fn(),
     listUsers: vi.fn(),
     listTags: vi.fn(),
+    listTaxonomyTerms: vi.fn(),
     getRuntimeSettings: vi.fn(),
     createEntry: vi.fn(),
     updateEntry: vi.fn(),
@@ -95,6 +97,8 @@ const entryFixture: Entry = {
   to_entity_missing: false,
   owner: "Alice",
   markdown_body: null,
+  lifecycle: "one_time",
+  category: "food_drink/coffee_snacks",
   created_at: "2026-03-05T00:00:00Z",
   updated_at: "2026-03-05T00:00:00Z",
   direct_group: null,
@@ -102,6 +106,39 @@ const entryFixture: Entry = {
   group_path: [],
   tags: [{ id: 1, name: "coffee", color: "#5f6caf", type: "Food" }]
 };
+
+const categoryTermsFixture: TaxonomyTerm[] = [
+  {
+    id: "term-food",
+    taxonomy_id: "taxonomy-entry-category",
+    name: "food_drink",
+    normalized_name: "food_drink",
+    parent_term_id: null,
+    description: "Food and drink.",
+    default_lifecycle: null,
+    usage_count: 0
+  },
+  {
+    id: "term-coffee",
+    taxonomy_id: "taxonomy-entry-category",
+    name: "coffee_snacks",
+    normalized_name: "coffee_snacks",
+    parent_term_id: "term-food",
+    description: "Coffee and snacks.",
+    default_lifecycle: "day_to_day",
+    usage_count: 1
+  },
+  {
+    id: "term-groceries",
+    taxonomy_id: "taxonomy-entry-category",
+    name: "groceries",
+    normalized_name: "groceries",
+    parent_term_id: "term-food",
+    description: "Groceries.",
+    default_lifecycle: "day_to_day",
+    usage_count: 0
+  }
+];
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -127,6 +164,7 @@ function mockEntriesPageData(entry: Entry) {
   vi.mocked(listFilterGroups).mockResolvedValue([]);
   vi.mocked(listUsers).mockResolvedValue([{ id: "user-1", name: "Alice", is_admin: false, is_current_user: true }]);
   vi.mocked(listTags).mockResolvedValue(entry.tags.map((tag) => ({ ...tag })));
+  vi.mocked(listTaxonomyTerms).mockResolvedValue(categoryTermsFixture);
   vi.mocked(getRuntimeSettings).mockResolvedValue(runtimeSettingsFixture);
   vi.mocked(createEntry).mockResolvedValue(entry);
   vi.mocked(updateEntry).mockResolvedValue(entry);
@@ -148,6 +186,11 @@ describe("EntriesPage", () => {
     expect(screen.getByRole("button", { name: "Delete entry Coffee" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Kind" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Group" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Category" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Lifecycle" })).toBeInTheDocument();
+    expect(screen.getByText("coffee_snacks")).toBeInTheDocument();
+    expect(screen.queryByText("food_drink/coffee_snacks")).not.toBeInTheDocument();
+    expect(screen.getByText("one-time")).toBeInTheDocument();
     expect(screen.queryByText("group-1")).not.toBeInTheDocument();
 
     const amountCell = screen.getByText(formatMinorCompact(entryFixture.amount_minor)).closest(".entries-amount-cell");
@@ -175,10 +218,10 @@ describe("EntriesPage", () => {
 
     await screen.findByText("travel");
 
-    const coffeeChip = screen.getByText("coffee").closest(".entries-tag-pill") as HTMLElement | null;
-    const travelChip = screen.getByText("travel").closest(".entries-tag-pill") as HTMLElement | null;
-    const coffeeDot = coffeeChip?.querySelector(".entries-tag-pill-color");
-    const travelDot = travelChip?.querySelector(".entries-tag-pill-color");
+    const coffeeChip = screen.getByText("coffee").closest(".entries-color-pill") as HTMLElement | null;
+    const travelChip = screen.getByText("travel").closest(".entries-color-pill") as HTMLElement | null;
+    const coffeeDot = coffeeChip?.querySelector(".entries-color-pill-dot");
+    const travelDot = travelChip?.querySelector(".entries-color-pill-dot");
     const fallbackColor = fallbackTagColor("travel");
 
     expect(coffeeChip).not.toBeNull();
@@ -190,6 +233,27 @@ describe("EntriesPage", () => {
     expect(coffeeDot?.getAttribute("style")).toContain(normalizeCssColor("#5f6caf"));
     expect(travelChip?.style.borderColor).toBe(normalizeCssColor(fallbackColor));
     expect(travelDot?.getAttribute("style")).toContain(normalizeCssColor(fallbackColor));
+  });
+
+  it("renders category and lifecycle as colored pills", async () => {
+    mockEntriesPageData(entryFixture);
+
+    renderWithQueryClient(
+      <MemoryRouter>
+        <EntriesPage />
+      </MemoryRouter>
+    );
+
+    const categoryPill = (await screen.findByText("coffee_snacks")).closest(".entries-color-pill");
+    const lifecyclePill = screen.getByText("one-time").closest(".entries-color-pill");
+
+    expect(categoryPill).not.toBeNull();
+    expect(lifecyclePill).not.toBeNull();
+    expect(categoryPill?.querySelector(".entries-color-pill-dot")).not.toBeNull();
+    expect(lifecyclePill?.querySelector(".entries-color-pill-dot")).not.toBeNull();
+    expect(categoryPill?.getAttribute("style")).toContain("border-color");
+    expect(categoryPill).toHaveAttribute("title", "food_drink/coffee_snacks");
+    expect(lifecyclePill?.getAttribute("style")).toContain("border-color");
   });
 
   it("gives the tags column a constrained width so the name column keeps more space", async () => {
@@ -207,9 +271,11 @@ describe("EntriesPage", () => {
     expect(screen.getByRole("columnheader", { name: "Name" })).toHaveClass("entries-name-column");
     expect(screen.getByRole("columnheader", { name: "Tags" })).toHaveClass("entries-tags-column");
     expect(screen.getByRole("columnheader", { name: "Amount" })).toHaveClass("entries-amount-column");
+    expect(screen.getByRole("columnheader", { name: "Category" })).toHaveClass("entries-category-column");
+    expect(screen.getByRole("columnheader", { name: "Lifecycle" })).toHaveClass("entries-lifecycle-column");
     expect(screen.getByRole("columnheader", { name: "Actions" })).toHaveClass("entries-actions-column");
     expect(screen.queryByRole("columnheader", { name: "Kind" })).not.toBeInTheDocument();
-    expect(screen.getByText("coffee")).toHaveClass("entries-tag-pill-label");
+    expect(screen.getByText("coffee")).toHaveClass("entries-color-pill-label");
   });
 
   it("passes date filters from the URL through to the entries query", async () => {
@@ -285,6 +351,31 @@ describe("EntriesPage", () => {
         filter_group_id: "fg-1"
       })
     );
+  });
+
+  it("replaces the filter-group toolbar control with a searchable category filter", async () => {
+    const user = userEvent.setup();
+    mockEntriesPageData(entryFixture);
+
+    renderWithQueryClient(
+      <MemoryRouter>
+        <EntriesPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Coffee");
+    expect(screen.queryByText("Filter group")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Category filter" }));
+    await user.click(screen.getByRole("option", { name: "food_drink / groceries" }));
+
+    await waitFor(() => {
+      expect(listEntries).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "groceries"
+        })
+      );
+    });
   });
 
   it("loads older entries when the user requests more rows", async () => {

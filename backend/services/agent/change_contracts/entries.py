@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from backend.enums_finance import EntryKind
+from backend.enums_finance import EntryKind, EntryLifecycle
 from backend.services.agent.change_contracts.common import (
     normalize_optional_proposal_id,
     normalize_optional_reference_id,
@@ -38,6 +38,8 @@ class CreateEntryPayload(ChangePayloadModel):
     to_entity: RequiredEntityName = Field(min_length=1, max_length=255)
     tags: NormalizedTagList = Field(default_factory=list)
     markdown_notes: str | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=120)
+    lifecycle: EntryLifecycle | None = None
 
 
 class BatchImportEntriesPayload(ChangePayloadModel):
@@ -54,6 +56,8 @@ class UpdateEntryPatchPayload(NonEmptyPatchModel):
     to_entity: OptionalEntityName = Field(default=None, min_length=1, max_length=255)
     tags: NormalizedTagList | None = None
     markdown_notes: str | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=120)
+    lifecycle: EntryLifecycle | None = None
 
 
 class UpdateEntryPayload(ChangePayloadModel):

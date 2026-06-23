@@ -59,6 +59,54 @@
     @apply mt-1 text-copy-14 text-muted-foreground;
   }
 
+  .entry-categories-table {
+    @apply table-fixed;
+  }
+
+  .entry-category-row {
+    @apply cursor-pointer;
+  }
+
+  .entry-category-name-column {
+    width: 27%;
+  }
+
+  .entry-category-description-column {
+    width: 42%;
+  }
+
+  .entry-category-lifecycle-column {
+    width: 15%;
+  }
+
+  .entry-category-usage-column {
+    width: 8%;
+  }
+
+  .entry-category-actions-column {
+    width: 8%;
+  }
+
+  .entry-category-name {
+    @apply inline-flex min-w-0 items-center gap-2;
+  }
+
+  .entry-category-child-name {
+    @apply pl-5;
+  }
+
+  .entry-category-swatch {
+    @apply size-2.5 shrink-0 rounded-sm;
+  }
+
+  .entry-category-meta {
+    @apply ml-2 text-xs text-muted-foreground;
+  }
+
+  .entry-category-description {
+    @apply block whitespace-normal break-words text-xs leading-5 text-muted-foreground;
+  }
+
   .field {
     @apply grid min-w-[160px] gap-1.5 text-copy-14;
   }
@@ -333,7 +381,7 @@
 
   .entries-filter-date-field,
   .entries-filter-kind-field,
-  .entries-filter-group-field,
+  .entries-filter-category-field,
   .entries-filter-entity-field,
   .entries-filter-tags-field,
   .entries-filter-currencies-field {
@@ -374,16 +422,25 @@
 
   .entries-name-column {
     @apply min-w-0;
-    width: 30%;
+    width: 24%;
   }
 
   .entries-amount-column {
     @apply w-40 whitespace-nowrap;
   }
 
+  .entries-category-column {
+    @apply min-w-0;
+    width: 18%;
+  }
+
+  .entries-lifecycle-column {
+    @apply w-28 whitespace-nowrap;
+  }
+
   .entries-tags-column {
     @apply min-w-0;
-    width: 22%;
+    width: 18%;
   }
 
   .entries-actions-column {
@@ -438,15 +495,15 @@
     @apply flex w-full max-w-full flex-wrap items-center gap-1.5 overflow-hidden;
   }
 
-  .entries-tag-pill {
+  .entries-color-pill {
     @apply inline-flex max-w-full items-center gap-1.5 rounded-sm border bg-secondary px-2 py-1 text-label-12 text-foreground;
   }
 
-  .entries-tag-pill-color {
+  .entries-color-pill-dot {
     @apply h-2.5 w-2.5 shrink-0 rounded-full border border-black/10;
   }
 
-  .entries-tag-pill-label {
+  .entries-color-pill-label {
     @apply min-w-0 truncate;
   }
 

@@ -271,7 +271,7 @@ List the caller's taxonomy definitions. Response: `TaxonomyRead[]`
 Behavior:
 
 - ensures the caller's default taxonomies exist before reading
-- current defaults include `entity_category` and `tag_type`
+- current defaults include `entity_category`, `tag_type`, and `entry_category`
 
 ### `GET /taxonomies/{taxonomy_key}/terms`
 
@@ -295,6 +295,8 @@ Behavior:
 
 - creates or reuses the caller's taxonomy definition for that key
 - term uniqueness is per taxonomy, not global
+- `entry_category` accepts `parent_term_id` and supports at most one nested level
+- `entry_category` accepts nullable `default_lifecycle` (`fixed`, `day_to_day`, `one_time`)
 
 Errors:
 
@@ -303,10 +305,20 @@ Errors:
 
 ### `PATCH /taxonomies/{taxonomy_key}/terms/{term_id}`
 
-Rename one taxonomy term and optionally update description. Response: `TaxonomyTermRead`
+Rename one taxonomy term and optionally update description or `default_lifecycle`. Response: `TaxonomyTermRead`
 
 Behavior:
 
+- lookup follows the same principal-scoped taxonomy rules as term reads
+
+### `DELETE /taxonomies/{taxonomy_key}/terms/{term_id}`
+
+Delete one taxonomy term and its assignments. Response: `204`
+
+Behavior:
+
+- entries assigned to a deleted entry-category term become uncategorized
+- parent terms with children return `409`; delete children first
 - lookup follows the same principal-scoped taxonomy rules as term reads
 - returns `409` for duplicate names
 

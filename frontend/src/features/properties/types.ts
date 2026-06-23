@@ -5,13 +5,19 @@
  * - Outputs: typed helpers, contracts, or exports from `types`.
  * - Side effects: module-local frontend behavior only.
  */
-export type PropertiesSectionId = "tags" | "currencies" | "entityCategories" | "tagCategories";
+export type PropertiesSectionId =
+  | "tags"
+  | "currencies"
+  | "entryCategories"
+  | "entityCategories"
+  | "tagCategories";
 
 export type CurrencyStatusFilter = "" | "built-in" | "placeholder";
 
 export const SECTION_SEARCH_DEFAULTS: Record<PropertiesSectionId, string> = {
   tags: "",
   currencies: "",
+  entryCategories: "",
   entityCategories: "",
   tagCategories: ""
 };
@@ -23,6 +29,7 @@ export const SECTION_CURRENCY_STATUS_FILTER_DEFAULT: CurrencyStatusFilter = "";
 export const SECTION_CREATE_PANEL_DEFAULTS: Record<PropertiesSectionId, boolean> = {
   tags: false,
   currencies: false,
+  entryCategories: false,
   entityCategories: false,
   tagCategories: false
 };

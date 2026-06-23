@@ -7,6 +7,7 @@
  */
 
 export type EntryKind = "EXPENSE" | "INCOME" | "TRANSFER";
+export type EntryLifecycle = "fixed" | "day_to_day" | "one_time";
 export type GroupType = "BUNDLE" | "SPLIT" | "RECURRING";
 export type GroupMemberRole = "PARENT" | "CHILD";
 export type GroupMemberTarget =

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from backend.contracts_groups import GroupCreateCommand, GroupMemberCreateCommand, GroupPatch
 from backend.contracts_users import UserCreateCommand, UserPatch
-from backend.enums_finance import EntryKind, GroupMemberRole, GroupType
+from backend.enums_finance import EntryKind, EntryLifecycle, GroupMemberRole, GroupType
 from backend.validation.contract_fields import NonEmptyPatchModel
 from backend.validation.finance_names import normalize_tag_name
 
@@ -113,6 +113,8 @@ class TaxonomyTermCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
+    parent_term_id: str | None = Field(default=None, min_length=1)
+    default_lifecycle: EntryLifecycle | None = None
 
 
 class TaxonomyTermUpdate(BaseModel):
@@ -120,6 +122,7 @@ class TaxonomyTermUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
+    default_lifecycle: EntryLifecycle | None = None
 
 
 class TaxonomyTermRead(BaseModel):
@@ -127,7 +130,9 @@ class TaxonomyTermRead(BaseModel):
     taxonomy_id: str
     name: str
     normalized_name: str
+    parent_term_id: str | None = None
     description: str | None = None
+    default_lifecycle: EntryLifecycle | None = None
     usage_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
@@ -237,6 +242,8 @@ class EntryCreate(EntryBase):
     tags: list[str] = Field(default_factory=list)
     direct_group_id: str | None = None
     direct_group_member_role: GroupMemberRole | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=120)
+    lifecycle: EntryLifecycle | None = None
 
     @model_validator(mode="after")
     def validate_direct_group_membership(self) -> EntryCreate:
@@ -261,6 +268,8 @@ class EntryUpdate(BaseModel):
     tags: list[str] | None = None
     direct_group_id: str | None = None
     direct_group_member_role: GroupMemberRole | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=120)
+    lifecycle: EntryLifecycle | None = None
 
 
 class EntryRead(BaseModel):
@@ -279,6 +288,8 @@ class EntryRead(BaseModel):
     to_entity_missing: bool = False
     owner: str | None = None
     markdown_body: str | None = None
+    lifecycle: EntryLifecycle | None = None
+    category: str | None = None
     created_at: datetime
     updated_at: datetime
     tags: list[TagSummaryRead] = Field(default_factory=list)
@@ -314,6 +325,8 @@ class EntryTagSuggestionRequest(BaseModel):
     owner_user_id: str | None = None
     markdown_body: str | None = None
     current_tags: list[str] = Field(default_factory=list)
+    current_category: str | None = None
+    current_lifecycle: EntryLifecycle | None = None
 
     @field_validator("currency_code", mode="before")
     @classmethod
@@ -326,6 +339,8 @@ class EntryTagSuggestionRequest(BaseModel):
 
 class EntryTagSuggestionResponse(BaseModel):
     suggested_tags: list[str] = Field(default_factory=list)
+    suggested_category: str | None = None
+    suggested_lifecycle: EntryLifecycle | None = None
 
 
 class EntryGroupRefRead(BaseModel):
@@ -514,8 +529,9 @@ class DashboardKpisRead(BaseModel):
     average_expense_day_minor: int
     median_expense_day_minor: int
     spending_days: int
-    average_day_to_day_minor: int = 0
-    median_day_to_day_minor: int = 0
+    one_time_total_minor: int = 0
+    core_spend_minor: int = 0
+    uncategorized_total_minor: int = 0
 
 
 class DashboardBreakdownEntryItem(BaseModel):
@@ -532,11 +548,29 @@ class DashboardToBreakdownItem(BaseModel):
     entries: list[DashboardBreakdownEntryItem] = Field(default_factory=list)
 
 
-class DashboardTagToBreakdown(BaseModel):
-    tag: str
+class DashboardCategoryChildSummary(BaseModel):
+    name: str
+    path: str
     total_minor: int
+    share: float
     entry_count: int = 0
-    to_items: list[DashboardToBreakdownItem] = Field(default_factory=list)
+    to_breakdown: list[DashboardToBreakdownItem] = Field(default_factory=list)
+
+
+class DashboardCategorySummary(BaseModel):
+    name: str
+    total_minor: int
+    share: float
+    entry_count: int = 0
+    children: list[DashboardCategoryChildSummary] = Field(default_factory=list)
+    to_breakdown: list[DashboardToBreakdownItem] = Field(default_factory=list)
+
+
+class DashboardLifecycleSummary(BaseModel):
+    lifecycle: str | None
+    total_minor: int
+    share: float
+    entry_count: int
 
 
 class DashboardFilterGroupSummary(BaseModel):
@@ -546,22 +580,21 @@ class DashboardFilterGroupSummary(BaseModel):
     color: str | None = None
     total_minor: int
     share: float
-    tag_totals: dict[str, int] = Field(default_factory=dict)
-    tag_to_breakdowns: list[DashboardTagToBreakdown] = Field(default_factory=list)
+    entry_count: int = 0
 
 
 class DashboardDailySpendingPoint(BaseModel):
     date: date
     expense_total_minor: int
-    filter_group_totals: dict[str, int] = Field(default_factory=dict)
+    category_totals: dict[str, int] = Field(default_factory=dict)
 
 
 class DashboardMonthlyTrendPoint(BaseModel):
     month: str
     expense_total_minor: int
     income_total_minor: int
-    filter_group_totals: dict[str, int] = Field(default_factory=dict)
-    income_filter_group_totals: dict[str, int] = Field(default_factory=dict)
+    category_totals: dict[str, int] = Field(default_factory=dict)
+    lifecycle_totals: dict[str, int] = Field(default_factory=dict)
 
 
 class DashboardBreakdownItem(BaseModel):
@@ -581,7 +614,8 @@ class DashboardLargestExpenseItem(BaseModel):
     name: str
     to_entity: str | None = None
     amount_minor: int
-    matching_filter_group_keys: list[str] = Field(default_factory=list)
+    category: str | None = None
+    lifecycle: str | None = None
 
 
 class DashboardProjectionRead(BaseModel):
@@ -591,7 +625,7 @@ class DashboardProjectionRead(BaseModel):
     spent_to_date_minor: int
     projected_total_minor: int | None = None
     projected_remaining_minor: int | None = None
-    projected_filter_group_totals: dict[str, int] = Field(default_factory=dict)
+    projected_category_totals: dict[str, int] = Field(default_factory=dict)
 
 
 class DashboardTimelineRead(BaseModel):
@@ -602,6 +636,8 @@ class DashboardRead(BaseModel):
     month: str
     currency_code: str
     kpis: DashboardKpisRead
+    categories: list[DashboardCategorySummary]
+    lifecycles: list[DashboardLifecycleSummary]
     filter_groups: list[DashboardFilterGroupSummary]
     daily_spending: list[DashboardDailySpendingPoint]
     monthly_trend: list[DashboardMonthlyTrendPoint]

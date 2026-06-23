@@ -56,8 +56,9 @@ def test_dashboard_finance_get_renders_compact(monkeypatch) -> None:
             "average_expense_day_minor": 100,
             "median_expense_day_minor": 90,
             "spending_days": 10,
-            "average_day_to_day_minor": 50,
-            "median_day_to_day_minor": 40,
+            "one_time_total_minor": 250,
+            "core_spend_minor": 750,
+            "uncategorized_total_minor": 0,
         },
         "notes": ["Amounts are integer minor units in the dashboard currency unless rendered as text."],
     }

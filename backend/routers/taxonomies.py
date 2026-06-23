@@ -15,6 +15,7 @@ from backend.schemas_finance import TaxonomyRead, TaxonomyTermCreate, TaxonomyTe
 from backend.services.taxonomy import (
     build_taxonomy_term_read,
     create_term_from_payload,
+    delete_term_from_payload,
     list_taxonomy_reads,
     list_taxonomy_term_reads,
     update_term_from_payload,
@@ -54,6 +55,8 @@ def create_taxonomy_term(
         taxonomy_key=taxonomy_key,
         name=payload.name,
         description=payload.description,
+        parent_term_id=payload.parent_term_id,
+        default_lifecycle=payload.default_lifecycle,
         principal=principal,
     )
 
@@ -76,6 +79,7 @@ def update_taxonomy_term(
         term_id=term_id,
         name=payload.name,
         description=payload.description,
+        default_lifecycle=payload.default_lifecycle,
         fields_set=set(payload.model_dump(exclude_unset=True)),
         principal=principal,
     )
@@ -83,3 +87,22 @@ def update_taxonomy_term(
     db.commit()
     db.refresh(term)
     return build_taxonomy_term_read(db, term=term)
+
+
+@router.delete(
+    "/{taxonomy_key}/terms/{term_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_taxonomy_term(
+    taxonomy_key: str,
+    term_id: str,
+    db: Session = Depends(get_db),
+    principal: RequestPrincipal = Depends(get_current_principal),
+) -> None:
+    delete_term_from_payload(
+        db,
+        taxonomy_key=taxonomy_key,
+        term_id=term_id,
+        principal=principal,
+    )
+    db.commit()

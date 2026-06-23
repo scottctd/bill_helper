@@ -15,7 +15,7 @@ Chat with the agent like a colleague. Drop in a receipt photo, a PDF bank statem
 Entries, accounts, entities, tags, groups, spending analytics, reconciliation — it's all connected. The agent has the full picture and can act across any of it in a single conversation.
 
 ### 📊 Beautiful spending insights
-The dashboard breaks your money into filter groups — day-to-day, one-time, fixed, transfers, income — and renders timelines, category breakdowns, and trends. Actually understand where your money goes, month by month.
+The dashboard partitions expenses by category, compares lifecycle patterns, and renders timelines, destination breakdowns, and trends. Actually understand where your money goes, month by month.
 
 ### 📄 Drop in a document, get entries back
 Upload a bank PDF or a receipt image. The agent receives images and high-resolution PDF page renders directly as vision input, reasons about the contents, and returns structured entries ready for your review. Categorizing a month of transactions takes minutes, not hours.
@@ -96,6 +96,8 @@ Telegram polling is skipped by default. To opt in:
 | 🌐 Web app | `http://localhost:5173` |
 | ⚡ API | `http://localhost:8000/api/v1` |
 | 📖 API docs | `http://localhost:8000/docs` |
+
+The optional agent workspace image installs a focused `bh` CLI dependency set rather than the full API dependency graph; see `docs/development.md` for rebuild and smoke-test commands.
 
 Sign in at `/login` and you're live.
 

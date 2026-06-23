@@ -12,6 +12,8 @@ import { ChevronDown } from "lucide-react";
 import { useFloatingMenuPosition } from "../hooks/useFloatingMenuPosition";
 import { resolveTagColor } from "../lib/tagColors";
 import type { Tag } from "../lib/types";
+import { useFloatingMenuPortal } from "./FloatingMenuPortal";
+import { SelectMenuSurface } from "./SelectMenuSurface";
 
 type TagMultiSelectDisplayMode = "inline" | "compact";
 
@@ -153,6 +155,7 @@ export function TagMultiSelect({
   const compactControlRef = useRef<HTMLButtonElement | null>(null);
   const inlineControlRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const portalNode = useFloatingMenuPortal();
   const menuAnchorRef = isCompact ? compactControlRef : inlineControlRef;
   const normalizedValue = useMemo(() => normalizeTagList(value), [value]);
   const [selectedValues, setSelectedValues] = useState<string[]>(normalizedValue);
@@ -468,12 +471,14 @@ export function TagMultiSelect({
 
       {isOpen && typeof document !== "undefined"
         ? createPortal(
-            <div className="tag-multiselect-menu" ref={menuRef} style={menuStyle}>
-              {isCompact ? (
-                <div className="tag-multiselect-menu-search">
+            <SelectMenuSurface
+              className="tag-multiselect-menu"
+              menuRef={menuRef}
+              menuStyle={menuStyle}
+              search={isCompact ? (
                   <input
                     ref={inputRef}
-                    className="tag-multiselect-menu-search-input"
+                    className="select-menu-search-input"
                     aria-label={ariaLabel ? `${ariaLabel} search` : "Search tags"}
                     value={query}
                     onChange={(event) => {
@@ -483,8 +488,8 @@ export function TagMultiSelect({
                     placeholder="Search..."
                     disabled={disabled}
                   />
-                </div>
-              ) : null}
+              ) : undefined}
+            >
               {filteredOptions.length === 0 && !creatableTag ? <p className="tag-multiselect-empty">No matching tags.</p> : null}
               {filteredOptions.map((tag) => {
                 const key = normalizeTagName(tag.name);
@@ -526,8 +531,8 @@ export function TagMultiSelect({
                   </span>
                 </button>
               ) : null}
-            </div>,
-            document.body
+            </SelectMenuSurface>,
+            portalNode ?? document.body
           )
         : null}
     </div>

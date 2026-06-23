@@ -106,9 +106,9 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
 ### Filter-Group Configuration Path
 
 1. Frontend calls `/api/v1/filter-groups`.
-2. Backend provisions the caller's built-in default groups if they do not exist yet.
-3. Users inspect or edit recursive include/exclude rules with nested `AND`/`OR` groups.
-4. Dashboard reads consume those saved definitions on later requests.
+2. Backend returns only the caller's saved custom groups; an empty list is valid.
+3. Users create or edit recursive include/exclude rules with nested `AND`/`OR` groups.
+4. Dashboard reads consume those saved definitions as optional overlapping cross-cuts.
 
 ## Module Map
 

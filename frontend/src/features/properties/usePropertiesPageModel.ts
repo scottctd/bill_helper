@@ -13,11 +13,13 @@ import {
   createTag,
   createTaxonomyTerm,
   deleteTag,
+  deleteTaxonomyTerm,
   updateTag,
   updateTaxonomyTerm
 } from "../../lib/api";
 import {
   ENTITY_CATEGORY_TAXONOMY_KEY,
+  ENTRY_CATEGORY_TAXONOMY_KEY,
   TAG_TYPE_TAXONOMY_KEY,
   taxonomyTermNames,
   uniqueOptionValues
@@ -37,8 +39,12 @@ export function usePropertiesPageModel() {
   const forms = usePropertiesFormState();
 
   const { queries, options } = queryState;
-  const { entityCategoriesLabel, tagTypesLabel } = queryState.labels;
+  const { entryCategoriesLabel, entityCategoriesLabel, tagTypesLabel } = queryState.labels;
   const deletingTag = (queries.tagsQuery.data ?? []).find((tag) => tag.id === forms.deletingTagId) ?? null;
+  const deletingEntryCategoryTerm =
+    (queries.entryCategoryTermsQuery.data ?? []).find(
+      (term) => term.id === forms.deletingEntryCategoryTermId
+    ) ?? null;
 
   const filtered = usePropertiesFilteredData({
     sectionSearch: sectionState.sectionSearch,
@@ -112,6 +118,68 @@ export function usePropertiesPageModel() {
     }
   });
 
+  const createEntryCategoryTermMutation = useMutation({
+    mutationFn: ({
+      name,
+      description,
+      parentTermId,
+      defaultLifecycle
+    }: {
+      name: string;
+      description: string | null;
+      parentTermId: string | null;
+      defaultLifecycle: string | null;
+    }) =>
+      createTaxonomyTerm(ENTRY_CATEGORY_TAXONOMY_KEY, {
+        name,
+        description,
+        parent_term_id: parentTermId,
+        default_lifecycle: defaultLifecycle
+      }),
+    onSuccess: () => {
+      forms.setNewEntryCategoryTermName("");
+      forms.setNewEntryCategoryTermDescription("");
+      forms.setNewEntryCategoryParentId("");
+      forms.setNewEntryCategoryDefaultLifecycle("");
+      sectionState.actions.closeCreatePanel("entryCategories");
+      invalidateTaxonomyReadModels(queryClient, ENTRY_CATEGORY_TAXONOMY_KEY);
+    }
+  });
+
+  const updateEntryCategoryTermMutation = useMutation({
+    mutationFn: ({
+      termId,
+      name,
+      description,
+      defaultLifecycle
+    }: {
+      termId: string;
+      name: string;
+      description: string | null;
+      defaultLifecycle: string | null;
+    }) =>
+      updateTaxonomyTerm(ENTRY_CATEGORY_TAXONOMY_KEY, termId, {
+        name,
+        description,
+        default_lifecycle: defaultLifecycle
+      }),
+    onSuccess: () => {
+      forms.setEditingEntryCategoryTermId("");
+      forms.setEditingEntryCategoryTermName("");
+      forms.setEditingEntryCategoryTermDescription("");
+      forms.setEditingEntryCategoryDefaultLifecycle("");
+      invalidateTaxonomyReadModels(queryClient, ENTRY_CATEGORY_TAXONOMY_KEY);
+    }
+  });
+
+  const deleteEntryCategoryTermMutation = useMutation({
+    mutationFn: (termId: string) => deleteTaxonomyTerm(ENTRY_CATEGORY_TAXONOMY_KEY, termId),
+    onSuccess: () => {
+      forms.setDeletingEntryCategoryTermId("");
+      invalidateTaxonomyReadModels(queryClient, ENTRY_CATEGORY_TAXONOMY_KEY);
+    }
+  });
+
   const createEntityCategoryTermMutation = useMutation({
     mutationFn: ({ name, description }: { name: string; description?: string }) =>
       createTaxonomyTerm(ENTITY_CATEGORY_TAXONOMY_KEY, { name, description }),
@@ -182,6 +250,22 @@ export function usePropertiesPageModel() {
     });
   }
 
+  function onCreateEntryCategoryTerm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = forms.newEntryCategoryTermName.trim();
+    if (!name) {
+      return;
+    }
+    createEntryCategoryTermMutation.mutate({
+      name,
+      description: forms.newEntryCategoryTermDescription.trim() || null,
+      parentTermId: forms.newEntryCategoryParentId || null,
+      defaultLifecycle: forms.newEntryCategoryParentId
+        ? forms.newEntryCategoryDefaultLifecycle || null
+        : null
+    });
+  }
+
   function onCreateTagTypeTerm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = forms.newTagTypeTermName.trim();
@@ -241,6 +325,50 @@ export function usePropertiesPageModel() {
     deleteTagMutation.mutate(forms.deletingTagId);
   }
 
+  function saveEntryCategoryTerm(termId: string) {
+    const name = forms.editingEntryCategoryTermName.trim();
+    if (!name) {
+      return;
+    }
+    updateEntryCategoryTermMutation.mutate({
+      termId,
+      name,
+      description: forms.editingEntryCategoryTermDescription.trim() || null,
+      defaultLifecycle: forms.editingEntryCategoryDefaultLifecycle || null
+    });
+  }
+
+  function startEditEntryCategoryTerm(term: TaxonomyTerm) {
+    forms.setEditingEntryCategoryTermId(term.id);
+    forms.setEditingEntryCategoryTermName(term.name);
+    forms.setEditingEntryCategoryTermDescription(term.description ?? "");
+    forms.setEditingEntryCategoryDefaultLifecycle(term.default_lifecycle ?? "");
+  }
+
+  function cancelEditEntryCategoryTerm() {
+    forms.setEditingEntryCategoryTermId("");
+    forms.setEditingEntryCategoryTermName("");
+    forms.setEditingEntryCategoryTermDescription("");
+    forms.setEditingEntryCategoryDefaultLifecycle("");
+  }
+
+  function startDeleteEntryCategoryTerm(term: TaxonomyTerm) {
+    forms.setDeletingEntryCategoryTermId(term.id);
+    deleteEntryCategoryTermMutation.reset();
+  }
+
+  function cancelDeleteEntryCategoryTerm() {
+    forms.setDeletingEntryCategoryTermId("");
+    deleteEntryCategoryTermMutation.reset();
+  }
+
+  function confirmDeleteEntryCategoryTerm() {
+    if (!forms.deletingEntryCategoryTermId) {
+      return;
+    }
+    deleteEntryCategoryTermMutation.mutate(forms.deletingEntryCategoryTermId);
+  }
+
   function saveEntityCategoryTerm(termId: string) {
     const name = forms.editingEntityCategoryTermName.trim();
     if (!name) {
@@ -295,6 +423,7 @@ export function usePropertiesPageModel() {
   ];
 
   const taxonomySections = [
+    { id: "entryCategories" as const, label: entryCategoriesLabel },
     { id: "entityCategories" as const, label: entityCategoriesLabel },
     { id: "tagCategories" as const, label: tagTypesLabel }
   ];
@@ -311,6 +440,7 @@ export function usePropertiesPageModel() {
     createPanelOpen: sectionState.createPanelOpen,
     coreSections,
     taxonomySections,
+    entryCategoriesLabel,
     entityCategoriesLabel,
     tagTypesLabel,
     queries,
@@ -335,6 +465,21 @@ export function usePropertiesPageModel() {
       editingTagDescription: forms.editingTagDescription,
       setEditingTagDescription: forms.setEditingTagDescription,
       deletingTagId: forms.deletingTagId,
+      newEntryCategoryTermName: forms.newEntryCategoryTermName,
+      setNewEntryCategoryTermName: forms.setNewEntryCategoryTermName,
+      newEntryCategoryTermDescription: forms.newEntryCategoryTermDescription,
+      setNewEntryCategoryTermDescription: forms.setNewEntryCategoryTermDescription,
+      newEntryCategoryParentId: forms.newEntryCategoryParentId,
+      setNewEntryCategoryParentId: forms.setNewEntryCategoryParentId,
+      newEntryCategoryDefaultLifecycle: forms.newEntryCategoryDefaultLifecycle,
+      setNewEntryCategoryDefaultLifecycle: forms.setNewEntryCategoryDefaultLifecycle,
+      editingEntryCategoryTermId: forms.editingEntryCategoryTermId,
+      editingEntryCategoryTermName: forms.editingEntryCategoryTermName,
+      setEditingEntryCategoryTermName: forms.setEditingEntryCategoryTermName,
+      editingEntryCategoryTermDescription: forms.editingEntryCategoryTermDescription,
+      setEditingEntryCategoryTermDescription: forms.setEditingEntryCategoryTermDescription,
+      editingEntryCategoryDefaultLifecycle: forms.editingEntryCategoryDefaultLifecycle,
+      setEditingEntryCategoryDefaultLifecycle: forms.setEditingEntryCategoryDefaultLifecycle,
       newEntityCategoryTermName: forms.newEntityCategoryTermName,
       setNewEntityCategoryTermName: forms.setNewEntityCategoryTermName,
       newEntityCategoryTermDescription: forms.newEntityCategoryTermDescription,
@@ -359,6 +504,7 @@ export function usePropertiesPageModel() {
       toggleCreatePanel: sectionState.actions.toggleCreatePanel,
       closeCreatePanel: sectionState.actions.closeCreatePanel,
       onCreateTag,
+      onCreateEntryCategoryTerm,
       onCreateEntityCategoryTerm,
       onCreateTagTypeTerm,
       saveTag,
@@ -367,6 +513,12 @@ export function usePropertiesPageModel() {
       startDeleteTag,
       cancelDeleteTag,
       confirmDeleteTag,
+      saveEntryCategoryTerm,
+      startEditEntryCategoryTerm,
+      cancelEditEntryCategoryTerm,
+      startDeleteEntryCategoryTerm,
+      cancelDeleteEntryCategoryTerm,
+      confirmDeleteEntryCategoryTerm,
       saveEntityCategoryTerm,
       startEditEntityCategoryTerm,
       cancelEditEntityCategoryTerm,
@@ -378,13 +530,17 @@ export function usePropertiesPageModel() {
       createTagMutation,
       updateTagMutation,
       deleteTagMutation,
+      createEntryCategoryTermMutation,
+      updateEntryCategoryTermMutation,
+      deleteEntryCategoryTermMutation,
       createEntityCategoryTermMutation,
       updateEntityCategoryTermMutation,
       createTagTypeTermMutation,
       updateTagTypeTermMutation
     },
     deleteTargets: {
-      tag: deletingTag
+      tag: deletingTag,
+      entryCategoryTerm: deletingEntryCategoryTerm
     }
   };
 }

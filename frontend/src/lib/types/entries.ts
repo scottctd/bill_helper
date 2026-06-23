@@ -7,7 +7,7 @@
  */
 
 import type { EntryTag } from "./catalogs";
-import type { EntryKind, GroupMemberRole, GroupType } from "./core";
+import type { EntryKind, EntryLifecycle, GroupMemberRole, GroupType } from "./core";
 
 export interface EntryGroupRef {
   id: string;
@@ -31,6 +31,8 @@ export interface Entry {
   to_entity_missing: boolean;
   owner: string | null;
   markdown_body: string | null;
+  lifecycle: EntryLifecycle | null;
+  category: string | null;
   created_at: string;
   updated_at: string;
   tags: EntryTag[];
@@ -62,8 +64,12 @@ export interface EntryTagSuggestionRequest {
   owner_user_id?: string | null;
   markdown_body?: string | null;
   current_tags: string[];
+  current_category?: string | null;
+  current_lifecycle?: EntryLifecycle | null;
 }
 
 export interface EntryTagSuggestionResponse {
   suggested_tags: string[];
+  suggested_category: string | null;
+  suggested_lifecycle: EntryLifecycle | null;
 }

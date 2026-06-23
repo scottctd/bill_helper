@@ -83,7 +83,12 @@ export function listTaxonomyTerms(taxonomyKey: string): Promise<TaxonomyTerm[]> 
 
 export function createTaxonomyTerm(
   taxonomyKey: string,
-  payload: { name: string; parent_term_id?: string | null; description?: string | null }
+  payload: {
+    name: string;
+    parent_term_id?: string | null;
+    description?: string | null;
+    default_lifecycle?: string | null;
+  }
 ): Promise<TaxonomyTerm> {
   return request<TaxonomyTerm>(`/api/v1/taxonomies/${taxonomyKey}/terms`, {
     method: "POST",
@@ -94,10 +99,16 @@ export function createTaxonomyTerm(
 export function updateTaxonomyTerm(
   taxonomyKey: string,
   termId: string,
-  payload: { name?: string; description?: string | null }
+  payload: { name?: string; description?: string | null; default_lifecycle?: string | null }
 ): Promise<TaxonomyTerm> {
   return request<TaxonomyTerm>(`/api/v1/taxonomies/${taxonomyKey}/terms/${termId}`, {
     method: "PATCH",
     body: JSON.stringify(payload)
+  });
+}
+
+export function deleteTaxonomyTerm(taxonomyKey: string, termId: string): Promise<void> {
+  return request<void>(`/api/v1/taxonomies/${taxonomyKey}/terms/${termId}`, {
+    method: "DELETE"
   });
 }

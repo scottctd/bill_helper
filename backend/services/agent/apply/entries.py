@@ -21,6 +21,8 @@ from backend.services.agent.change_contracts.entries import (
 from backend.services.entries import set_entry_tags, soft_delete_entry
 from backend.services.entities import ensure_entity_by_name
 from backend.services.runtime_settings import resolve_runtime_settings
+from backend.services.taxonomy import assign_single_term_by_name
+from backend.services.taxonomy_constants import ENTRY_CATEGORY_SUBJECT_TYPE, ENTRY_CATEGORY_TAXONOMY_KEY
 
 
 def apply_create_entry(
@@ -47,9 +49,19 @@ def apply_create_entry(
         to_entity=to_entity.name,
         owner=principal.user_name,
         markdown_body=payload.markdown_notes,
+        lifecycle=payload.lifecycle,
     )
     db.add(entry)
     set_entry_tags(db, entry, payload.tags)
+    if payload.category is not None:
+        assign_single_term_by_name(
+            db,
+            taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
+            subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
+            subject_id=entry.id,
+            term_name=payload.category,
+            owner_user_id=principal.user_id,
+        )
     db.flush()
     return AppliedResource(resource_type="entry", resource_id=entry.id)
 
@@ -103,6 +115,19 @@ def apply_update_entry(
 
     if "tags" in payload.patch.model_fields_set:
         set_entry_tags(db, entry, payload.patch.tags or [])
+
+    if "lifecycle" in payload.patch.model_fields_set:
+        entry.lifecycle = payload.patch.lifecycle
+
+    if "category" in payload.patch.model_fields_set:
+        assign_single_term_by_name(
+            db,
+            taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
+            subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
+            subject_id=entry.id,
+            term_name=payload.patch.category,
+            owner_user_id=entry.owner_user_id,
+        )
 
     db.add(entry)
     db.flush()

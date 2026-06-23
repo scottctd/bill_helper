@@ -7,5 +7,7 @@ pandas>=2.0.0
 pydantic>=2.7.0
 python-dateutil>=2.9.0
 requests>=2.32.0
-# bh CLI import closure (backend.cli -> httpx + pydantic-heavy contracts)
+# bh CLI import closure (backend.cli -> prompt templates + finance schemas)
 httpx>=0.28.0
+jinja2>=3.1.6
+sqlalchemy>=2.0.37

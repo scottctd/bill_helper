@@ -11,12 +11,15 @@
   - OPENAI *CHATGPT SUBSCR -> OpenAI ChatGPT Subscription
   - FARM BOY #29 TORONTO ON -> Farm Boy
 - Default entry currency to the account's currency unless the source explicitly states otherwise.
+- Use one entry category for the primary purpose of the entry. Inspect `bh entry-categories list` when needed; do not encode primary categories as tags.
+- Use `travel` as an auxiliary tag for travel context while keeping the purpose category, such as `airfare`, `accommodation`, or `restaurants`.
+- Lifecycle accepts `fixed`, `day_to_day`, or `one_time`; use the category default unless source facts justify an explicit override.
 - For multiple new entries from the same source, use `bh entries import` instead of many separate `bh entries create` calls.
 
 ### Tags
 For new tags:
 - Normalize new tags to canonical, general descriptors rather than specific names.
-- Common tags include grocery, dining, shopping, transportation, reimbursement, income, etc.
+- Tags are auxiliary context, not the primary category. Common tags include travel, e_transfer, needs_review, cash_withdrawal, internal_transfer, and savings_investments.
 - Avoid tags that collide with entities such as credit, loblaw, or heytea.
 - Do not include locations in tags unless the user explicitly asks for location-specific tagging.
 

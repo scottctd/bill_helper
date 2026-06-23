@@ -17,7 +17,6 @@ import {
   createNewEditorSession,
   isEditorSessionDirty,
   isSameEditorTarget,
-  isSystemUntaggedSession,
   pickNextFilterGroupId,
   toFilterGroupSubmitPayload,
   updateSessionFormState,
@@ -51,12 +50,7 @@ export function useFilterGroupsPageModel() {
   const filterGroups = filterGroupsQuery.data ?? [];
   const tags = tagsQuery.data ?? [];
   const preferredTagName = tags[0]?.name;
-  const selectedFilterGroup =
-    session?.kind === "existing"
-      ? filterGroups.find((filterGroup) => filterGroup.id === session.filterGroupId) ?? null
-      : null;
   const isDirty = session ? isEditorSessionDirty(session) : false;
-  const isSystemUntagged = isSystemUntaggedSession(session);
 
   const createMutation = useMutation({
     mutationFn: createFilterGroup,
@@ -190,7 +184,7 @@ export function useFilterGroupsPageModel() {
     (session?.kind === "existing" && (activeUpdateId === session.filterGroupId || activeDeleteId === session.filterGroupId));
 
   function handleSubmit() {
-    if (!session || isSystemUntaggedSession(session)) {
+    if (!session) {
       return;
     }
     const payload = toFilterGroupSubmitPayload(session.formState);
@@ -217,14 +211,12 @@ export function useFilterGroupsPageModel() {
     tags,
     preferredTagName,
     session,
-    selectedFilterGroup,
     selectedTarget,
     discardDialogOpen,
     mutationError,
     isDirty,
     isPending: Boolean(isPending),
-    isSystemUntagged,
-    canSubmit: Boolean(session) && !isSystemUntagged && Boolean(session?.formState.name.trim()) && isDirty && !isPending,
+    canSubmit: Boolean(session) && Boolean(session?.formState.name.trim()) && isDirty && !isPending,
     submitLabel: session?.kind === "new" ? "Create group" : "Save changes",
     submitPendingLabel: session?.kind === "new" ? "Creating..." : "Saving...",
     requestTarget,

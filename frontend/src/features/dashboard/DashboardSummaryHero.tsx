@@ -92,7 +92,7 @@ export function DashboardSummaryHero({
         <div className="dashboard-summary-hero-item dashboard-summary-hero-secondary-item dashboard-summary-hero-core-spend">
           <div className="dashboard-summary-hero-label">
             <Minus className="dashboard-summary-hero-icon" aria-hidden />
-            <span>Expense - One-Time</span>
+            <span>Expense excluding one-time</span>
           </div>
           <p className="dashboard-summary-hero-value">{formatMinor(expenseLessOneTimeTotalMinor, currencyCode)}</p>
         </div>

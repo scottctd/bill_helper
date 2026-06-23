@@ -11,9 +11,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from backend.auth.contracts import RequestPrincipal
+from backend.enums_finance import EntryLifecycle
 from backend.models_finance import Taxonomy, TaxonomyAssignment, TaxonomyTerm
 from backend.schemas_finance import TaxonomyRead, TaxonomyTermRead
 from backend.services.crud_policy import PolicyViolation, map_value_error
+from backend.services.taxonomy_constants import ENTRY_CATEGORY_SUBJECT_TYPE, ENTRY_CATEGORY_TAXONOMY_KEY
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +35,11 @@ DEFAULT_TAXONOMY_SPECS: dict[str, TaxonomySpec] = {
         applies_to="tag",
         cardinality="single",
         display_name="Tag Types",
+    ),
+    "entry_category": TaxonomySpec(
+        applies_to="entry",
+        cardinality="single",
+        display_name="Entry Categories",
     ),
 }
 
@@ -78,6 +85,28 @@ def set_term_description(term: TaxonomyTerm, description: str | None) -> None:
     else:
         metadata.pop("description", None)
     term.metadata_json = metadata or None
+
+
+def set_term_default_lifecycle(term: TaxonomyTerm, lifecycle: EntryLifecycle | None) -> None:
+    metadata = dict(term.metadata_json) if isinstance(term.metadata_json, dict) else {}
+    if lifecycle is not None:
+        metadata["default_lifecycle"] = lifecycle.value
+    else:
+        metadata.pop("default_lifecycle", None)
+    term.metadata_json = metadata or None
+
+
+def get_term_default_lifecycle(term: TaxonomyTerm) -> EntryLifecycle | None:
+    metadata = term.metadata_json
+    if not isinstance(metadata, dict):
+        return None
+    value = metadata.get("default_lifecycle")
+    if not isinstance(value, str):
+        return None
+    try:
+        return EntryLifecycle(value)
+    except ValueError:
+        return None
 
 
 def _taxonomy_rows_for_key(
@@ -218,7 +247,34 @@ def load_taxonomy_by_key(
     return rows[0]
 
 
-def ensure_term(db: Session, *, taxonomy: Taxonomy, name: str) -> TaxonomyTerm:
+def _resolve_parent_term_id(
+    db: Session,
+    *,
+    taxonomy: Taxonomy,
+    parent_term_id: str | None,
+) -> str | None:
+    if parent_term_id is None:
+        return None
+    parent = db.scalar(
+        select(TaxonomyTerm).where(
+            TaxonomyTerm.id == parent_term_id,
+            TaxonomyTerm.taxonomy_id == taxonomy.id,
+        )
+    )
+    if parent is None:
+        raise ValueError("Parent term not found")
+    if parent.parent_term_id is not None:
+        raise ValueError("Category terms support at most one level of nesting")
+    return parent.id
+
+
+def ensure_term(
+    db: Session,
+    *,
+    taxonomy: Taxonomy,
+    name: str,
+    parent_term_id: str | None = None,
+) -> TaxonomyTerm:
     normalized_name = normalize_term_name(name)
     if not normalized_name:
         raise ValueError("Term name cannot be empty")
@@ -232,18 +288,27 @@ def ensure_term(db: Session, *, taxonomy: Taxonomy, name: str) -> TaxonomyTerm:
     if term is not None:
         return term
 
+    resolved_parent_id = _resolve_parent_term_id(
+        db, taxonomy=taxonomy, parent_term_id=parent_term_id
+    )
     term = TaxonomyTerm(
         taxonomy_id=taxonomy.id,
         name=normalized_name,
         normalized_name=normalized_name,
-        parent_term_id=None,
+        parent_term_id=resolved_parent_id,
     )
     db.add(term)
     db.flush()
     return term
 
 
-def create_term(db: Session, *, taxonomy: Taxonomy, name: str) -> TaxonomyTerm:
+def create_term(
+    db: Session,
+    *,
+    taxonomy: Taxonomy,
+    name: str,
+    parent_term_id: str | None = None,
+) -> TaxonomyTerm:
     normalized_name = normalize_term_name(name)
     if not normalized_name:
         raise ValueError("Term name cannot be empty")
@@ -257,11 +322,14 @@ def create_term(db: Session, *, taxonomy: Taxonomy, name: str) -> TaxonomyTerm:
     if existing is not None:
         raise ValueError("Term already exists")
 
+    resolved_parent_id = _resolve_parent_term_id(
+        db, taxonomy=taxonomy, parent_term_id=parent_term_id
+    )
     term = TaxonomyTerm(
         taxonomy_id=taxonomy.id,
         name=normalized_name,
         normalized_name=normalized_name,
-        parent_term_id=None,
+        parent_term_id=resolved_parent_id,
     )
     db.add(term)
     db.flush()
@@ -397,6 +465,115 @@ def get_single_term_name_map(
     return {str(subject_id): str(name) for subject_id, name in rows}
 
 
+def descendant_term_ids(
+    db: Session,
+    *,
+    taxonomy: Taxonomy,
+    parent_term_id: str,
+) -> set[str]:
+    """Parent term id plus all descendant term ids (depth=1: the parent and its direct children)."""
+    child_ids = db.scalars(
+        select(TaxonomyTerm.id).where(
+            TaxonomyTerm.taxonomy_id == taxonomy.id,
+            TaxonomyTerm.parent_term_id == parent_term_id,
+        )
+    ).all()
+    return {parent_term_id, *child_ids}
+
+
+def get_entry_category_path_map(
+    db: Session,
+    *,
+    entry_ids: list[str],
+) -> dict[str, str]:
+    """Bulk-resolve each entry's category path: 'housing/rent' (child), 'housing' (top-level), or missing.
+
+    Owner-agnostic: joins the entry_category taxonomy by key so lists with mixed owners resolve correctly.
+    """
+    if not entry_ids:
+        return {}
+    entry_id_values = [str(value) for value in entry_ids]
+    rows = db.execute(
+        select(
+            TaxonomyAssignment.subject_id,
+            TaxonomyTerm.name,
+            TaxonomyTerm.parent_term_id,
+        )
+        .join(TaxonomyTerm, TaxonomyTerm.id == TaxonomyAssignment.term_id)
+        .join(Taxonomy, Taxonomy.id == TaxonomyAssignment.taxonomy_id)
+        .where(
+            Taxonomy.key == ENTRY_CATEGORY_TAXONOMY_KEY,
+            TaxonomyAssignment.subject_type == ENTRY_CATEGORY_SUBJECT_TYPE,
+            TaxonomyAssignment.subject_id.in_(entry_id_values),
+        )
+    ).all()
+    parent_ids = {row.parent_term_id for row in rows if row.parent_term_id is not None}
+    parent_name_by_id: dict[str, str] = {}
+    if parent_ids:
+        parent_name_by_id = {
+            str(term.id): term.name
+            for term in db.scalars(
+                select(TaxonomyTerm).where(TaxonomyTerm.id.in_(parent_ids))
+            )
+        }
+    path_map: dict[str, str] = {}
+    for subject_id, name, parent_term_id in rows:
+        if parent_term_id is not None:
+            parent_name = parent_name_by_id.get(str(parent_term_id))
+            path = f"{parent_name}/{name}" if parent_name else str(name)
+        else:
+            path = str(name)
+        path_map[str(subject_id)] = path
+    return path_map
+
+
+def entry_category_term_names(db: Session, *, owner_user_id: str) -> set[str]:
+    """Normalized names of all entry_category terms for an owner (used to guard the tags field)."""
+    taxonomy = get_taxonomy_by_key(
+        db, ENTRY_CATEGORY_TAXONOMY_KEY, owner_user_id=owner_user_id
+    )
+    if taxonomy is None:
+        return set()
+    return {
+        str(name)
+        for name in db.scalars(
+            select(TaxonomyTerm.normalized_name).where(TaxonomyTerm.taxonomy_id == taxonomy.id)
+        )
+    }
+
+
+def entry_category_catalog(db: Session, *, owner_user_id: str) -> list[dict[str, object]]:
+    """All entry_category terms for an owner as a catalog: name, path ('housing/rent'), default_lifecycle."""
+    taxonomy = get_taxonomy_by_key(
+        db, ENTRY_CATEGORY_TAXONOMY_KEY, owner_user_id=owner_user_id
+    )
+    if taxonomy is None:
+        return []
+    terms = list(
+        db.scalars(
+            select(TaxonomyTerm).where(TaxonomyTerm.taxonomy_id == taxonomy.id)
+        )
+    )
+    parent_name_by_id = {term.id: term.name for term in terms if term.parent_term_id is None}
+    catalog: list[dict[str, object]] = []
+    for term in terms:
+        if term.parent_term_id is None:
+            path = term.name
+            default_lifecycle: EntryLifecycle | None = None
+        else:
+            parent_name = parent_name_by_id.get(term.parent_term_id)
+            path = f"{parent_name}/{term.name}" if parent_name else term.name
+            default_lifecycle = get_term_default_lifecycle(term)
+        catalog.append(
+            {
+                "name": term.name,
+                "path": path,
+                "default_lifecycle": default_lifecycle.value if default_lifecycle else None,
+            }
+        )
+    return catalog
+
+
 def list_terms_with_usage(
     db: Session,
     *,
@@ -431,7 +608,9 @@ def build_taxonomy_term_read(
         taxonomy_id=term.taxonomy_id,
         name=term.name,
         normalized_name=term.normalized_name,
+        parent_term_id=term.parent_term_id,
         description=get_term_description(term),
+        default_lifecycle=get_term_default_lifecycle(term),
         usage_count=usage_count,
     )
 
@@ -450,7 +629,9 @@ def list_taxonomy_term_reads(
             taxonomy_id=term.taxonomy_id,
             name=term.name,
             normalized_name=term.normalized_name,
+            parent_term_id=term.parent_term_id,
             description=get_term_description(term),
+            default_lifecycle=get_term_default_lifecycle(term),
             usage_count=usage_count,
         )
         for term, usage_count in rows
@@ -463,6 +644,8 @@ def create_term_from_payload(
     taxonomy_key: str,
     name: str,
     description: str | None,
+    parent_term_id: str | None = None,
+    default_lifecycle: EntryLifecycle | None = None,
     principal: RequestPrincipal,
 ) -> TaxonomyTerm:
     try:
@@ -475,20 +658,22 @@ def create_term_from_payload(
             db,
             taxonomy=taxonomy,
             name=name,
+            parent_term_id=parent_term_id,
         )
     except ValueError as exc:
         violation = map_value_error(
             exc,
-            not_found_patterns=("Unknown taxonomy",),
+            not_found_patterns=("Unknown taxonomy", "Parent term not found"),
             conflict_patterns=("already exists",),
         )
         if violation.status_code == 404:
-            violation.detail = "Taxonomy not found"
+            violation.detail = "Taxonomy or parent term not found"
         raise violation from exc
 
     if description is not None:
         set_term_description(term, description)
-        db.add(term)
+    set_term_default_lifecycle(term, default_lifecycle)
+    db.add(term)
 
     return term
 
@@ -500,6 +685,7 @@ def update_term_from_payload(
     term_id: str,
     name: str | None,
     description: str | None,
+    default_lifecycle: EntryLifecycle | None,
     fields_set: set[str],
     principal: RequestPrincipal,
 ) -> TaxonomyTerm:
@@ -516,9 +702,32 @@ def update_term_from_payload(
             ) from exc
     if "description" in fields_set:
         set_term_description(term, description)
-        db.add(term)
+    if "default_lifecycle" in fields_set:
+        set_term_default_lifecycle(term, default_lifecycle)
+    db.add(term)
 
     return term
+
+
+def delete_term_from_payload(
+    db: Session,
+    *,
+    taxonomy_key: str,
+    term_id: str,
+    principal: RequestPrincipal,
+) -> None:
+    taxonomy = load_taxonomy_by_key(db, taxonomy_key, principal=principal)
+    term = load_taxonomy_term(db, taxonomy_id=taxonomy.id, term_id=term_id)
+    child_count = db.scalar(
+        select(func.count(TaxonomyTerm.id)).where(
+            TaxonomyTerm.taxonomy_id == taxonomy.id,
+            TaxonomyTerm.parent_term_id == term.id,
+        )
+    )
+    if child_count:
+        raise PolicyViolation.conflict("Delete child terms before deleting their parent")
+    db.delete(term)
+    db.flush()
 
 
 def list_term_name_description_pairs(

@@ -43,6 +43,9 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `0043_add_import_workflow`
 - `0044_remove_agent_change_item_rationale_text`
 - `0045_agent_harness_first_schema`
+- `0046_entry_category_lifecycle`
+- `0047_entry_category_schedule`
+- `0048_remove_builtin_filter_groups`
 
 ## Related Docs
 

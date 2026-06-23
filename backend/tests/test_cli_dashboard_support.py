@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from backend.cli.dashboard_support import (
-    apply_filter_group_breakdown_depth,
+    apply_category_breakdown_depth,
     apply_finance_sections,
     parse_section_names,
     resolve_year_month_keys,
@@ -15,6 +15,8 @@ from backend.cli.support import CliError
 def test_parse_section_names_defaults_to_all_finance_sections() -> None:
     sections = parse_section_names(None, allowed=FINANCE_SECTIONS)
     assert "kpis" in sections
+    assert "categories" in sections
+    assert "lifecycles" in sections
     assert "filter_groups" in sections
     assert "all" not in sections
 
@@ -41,27 +43,42 @@ def test_resolve_year_month_keys_errors_when_empty() -> None:
         resolve_year_month_keys(["2025-12"], "2026")
 
 
-def test_apply_filter_group_breakdown_depth_strips_entries() -> None:
-    groups = [
+def test_apply_category_breakdown_depth_strips_entries() -> None:
+    categories = [
         {
-            "key": "day_to_day",
-            "tag_totals": {"groceries": 100},
-            "tag_to_breakdowns": [
+            "name": "housing",
+            "total_minor": 1000,
+            "children": [
                 {
-                    "tag": "groceries",
-                    "to_items": [
+                    "name": "rent",
+                    "path": "housing/rent",
+                    "to_breakdown": [
                         {
-                            "label": "Farm Boy",
-                            "entries": [{"id": "ent-1", "amount_minor": 100}],
+                            "label": "Landlord Co",
+                            "entries": [{"id": "ent-1", "amount_minor": 1000}],
                         }
                     ],
                 }
             ],
         }
     ]
-    shaped = apply_filter_group_breakdown_depth(groups, "destinations")
-    to_items = shaped[0]["tag_to_breakdowns"][0]["to_items"]
+    shaped = apply_category_breakdown_depth(categories, "destinations")
+    to_items = shaped[0]["children"][0]["to_breakdown"]
     assert "entries" not in to_items[0]
+
+
+def test_apply_category_breakdown_depth_summary_drops_children() -> None:
+    categories = [
+        {
+            "name": "housing",
+            "total_minor": 1000,
+            "children": [{"name": "rent", "path": "housing/rent", "to_breakdown": []}],
+            "to_breakdown": [],
+        }
+    ]
+    shaped = apply_category_breakdown_depth(categories, "summary")
+    assert "children" not in shaped[0]
+    assert "to_breakdown" not in shaped[0]
 
 
 def test_apply_finance_sections_keeps_only_requested_fields() -> None:

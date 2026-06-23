@@ -20,14 +20,15 @@
 - lists, filters, edits, and deletes entries
 - route shell uses one primary workspace section without a redundant route title above the card
 - filter toolbar is a deliberate two-row layout in `frontend/src/features/entries/EntriesFilterToolbar.tsx`:
-  - row 1: `From date` / `To date`, compact `From entity` / `To entity`, and `Filter group`
+  - row 1: `From date` / `To date`, compact `From entity` / `To entity`, and searchable `Category`
   - row 2: `Kind`, `Source text`, compact `Tags`, compact `Currencies`, and the compact `+` add action
 - `From date` / `To date` map to the backend `start_date` / `end_date` query params and sync to the URL for shareable links
 - `From entity` / `To entity` map to repeated `from_entity` / `to_entity` query params and filter server-side on the preserved entry labels
 - invalid date ranges (`From` after `To`) show an inline error and skip the entries fetch until corrected
 - `Tag` and `Currency` filters use compact multi-select triggers (`displayMode="compact"`) so selected values stay on one line; chip selection happens inside the floating menu
 - tag and currency filtering still happens client-side on loaded rows only; the toolbar status line calls out active filters and offers `Clear filters`
-- a `Filter group` selector syncs with the `filter_group_id` URL search param so deep links can open the entries list already scoped to one saved group
+- the category selector includes top-level and full-path child categories plus `uncategorized`, syncs with the `category` URL search param, and filters server-side
+- `filter_group_id` deep links remain supported for the Filters workspace even though filter groups are no longer exposed in the entries toolbar
 - entry rows are loaded incrementally in backend-sized pages; reaching the bottom of the table auto-loads the next slice and a fallback `Load more` button remains visible while more rows exist
 - date column is fixed-width and no-wrap
 - name cells show the primary name plus a compact `from -> to` secondary line
@@ -52,7 +53,11 @@
 - popup editing includes the same direct-group and split-role controls as the entries page modal
 - routes structural edits into the groups workspace via a dedicated `Open groups workspace` action
 - editing uses the shared popup editor and the same runtime-settings defaults as create flow
+- custom entity, tag, category, and group menus share a dialog-owned floating layer so their option lists remain scrollable inside modal scroll-lock; searchable single-select menus keep a fixed search field above independently scrollable results, entry-category menus use a viewport-clamped 320px minimum width for readable paths, and lifecycle remains a basic non-searchable single select
+- entry-category management stores and displays descriptions for both parent and sub-categories; descriptions are searchable and editable from the same create/edit dialogs
 - detail cards show `Missing entity` badges when preserved `from` or `to` labels no longer have linked entity records
+- the entries table promotes `Category` and `Lifecycle` to first-class columns; category pills show only the leaf/sub-category while retaining the full path as a tooltip, entry detail shows the full `parent/sub_category` path, and lifecycle labels use lowercase `fixed`, `day-to-day`, and `one-time`
+- category and lifecycle selects use plain colored dots with text inside the select controls and menus; category colors are stable by parent family and sub-categories use related variations
 
 ## Entities
 
@@ -150,14 +155,16 @@
 - yearly mode moves annual trend charts into the active dashboard view instead of hiding them only inside `Insights`
 - uses Recharts with measured containers so charts render only after non-zero dimensions are available
 - dashboard totals and charts exclude internal transfers when both endpoints resolve to account-backed entity roots
-- monthly classification is driven by saved filter groups; year mode loads month-scoped dashboard reads through `GET /api/v1/dashboard/batch` for the selected and previous calendar years instead of fanning out per-month requests on initial page load
+- monthly expense partitioning is driven by the single-select entry-category taxonomy; lifecycle and saved filter groups are disjoint and overlapping cross-cuts respectively
+- the canonical category tree separates internet from phone, fuel from parking, entertainment from software tools, and uses the auxiliary `travel` tag for travel context
+- year mode loads month-scoped dashboard reads through `GET /api/v1/dashboard/batch` for the selected and previous calendar years instead of fanning out per-month requests on initial page load
 - month view loads only the timeline, the selected month, and (when the Breakdowns tab is active) the previous month for month-over-month comparison; year mode is deferred until the user selects `Year`, with optional prefetch on hover/focus of the year toggle
 - initial dashboard paint uses a progressive skeleton shell (header, toolbar placeholders, stat/chart blocks) instead of a full-page loading gate; the sidebar prefetches the dashboard route chunk plus timeline/current-month queries on hover/focus
 - heavy tabs (`Agent`) are lazy-loaded on first activation
-- the monthly and yearly `Income vs Expense Trend` charts stack income segments and expense filter-group segments (two stacks per month) on a sqrt Y axis so outlier months do not flatten the rest of the series; month view fixes the trend window to the last six months ending at the client’s current calendar month (not the timeline-selected month), and both modes show a grouped legend (Income, then Expense) with swatches in stack order
-- `Spending` shows a ranked expense-by-filter-group card plus a day-to-day tag facet, spending-by-destination bars, daily day-to-day chart plus projection in month view, and monthly filter-group trend in year view
-- the current-month projection area uses stacked horizontal bars: solid spent-so-far segments with translucent projected growth extensions on a labeled sqrt scale
-- `Breakdown` shows the filter-group → tag → destination drill-down tree from `filter_groups[].tag_to_breakdowns[]`; year mode aggregates drill-down data across the selected year
+- the monthly and yearly `Income vs Expense Trend` charts compare total income and expense; month view fixes the trend window to the last six months ending at the client's current calendar month
+- `Spending` shows the ranked category partition, lifecycle and filter-group cross-cuts, spending-by-destination bars, daily total expense, and category projection
+- the current-month projection area uses category totals with projected growth
+- `Breakdown` shows the category → sub-category → destination drill-down tree; year mode aggregates the category tree across the selected year
 
 ## Filters
 
@@ -169,7 +176,7 @@
 - the workspace now uses a master-detail layout: a selectable filter-group list on the left and one focused editor on the right, with the list stacking above the editor on small screens
 - the primary `Create group` / `Save changes` action now sits in the route-level page header and reflects the currently selected editor session
 - the primary editor hides the raw backend `rule_summary` prose and instead uses a guided include/exclude rule builder with literal `AND` / `OR` controls
-- the built-in `untagged` group is a computed system bucket and opens as a read-only detail panel instead of the normal editor
+- filter groups are entirely user-created; an empty catalog is valid and no built-in rows are provisioned
 - tag-based conditions use the shared `TagMultiSelect` component with the existing tag catalog instead of a comma-separated text field
 - nested rule groups still work, but they are moved behind an `Advanced` mode that opens automatically for already-nested rules
 - each saved group exposes a direct `View matching entries` link that opens the entries workspace scoped to that group

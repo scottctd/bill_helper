@@ -54,6 +54,9 @@
 - `versions/0034_add_entry_tagging_model_to_runtime_settings.py`: adds the optional runtime override for inline AI entry tag suggestions (`runtime_settings.entry_tagging_model`).
 - `versions/0035_add_user_files_and_agent_workspace.py`: adds the canonical `user_files` registry, rewires historical agent attachments to it, and introduces per-user workspace provisioning support.
 - `versions/0036_add_agent_run_created_at_index.py`: adds an index on `agent_runs.created_at` for range-based agent dashboard analytics reads.
+- `versions/0046_entry_category_lifecycle.py`: replaces tag/filter-group expense partitioning with entry-category assignments and lifecycle values.
+- `versions/0047_entry_category_schedule.py`: installs the canonical entry-category schedule and remaps legacy assignments to safe fallback leaves.
+- `versions/0048_remove_builtin_filter_groups.py`: removes persisted built-in filter groups while retaining custom groups.
 - `versions/0037_add_agent_message_attachments_use_ocr.py`: adds persisted message-level OCR mode for attachment-bearing user turns.
 - `versions/0038_add_agent_model_display_names_to_runtime_settings.py`: adds optional JSON map of model id → UI label (`runtime_settings.agent_model_display_names`).
 - `versions/0039_add_agent_run_approval_policy.py`: adds `agent_runs.approval_policy` (`default` vs `yolo`) for optional post-run auto-approval.
@@ -125,7 +128,7 @@
 - `accounts.py`: account create/update/delete workflows for shared account/entity roots.
 - `entries.py`: typed entry create/update workflows, typed entity/user refs, tag handling, and entry soft-delete helper.
 - `filter_group_rules.py`: recursive rule evaluation and plain-language summaries for saved filter groups.
-- `filter_groups.py`: default filter-group provisioning plus principal-scoped filter-group CRUD and rule persistence.
+- `filter_groups.py`: principal-scoped custom filter-group CRUD, rule persistence, and overlap evaluation.
 - `finance_contracts.py`: service-owned account/entity/tag write commands shared across routers and agent apply flows.
 - `tags.py`: tag CRUD helpers, taxonomy cleanup, and random default color generation.
 - `entities.py`: entity normalization, account-backed guards, and preserve-label delete helpers.
@@ -134,7 +137,8 @@
 - `passwords.py`: Argon2 hashing and reset-required password helpers.
 - `sessions.py`: session creation, lookup, and revocation.
 - `groups.py`: group CRUD, typed membership validation, depth-1 nesting enforcement, and derived graph generation.
-- `finance.py`: reconciliation, runtime-currency dashboard analytics, filter-group-powered classification rollups, projections, and chart-ready breakdown aggregations.
+- `finance_dashboard.py`: dashboard query orchestration and monthly trend reads.
+- `finance_dashboard_rollups.py`: deterministic category, lifecycle, filter-group, KPI, projection, and breakdown rollups.
 - `crud_policy.py`: shared CRUD validation/conflict policy primitives and standardized error-translation helpers.
 - `serializers.py`: ORM-to-schema mapping helpers.
 - `taxonomy.py`: shared taxonomy normalization, term assignment, and usage-count helpers.
@@ -235,7 +239,7 @@
 
 #### Pages (`/frontend/src/pages`)
 
-- `DashboardPage.tsx`: tabbed interactive analytics dashboard (overview/daily/breakdowns/insights) backed by Recharts.
+- `DashboardPage.tsx`: tabbed category/lifecycle analytics dashboard backed by Recharts.
 - `LoginPage.tsx`: password sign-in page for the browser app.
 - `AdminPage.tsx`: admin-only user/session management workspace.
 - `WorkspacePage.tsx`: legacy current-user workspace IDE shell retained without an active app route.

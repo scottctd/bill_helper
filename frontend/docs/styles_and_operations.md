@@ -134,4 +134,5 @@ Key ownership boundaries:
 - streaming bubbles render plain text deltas until the final persisted assistant message is refetched
 - composer paste and drag-drop accept only images and PDFs
 - large bundle warnings can still appear because the editor and charting surfaces are heavy
-- taxonomy UI remains flat-list only in V1; there is no delete flow for category terms or parent-term hierarchy editing
+- entity-category and tag-type taxonomy sections remain flat lists
+- Entry Categories uses a grouped two-level parent/child list with stable family colors, wrapped fixed-width descriptions, leaf lifecycle defaults, double-click editing, create, rename, and guarded delete flows

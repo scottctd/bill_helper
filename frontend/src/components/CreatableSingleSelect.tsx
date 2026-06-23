@@ -10,6 +10,8 @@ import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 
 import { useFloatingMenuPosition } from "../hooks/useFloatingMenuPosition";
+import { useFloatingMenuPortal } from "./FloatingMenuPortal";
+import { SelectMenuSurface } from "./SelectMenuSurface";
 
 interface CreatableSingleSelectProps {
   options: string[];
@@ -59,6 +61,7 @@ export function CreatableSingleSelect({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const controlRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const portalNode = useFloatingMenuPortal();
   const [isOpen, setIsOpen] = useState(false);
   const [createdOptions, setCreatedOptions] = useState<string[]>([]);
   const { menuRef, menuStyle } = useFloatingMenuPosition({
@@ -213,7 +216,11 @@ export function CreatableSingleSelect({
 
       {isOpen && typeof document !== "undefined"
         ? createPortal(
-            <div className="creatable-select-menu" ref={menuRef} style={menuStyle}>
+            <SelectMenuSurface
+              className="creatable-select-menu"
+              menuRef={menuRef}
+              menuStyle={menuStyle}
+            >
               {filteredOptions.map((option) => {
                 const isSelected = normalizeValue(option) === normalizedValue;
                 return (
@@ -239,8 +246,8 @@ export function CreatableSingleSelect({
                 </button>
               ) : null}
               {filteredOptions.length === 0 && !creatableValue ? <p className="tag-multiselect-empty">No matching options.</p> : null}
-            </div>,
-            document.body
+            </SelectMenuSurface>,
+            portalNode ?? document.body
           )
         : null}
     </div>

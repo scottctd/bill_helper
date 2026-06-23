@@ -19,9 +19,15 @@ export function usePropertiesFormState() {
   const [editingTagDescription, setEditingTagDescription] = useState("");
   const [deletingTagId, setDeletingTagId] = useState<number | null>(null);
 
-  const [newUserName, setNewUserName] = useState("");
-  const [editingUserId, setEditingUserId] = useState("");
-  const [editingUserName, setEditingUserName] = useState("");
+  const [newEntryCategoryTermName, setNewEntryCategoryTermName] = useState("");
+  const [newEntryCategoryTermDescription, setNewEntryCategoryTermDescription] = useState("");
+  const [newEntryCategoryParentId, setNewEntryCategoryParentId] = useState("");
+  const [newEntryCategoryDefaultLifecycle, setNewEntryCategoryDefaultLifecycle] = useState("");
+  const [editingEntryCategoryTermId, setEditingEntryCategoryTermId] = useState("");
+  const [editingEntryCategoryTermName, setEditingEntryCategoryTermName] = useState("");
+  const [editingEntryCategoryTermDescription, setEditingEntryCategoryTermDescription] = useState("");
+  const [editingEntryCategoryDefaultLifecycle, setEditingEntryCategoryDefaultLifecycle] = useState("");
+  const [deletingEntryCategoryTermId, setDeletingEntryCategoryTermId] = useState("");
 
   const [newEntityCategoryTermName, setNewEntityCategoryTermName] = useState("");
   const [newEntityCategoryTermDescription, setNewEntityCategoryTermDescription] = useState("");
@@ -56,12 +62,24 @@ export function usePropertiesFormState() {
     setEditingTagDescription,
     deletingTagId,
     setDeletingTagId,
-    newUserName,
-    setNewUserName,
-    editingUserId,
-    setEditingUserId,
-    editingUserName,
-    setEditingUserName,
+    newEntryCategoryTermName,
+    setNewEntryCategoryTermName,
+    newEntryCategoryTermDescription,
+    setNewEntryCategoryTermDescription,
+    newEntryCategoryParentId,
+    setNewEntryCategoryParentId,
+    newEntryCategoryDefaultLifecycle,
+    setNewEntryCategoryDefaultLifecycle,
+    editingEntryCategoryTermId,
+    setEditingEntryCategoryTermId,
+    editingEntryCategoryTermName,
+    setEditingEntryCategoryTermName,
+    editingEntryCategoryTermDescription,
+    setEditingEntryCategoryTermDescription,
+    editingEntryCategoryDefaultLifecycle,
+    setEditingEntryCategoryDefaultLifecycle,
+    deletingEntryCategoryTermId,
+    setDeletingEntryCategoryTermId,
     newEntityCategoryTermName,
     setNewEntityCategoryTermName,
     newEntityCategoryTermDescription,

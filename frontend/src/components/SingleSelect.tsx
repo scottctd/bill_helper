@@ -10,11 +10,13 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 
 import { useFloatingMenuPosition } from "../hooks/useFloatingMenuPosition";
-import { Input } from "./ui/input";
+import { useFloatingMenuPortal } from "./FloatingMenuPortal";
+import { SelectMenuSurface } from "./SelectMenuSurface";
 
-interface SingleSelectOption {
+export interface SingleSelectOption {
   value: string;
   label: string;
+  color?: string;
 }
 
 interface SingleSelectProps {
@@ -27,6 +29,7 @@ interface SingleSelectProps {
   searchable?: boolean;
   searchPlaceholder?: string;
   emptyLabel?: string;
+  minMenuWidth?: number;
 }
 
 export function SingleSelect({
@@ -38,16 +41,19 @@ export function SingleSelect({
   ariaLabel,
   searchable = false,
   searchPlaceholder = "Search...",
-  emptyLabel = "No matching options."
+  emptyLabel = "No matching options.",
+  minMenuWidth
 }: SingleSelectProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const controlRef = useRef<HTMLButtonElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const portalNode = useFloatingMenuPortal();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { menuRef, menuStyle } = useFloatingMenuPosition({
     anchorRef: controlRef,
-    open: isOpen
+    open: isOpen,
+    minWidth: minMenuWidth
   });
   const selectedOption = useMemo(() => options.find((option) => option.value === value) ?? null, [options, value]);
   const filteredOptions = useMemo(() => {
@@ -172,27 +178,33 @@ export function SingleSelect({
         aria-haspopup="listbox"
         disabled={disabled}
       >
-        <span className={selectedOption ? "single-select-value" : "single-select-placeholder"}>
-          {selectedOption?.label ?? placeholder}
-        </span>
+        {selectedOption ? (
+          <SelectOptionLabel option={selectedOption} className="single-select-value" />
+        ) : (
+          <span className="single-select-placeholder">{placeholder}</span>
+        )}
         <ChevronDown className="single-select-caret" />
       </button>
       {isOpen && typeof document !== "undefined"
         ? createPortal(
-            <div className="single-select-menu" role="listbox" aria-label="Select option" ref={menuRef} style={menuStyle}>
-              {searchable ? (
-                <div className="p-1">
-                  <Input
-                    ref={searchInputRef}
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    onKeyDown={onSearchInputKeyDown}
-                    placeholder={searchPlaceholder}
-                    className="h-8"
-                    aria-label={searchPlaceholder}
-                  />
-                </div>
-              ) : null}
+            <SelectMenuSurface
+              className="single-select-menu"
+              role="listbox"
+              aria-label="Select option"
+              menuRef={menuRef}
+              menuStyle={menuStyle}
+              search={searchable ? (
+                <input
+                  ref={searchInputRef}
+                  className="select-menu-search-input"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={onSearchInputKeyDown}
+                  placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
+                />
+              ) : undefined}
+            >
               {filteredOptions.length === 0 ? <p className="tag-multiselect-empty">{emptyLabel}</p> : null}
               {filteredOptions.map((option) => {
                 const isSelected = option.value === value;
@@ -206,15 +218,43 @@ export function SingleSelect({
                     onPointerDown={(event) => onOptionPointerDown(event, () => selectOption(option.value))}
                     onKeyDown={(event) => onOptionKeyDown(event, option.value)}
                   >
-                    <span>{option.label}</span>
+                    <SelectOptionLabel option={option} display="menu" />
                     <Check className={`single-select-check ${isSelected ? "is-visible" : ""}`} />
                   </button>
                 );
               })}
-            </div>,
-            document.body
+            </SelectMenuSurface>,
+            portalNode ?? document.body
           )
         : null}
     </div>
+  );
+}
+
+function SelectOptionLabel({
+  option,
+  className,
+  display = "control"
+}: {
+  option: SingleSelectOption;
+  className?: string;
+  display?: "control" | "menu";
+}) {
+  if (!option.color) {
+    return <span className={className}>{option.label}</span>;
+  }
+  if (display === "menu") {
+    return (
+      <span className={`select-option-tone-label ${className ?? ""}`}>
+        <span className="select-option-tone-dot" style={{ backgroundColor: option.color }} aria-hidden />
+        <span className="truncate">{option.label}</span>
+      </span>
+    );
+  }
+  return (
+    <span className={`single-select-tone-label ${className ?? ""}`}>
+      <span className="single-select-tone-dot" style={{ backgroundColor: option.color }} aria-hidden />
+      <span className="truncate">{option.label}</span>
+    </span>
   );
 }

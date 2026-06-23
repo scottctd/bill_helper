@@ -9,71 +9,17 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { formatMinor } from "../../lib/format";
-import type { Dashboard, DashboardBreakdownItem } from "../../lib/types";
+import type {
+  Dashboard,
+  DashboardBreakdownItem,
+  DashboardCategorySummary,
+  DashboardFilterGroupSummary,
+  DashboardLifecycleSummary,
+  DashboardToBreakdownItem
+} from "../../lib/types";
 
 export type DashboardTab = "spending" | "breakdown" | "income" | "agent";
 export type DashboardViewMode = "month" | "year";
-
-export const BUILTIN_FILTER_GROUP_ORDER = ["day_to_day", "fixed", "one_time", "transfers", "untagged"] as const;
-export type BuiltinFilterGroupKey = (typeof BUILTIN_FILTER_GROUP_ORDER)[number];
-
-/** Income filter groups (for income segmentation in trend chart). */
-export const INCOME_FILTER_GROUP_KEYS = ["salary", "other_income"] as const;
-export type IncomeFilterGroupKey = (typeof INCOME_FILTER_GROUP_KEYS)[number];
-
-export function isIncomeFilterGroupKey(key: string): boolean {
-  return (INCOME_FILTER_GROUP_KEYS as readonly string[]).includes(key);
-}
-
-/** Expense stacked bar order from bottom to top. */
-export const INCOME_TREND_SEGMENT_ORDER = ["fixed", "transfers", "one_time", "day_to_day", "untagged"] as const;
-/** Income stacked bar order from bottom to top. */
-export const INCOME_BAR_SEGMENT_ORDER = ["salary", "other_income"] as const;
-
-export function sortByBuiltinOrder<T extends { key: string }>(groups: T[]): T[] {
-  return [...groups].sort((a, b) => {
-    const ai = BUILTIN_FILTER_GROUP_ORDER.indexOf(a.key as BuiltinFilterGroupKey);
-    const bi = BUILTIN_FILTER_GROUP_ORDER.indexOf(b.key as BuiltinFilterGroupKey);
-    if (ai === -1 && bi === -1) return a.key.localeCompare(b.key);
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-}
-
-export function builtinGroupColor(key: string): string {
-  const index = BUILTIN_FILTER_GROUP_ORDER.indexOf(key as BuiltinFilterGroupKey);
-  return dashboardBarColor(index >= 0 ? index : BUILTIN_FILTER_GROUP_ORDER.length);
-}
-
-export function builtinIncomeGroupColor(key: string): string {
-  const index = INCOME_BAR_SEGMENT_ORDER.indexOf(key as IncomeFilterGroupKey);
-  if (index >= 0) return ["#7ea886", "#5e8f6a"][index] ?? CHART_COLORS.income;
-  return CHART_COLORS.income;
-}
-
-/** Income bar segment order from bottom to top: salary, then other_income. */
-export function sortByIncomeBarOrder<T extends { key: string }>(groups: T[]): T[] {
-  return [...groups].sort((a, b) => {
-    const ai = INCOME_BAR_SEGMENT_ORDER.indexOf(a.key as IncomeFilterGroupKey);
-    const bi = INCOME_BAR_SEGMENT_ORDER.indexOf(b.key as IncomeFilterGroupKey);
-    if (ai === -1 && bi === -1) return a.key.localeCompare(b.key);
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-}
-
-export function sortByIncomeTrendOrder<T extends { key: string }>(groups: T[]): T[] {
-  return [...groups].sort((a, b) => {
-    const ai = INCOME_TREND_SEGMENT_ORDER.indexOf(a.key as (typeof INCOME_TREND_SEGMENT_ORDER)[number]);
-    const bi = INCOME_TREND_SEGMENT_ORDER.indexOf(b.key as (typeof INCOME_TREND_SEGMENT_ORDER)[number]);
-    if (ai === -1 && bi === -1) return a.key.localeCompare(b.key);
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-}
 
 export const DASHBOARD_TABS: Array<{ id: DashboardTab; label: string }> = [
   { id: "spending", label: "Spending" },
@@ -206,10 +152,6 @@ export function formatDayFromDate(dateStr: string): string {
   return day ? String(parseInt(day, 10)) : "";
 }
 
-export function filterGroupTotalForMonth(dashboard: Dashboard | undefined, filterGroupKey: string): number {
-  return dashboard?.filter_groups.find((group) => group.key === filterGroupKey)?.total_minor ?? 0;
-}
-
 export const DESTINATION_BREAKDOWN_LIMIT = 20;
 
 /** Split a list into near-equal columns for side-by-side chart layouts. */
@@ -246,40 +188,19 @@ export function mergeBreakdownItems(breakdownSets: DashboardBreakdownItem[][], l
     }));
 }
 
-/** Income filter group total from dashboard monthly_trend for a given month. */
-function incomeFilterGroupTotalForMonth(
-  dashboard: Dashboard | undefined,
-  monthKey: string,
-  groupKey: string
-): number {
-  const trendPoint = dashboard?.monthly_trend?.find((p) => p.month === monthKey);
-  return trendPoint?.income_filter_group_totals?.[groupKey] ?? 0;
-}
-
 export function buildYearlyOverviewData(
   monthKeys: string[],
-  dashboardsByMonth: Map<string, Dashboard>,
-  filterGroups: Dashboard["filter_groups"]
+  dashboardsByMonth: Map<string, Dashboard>
 ) {
   return monthKeys.map((monthKey) => {
     const monthDashboard = dashboardsByMonth.get(monthKey);
-    const expenseTotals = Object.fromEntries(
-      filterGroups
-        .filter((g) => !INCOME_FILTER_GROUP_KEYS.includes(g.key as IncomeFilterGroupKey))
-        .map((group) => [group.key, filterGroupTotalForMonth(monthDashboard, group.key)])
-    );
-    const incomeTotals = Object.fromEntries(
-      INCOME_FILTER_GROUP_KEYS.map((key) => [
-        key,
-        incomeFilterGroupTotalForMonth(monthDashboard, monthKey, key)
-      ])
-    );
+    const trendPoint = monthDashboard?.monthly_trend?.find((p) => p.month === monthKey);
     return {
       month: formatMonthShort(monthKey),
       expense_total_minor: monthDashboard?.kpis.expense_total_minor ?? 0,
       income_total_minor: monthDashboard?.kpis.income_total_minor ?? 0,
-      ...expenseTotals,
-      ...incomeTotals
+      ...(trendPoint?.category_totals ?? {}),
+      ...(trendPoint?.lifecycle_totals ?? {})
     };
   });
 }
@@ -315,26 +236,218 @@ export function sumDashboardKpiForMonths(
   return monthKeys.reduce((sum, monthKey) => sum + (dashboardsByMonth.get(monthKey)?.kpis[key] ?? 0), 0);
 }
 
-export function sumFilterGroupForMonths(
+/** Sum a lifecycle key's total_minor across months using monthly_trend data. */
+export function sumLifecycleForMonths(
   monthKeys: string[],
   dashboardsByMonth: Map<string, Dashboard>,
-  filterGroupKey: string
+  lifecycleKey: string
 ): number {
-  return monthKeys.reduce(
-    (sum, monthKey) => sum + filterGroupTotalForMonth(dashboardsByMonth.get(monthKey), filterGroupKey),
-    0
-  );
+  return monthKeys.reduce((sum, monthKey) => {
+    const dashboard = dashboardsByMonth.get(monthKey);
+    const trendPoint = dashboard?.monthly_trend?.find((p) => p.month === monthKey);
+    return sum + (trendPoint?.lifecycle_totals?.[lifecycleKey] ?? 0);
+  }, 0);
 }
 
-export function buildYearFilterGroupTotals(
-  filterGroups: Dashboard["filter_groups"],
+/** Sum a category name's total_minor across months using monthly_trend data. */
+export function sumCategoryForMonths(
+  monthKeys: string[],
+  dashboardsByMonth: Map<string, Dashboard>,
+  categoryName: string
+): number {
+  return monthKeys.reduce((sum, monthKey) => {
+    const dashboard = dashboardsByMonth.get(monthKey);
+    const trendPoint = dashboard?.monthly_trend?.find((p) => p.month === monthKey);
+    return sum + (trendPoint?.category_totals?.[categoryName] ?? 0);
+  }, 0);
+}
+
+/** Merge to_breakdown item arrays by label. */
+function mergeToBreakdownItems(items: DashboardToBreakdownItem[]): DashboardToBreakdownItem[] {
+  const byLabel = new Map<string, DashboardToBreakdownItem>();
+  for (const item of items) {
+    const existing = byLabel.get(item.label);
+    if (!existing) {
+      byLabel.set(item.label, {
+        label: item.label,
+        total_minor: item.total_minor,
+        share: item.share,
+        entries: [...item.entries]
+      });
+      continue;
+    }
+    existing.total_minor += item.total_minor;
+    existing.entries.push(...item.entries);
+  }
+
+  return [...byLabel.values()]
+    .map((item) => ({
+      ...item,
+      entries: [...item.entries].sort((left, right) => {
+        if (right.amount_minor !== left.amount_minor) {
+          return right.amount_minor - left.amount_minor;
+        }
+        return right.occurred_at.localeCompare(left.occurred_at);
+      })
+    }))
+    .sort((left, right) => right.total_minor - left.total_minor || left.label.localeCompare(right.label));
+}
+
+/** Merge categories across months for a yearly aggregate view. */
+export function buildYearlyCategoryTotals(
   monthKeys: string[],
   dashboardsByMonth: Map<string, Dashboard>
-) {
-  return filterGroups.map((group) => ({
-    ...group,
-    total_minor: sumFilterGroupForMonths(monthKeys, dashboardsByMonth, group.key)
-  }));
+): DashboardCategorySummary[] {
+  type ChildAccum = {
+    name: string;
+    path: string;
+    total_minor: number;
+    entry_count: number;
+    to_breakdown: DashboardToBreakdownItem[];
+  };
+
+  type CategoryAccum = {
+    total_minor: number;
+    entry_count: number;
+    children: Map<string, ChildAccum>;
+    to_breakdown: DashboardToBreakdownItem[];
+  };
+
+  const totalsByName = new Map<string, CategoryAccum>();
+
+  for (const monthKey of monthKeys) {
+    const dashboard = dashboardsByMonth.get(monthKey);
+    if (!dashboard) continue;
+    for (const category of dashboard.categories) {
+      let entry = totalsByName.get(category.name);
+      if (!entry) {
+        entry = { total_minor: 0, entry_count: 0, children: new Map(), to_breakdown: [] };
+        totalsByName.set(category.name, entry);
+      }
+      entry.total_minor += category.total_minor;
+      entry.entry_count += category.entry_count;
+
+      for (const child of category.children) {
+        let childEntry = entry.children.get(child.path);
+        if (!childEntry) {
+          childEntry = { name: child.name, path: child.path, total_minor: 0, entry_count: 0, to_breakdown: [] };
+          entry.children.set(child.path, childEntry);
+        }
+        childEntry.total_minor += child.total_minor;
+        childEntry.entry_count += child.entry_count;
+        childEntry.to_breakdown = mergeToBreakdownItems([...childEntry.to_breakdown, ...child.to_breakdown]);
+      }
+
+      entry.to_breakdown = mergeToBreakdownItems([...entry.to_breakdown, ...category.to_breakdown]);
+    }
+  }
+
+  const yearExpenseTotal = [...totalsByName.values()].reduce((sum, e) => sum + e.total_minor, 0);
+
+  return [...totalsByName.entries()]
+    .sort(([nameA], [nameB]) => {
+      if (nameA === "Uncategorized" && nameB !== "Uncategorized") return 1;
+      if (nameB === "Uncategorized" && nameA !== "Uncategorized") return -1;
+      const aTotal = totalsByName.get(nameA)!.total_minor;
+      const bTotal = totalsByName.get(nameB)!.total_minor;
+      return bTotal - aTotal;
+    })
+    .map(([name, entry]) => ({
+      name,
+      total_minor: entry.total_minor,
+      share: yearExpenseTotal > 0 ? entry.total_minor / yearExpenseTotal : 0,
+      entry_count: entry.entry_count,
+      children: [...entry.children.values()]
+        .sort((a, b) => b.total_minor - a.total_minor)
+        .map((child) => ({
+          name: child.name,
+          path: child.path,
+          total_minor: child.total_minor,
+          share: entry.total_minor > 0 ? child.total_minor / entry.total_minor : 0,
+          entry_count: child.entry_count,
+          to_breakdown: child.to_breakdown
+        })),
+      to_breakdown: entry.to_breakdown
+    }));
+}
+
+/** Aggregate the lifecycle cross-cut across months for a yearly view. */
+export function buildYearlyLifecycleTotals(
+  monthKeys: string[],
+  dashboardsByMonth: Map<string, Dashboard>
+): DashboardLifecycleSummary[] {
+  const map = new Map<string, { total_minor: number; entry_count: number }>();
+  for (const monthKey of monthKeys) {
+    const dashboard = dashboardsByMonth.get(monthKey);
+    if (!dashboard) continue;
+    for (const lifecycle of dashboard.lifecycles) {
+      const key = lifecycle.lifecycle ?? "none";
+      const existing = map.get(key) ?? { total_minor: 0, entry_count: 0 };
+      existing.total_minor += lifecycle.total_minor;
+      existing.entry_count += lifecycle.entry_count;
+      map.set(key, existing);
+    }
+  }
+  const total = [...map.values()].reduce((sum, entry) => sum + entry.total_minor, 0);
+  const order = ["fixed", "day_to_day", "one_time", "none"];
+  return [...map.entries()]
+    .sort(([left], [right]) => order.indexOf(left) - order.indexOf(right))
+    .map(([key, entry]) => ({
+      lifecycle: key === "none" ? null : key,
+      total_minor: entry.total_minor,
+      share: total > 0 ? entry.total_minor / total : 0,
+      entry_count: entry.entry_count
+    }));
+}
+
+/** Aggregate the slim aux filter-group cross-cuts across months for a yearly view. */
+export function buildYearlyFilterGroupTotals(
+  monthKeys: string[],
+  dashboardsByMonth: Map<string, Dashboard>
+): DashboardFilterGroupSummary[] {
+  const map = new Map<
+    string,
+    {
+      filter_group_id: string;
+      key: string;
+      name: string;
+      color: string | null;
+      total_minor: number;
+      entry_count: number;
+    }
+  >();
+  for (const monthKey of monthKeys) {
+    const dashboard = dashboardsByMonth.get(monthKey);
+    if (!dashboard) continue;
+    for (const group of dashboard.filter_groups) {
+      const existing = map.get(group.key);
+      if (!existing) {
+        map.set(group.key, {
+          filter_group_id: group.filter_group_id,
+          key: group.key,
+          name: group.name,
+          color: group.color,
+          total_minor: group.total_minor,
+          entry_count: group.entry_count
+        });
+      } else {
+        existing.total_minor += group.total_minor;
+        existing.entry_count += group.entry_count;
+      }
+    }
+  }
+  const yearExpenseTotal = sumDashboardKpiForMonths(monthKeys, dashboardsByMonth, "expense_total_minor");
+  return [...map.values()]
+    .map((entry) => ({
+      filter_group_id: entry.filter_group_id,
+      key: entry.key,
+      name: entry.name,
+      color: entry.color,
+      total_minor: entry.total_minor,
+      share: yearExpenseTotal > 0 ? entry.total_minor / yearExpenseTotal : 0,
+      entry_count: entry.entry_count
+    }))
+    .sort((left, right) => right.total_minor - left.total_minor);
 }
 
 export function median(values: number[]): number {
@@ -410,7 +523,7 @@ export function buildDailyChartData(data: Dashboard) {
   return data.daily_spending.map((point) => ({
     date: point.date,
     expense_total_minor: point.expense_total_minor,
-    ...point.filter_group_totals
+    ...point.category_totals
   }));
 }
 
@@ -419,8 +532,8 @@ export function buildMonthlyChartData(data: Dashboard) {
     month: point.month,
     expense_total_minor: point.expense_total_minor,
     income_total_minor: point.income_total_minor,
-    ...point.filter_group_totals,
-    ...(point.income_filter_group_totals ?? {})
+    ...point.category_totals,
+    ...point.lifecycle_totals
   }));
 }
 
@@ -433,43 +546,4 @@ export function takeLastTrendMonthPoints<T>(points: T[], count = TREND_CHART_MON
     return [];
   }
   return points.slice(-count);
-}
-
-/** Aggregate tag_totals across all year months for a single filter group key. */
-export function buildYearFilterGroupTagTotals(
-  filterGroupKey: string,
-  selectedYearMonths: string[],
-  yearlyDashboardsByMonth: Map<string, Dashboard>
-): Record<string, number> {
-  const totals: Record<string, number> = {};
-  for (const monthKey of selectedYearMonths) {
-    const group = yearlyDashboardsByMonth.get(monthKey)?.filter_groups.find((g) => g.key === filterGroupKey);
-    if (!group) continue;
-    for (const [tag, amount] of Object.entries(group.tag_totals)) {
-      totals[tag] = (totals[tag] ?? 0) + amount;
-    }
-  }
-  return totals;
-}
-
-/** Build per-group yearly totals and tag_totals aggregated across all selected year months. */
-export function buildYearlyFilterGroupsWithTagTotals(
-  filterGroups: Dashboard["filter_groups"],
-  selectedYearMonths: string[],
-  yearlyDashboardsByMonth: Map<string, Dashboard>
-): Dashboard["filter_groups"] {
-  const selectedYearExpenseTotalMinor = sumDashboardKpiForMonths(
-    selectedYearMonths,
-    yearlyDashboardsByMonth,
-    "expense_total_minor"
-  );
-  return filterGroups.map((group) => {
-    const totalMinor = sumFilterGroupForMonths(selectedYearMonths, yearlyDashboardsByMonth, group.key);
-    return {
-      ...group,
-      total_minor: totalMinor,
-      share: selectedYearExpenseTotalMinor > 0 ? totalMinor / selectedYearExpenseTotalMinor : 0,
-      tag_totals: buildYearFilterGroupTagTotals(group.key, selectedYearMonths, yearlyDashboardsByMonth)
-    };
-  });
 }

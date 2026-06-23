@@ -3,7 +3,7 @@
 CALLING SPEC:
     parse_section_names(raw_sections, allowed) -> frozenset[str]
     apply_finance_sections(dashboard, sections) -> dict[str, object]
-    apply_filter_group_breakdown_depth(filter_groups, depth) -> list[dict[str, object]]
+    apply_category_breakdown_depth(categories, depth) -> list[dict[str, object]]
     apply_agent_sections(payload, sections) -> dict[str, object]
     build_finance_scope(*, mode, month, months, currency_code) -> dict[str, object]
     resolve_year_month_keys(timeline_months, year) -> list[str]
@@ -32,6 +32,8 @@ FINANCE_SECTIONS: frozenset[str] = frozenset(
     {
         "meta",
         "kpis",
+        "categories",
+        "lifecycles",
         "filter_groups",
         "daily_spending",
         "monthly_trend",
@@ -60,10 +62,12 @@ AGENT_SECTIONS: frozenset[str] = frozenset(
     }
 )
 
-BREAKDOWN_DEPTHS: frozenset[str] = frozenset({"summary", "tags", "destinations", "entries"})
+BREAKDOWN_DEPTHS: frozenset[str] = frozenset({"summary", "categories", "destinations", "entries"})
 
 _FINANCE_SECTION_FIELDS: dict[str, tuple[str, ...]] = {
     "kpis": ("kpis",),
+    "categories": ("categories",),
+    "lifecycles": ("lifecycles",),
     "filter_groups": ("filter_groups",),
     "daily_spending": ("daily_spending",),
     "monthly_trend": ("monthly_trend",),
@@ -154,37 +158,51 @@ def build_finance_scope(
     return scope
 
 
-def apply_filter_group_breakdown_depth(
-    filter_groups: list[dict[str, Any]],
+def apply_category_breakdown_depth(
+    categories: list[dict[str, Any]],
     depth: str,
 ) -> list[dict[str, Any]]:
+    """Shape the category breakdown tree to the requested drill-down depth.
+
+    summary     -> top-level totals only (drop children + to_breakdown)
+    categories  -> top-level + children totals (drop to_breakdown)
+    destinations-> top-level + children with to_breakdown, but drop entries
+    entries     -> full tree
+    """
     if depth not in BREAKDOWN_DEPTHS:
         raise CliError(
             f"Unknown breakdown depth {depth!r}. Allowed: {', '.join(sorted(BREAKDOWN_DEPTHS))}."
         )
+
+    def _strip_entries(to_items: Any) -> list[dict[str, Any]]:
+        if not isinstance(to_items, list):
+            return []
+        return [
+            {key: value for key, value in to_item.items() if key != "entries"}
+            for to_item in to_items
+            if isinstance(to_item, dict)
+        ]
+
     shaped: list[dict[str, Any]] = []
-    for group in filter_groups:
-        item = dict(group)
+    for category in categories:
+        item = dict(category)
         if depth == "summary":
-            item.pop("tag_totals", None)
-            item.pop("tag_to_breakdowns", None)
-        elif depth == "tags":
-            item.pop("tag_to_breakdowns", None)
+            item.pop("children", None)
+            item.pop("to_breakdown", None)
+        elif depth == "categories":
+            item["children"] = [
+                {**child, "to_breakdown": []}
+                for child in item.get("children", [])
+                if isinstance(child, dict)
+            ]
+            item["to_breakdown"] = []
         elif depth == "destinations":
-            tag_breakdowns = item.get("tag_to_breakdowns")
-            if isinstance(tag_breakdowns, list):
-                item["tag_to_breakdowns"] = [
-                    {
-                        **tag_item,
-                        "to_items": [
-                            {key: value for key, value in to_item.items() if key != "entries"}
-                            for to_item in tag_item.get("to_items", [])
-                            if isinstance(to_item, dict)
-                        ],
-                    }
-                    for tag_item in tag_breakdowns
-                    if isinstance(tag_item, dict)
-                ]
+            item["children"] = [
+                {**child, "to_breakdown": _strip_entries(child.get("to_breakdown", []))}
+                for child in item.get("children", [])
+                if isinstance(child, dict)
+            ]
+            item["to_breakdown"] = _strip_entries(item.get("to_breakdown", []))
         shaped.append(item)
     return shaped
 
@@ -202,8 +220,8 @@ def apply_finance_sections(
         for field_name in _FINANCE_SECTION_FIELDS.get(section, ()):
             if field_name in dashboard:
                 value = dashboard[field_name]
-                if field_name == "filter_groups" and isinstance(value, list):
-                    payload[field_name] = apply_filter_group_breakdown_depth(value, breakdown_depth)
+                if field_name == "categories" and isinstance(value, list):
+                    payload[field_name] = apply_category_breakdown_depth(value, breakdown_depth)
                 else:
                     payload[field_name] = value
     return payload
@@ -242,7 +260,7 @@ __all__ = [
     "BREAKDOWN_DEPTHS",
     "FINANCE_SECTIONS",
     "apply_agent_sections",
-    "apply_filter_group_breakdown_depth",
+    "apply_category_breakdown_depth",
     "apply_finance_sections",
     "build_finance_scope",
     "current_month_key",

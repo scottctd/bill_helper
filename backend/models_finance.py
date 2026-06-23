@@ -25,7 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db_meta import Base
-from backend.enums_finance import EntryKind, GroupMemberRole, GroupType
+from backend.enums_finance import EntryKind, EntryLifecycle, GroupMemberRole, GroupType
 from backend.models_shared import utc_now, uuid_str
 
 
@@ -473,6 +473,9 @@ class Entry(Base):
     to_entity: Mapped[str | None] = mapped_column(String(255), nullable=True)
     owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
     markdown_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lifecycle: Mapped[EntryLifecycle | None] = mapped_column(
+        Enum(EntryLifecycle), nullable=True, index=True
+    )
     is_deleted: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, index=True
     )

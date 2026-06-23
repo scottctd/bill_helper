@@ -97,7 +97,7 @@ Operational rules:
 - `name` (user-visible label)
 - `description` (nullable)
 - `color` (nullable chart/display color)
-- `is_default` (built-in vs custom group)
+- `is_default` (legacy compatibility flag; new and retained groups are user-created)
 - `position` (owner-local display order)
 - `definition_json` (structured include/exclude rule tree)
 - `created_at`, `updated_at`
@@ -105,8 +105,8 @@ Operational rules:
 Operational rules:
 
 - filter groups are always principal-owned; admin access does not expose another user's saved groups
-- default groups are provisioned lazily per user and persisted on first dashboard/filter-group read
-- default groups keep stable `key` values (`day_to_day`, `one_time`, `fixed`, `transfers`, `untagged`) even when their rules are edited
+- no built-in filter groups are provisioned; the saved list is empty until the user creates one
+- custom groups may overlap and are auxiliary dashboard cross-cuts
 - rule definitions are recursive logical trees over `entry_kind`, tag inclusion/exclusion, and `is_internal_transfer`
 
 ## `runtime_settings`
@@ -166,6 +166,7 @@ Operational rules:
 - `owner_user_id` (FK -> `users.id`)
 - denormalized labels: `from_entity`, `to_entity`, `owner`
 - `markdown_body`
+- `lifecycle` (nullable enum: `fixed`, `day_to_day`, `one_time`)
 - `is_deleted`, `deleted_at`
 - `created_at`, `updated_at`
 
@@ -219,8 +220,8 @@ Taxonomies generalize reusable categorical properties without creating a new tab
 
 - `id` (PK UUID string)
 - `owner_user_id` (FK -> `users.id`)
-- `key` (unique per owner, e.g. `entity_category`, `tag_type`)
-- `applies_to` (subject domain, e.g. `entity`, `tag`)
+- `key` (unique per owner, e.g. `entity_category`, `tag_type`, `entry_category`)
+- `applies_to` (subject domain, e.g. `entity`, `tag`, `entry`)
 - `cardinality` (`single` in current defaults)
 - `display_name`
 - `created_at`, `updated_at`
@@ -241,14 +242,16 @@ Unique constraint:
 
 Current metadata usage:
 
-- optional term `description` is stored at `metadata_json.description` (used by entity categories/tag types)
+- optional term `description` is stored at `metadata_json.description`
+- entry-category leaves can store `metadata_json.default_lifecycle`
+- entry categories support at most one parent/child level
 
 ## `taxonomy_assignments`
 
 - `id` (PK UUID string)
 - `taxonomy_id` (FK -> `taxonomies.id`)
 - `term_id` (FK -> `taxonomy_terms.id`)
-- `subject_type` (e.g. `entity`, `tag`)
+- `subject_type` (e.g. `entity`, `tag`, `entry`)
 - `subject_id` (string id of referenced subject)
 - `position` (reserved for multi-cardinality ordering)
 - `created_at`, `updated_at`
@@ -261,6 +264,23 @@ Current seeded taxonomies:
 
 - `entity_category`
 - `tag_type`
+- `entry_category`
+
+The canonical `entry_category` schedule is:
+
+- `food_drink`: `groceries`, `restaurants`, `delivery_takeout`, `coffee_snacks`, `alcohol_bars`
+- `transport`: `transit`, `rideshare_taxi`, `fuel`, `parking`, `airfare`
+- `housing`: `rent`, `utilities`, `internet`, `phone`, `home_maintenance`, `accommodation`
+- `health`: `medical`, `pharmacy`, `fitness`
+- `shopping`: `clothing`, `electronics`, `household_goods`, `personal_care`, `gifts`
+- `entertainment`: `streaming_media`, `events_activities`, `hobbies`
+- `software_tools`: `ai_apis`, `software_subscriptions`
+- `education`: `tuition`, `courses_books`
+- `financial`: `insurance`, `taxes`, `fees`, `debt_interest`
+- `income`: `salary_wages`, `investment_income`, `other_income`
+- `refunds`: `refund`, `reimbursement`, `tax_refund`
+
+Travel is an auxiliary tag rather than a category. Temporary accommodation uses `housing/accommodation`; flights use `transport/airfare`.
 
 ## `entry_tags`
 

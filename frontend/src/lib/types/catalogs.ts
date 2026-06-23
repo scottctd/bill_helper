@@ -68,5 +68,6 @@ export interface TaxonomyTerm {
   normalized_name: string;
   parent_term_id: string | null;
   description?: string | null;
+  default_lifecycle?: string | null;
   usage_count: number;
 }

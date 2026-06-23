@@ -3,12 +3,16 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from backend.enums_finance import EntryLifecycle
 from backend.schemas_finance import GroupMemberCreate, TagUpdate, TaxonomyTermCreate, UserUpdate
 
 
-def test_taxonomy_term_create_forbids_parent_term_field() -> None:
-    with pytest.raises(ValidationError):
-        TaxonomyTermCreate(name="food", parent_term_id="root")
+def test_taxonomy_term_create_allows_parent_term_and_default_lifecycle() -> None:
+    payload = TaxonomyTermCreate(
+        name="rent", parent_term_id="root", default_lifecycle=EntryLifecycle.FIXED
+    )
+    assert payload.parent_term_id == "root"
+    assert payload.default_lifecycle == EntryLifecycle.FIXED
 
 
 def test_update_schemas_reject_empty_patch_payloads() -> None:

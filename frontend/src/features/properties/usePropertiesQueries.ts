@@ -14,7 +14,13 @@ import {
   listTaxonomies,
   listTaxonomyTerms
 } from "../../lib/api";
-import { ENTITY_CATEGORY_TAXONOMY_KEY, TAG_TYPE_TAXONOMY_KEY, taxonomyTermNames, uniqueOptionValues } from "../../lib/catalogs";
+import {
+  ENTITY_CATEGORY_TAXONOMY_KEY,
+  ENTRY_CATEGORY_TAXONOMY_KEY,
+  TAG_TYPE_TAXONOMY_KEY,
+  taxonomyTermNames,
+  uniqueOptionValues
+} from "../../lib/catalogs";
 import { queryKeys } from "../../lib/queryKeys";
 
 export function usePropertiesQueries() {
@@ -24,6 +30,10 @@ export function usePropertiesQueries() {
   const entityCategoryTermsQuery = useQuery({
     queryKey: queryKeys.properties.taxonomyTerms(ENTITY_CATEGORY_TAXONOMY_KEY),
     queryFn: () => listTaxonomyTerms(ENTITY_CATEGORY_TAXONOMY_KEY)
+  });
+  const entryCategoryTermsQuery = useQuery({
+    queryKey: queryKeys.properties.taxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY),
+    queryFn: () => listTaxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY)
   });
   const tagTypeTermsQuery = useQuery({
     queryKey: queryKeys.properties.taxonomyTerms(TAG_TYPE_TAXONOMY_KEY),
@@ -46,6 +56,7 @@ export function usePropertiesQueries() {
   }, [taxonomiesQuery.data]);
 
   const entityCategoriesLabel = taxonomyDisplayNames.get(ENTITY_CATEGORY_TAXONOMY_KEY) ?? "Entity Categories";
+  const entryCategoriesLabel = taxonomyDisplayNames.get(ENTRY_CATEGORY_TAXONOMY_KEY) ?? "Entry Categories";
   const tagTypesLabel = taxonomyDisplayNames.get(TAG_TYPE_TAXONOMY_KEY) ?? "Tag Types";
 
   return {
@@ -53,6 +64,7 @@ export function usePropertiesQueries() {
       taxonomiesQuery,
       tagsQuery,
       currenciesQuery,
+      entryCategoryTermsQuery,
       entityCategoryTermsQuery,
       tagTypeTermsQuery
     },
@@ -60,6 +72,7 @@ export function usePropertiesQueries() {
       tagTypeOptions
     },
     labels: {
+      entryCategoriesLabel,
       entityCategoriesLabel,
       tagTypesLabel
     }

@@ -10,6 +10,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
 import { cn } from "../../lib/utils";
+import { FloatingMenuPortalProvider } from "../FloatingMenuPortal";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -34,20 +35,24 @@ const DialogContent = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "scroll-surface fixed left-1/2 top-1/2 z-50 flex w-[95vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-md border border-border bg-card p-6 shadow-geist-lg",
-        className
-      )}
-      {...props}
-    >
-      {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
+    <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center p-4">
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          "scroll-surface pointer-events-auto relative flex max-h-[calc(100vh-2rem)] w-[95vw] max-w-4xl flex-col rounded-md border border-border bg-card p-6 shadow-geist-lg",
+          className
+        )}
+        {...props}
+      >
+        <FloatingMenuPortalProvider>
+          {children}
+          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        </FloatingMenuPortalProvider>
+      </DialogPrimitive.Content>
+    </div>
   </DialogPortal>
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;

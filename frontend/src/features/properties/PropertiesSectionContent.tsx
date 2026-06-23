@@ -6,6 +6,7 @@
  * - Side effects: React rendering and user event wiring.
  */
 import { CurrenciesSection } from "./sections/CurrenciesSection";
+import { EntryCategoriesSection } from "./sections/EntryCategoriesSection";
 import { TagsSection } from "./sections/TagsSection";
 import { TaxonomyTermsSection } from "./sections/TaxonomyTermsSection";
 import type { PropertiesPageModel } from "./usePropertiesPageModel";
@@ -82,6 +83,49 @@ export function PropertiesSectionContent({ model }: PropertiesSectionContentProp
           isLoading={model.queries.currenciesQuery.isLoading}
           isError={model.queries.currenciesQuery.isError}
           queryErrorMessage={queryErrorMessage(model.queries.currenciesQuery.error)}
+        />
+      );
+    case "entryCategories":
+      return (
+        <EntryCategoriesSection
+          search={model.sectionSearch.entryCategories}
+          onSearchChange={(value) => model.actions.setSectionSearchValue("entryCategories", value)}
+          createPanelOpen={model.createPanelOpen.entryCategories}
+          onToggleCreatePanel={() => model.actions.toggleCreatePanel("entryCategories")}
+          onCloseCreatePanel={() => model.actions.closeCreatePanel("entryCategories")}
+          newTermName={model.forms.newEntryCategoryTermName}
+          onNewTermNameChange={model.forms.setNewEntryCategoryTermName}
+          newTermDescription={model.forms.newEntryCategoryTermDescription}
+          onNewTermDescriptionChange={model.forms.setNewEntryCategoryTermDescription}
+          newParentId={model.forms.newEntryCategoryParentId}
+          onNewParentIdChange={model.forms.setNewEntryCategoryParentId}
+          newDefaultLifecycle={model.forms.newEntryCategoryDefaultLifecycle}
+          onNewDefaultLifecycleChange={model.forms.setNewEntryCategoryDefaultLifecycle}
+          editingTermId={model.forms.editingEntryCategoryTermId}
+          editingTermName={model.forms.editingEntryCategoryTermName}
+          onEditingTermNameChange={model.forms.setEditingEntryCategoryTermName}
+          editingTermDescription={model.forms.editingEntryCategoryTermDescription}
+          onEditingTermDescriptionChange={model.forms.setEditingEntryCategoryTermDescription}
+          editingDefaultLifecycle={model.forms.editingEntryCategoryDefaultLifecycle}
+          onEditingDefaultLifecycleChange={model.forms.setEditingEntryCategoryDefaultLifecycle}
+          deletingTerm={model.deleteTargets.entryCategoryTerm}
+          onStartEditTerm={model.actions.startEditEntryCategoryTerm}
+          onCancelEditTerm={model.actions.cancelEditEntryCategoryTerm}
+          onSaveTerm={model.actions.saveEntryCategoryTerm}
+          onStartDeleteTerm={model.actions.startDeleteEntryCategoryTerm}
+          onCancelDeleteTerm={model.actions.cancelDeleteEntryCategoryTerm}
+          onConfirmDeleteTerm={model.actions.confirmDeleteEntryCategoryTerm}
+          onCreateTermSubmit={model.actions.onCreateEntryCategoryTerm}
+          terms={model.queries.entryCategoryTermsQuery.data}
+          isLoading={model.queries.entryCategoryTermsQuery.isLoading}
+          isError={model.queries.entryCategoryTermsQuery.isError}
+          queryErrorMessage={queryErrorMessage(model.queries.entryCategoryTermsQuery.error)}
+          createErrorMessage={queryErrorMessage(model.mutations.createEntryCategoryTermMutation.error)}
+          updateErrorMessage={queryErrorMessage(model.mutations.updateEntryCategoryTermMutation.error)}
+          deleteErrorMessage={queryErrorMessage(model.mutations.deleteEntryCategoryTermMutation.error)}
+          isCreating={model.mutations.createEntryCategoryTermMutation.isPending}
+          isUpdating={model.mutations.updateEntryCategoryTermMutation.isPending}
+          isDeleting={model.mutations.deleteEntryCategoryTermMutation.isPending}
         />
       );
     case "entityCategories":

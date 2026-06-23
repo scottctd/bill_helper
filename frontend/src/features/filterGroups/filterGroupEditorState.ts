@@ -9,7 +9,6 @@ import type { FilterGroup, FilterGroupRule } from "../../lib/types";
 import { buildDefaultRule, normalizeRule } from "./filterGroupRuleUtils";
 
 export const DEFAULT_FILTER_GROUP_COLOR = "#8f8f8f";
-export const UNTAGGED_FILTER_GROUP_KEY = "untagged";
 
 export type FilterGroupEditorTarget = { kind: "new" } | { kind: "existing"; filterGroupId: string };
 
@@ -23,15 +22,12 @@ export interface FilterGroupEditorFormState {
 export type FilterGroupEditorSession =
   | {
       kind: "new";
-      isDefault: false;
       formState: FilterGroupEditorFormState;
       baselineState: FilterGroupEditorFormState;
     }
   | {
       kind: "existing";
       filterGroupId: string;
-      filterGroupKey: string;
-      isDefault: boolean;
       formState: FilterGroupEditorFormState;
       baselineState: FilterGroupEditorFormState;
     };
@@ -60,7 +56,6 @@ export function createNewEditorSession(): FilterGroupEditorSession {
   const formState = buildFormState();
   return {
     kind: "new",
-    isDefault: false,
     formState,
     baselineState: formState
   };
@@ -71,8 +66,6 @@ export function createExistingEditorSession(filterGroup: FilterGroup): FilterGro
   return {
     kind: "existing",
     filterGroupId: filterGroup.id,
-    filterGroupKey: filterGroup.key,
-    isDefault: filterGroup.is_default,
     formState,
     baselineState: formState
   };
@@ -123,9 +116,4 @@ export function pickNextFilterGroupId(filterGroups: FilterGroup[], deletedFilter
     return filterGroups[0]?.id ?? null;
   }
   return filterGroups[deletedIndex + 1]?.id ?? filterGroups[deletedIndex - 1]?.id ?? null;
-}
-
-
-export function isSystemUntaggedSession(session: FilterGroupEditorSession | null): boolean {
-  return session?.kind === "existing" && session.filterGroupKey === UNTAGGED_FILTER_GROUP_KEY;
 }

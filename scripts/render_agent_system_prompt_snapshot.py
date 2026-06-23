@@ -126,7 +126,7 @@ def _build_snapshot_markdown(inputs: RenderInputs) -> str:
         f"{inputs.rendered_prompt}"
         "```\n"
     )
-    return "\n".join(line.rstrip() for line in markdown.splitlines()) + "\n"
+    return "\n".join(line.rstrip() for line in markdown.splitlines()).rstrip() + "\n"
 
 
 def main() -> int:

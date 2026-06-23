@@ -42,6 +42,14 @@
 - `0038_add_agent_model_display_names_to_runtime_settings`
 - `0039_add_agent_run_approval_policy`
 - `0040_add_agent_session_sources`
+- `0041_add_agent_run_event_reasoning_duration_ms`
+- `0042_remove_entry_account_id`
+- `0043_add_import_workflow`
+- `0044_remove_agent_change_item_rationale_text`
+- `0045_agent_harness_first_schema`
+- `0046_entry_category_lifecycle`
+- `0047_entry_category_schedule`
+- `0048_remove_builtin_filter_groups`
 
 Commands:
 
@@ -69,8 +77,10 @@ Useful commands:
 - user deletion removes `{data_dir}/user_files/{user_id}` and any legacy named workspace resources if they exist
 - non-stream sends run in a background thread; stream sends emit SSE from the request and resume in background on disconnect if needed
 - runtime settings are global to the app instance even though finance and agent resources are user-owned
-- dashboard/filter-group reads lazily provision default filter groups per user
-- taxonomy defaults (`entity_category`, `tag_type`) are auto-provisioned per user when missing
+- filter-group reads return only user-created saved groups; no built-ins are provisioned
+- taxonomy defaults (`entity_category`, `tag_type`, `entry_category`) are auto-provisioned per user when missing
+- `0047_entry_category_schedule` installs the canonical purpose-based category tree and deterministic legacy fallbacks; ambiguous production entries are refined separately with `scripts/apply_entry_category_backfill.py`
+- `0048_remove_builtin_filter_groups` removes persisted built-in filter groups while preserving user-created groups
 
 ## Constraints And Known Limitations
 

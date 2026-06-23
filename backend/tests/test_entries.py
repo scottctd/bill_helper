@@ -181,31 +181,148 @@ def test_entry_filters_by_filter_group(client):
     )
     rent.raise_for_status()
 
-    filter_groups_response = client.get("/api/v1/filter-groups")
-    filter_groups_response.raise_for_status()
-    day_to_day_group = next(
-        group for group in filter_groups_response.json() if group["key"] == "day_to_day"
+    snacks_group = client.post(
+        "/api/v1/filter-groups",
+        json={
+            "name": "snacks",
+            "rule": {
+                "include": {
+                    "type": "group",
+                    "operator": "AND",
+                    "children": [
+                        {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
+                        {"type": "condition", "field": "tags", "operator": "has_any", "value": ["coffee_snacks"]},
+                    ],
+                }
+            },
+        },
     )
-    fixed_group = next(
-        group for group in filter_groups_response.json() if group["key"] == "fixed"
+    snacks_group.raise_for_status()
+    housing_group = client.post(
+        "/api/v1/filter-groups",
+        json={
+            "name": "housing",
+            "rule": {
+                "include": {
+                    "type": "group",
+                    "operator": "AND",
+                    "children": [
+                        {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
+                        {"type": "condition", "field": "tags", "operator": "has_any", "value": ["housing"]},
+                    ],
+                }
+            },
+        },
     )
+    housing_group.raise_for_status()
 
-    day_to_day_entries = client.get(
+    snacks_entries = client.get(
         "/api/v1/entries",
-        params={"filter_group_id": day_to_day_group["id"]},
+        params={"filter_group_id": snacks_group.json()["id"]},
     )
-    day_to_day_entries.raise_for_status()
-    assert [item["name"] for item in day_to_day_entries.json()["items"]] == ["Coffee"]
+    snacks_entries.raise_for_status()
+    assert [item["name"] for item in snacks_entries.json()["items"]] == ["Coffee"]
 
-    fixed_entries = client.get(
+    housing_entries = client.get(
         "/api/v1/entries",
-        params={"filter_group_id": fixed_group["id"]},
+        params={"filter_group_id": housing_group.json()["id"]},
     )
-    fixed_entries.raise_for_status()
-    assert [item["name"] for item in fixed_entries.json()["items"]] == ["Rent"]
+    housing_entries.raise_for_status()
+    assert [item["name"] for item in housing_entries.json()["items"]] == ["Rent"]
 
 
-def test_entry_filters_by_computed_untagged_filter_group(client):
+def test_entry_filters_by_leaf_or_parent_category(client):
+    account_id = create_account(client)
+    food_drink = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={"name": "food_drink"},
+    )
+    food_drink.raise_for_status()
+    groceries = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={
+            "name": "groceries",
+            "parent_term_id": food_drink.json()["id"],
+            "default_lifecycle": "day_to_day",
+        },
+    )
+    groceries.raise_for_status()
+    housing = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={"name": "housing"},
+    )
+    housing.raise_for_status()
+    rent = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={
+            "name": "rent",
+            "parent_term_id": housing.json()["id"],
+            "default_lifecycle": "fixed",
+        },
+    )
+    rent.raise_for_status()
+
+    groceries_entry = client.post(
+        "/api/v1/entries",
+        json={
+            "from_entity_id": account_id,
+            "to_entity": "Grocery Store",
+            "kind": "EXPENSE",
+            "occurred_at": "2026-01-04",
+            "name": "Groceries",
+            "amount_minor": 5000,
+            "currency_code": "USD",
+            "category": "groceries",
+        },
+    )
+    groceries_entry.raise_for_status()
+    rent_entry = client.post(
+        "/api/v1/entries",
+        json={
+            "from_entity_id": account_id,
+            "to_entity": "Landlord",
+            "kind": "EXPENSE",
+            "occurred_at": "2026-01-03",
+            "name": "Rent",
+            "amount_minor": 100000,
+            "currency_code": "USD",
+            "category": "rent",
+        },
+    )
+    rent_entry.raise_for_status()
+    uncategorized_entry = client.post(
+        "/api/v1/entries",
+        json={
+            "from_entity_id": account_id,
+            "to_entity": "Miscellaneous",
+            "kind": "EXPENSE",
+            "occurred_at": "2026-01-02",
+            "name": "Uncategorized expense",
+            "amount_minor": 2500,
+            "currency_code": "USD",
+        },
+    )
+    uncategorized_entry.raise_for_status()
+
+    leaf_response = client.get("/api/v1/entries", params={"category": "groceries"})
+    leaf_response.raise_for_status()
+    assert [item["name"] for item in leaf_response.json()["items"]] == ["Groceries"]
+
+    parent_response = client.get("/api/v1/entries", params={"category": "food_drink"})
+    parent_response.raise_for_status()
+    assert [item["name"] for item in parent_response.json()["items"]] == ["Groceries"]
+
+    uncategorized_response = client.get(
+        "/api/v1/entries",
+        params={"category": "uncategorized"},
+    )
+    uncategorized_response.raise_for_status()
+    assert [item["name"] for item in uncategorized_response.json()["items"]] == [
+        "Uncategorized expense"
+    ]
+
+
+def test_entry_filters_by_custom_aux_tag_filter_group(client):
     account_id = create_account(client)
     client.post(
         "/api/v1/entries",
@@ -234,35 +351,30 @@ def test_entry_filters_by_computed_untagged_filter_group(client):
         },
     ).raise_for_status()
 
-    create_group_response = client.post(
+    misc_group = client.post(
         "/api/v1/filter-groups",
         json={
-            "name": "all expenses",
+            "name": "misc",
             "rule": {
                 "include": {
                     "type": "group",
                     "operator": "AND",
                     "children": [
                         {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
+                        {"type": "condition", "field": "tags", "operator": "has_any", "value": ["misc"]},
                     ],
                 }
             },
         },
     )
-    create_group_response.raise_for_status()
+    misc_group.raise_for_status()
 
-    filter_groups_response = client.get("/api/v1/filter-groups")
-    filter_groups_response.raise_for_status()
-    untagged_group = next(
-        group for group in filter_groups_response.json() if group["key"] == "untagged"
-    )
-
-    untagged_entries = client.get(
+    misc_entries = client.get(
         "/api/v1/entries",
-        params={"filter_group_id": untagged_group["id"]},
+        params={"filter_group_id": misc_group.json()["id"]},
     )
-    untagged_entries.raise_for_status()
-    assert [item["name"] for item in untagged_entries.json()["items"]] == ["No tag cash expense"]
+    misc_entries.raise_for_status()
+    assert [item["name"] for item in misc_entries.json()["items"]] == ["Misc expense"]
 
 
 def test_group_membership_updates_entry_context_and_allows_group_delete_after_unassign(client):

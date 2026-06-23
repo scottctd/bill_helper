@@ -14,13 +14,33 @@ import type {
   Entity,
   Entry,
   EntryKind,
+  EntryLifecycle,
   EntryTagSuggestionRequest,
   GroupMemberRole,
   GroupSummary,
   Tag,
+  TaxonomyTerm,
 } from "../lib/types";
+import { buildCategoryOptions } from "../lib/catalogs";
+import {
+  entryCategoryColor,
+  formatEntryCategoryLabel
+} from "../lib/entryClassificationColors";
 import { cn } from "../lib/utils";
-import { CreatableSingleSelect, type CreatableSingleSelectChangeMeta } from "./CreatableSingleSelect";
+import { CreatableSingleSelect } from "./CreatableSingleSelect";
+import {
+  KIND_OPTIONS,
+  LIFECYCLE_OPTIONS,
+  SPLIT_ROLE_OPTIONS,
+  areFormStatesEqual,
+  buildCreateForm,
+  buildEditForm,
+  nextSelectedEntityId,
+  resolveEntityInput,
+  uniqueNormalizedEntityNames,
+  type EntryEditorFormState,
+  type EntryEditorSubmitPayload
+} from "./entryEditorModel";
 import { MarkdownBlockEditor } from "./MarkdownBlockEditor";
 import { SingleSelect } from "./SingleSelect";
 import { TagMultiSelect } from "./TagMultiSelect";
@@ -29,39 +49,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "./ui/input";
 import { NativeSelect } from "./ui/native-select";
 
-interface EntryEditorFormState {
-  kind: EntryKind;
-  occurred_at: string;
-  name: string;
-  amount_major: string;
-  currency_code: string;
-  from_entity_value: string;
-  to_entity_value: string;
-  from_entity_selected_id: string | null;
-  to_entity_selected_id: string | null;
-  owner_user_id: string;
-  direct_group_id: string;
-  direct_group_member_role: GroupMemberRole;
-  tags: string[];
-  markdown_body: string;
-}
-
-export interface EntryEditorSubmitPayload {
-  kind: EntryKind;
-  occurred_at: string;
-  name: string;
-  amount_minor: number;
-  currency_code: string;
-  from_entity_id: string | null;
-  from_entity: string | null;
-  to_entity_id: string | null;
-  to_entity: string | null;
-  owner_user_id: string;
-  direct_group_id: string | null;
-  direct_group_member_role: GroupMemberRole | null;
-  tags: string[];
-  markdown_body: string | null;
-}
+export type { EntryEditorSubmitPayload } from "./entryEditorModel";
 
 interface EntryEditorModalProps {
   isOpen: boolean;
@@ -71,6 +59,7 @@ interface EntryEditorModalProps {
   entities: Entity[];
   groups: GroupSummary[];
   tags: Tag[];
+  categoryTerms: TaxonomyTerm[];
   currentUserId: string;
   defaultCurrencyCode: string;
   entryTaggingModel?: string | null;
@@ -81,176 +70,6 @@ interface EntryEditorModalProps {
   onSubmit: (payload: EntryEditorSubmitPayload) => void;
 }
 
-const KIND_OPTIONS: Array<{ value: EntryKind; label: string }> = [
-  { value: "INCOME", label: "+ Income" },
-  { value: "EXPENSE", label: "- Expense" },
-  { value: "TRANSFER", label: "~ Transfer" }
-];
-
-const SPLIT_ROLE_OPTIONS: Array<{ value: GroupMemberRole; label: string }> = [
-  { value: "CHILD", label: "Child" },
-  { value: "PARENT", label: "Parent" }
-];
-
-function todayDateInputValue() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-function buildCreateForm(currentUserId: string, defaultCurrencyCode: string): EntryEditorFormState {
-  return {
-    kind: "EXPENSE",
-    occurred_at: todayDateInputValue(),
-    name: "",
-    amount_major: "",
-    currency_code: defaultCurrencyCode,
-    from_entity_value: "",
-    to_entity_value: "",
-    from_entity_selected_id: null,
-    to_entity_selected_id: null,
-    owner_user_id: currentUserId,
-    direct_group_id: "",
-    direct_group_member_role: "CHILD",
-    tags: [],
-    markdown_body: ""
-  };
-}
-
-function buildEditForm(entry: Entry): EntryEditorFormState {
-  return {
-    kind: entry.kind,
-    occurred_at: entry.occurred_at,
-    name: entry.name,
-    amount_major: `${(entry.amount_minor / 100).toFixed(2)}`,
-    currency_code: entry.currency_code,
-    from_entity_value: entry.from_entity ?? "",
-    to_entity_value: entry.to_entity ?? "",
-    from_entity_selected_id: entry.from_entity_id,
-    to_entity_selected_id: entry.to_entity_id,
-    owner_user_id: entry.owner_user_id,
-    direct_group_id: entry.direct_group?.id ?? "",
-    direct_group_member_role: entry.direct_group_member_role ?? "CHILD",
-    tags: entry.tags.map((tag) => tag.name),
-    markdown_body: entry.markdown_body ?? ""
-  };
-}
-
-function normalizeTagValues(values: string[]) {
-  return Array.from(
-    new Set(
-      values
-        .map((value) => value.trim().toLowerCase())
-        .filter((value) => value.length > 0)
-        .sort((left, right) => left.localeCompare(right))
-    )
-  );
-}
-
-function normalizeAmountForDiff(value: string) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return value.trim();
-  }
-  return parsed.toFixed(2);
-}
-
-function normalizeFormStateForDiff(
-  state: EntryEditorFormState,
-  options?: { includeFromSelectedId?: boolean; includeToSelectedId?: boolean }
-) {
-  return {
-    kind: state.kind,
-    occurred_at: state.occurred_at,
-    name: state.name.trim(),
-    amount_major: normalizeAmountForDiff(state.amount_major),
-    currency_code: state.currency_code.trim().toUpperCase(),
-    from_entity_value: state.from_entity_value.trim(),
-    to_entity_value: state.to_entity_value.trim(),
-    from_entity_selected_id: options?.includeFromSelectedId ? state.from_entity_selected_id : null,
-    to_entity_selected_id: options?.includeToSelectedId ? state.to_entity_selected_id : null,
-    owner_user_id: state.owner_user_id,
-    direct_group_id: state.direct_group_id,
-    direct_group_member_role: state.direct_group_id ? state.direct_group_member_role : null,
-    tags: normalizeTagValues(state.tags),
-    markdown_body: state.markdown_body.trim()
-  };
-}
-
-function normalizeEntityValue(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function uniqueNormalizedEntityNames(values: string[]) {
-  const uniqueValues: string[] = [];
-  const seen = new Set<string>();
-  for (const value of values) {
-    const trimmed = value.trim();
-    const normalized = normalizeEntityValue(trimmed);
-    if (!trimmed || seen.has(normalized)) {
-      continue;
-    }
-    seen.add(normalized);
-    uniqueValues.push(trimmed);
-  }
-  return uniqueValues.sort((left, right) => left.localeCompare(right));
-}
-
-function resolveEntityInput(rawValue: string, entities: Entity[], selectedEntityId: string | null = null) {
-  const trimmed = rawValue.trim();
-  if (!trimmed) {
-    return { entityId: null, entityName: null };
-  }
-
-  if (selectedEntityId) {
-    const selectedEntity = entities.find((entity) => entity.id === selectedEntityId);
-    if (selectedEntity && normalizeEntityValue(selectedEntity.name) === normalizeEntityValue(trimmed)) {
-      return { entityId: selectedEntity.id, entityName: null };
-    }
-  }
-
-  const normalized = normalizeEntityValue(trimmed);
-  const matchedEntity = entities.find((entity) => normalizeEntityValue(entity.name) === normalized);
-  if (matchedEntity) {
-    return { entityId: matchedEntity.id, entityName: null };
-  }
-
-  return { entityId: null, entityName: trimmed };
-}
-
-function areFormStatesEqual(
-  left: EntryEditorFormState,
-  right: EntryEditorFormState,
-  options?: { includeFromSelectedId?: boolean; includeToSelectedId?: boolean }
-) {
-  return JSON.stringify(normalizeFormStateForDiff(left, options)) === JSON.stringify(normalizeFormStateForDiff(right, options));
-}
-
-function matchingEntityId(value: string, entities: Entity[]) {
-  const normalized = normalizeEntityValue(value);
-  if (!normalized) {
-    return null;
-  }
-
-  const matchedEntity = entities.find((entity) => normalizeEntityValue(entity.name) === normalized);
-  return matchedEntity?.id ?? null;
-}
-
-function nextSelectedEntityId(
-  nextValue: string,
-  entities: Entity[],
-  meta?: CreatableSingleSelectChangeMeta
-) {
-  if (meta?.source === "select") {
-    return matchingEntityId(nextValue, entities);
-  }
-  if (meta?.source === "create" || meta?.source === "input") {
-    return null;
-  }
-  return null;
-}
-
 export function EntryEditorModal({
   isOpen,
   mode,
@@ -259,6 +78,7 @@ export function EntryEditorModal({
   entities,
   groups,
   tags,
+  categoryTerms,
   currentUserId,
   defaultCurrencyCode,
   entryTaggingModel,
@@ -362,6 +182,30 @@ export function EntryEditorModal({
       (entry?.direct_group?.id === formState.direct_group_id ? entry.direct_group.group_type : null),
     [entry?.direct_group, formState.direct_group_id, groups]
   );
+  const categoryOptionModels = useMemo(() => buildCategoryOptions(categoryTerms), [categoryTerms]);
+  const categoryOptions = useMemo(
+    () => [
+      { value: "", label: "uncategorized", color: entryCategoryColor(null) },
+      ...categoryOptionModels.map((option) => ({
+        value: option.leafName,
+        label: formatEntryCategoryLabel(option.path.includes("/") ? option.path.replace("/", " / ") : option.path),
+        color: entryCategoryColor(option.path)
+      }))
+    ],
+    [categoryOptionModels]
+  );
+  const categoryDefaultLifecycle = useMemo(
+    () => new Map(categoryOptionModels.map((option) => [option.leafName, option.defaultLifecycle] as const)),
+    [categoryOptionModels]
+  );
+  const categoryTermNameSet = useMemo(
+    () => new Set(categoryTerms.map((term) => term.name.toLowerCase())),
+    [categoryTerms]
+  );
+  const auxTagOptions = useMemo(
+    () => tags.filter((tag) => !categoryTermNameSet.has(tag.name.toLowerCase())),
+    [categoryTermNameSet, tags]
+  );
 
   const isDirty = useMemo(
     () =>
@@ -374,7 +218,13 @@ export function EntryEditorModal({
   const { cancelSuggestion, isRunning: isTagSuggestionRunning, requestSuggestion } = useEntryTagSuggestion({
     entryTaggingModel,
     buildDraft: buildTagSuggestionDraft,
-    onApplySuggestion: (suggestedTags) => setFormState((state) => ({ ...state, tags: suggestedTags })),
+    onApplySuggestion: (response) =>
+      setFormState((state) => ({
+        ...state,
+        tags: response.suggested_tags,
+        category: response.suggested_category ?? state.category,
+        lifecycle: response.suggested_lifecycle ?? state.lifecycle
+      })),
   });
 
   useEffect(() => {
@@ -430,6 +280,8 @@ export function EntryEditorModal({
       direct_group_id: formState.direct_group_id || null,
       direct_group_member_role: formState.direct_group_id ? (selectedGroupType === "SPLIT" ? formState.direct_group_member_role : null) : null,
       tags: formState.tags,
+      category: formState.category.trim() || null,
+      lifecycle: (formState.lifecycle || null) as EntryLifecycle | null,
       markdown_body: formState.markdown_body.trim().length > 0 ? formState.markdown_body : null
     };
   }
@@ -467,6 +319,8 @@ export function EntryEditorModal({
       owner_user_id: formState.owner_user_id || null,
       markdown_body: formState.markdown_body.trim() || null,
       current_tags: Array.from(new Set(formState.tags.map((tag) => tag.trim()).filter(Boolean))),
+      current_category: formState.category.trim() || null,
+      current_lifecycle: (formState.lifecycle || null) as EntryLifecycle | null,
     };
   }
 
@@ -661,7 +515,7 @@ export function EntryEditorModal({
               <span className="entry-property-label">Tags:</span>
               <div className="entry-property-group entry-property-group-tags">
                 <TagMultiSelect
-                  options={tags}
+                  options={auxTagOptions}
                   value={formState.tags}
                   ariaLabel="Tags"
                   placeholder="Select or create tags..."
@@ -690,6 +544,39 @@ export function EntryEditorModal({
                     <Sparkles className="h-4 w-4" />
                   )}
                 </Button>
+              </div>
+            </div>
+
+            <div className="entry-property-line entry-property-line-group">
+              <span className="entry-property-label">Category:</span>
+              <div className="entry-property-group entry-property-group-category">
+                <SingleSelect
+                  value={formState.category}
+                  options={categoryOptions}
+                  ariaLabel="Category"
+                  placeholder="uncategorized"
+                  searchable
+                  searchPlaceholder="Search categories..."
+                  emptyLabel="No matching categories."
+                  minMenuWidth={320}
+                  disabled={isSaving}
+                  onChange={(nextCategory) => {
+                    const defaultLifecycle = nextCategory ? categoryDefaultLifecycle.get(nextCategory) : null;
+                    setFormState((state) => ({
+                      ...state,
+                      category: nextCategory,
+                      lifecycle: defaultLifecycle ?? state.lifecycle
+                    }));
+                  }}
+                />
+                <span className="entry-property-inline-label">Lifecycle:</span>
+                <SingleSelect
+                  value={formState.lifecycle}
+                  options={LIFECYCLE_OPTIONS}
+                  ariaLabel="Lifecycle"
+                  disabled={isSaving}
+                  onChange={(nextLifecycle) => setFormState((state) => ({ ...state, lifecycle: nextLifecycle }))}
+                />
               </div>
             </div>
 

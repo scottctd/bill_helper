@@ -33,13 +33,24 @@ import {
   listCurrencies,
   listEntities,
   listEntries,
-  listFilterGroups,
   listGroups,
   listTags,
+  listTaxonomyTerms,
   listUsers,
   updateEntry
 } from "../lib/api";
+import {
+  ENTRY_CATEGORY_TAXONOMY_KEY,
+  buildCategoryFilterOptions,
+  categoryPathLeaf,
+  formatEntryLifecycle
+} from "../lib/catalogs";
 import { formatMinorCompact } from "../lib/format";
+import {
+  entryCategoryColor,
+  entryLifecycleColor,
+  formatEntryCategoryLabel
+} from "../lib/entryClassificationColors";
 import { resolveTagColor } from "../lib/tagColors";
 import { invalidateEntryReadModels } from "../lib/queryInvalidation";
 import { queryKeys } from "../lib/queryKeys";
@@ -125,15 +136,16 @@ export function EntriesPage() {
     queryFn: listGroups,
     enabled: editorState !== null
   });
-  const filterGroupsQuery = useQuery({
-    queryKey: queryKeys.filterGroups.list,
-    queryFn: listFilterGroups
-  });
   const tagsQuery = useQuery({ queryKey: queryKeys.properties.tags, queryFn: listTags });
+  const categoryTermsQuery = useQuery({
+    queryKey: queryKeys.properties.taxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY),
+    queryFn: () => listTaxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY)
+  });
   const entryListFilters = useMemo(
     () => ({
       kind: filters.kind || undefined,
       source: filters.source || undefined,
+      category: filters.category || undefined,
       filter_group_id: filters.filterGroupId || undefined,
       start_date: filters.startDate || undefined,
       end_date: filters.endDate || undefined,
@@ -142,6 +154,7 @@ export function EntriesPage() {
     }),
     [
       filters.endDate,
+      filters.category,
       filters.filterGroupId,
       filters.fromEntities,
       filters.kind,
@@ -238,6 +251,16 @@ export function EntriesPage() {
     return stringOptionsAsTags(Array.from(names).sort((left, right) => left.localeCompare(right)));
   }, [entitiesQuery.data, loadedEntries]);
 
+  const categoryFilterOptions = useMemo(
+    () =>
+      buildCategoryFilterOptions(categoryTermsQuery.data).map((option) => ({
+        value: option.value,
+        label: option.label,
+        color: entryCategoryColor(option.path)
+      })),
+    [categoryTermsQuery.data]
+  );
+
   const filteredEntries = useMemo(() => {
     const selectedTagSet = new Set(filters.tags.map((tagName) => tagName.trim().toLowerCase()).filter(Boolean));
     const selectedCurrencySet = new Set(filters.currencies.map((currencyCode) => currencyCode.trim().toUpperCase()).filter(Boolean));
@@ -292,6 +315,7 @@ export function EntriesPage() {
       if (
         state.startDate === next.startDate &&
         state.endDate === next.endDate &&
+        state.category === next.category &&
         state.filterGroupId === next.filterGroupId &&
         state.fromEntities.join("\u0000") === next.fromEntities.join("\u0000") &&
         state.toEntities.join("\u0000") === next.toEntities.join("\u0000")
@@ -302,6 +326,7 @@ export function EntriesPage() {
         ...state,
         startDate: next.startDate,
         endDate: next.endDate,
+        category: next.category,
         filterGroupId: next.filterGroupId,
         fromEntities: next.fromEntities,
         toEntities: next.toEntities
@@ -322,6 +347,7 @@ export function EntriesPage() {
     setFilters({ ...EMPTY_ENTRY_LIST_FILTERS });
     const nextSearchParams = new URLSearchParams(searchParams);
     nextSearchParams.delete("filter_group_id");
+    nextSearchParams.delete("category");
     nextSearchParams.delete("start_date");
     nextSearchParams.delete("end_date");
     nextSearchParams.delete("from_entity");
@@ -371,7 +397,7 @@ export function EntriesPage() {
           tagOptions={tagsQuery.data ?? []}
           currencyOptions={currencyFilterOptions}
           entityOptions={entityFilterOptions}
-          filterGroups={filterGroupsQuery.data ?? []}
+          categoryOptions={categoryFilterOptions}
           dateRangeError={dateRangeError}
           activeFilterCount={activeFilterCount}
           visibleEntryCount={filteredEntries.length}
@@ -393,6 +419,8 @@ export function EntriesPage() {
                     <TableHead className="entries-date-column">Date</TableHead>
                     <TableHead className="entries-name-column">Name</TableHead>
                     <TableHead className="entries-amount-column">Amount</TableHead>
+                    <TableHead className="entries-category-column">Category</TableHead>
+                    <TableHead className="entries-lifecycle-column">Lifecycle</TableHead>
                     <TableHead className="entries-tags-column">Tags</TableHead>
                     <TableHead className="entries-actions-column">
                       <span className="sr-only">Actions</span>
@@ -435,15 +463,28 @@ export function EntriesPage() {
                             <span className="entries-amount-currency">{normalizedCurrencyCode(entry.currency_code)}</span>
                           </span>
                         </TableCell>
+                        <TableCell className="entries-category-column">
+                          <EntryColorPill
+                            label={formatEntryCategoryLabel(categoryPathLeaf(entry.category) ?? "Uncategorized")}
+                            color={entryCategoryColor(entry.category)}
+                            title={formatEntryCategoryLabel(entry.category ?? "Uncategorized")}
+                          />
+                        </TableCell>
+                        <TableCell className="entries-lifecycle-column">
+                          <EntryColorPill
+                            label={entry.lifecycle ? formatEntryLifecycle(entry.lifecycle) : "none"}
+                            color={entryLifecycleColor(entry.lifecycle)}
+                          />
+                        </TableCell>
                         <TableCell className="entries-tags-column">
                           {entry.tags.length > 0 ? (
                             <div className="entries-tag-list">
                               {entry.tags.map((tag) => {
                                 const color = resolveTagColor(tag.name, tag.color);
                                 return (
-                                  <Badge key={tag.id} variant="outline" className="entries-tag-pill" style={{ borderColor: color }} title={tag.name}>
-                                    <span className="entries-tag-pill-color" aria-hidden="true" style={{ backgroundColor: color }} />
-                                    <span className="entries-tag-pill-label">{tag.name}</span>
+                                  <Badge key={tag.id} variant="outline" className="entries-color-pill" style={{ borderColor: color }} title={tag.name}>
+                                    <span className="entries-color-pill-dot" aria-hidden="true" style={{ backgroundColor: color }} />
+                                    <span className="entries-color-pill-label">{tag.name}</span>
                                   </Badge>
                                 );
                               })}
@@ -504,6 +545,7 @@ export function EntriesPage() {
         entities={entitiesQuery.data ?? []}
         groups={groupsQuery.data ?? []}
         tags={tagsQuery.data ?? []}
+        categoryTerms={categoryTermsQuery.data ?? []}
         currentUserId={currentUserId}
         defaultCurrencyCode={(runtimeSettingsQuery.data?.default_currency_code ?? "CAD").toUpperCase()}
         entryTaggingModel={runtimeSettingsQuery.data?.entry_tagging_model}
@@ -514,5 +556,22 @@ export function EntriesPage() {
         onSubmit={handleEditorSubmit}
       />
     </div>
+  );
+}
+
+function EntryColorPill({
+  label,
+  color,
+  title = label
+}: {
+  label: string;
+  color: string;
+  title?: string;
+}) {
+  return (
+    <Badge variant="outline" className="entries-color-pill" style={{ borderColor: color }} title={title}>
+      <span className="entries-color-pill-dot" aria-hidden="true" style={{ backgroundColor: color }} />
+      <span className="entries-color-pill-label">{label}</span>
+    </Badge>
   );
 }

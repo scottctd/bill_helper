@@ -28,8 +28,9 @@ export interface DashboardKpis {
   average_expense_day_minor: number;
   median_expense_day_minor: number;
   spending_days: number;
-  average_day_to_day_minor: number;
-  median_day_to_day_minor: number;
+  one_time_total_minor: number;
+  core_spend_minor: number;
+  uncategorized_total_minor: number;
 }
 
 export interface DashboardBreakdownItem {
@@ -52,11 +53,29 @@ export interface DashboardToBreakdownItem {
   entries: DashboardBreakdownEntryItem[];
 }
 
-export interface DashboardTagToBreakdown {
-  tag: string;
+export interface DashboardCategoryChildSummary {
+  name: string;
+  path: string;
   total_minor: number;
+  share: number;
   entry_count: number;
-  to_items: DashboardToBreakdownItem[];
+  to_breakdown: DashboardToBreakdownItem[];
+}
+
+export interface DashboardCategorySummary {
+  name: string;
+  total_minor: number;
+  share: number;
+  entry_count: number;
+  children: DashboardCategoryChildSummary[];
+  to_breakdown: DashboardToBreakdownItem[];
+}
+
+export interface DashboardLifecycleSummary {
+  lifecycle: string | null;
+  total_minor: number;
+  share: number;
+  entry_count: number;
 }
 
 export interface DashboardFilterGroupSummary {
@@ -66,22 +85,21 @@ export interface DashboardFilterGroupSummary {
   color: string | null;
   total_minor: number;
   share: number;
-  tag_totals: Record<string, number>;
-  tag_to_breakdowns: DashboardTagToBreakdown[];
+  entry_count: number;
 }
 
 export interface DashboardDailySpendingPoint {
   date: string;
   expense_total_minor: number;
-  filter_group_totals: Record<string, number>;
+  category_totals: Record<string, number>;
 }
 
 export interface DashboardMonthlyTrendPoint {
   month: string;
   expense_total_minor: number;
   income_total_minor: number;
-  filter_group_totals: Record<string, number>;
-  income_filter_group_totals?: Record<string, number>;
+  category_totals: Record<string, number>;
+  lifecycle_totals: Record<string, number>;
 }
 
 export interface DashboardWeekdaySpendingPoint {
@@ -95,7 +113,8 @@ export interface DashboardLargestExpenseItem {
   name: string;
   to_entity: string | null;
   amount_minor: number;
-  matching_filter_group_keys: string[];
+  category: string | null;
+  lifecycle: string | null;
 }
 
 export interface DashboardProjection {
@@ -105,7 +124,7 @@ export interface DashboardProjection {
   spent_to_date_minor: number;
   projected_total_minor: number | null;
   projected_remaining_minor: number | null;
-  projected_filter_group_totals: Record<string, number>;
+  projected_category_totals: Record<string, number>;
 }
 
 export interface DashboardTimeline {
@@ -116,6 +135,8 @@ export interface Dashboard {
   month: string;
   currency_code: string;
   kpis: DashboardKpis;
+  categories: DashboardCategorySummary[];
+  lifecycles: DashboardLifecycleSummary[];
   filter_groups: DashboardFilterGroupSummary[];
   daily_spending: DashboardDailySpendingPoint[];
   monthly_trend: DashboardMonthlyTrendPoint[];

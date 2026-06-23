@@ -442,6 +442,40 @@ Command specifications:
   - `<tag_name>: exact tag name.`
 - Optional arguments: none.
 
+### `bh entry-categories list`
+- Purpose: List entry categories.
+- Required arguments: none.
+- Optional arguments: none.
+
+### `bh entry-categories get <category_ref>`
+- Purpose: Get one entry category by name, path, full id, or unique id prefix.
+- Required arguments:
+  - `<category_ref>: name, path, full id, or unique id prefix.`
+- Optional arguments: none.
+
+### `bh entry-categories create <name>`
+- Purpose: Create an entry category directly.
+- Required arguments:
+  - `<name>: category term name.`
+- Optional arguments:
+  - `--parent REF: create a child under a parent category.`
+  - `--description TEXT: category description.`
+  - `--default-lifecycle {fixed,day_to_day,one_time}: default lifecycle.`
+
+### `bh entry-categories update <category_ref>`
+- Purpose: Update an entry category directly.
+- Required arguments:
+  - `<category_ref>: name, path, full id, or unique id prefix.`
+- Optional arguments:
+  - `--name TEXT, --description TEXT, or --clear-description.`
+  - `--default-lifecycle VALUE or --clear-default-lifecycle.`
+
+### `bh entry-categories remove <category_ref>`
+- Purpose: Delete an entry category directly; assigned entries become uncategorized.
+- Required arguments:
+  - `<category_ref>: name, path, full id, or unique id prefix.`
+- Optional arguments: none.
+
 ### `bh proposals list`
 - Purpose: List proposals in the current thread.
 - Required arguments: none.
@@ -490,12 +524,12 @@ Command specifications:
   - `--year YYYY: batch all expense-active months in that year.`
   - `--months LIST: comma-separated YYYY-MM list (backend max 24).`
   - `--sections NAME: section filter. Repeat or comma-separate. Default: all.`
-  - `--breakdown-depth {summary,tags,destinations,entries}: filter-group drill-down depth.`
-  - `Sections: meta, kpis, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.`
+  - `--breakdown-depth {summary,categories,destinations,entries}: category drill-down depth.`
+  - `Sections: meta, kpis, categories, lifecycles, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.`
 - Notes:
   - Dashboard currency only; internal account-to-account transfers are excluded from expense analytics.
-  - Use `--format json --sections filter_groups` for the full group -> tag -> destination -> entry tree.
-  - Example: bh dashboard finance get --month 2026-05 --sections kpis,filter_groups,largest_expenses
+  - Use `--format json --sections categories` for the category -> destination -> entry tree.
+  - Example: bh dashboard finance get --month 2026-05 --sections kpis,categories,lifecycles,largest_expenses
   - Example: bh dashboard finance get --year 2026 --sections kpis,monthly_trend --format json
 
 ### `bh dashboard agent get`
@@ -522,7 +556,9 @@ Compact output schemas:
 - `sessions_detail` -> `id|title|pending|running|updated_at`
 - `proposals_list` -> `id|status|change_type|summary`
 - `dashboard_timeline` -> `month`
-- `dashboard_kpis` -> `expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor`
+- `dashboard_kpis` -> `expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|one_time_minor|core_spend_minor|uncategorized_minor`
+- `dashboard_categories` -> `name|total_minor|share|entry_count`
+- `dashboard_lifecycles` -> `lifecycle|total_minor|share|entry_count`
 - `dashboard_filter_groups` -> `key|name|total_minor|share`
 - `dashboard_breakdown` -> `kind|label|total_minor|share`
 - `dashboard_agent_metrics` -> `total_cost_usd|total_tokens|total_runs|completed_runs|failed_runs|avg_cost_usd|avg_tokens|cache_hit_rate|most_used_model|failure_rate`
@@ -531,16 +567,16 @@ Common flows:
 - Update the current session summary: `bh sessions update --summary "Reviewed May receipts and proposed 3 entries."`
 - Inspect recent matching entries: `bh entries list --source "farm boy" --limit 10`
 - Read monthly dashboard KPIs: `bh dashboard finance get --sections kpis`
-- Read expense breakdown tree: `bh dashboard finance get --month 2026-05 --sections filter_groups --format json`
+- Read expense breakdown tree: `bh dashboard finance get --month 2026-05 --sections categories --format json`
 - Compare yearly trend: `bh dashboard finance get --year 2026 --sections monthly_trend`
 - Read agent cost KPIs: `bh dashboard agent get --range 30d --sections metrics`
 - Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`
-- Create a tag proposal: `bh tags create --name grocery --type expense`
-- Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{"tags":["grocery","one_time"]}'`
+- Create a tag proposal: `bh tags create --name travel --type context`
+- Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{"category":"groceries","lifecycle":"one_time"}'`
 - Import multiple entry proposals: `bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}'`
 - Create an account proposal: `bh accounts create --name "Wealthsimple Cash" --currency-code CAD --inactive`
 - Create a snapshot proposal: `bh snapshots create --account-id 1a2b3c4d --snapshot-at 2026-03-15 --balance 1234.56 --note "statement balance"`
-- Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{"patch.tags":["grocery"]}'`
+- Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{"patch.tags":["travel"]}'`
 - Remove a pending proposal: `bh proposals remove a1b2c3d4`
 - Create a group-membership add proposal: `bh groups add-member --payload-json '{"action":"add","group_ref":{"group_id":"a971c92e"},"target":{"target_type":"entry","entry_ref":{"entry_id":"8bf2fa83"}}}'`
 

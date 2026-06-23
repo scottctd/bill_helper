@@ -91,12 +91,72 @@ def test_taxonomy_term_create_rejects_duplicates(client):
     assert duplicate_create.json()["detail"] == "Term already exists"
 
 
-def test_taxonomy_term_create_rejects_parent_term_field(client):
+def test_taxonomy_term_create_rejects_unknown_parent_term(client):
     response = client.post(
         "/api/v1/taxonomies/tag_type/terms",
-        json={"name": "utilities", "parent_term_id": "abc"},
+        json={"name": "utilities", "parent_term_id": "nonexistent-parent-id"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 404
+
+
+def test_taxonomy_term_delete_removes_leaf_and_rejects_parent_with_children(client):
+    parent_response = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={"name": "food_drink"},
+    )
+    parent_response.raise_for_status()
+    parent = parent_response.json()
+    child_response = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={
+            "name": "groceries",
+            "parent_term_id": parent["id"],
+            "default_lifecycle": "day_to_day",
+        },
+    )
+    child_response.raise_for_status()
+    child = child_response.json()
+
+    parent_delete = client.delete(
+        f"/api/v1/taxonomies/entry_category/terms/{parent['id']}"
+    )
+    assert parent_delete.status_code == 409
+    assert parent_delete.json()["detail"] == "Delete child terms before deleting their parent"
+
+    child_delete = client.delete(
+        f"/api/v1/taxonomies/entry_category/terms/{child['id']}"
+    )
+    assert child_delete.status_code == 204
+    parent_delete = client.delete(
+        f"/api/v1/taxonomies/entry_category/terms/{parent['id']}"
+    )
+    assert parent_delete.status_code == 204
+
+
+def test_entry_category_terms_reject_more_than_one_nested_level(client):
+    parent_response = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={"name": "food_drink"},
+    )
+    parent_response.raise_for_status()
+    child_response = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={
+            "name": "groceries",
+            "parent_term_id": parent_response.json()["id"],
+        },
+    )
+    child_response.raise_for_status()
+
+    grandchild_response = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={
+            "name": "weekly_shop",
+            "parent_term_id": child_response.json()["id"],
+        },
+    )
+    assert grandchild_response.status_code == 400
+    assert grandchild_response.json()["detail"] == "Category terms support at most one level of nesting"
 
 
 def test_entity_update_response_reads_taxonomy_category_after_term_rename(client):

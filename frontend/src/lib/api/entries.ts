@@ -8,6 +8,7 @@
 
 import type {
   EntryDetail,
+  EntryLifecycle,
   EntryListResponse,
   EntryTagSuggestionRequest,
   EntryTagSuggestionResponse,
@@ -25,6 +26,7 @@ export function listEntries(params: {
   from_entity?: string[];
   to_entity?: string[];
   account_id?: string;
+  category?: string;
   filter_group_id?: string;
   limit?: number;
   offset?: number;
@@ -61,6 +63,8 @@ export function createEntry(payload: {
   owner?: string;
   markdown_body?: string;
   tags?: string[];
+  category?: string;
+  lifecycle?: EntryLifecycle | null;
   direct_group_id?: string;
   direct_group_member_role?: GroupMemberRole | null;
 }) {

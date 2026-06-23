@@ -324,9 +324,36 @@ def _render_finance_dashboard_sections_compact(payload: dict[str, Any]) -> list[
                         kpis.get("average_expense_day_minor"),
                         kpis.get("median_expense_day_minor"),
                         kpis.get("spending_days"),
-                        kpis.get("average_day_to_day_minor"),
-                        kpis.get("median_day_to_day_minor"),
+                        kpis.get("one_time_total_minor"),
+                        kpis.get("core_spend_minor"),
+                        kpis.get("uncategorized_total_minor"),
                     ]
+                ],
+            )
+        )
+    categories = payload.get("categories")
+    if isinstance(categories, list) and categories:
+        lines.append(
+            compact_table(
+                summary=f"returned {len(categories)} category row(s)",
+                schema_key="dashboard_categories",
+                rows=[
+                    [item.get("name"), item.get("total_minor"), item.get("share"), item.get("entry_count")]
+                    for item in categories
+                    if isinstance(item, dict)
+                ],
+            )
+        )
+    lifecycles = payload.get("lifecycles")
+    if isinstance(lifecycles, list) and lifecycles:
+        lines.append(
+            compact_table(
+                summary=f"returned {len(lifecycles)} lifecycle row(s)",
+                schema_key="dashboard_lifecycles",
+                rows=[
+                    [item.get("lifecycle"), item.get("total_minor"), item.get("share"), item.get("entry_count")]
+                    for item in lifecycles
+                    if isinstance(item, dict)
                 ],
             )
         )
@@ -422,7 +449,8 @@ def _render_finance_dashboard_sections_compact(payload: dict[str, Any]) -> list[
                         item.get("name"),
                         item.get("to_entity") or "-",
                         item.get("amount_minor"),
-                        ",".join(item.get("matching_filter_group_keys") or []),
+                        item.get("category") or "-",
+                        item.get("lifecycle") or "-",
                     ]
                     for item in largest_expenses
                     if isinstance(item, dict)
@@ -491,11 +519,30 @@ def _render_finance_dashboard_sections_text(payload: dict[str, Any]) -> str:
                     ("Average expense day minor", kpis.get("average_expense_day_minor")),
                     ("Median expense day minor", kpis.get("median_expense_day_minor")),
                     ("Spending days", kpis.get("spending_days")),
-                    ("Average day-to-day minor", kpis.get("average_day_to_day_minor")),
-                    ("Median day-to-day minor", kpis.get("median_day_to_day_minor")),
+                    ("One-time minor", kpis.get("one_time_total_minor")),
+                    ("Core spend minor", kpis.get("core_spend_minor")),
+                    ("Uncategorized minor", kpis.get("uncategorized_total_minor")),
                 ],
             )
         )
+    blocks.append(
+        _optional_table(
+            payload,
+            "categories",
+            ["Category", "Total minor", "Share", "Entries"],
+            row_factory=lambda item: [item.get("name"), item.get("total_minor"), item.get("share"), item.get("entry_count")],
+            title="Categories",
+        )
+    )
+    blocks.append(
+        _optional_table(
+            payload,
+            "lifecycles",
+            ["Lifecycle", "Total minor", "Share", "Entries"],
+            row_factory=lambda item: [item.get("lifecycle"), item.get("total_minor"), item.get("share"), item.get("entry_count")],
+            title="Lifecycles",
+        )
+    )
     blocks.append(
         _optional_table(
             payload,

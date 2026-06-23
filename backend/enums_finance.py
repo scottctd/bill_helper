@@ -14,6 +14,12 @@ class EntryKind(StrEnum):
     TRANSFER = "TRANSFER"
 
 
+class EntryLifecycle(StrEnum):
+    FIXED = "fixed"
+    DAY_TO_DAY = "day_to_day"
+    ONE_TIME = "one_time"
+
+
 class GroupType(StrEnum):
     BUNDLE = "BUNDLE"
     SPLIT = "SPLIT"

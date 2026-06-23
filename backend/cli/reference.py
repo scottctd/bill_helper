@@ -100,6 +100,8 @@ _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("groups_edges", "source|target|relation"),
     CompactSchema("entities_list", "name|category"),
     CompactSchema("tags_list", "name|type|description"),
+    CompactSchema("entry_categories_list", "id|path|default_lifecycle|usage_count|description"),
+    CompactSchema("entry_categories_detail", "id|path|default_lifecycle|usage_count|description"),
     CompactSchema("sessions_list", "id|title|pending|running|updated_at"),
     CompactSchema("sessions_detail", "id|title|pending|running|updated_at"),
     CompactSchema("sources_list", "source_id|name|mime_type|size_bytes|sha256"),
@@ -109,14 +111,16 @@ _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
     CompactSchema("dashboard_timeline", "month"),
     CompactSchema(
         "dashboard_kpis",
-        "expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|avg_d2d_minor|median_d2d_minor",
+        "expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|one_time_minor|core_spend_minor|uncategorized_minor",
     ),
+    CompactSchema("dashboard_categories", "name|total_minor|share|entry_count"),
+    CompactSchema("dashboard_lifecycles", "lifecycle|total_minor|share|entry_count"),
     CompactSchema("dashboard_filter_groups", "key|name|total_minor|share"),
     CompactSchema("dashboard_breakdown", "kind|label|total_minor|share"),
-    CompactSchema("dashboard_daily_spending", "date|expense_minor|filter_group_totals_json"),
+    CompactSchema("dashboard_daily_spending", "date|expense_minor|category_totals_json"),
     CompactSchema("dashboard_monthly_trend", "month|expense_minor|income_minor"),
     CompactSchema("dashboard_weekday_spending", "weekday|total_minor"),
-    CompactSchema("dashboard_largest_expenses", "id|date|name|to|amount_minor|groups"),
+    CompactSchema("dashboard_largest_expenses", "id|date|name|to|amount_minor|category|lifecycle"),
     CompactSchema("dashboard_projection", "days_elapsed|days_remaining|spent_minor|projected_total_minor|projected_remaining_minor"),
     CompactSchema(
         "dashboard_reconciliation",
@@ -502,6 +506,39 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         ),
     ),
     CommandSpec(
+        "bh entry-categories list",
+        "List entry categories.",
+    ),
+    CommandSpec(
+        "bh entry-categories get <category_ref>",
+        "Get one entry category by name, path, full id, or unique id prefix.",
+        required_arguments=("<category_ref>: name, path, full id, or unique id prefix.",),
+    ),
+    CommandSpec(
+        "bh entry-categories create <name>",
+        "Create an entry category directly.",
+        required_arguments=("<name>: category term name.",),
+        optional_arguments=(
+            "--parent REF: create a child under a parent category.",
+            "--description TEXT: category description.",
+            "--default-lifecycle {fixed,day_to_day,one_time}: default lifecycle.",
+        ),
+    ),
+    CommandSpec(
+        "bh entry-categories update <category_ref>",
+        "Update an entry category directly.",
+        required_arguments=("<category_ref>: name, path, full id, or unique id prefix.",),
+        optional_arguments=(
+            "--name TEXT, --description TEXT, or --clear-description.",
+            "--default-lifecycle VALUE or --clear-default-lifecycle.",
+        ),
+    ),
+    CommandSpec(
+        "bh entry-categories remove <category_ref>",
+        "Delete an entry category directly; assigned entries become uncategorized.",
+        required_arguments=("<category_ref>: name, path, full id, or unique id prefix.",),
+    ),
+    CommandSpec(
         "bh proposals list",
         "List proposals in the current thread.",
         optional_arguments=(
@@ -554,13 +591,13 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
             "--year YYYY: batch all expense-active months in that year.",
             "--months LIST: comma-separated YYYY-MM list (backend max 24).",
             "--sections NAME: section filter. Repeat or comma-separate. Default: all.",
-            "--breakdown-depth {summary,tags,destinations,entries}: filter-group drill-down depth.",
-            "Sections: meta, kpis, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.",
+            "--breakdown-depth {summary,categories,destinations,entries}: category drill-down depth.",
+            "Sections: meta, kpis, categories, lifecycles, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.",
         ),
         notes=(
             "Dashboard currency only; internal account-to-account transfers are excluded from expense analytics.",
-            "Use `--format json --sections filter_groups` for the full group -> tag -> destination -> entry tree.",
-            "Example: bh dashboard finance get --month 2026-05 --sections kpis,filter_groups,largest_expenses",
+            "Use `--format json --sections categories` for the category -> destination -> entry tree.",
+            "Example: bh dashboard finance get --month 2026-05 --sections kpis,categories,lifecycles,largest_expenses",
             "Example: bh dashboard finance get --year 2026 --sections kpis,monthly_trend --format json",
         ),
     ),
@@ -628,6 +665,8 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
         "proposals_list",
         "dashboard_timeline",
         "dashboard_kpis",
+        "dashboard_categories",
+        "dashboard_lifecycles",
         "dashboard_filter_groups",
         "dashboard_breakdown",
         "dashboard_agent_metrics",
@@ -705,16 +744,16 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
         f"{session_and_source_flows}"
         "- Inspect recent matching entries: `bh entries list --source \"farm boy\" --limit 10`\n"
         "- Read monthly dashboard KPIs: `bh dashboard finance get --sections kpis`\n"
-        "- Read expense breakdown tree: `bh dashboard finance get --month 2026-05 --sections filter_groups --format json`\n"
+        "- Read expense breakdown tree: `bh dashboard finance get --month 2026-05 --sections categories --format json`\n"
         "- Compare yearly trend: `bh dashboard finance get --year 2026 --sections monthly_trend`\n"
         "- Read agent cost KPIs: `bh dashboard agent get --range 30d --sections metrics`\n"
         "- Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`\n"
-        "- Create a tag proposal: `bh tags create --name grocery --type expense`\n"
-        "- Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{\"tags\":[\"grocery\",\"one_time\"]}'`\n"
+        "- Create a tag proposal: `bh tags create --name travel --type context`\n"
+        "- Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{\"category\":\"groceries\",\"lifecycle\":\"one_time\"}'`\n"
         "- Import multiple entry proposals: `bh entries import --payload-json '{\"entries\":[{\"kind\":\"EXPENSE\",\"date\":\"2026-03-15\",\"name\":\"Farm Boy\",\"amount_minor\":1234,\"from_entity\":\"Checking\",\"to_entity\":\"Farm Boy\"}]}'`\n"
         "- Create an account proposal: `bh accounts create --name \"Wealthsimple Cash\" --currency-code CAD --inactive`\n"
         "- Create a snapshot proposal: `bh snapshots create --account-id 1a2b3c4d --snapshot-at 2026-03-15 --balance 1234.56 --note \"statement balance\"`\n"
-        "- Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{\"patch.tags\":[\"grocery\"]}'`\n"
+        "- Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{\"patch.tags\":[\"travel\"]}'`\n"
         "- Remove a pending proposal: `bh proposals remove a1b2c3d4`\n"
         "- Create a group-membership add proposal: `bh groups add-member --payload-json '{\"action\":\"add\",\"group_ref\":{\"group_id\":\"a971c92e\"},\"target\":{\"target_type\":\"entry\",\"entry_ref\":{\"entry_id\":\"8bf2fa83\"}}}'`\n"
     )

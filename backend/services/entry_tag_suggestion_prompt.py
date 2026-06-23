@@ -49,32 +49,44 @@ def build_entry_tag_suggestion_messages(
     *,
     draft: EntryTagSuggestionRequest,
     tag_catalog: list[dict[str, str | None]],
+    category_catalog: list[dict[str, Any]],
+    lifecycle_values: list[str],
     similar_entries: list[SimilarTaggedEntry],
 ) -> list[dict[str, str]]:
     system_prompt = """
-You suggest ledger entry tags.
+You suggest a category, a lifecycle, and auxiliary tags for a ledger entry.
 
-Choose the best set of tags from the existing catalog only.
-Similar entries are examples, not rules.
-Current draft tags may be incomplete or wrong.
-Do not overfit to the tags already present on the draft.
-Do not blindly copy the tags from similar examples.
-Use tag descriptions when deciding between overlapping tags.
-Return no tag rather than inventing a weak match.
+Category describes what the spend/income is for. Pick exactly one leaf category
+from the category catalog (by its `name`), preferring the most specific leaf
+that fits. A category's `path` shows its parent (e.g. "housing/rent"). If no
+category fits, return null for suggested_category.
+
+Lifecycle describes the recurring pattern of this specific transaction:
+"fixed" for predictable recurring obligations, "day_to_day" for routine
+variable spending, "one_time" for irregular/exceptional purchases. Each
+category leaf lists a `default_lifecycle`; use it unless the specific entry
+is clearly exceptional (then "one_time") or clearly recurring (then "fixed").
+If unclear, return null for suggested_lifecycle.
+
+Tags are auxiliary descriptors only (e.g. e_transfer, travel, needs_review) —
+never use a category name as a tag. Choose tags from the existing tag catalog
+only. Return no tag rather than inventing a weak match.
 
 Your entire response must be exactly one JSON object and nothing else.
-Do not use markdown fences.
-Do not include any explanation, reasoning, notes, or extra text.
-The first character of your response must be `{` and the last character must be `}`.
-If no tag fits well, return an empty list.
+Do not use markdown fences. Do not include any explanation, reasoning, notes,
+or extra text. The first character of your response must be `{` and the last
+character must be `}`.
 
 Return strictly valid JSON only, with this exact shape:
-{"suggested_tags":["tag_name"]}
+{"suggested_tags":["tag_name"],"suggested_category":"rent","suggested_lifecycle":"fixed"}
+Any of suggested_category / suggested_lifecycle may be null.
 """.strip()
 
     user_payload = {
         "current_entry": _draft_payload(draft),
         "tag_catalog": tag_catalog,
+        "category_catalog": category_catalog,
+        "lifecycle_values": lifecycle_values,
         "similar_tagged_entries": [_similar_entry_payload(example) for example in similar_entries],
     }
     return [

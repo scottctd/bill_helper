@@ -7,12 +7,13 @@
  */
 import { Plus } from "lucide-react";
 
+import { SingleSelect, type SingleSelectOption } from "../../components/SingleSelect";
 import { TagMultiSelect } from "../../components/TagMultiSelect";
 import { WorkspaceToolbar } from "../../components/layout/WorkspaceToolbar";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { NativeSelect } from "../../components/ui/native-select";
-import type { FilterGroup, Tag } from "../../lib/types";
+import type { Tag } from "../../lib/types";
 
 import type { EntryListFilters } from "./entriesFilters";
 
@@ -21,7 +22,7 @@ type EntriesFilterToolbarProps = {
   tagOptions: Tag[];
   currencyOptions: Tag[];
   entityOptions: Tag[];
-  filterGroups: FilterGroup[];
+  categoryOptions: SingleSelectOption[];
   dateRangeError: string | null;
   activeFilterCount: number;
   visibleEntryCount: number;
@@ -36,7 +37,7 @@ export function EntriesFilterToolbar({
   tagOptions,
   currencyOptions,
   entityOptions,
-  filterGroups,
+  categoryOptions,
   dateRangeError,
   activeFilterCount,
   visibleEntryCount,
@@ -98,19 +99,18 @@ export function EntriesFilterToolbar({
               onChange={(nextEntities) => onFiltersChange({ toEntities: nextEntities })}
             />
           </label>
-          <label className="field entries-filter-group-field">
-            <span>Filter group</span>
-            <NativeSelect
-              value={filters.filterGroupId}
-              onChange={(event) => onFiltersChange({ filterGroupId: event.target.value })}
-            >
-              <option value="">All groups</option>
-              {filterGroups.map((filterGroup) => (
-                <option key={filterGroup.id} value={filterGroup.id}>
-                  {filterGroup.name}
-                </option>
-              ))}
-            </NativeSelect>
+          <label className="field entries-filter-category-field">
+            <span>Category</span>
+            <SingleSelect
+              options={categoryOptions}
+              value={filters.category}
+              ariaLabel="Category filter"
+              placeholder="All categories"
+              searchable
+              searchPlaceholder="Search categories..."
+              minMenuWidth={320}
+              onChange={(category) => onFiltersChange({ category })}
+            />
           </label>
         </div>
 

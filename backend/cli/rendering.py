@@ -426,6 +426,59 @@ def _render_tags_list_text(payload: list[dict[str, Any]]) -> str:
     return text_table(title="Tags", headers=["Name", "Type", "Description"], rows=rows, empty_text="(none)")
 
 
+def _entry_category_row(item: dict[str, Any], short_ids: dict[str, str]) -> list[Any]:
+    identifier = str(item.get("id") or "")
+    return [
+        short_ids.get(identifier, identifier or "-"),
+        item.get("path") or item.get("name") or "-",
+        item.get("default_lifecycle") or "-",
+        item.get("usage_count") or 0,
+        item.get("description") or "-",
+    ]
+
+
+def _render_entry_categories_list_compact(payload: list[dict[str, Any]]) -> str:
+    short_ids = unique_short_ids(item.get("id") for item in payload)
+    rows = [_entry_category_row(item, short_ids) for item in payload]
+    return compact_table(summary=f"returned {len(rows)} entry categories", schema_key="entry_categories_list", rows=rows)
+
+
+def _render_entry_categories_list_text(payload: list[dict[str, Any]]) -> str:
+    short_ids = unique_short_ids(item.get("id") for item in payload)
+    rows = [_entry_category_row(item, short_ids) for item in payload]
+    return text_table(
+        title="Entry Categories",
+        headers=["ID", "Path", "Default Lifecycle", "Usage", "Description"],
+        rows=rows,
+        empty_text="(none)",
+    )
+
+
+def _render_entry_category_detail_compact(payload: dict[str, Any]) -> str:
+    return compact_table(
+        summary="entry category detail",
+        schema_key="entry_categories_detail",
+        rows=[_entry_category_row(payload, {})],
+    )
+
+
+def _render_entry_category_detail_text(payload: dict[str, Any]) -> str:
+    return detail_block(
+        "Entry Category",
+        [
+            ("ID", payload.get("id")),
+            ("Path", payload.get("path") or payload.get("name")),
+            ("Default Lifecycle", payload.get("default_lifecycle") or "-"),
+            ("Usage", payload.get("usage_count") or 0),
+            ("Description", payload.get("description") or "-"),
+        ],
+    )
+
+
+def _render_entry_category_mutation(payload: dict[str, Any]) -> str:
+    return f"Deleted entry category {payload.get('deleted_path') or payload.get('deleted_id') or '-'}"
+
+
 def _render_proposals_list_compact(payload: dict[str, Any]) -> str:
     rows = [
         [item.get("proposal_short_id") or item.get("proposal_id") or "-", item.get("status") or "-", item.get("change_type") or "-", item.get("proposal_summary") or "-"]
@@ -651,6 +704,9 @@ _COMPACT_RENDERERS = {
     "groups_detail": _render_group_detail_compact,
     "entities_list": _render_entities_list_compact,
     "tags_list": _render_tags_list_compact,
+    "entry_categories_list": _render_entry_categories_list_compact,
+    "entry_categories_detail": _render_entry_category_detail_compact,
+    "entry_categories_mutation": _render_entry_category_mutation,
     "proposals_list": _render_proposals_list_compact,
     "proposals_detail": _render_proposal_detail_compact,
     "dashboard_timeline": render_dashboard_timeline_compact,
@@ -673,6 +729,9 @@ _TEXT_RENDERERS = {
     "groups_detail": _render_group_detail_text,
     "entities_list": _render_entities_list_text,
     "tags_list": _render_tags_list_text,
+    "entry_categories_list": _render_entry_categories_list_text,
+    "entry_categories_detail": _render_entry_category_detail_text,
+    "entry_categories_mutation": _render_entry_category_mutation,
     "proposals_list": _render_proposals_list_text,
     "proposals_detail": _render_proposal_detail_text,
     "dashboard_timeline": render_dashboard_timeline_text,

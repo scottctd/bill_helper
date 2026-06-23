@@ -23,9 +23,11 @@ import {
   listEntities,
   listGroups,
   listTags,
+  listTaxonomyTerms,
   listUsers,
   updateEntry
 } from "../lib/api";
+import { ENTRY_CATEGORY_TAXONOMY_KEY, formatEntryLifecycle } from "../lib/catalogs";
 import { formatMinor } from "../lib/format";
 import { invalidateEntryReadModels, invalidateGroupReadModels } from "../lib/queryInvalidation";
 import { queryKeys } from "../lib/queryKeys";
@@ -70,6 +72,10 @@ export function EntryDetailPage() {
     enabled: isEditorOpen
   });
   const tagsQuery = useQuery({ queryKey: queryKeys.properties.tags, queryFn: listTags });
+  const categoryTermsQuery = useQuery({
+    queryKey: queryKeys.properties.taxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY),
+    queryFn: () => listTaxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY)
+  });
   const runtimeSettingsQuery = useQuery({ queryKey: queryKeys.settings.runtime, queryFn: getRuntimeSettings });
 
   const currentUserId = auth.session?.user.id ?? usersQuery.data?.find((user) => user.is_current_user)?.id ?? "";
@@ -137,6 +143,12 @@ export function EntryDetailPage() {
           <div>
             <strong>Owner:</strong> {entry.owner ?? entry.owner_user_id}
           </div>
+          <div>
+            <strong>Category:</strong> {entry.category ?? "Uncategorized"}
+          </div>
+          <div>
+            <strong>Lifecycle:</strong> {entry.lifecycle ? formatEntryLifecycle(entry.lifecycle) : "none"}
+          </div>
         </div>
       </WorkspaceSection>
 
@@ -191,6 +203,7 @@ export function EntryDetailPage() {
         entities={entitiesQuery.data ?? []}
         groups={groupsQuery.data ?? []}
         tags={tagsQuery.data ?? []}
+        categoryTerms={categoryTermsQuery.data ?? []}
         currentUserId={currentUserId}
         defaultCurrencyCode={runtimeSettingsQuery.data?.default_currency_code ?? "USD"}
         entryTaggingModel={runtimeSettingsQuery.data?.entry_tagging_model}

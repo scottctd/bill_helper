@@ -212,27 +212,27 @@ The most recent snapshot produces one **open interval** from that snapshot to to
 - Taxonomies, taxonomy terms, taxonomy assignments. Entity Categories and Tag Categories are first-class manageable tables.
 - Entities and tags can be assigned to taxonomy terms (categories).
 - Default entity categories: merchant, account, financial_institution, government, utility_provider, employer, investment_entity, person, placeholder, organization.
-- Default tags seeded: expense (housing, grocery, dining_out, etc.), income (salary_wages, bonus, etc.), internal (internal_transfer, e_transfer, cash_withdrawal, one_time, needs_review).
+- Entry categories are seeded as a two-level taxonomy (housing, food_drink, transport, and related leaves). Tags remain auxiliary cross-cutting labels such as internal_transfer, e_transfer, cash_withdrawal, and needs_review.
 
 ### 7.6 Filter Groups
 
-**What they are:** Reusable saved filter definitions that classify entries for analytics. Most groups are user-editable; the built-in `untagged` group is a computed system bucket.
+**What they are:** Reusable user-created filter definitions that classify entries for optional overlapping analytics.
 
-**Default groups:** Five built-in groups provisioned per user: day-to-day (routine spending — groceries, dining, transport, etc.), one-time (irregular purchases), fixed (recurring obligations — rent, insurance, utilities), transfers (external money movement), untagged (expense entries with no tags, or tagged expense entries that match no other saved group, needing review).
+**Default groups:** None. The list stays empty until a user creates a custom group.
 
-**Rule model:** Each editable filter group has include and exclude conditions. Rules support: entry kind, tag inclusion, tag exclusion, internal-transfer flag, nested AND/OR logic. Default groups other than `untagged` can be edited; custom groups can overlap with each other.
+**Rule model:** Each editable filter group has include and exclude conditions. Rules support entry kind, tag inclusion, tag exclusion, internal-transfer flag, and nested AND/OR logic.
 
-**Usage:** Filter groups power dashboard expense breakdowns, daily/monthly charts, projections, and largest-expense classification. Entries list can open filtered by a chosen group. Internal transfers (both from and to are accounts) are excluded from dashboard KPIs and charts. Cash withdrawals are excluded from expense analytics and shown as a separate dashboard KPI.
+**Usage:** Entry categories form the non-overlapping dashboard partition. Lifecycle (`fixed`, `day_to_day`, `one_time`, or null) is a disjoint cross-cut with category-leaf defaults and per-entry overrides. Filter groups remain auxiliary and may overlap. Internal transfers and cash withdrawals retain their exclusion behavior.
 
 ### 7.7 Dashboard
 
 **Data rules:** Uses a single configurable dashboard currency; entries in other currencies are excluded from all calculations. Internal account-to-account transfers are excluded from KPIs, charts, and projections. Entries tagged `cash_withdrawal` are reported separately instead of counted as spending.
 
 **Tabs and behavior:**
-- **Overview:** Month/year toggle; KPI cards (expense, income, net) with a smaller secondary row for expense minus one-time and cash withdrawn; income vs expense trend bar (stacked by filter group); builtin filter-group spend breakdown in trend-order with per-group tag facets and explicit sqrt-scale labeling on both ranked and facet bars; projection bars for current month with solid actual spend, translucent forecast extensions, and explicit sqrt-scale labeling.
+- **Overview:** Month/year toggle; KPI hero (expense, income, net) with expense minus one-time and cash withdrawn; total income vs expense trend; ranked category partition with sub-category detail; lifecycle and filter-group cross-cuts; category projection.
 - **Daily Expense:** Day-to-day daily bar chart with average/median spend metrics; yearly mode switches to monthly filter-group bars.
 - **Breakdowns:** Summary tag, destination, and source charts above a filter-group → tag → destination drill-down tree.
-- **Insights:** Largest expenses with filter group badges.
+- **Breakdown:** Category, sub-category, destination, and entry drill-down.
 
 **Navigation:** Scrollable timeline of months with visible expense or cash-withdrawal activity; no manual month picker. Yearly view assembled from repeated month-scoped reads.
 

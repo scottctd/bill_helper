@@ -14,6 +14,7 @@ interface UseFloatingMenuPositionArgs {
   preferredMaxHeight?: number;
   viewportPadding?: number;
   minVisibleHeight?: number;
+  minWidth?: number;
 }
 
 function resolvedMenuHeight(availableSpace: number, preferredMaxHeight: number, minVisibleHeight: number) {
@@ -26,7 +27,8 @@ export function useFloatingMenuPosition({
   offset = 6,
   preferredMaxHeight = 224,
   viewportPadding = 12,
-  minVisibleHeight = 96
+  minVisibleHeight = 96,
+  minWidth = 0
 }: UseFloatingMenuPositionArgs) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({
@@ -59,7 +61,10 @@ export function useFloatingMenuPosition({
       const shouldPlaceAbove = availableAbove > availableBelow && availableBelow < minVisibleHeight;
       const availableSpace = shouldPlaceAbove ? availableAbove : availableBelow;
       const maxHeight = resolvedMenuHeight(availableSpace, preferredMaxHeight, minVisibleHeight);
-      const width = Math.min(rect.width, Math.max(viewportWidth - viewportPadding * 2, 0));
+      const width = Math.min(
+        Math.max(rect.width, minWidth),
+        Math.max(viewportWidth - viewportPadding * 2, 0)
+      );
       const left = Math.min(Math.max(rect.left, viewportPadding), Math.max(viewportPadding, viewportWidth - viewportPadding - width));
 
       setMenuStyle({
@@ -83,7 +88,7 @@ export function useFloatingMenuPosition({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [anchorRef, minVisibleHeight, offset, open, preferredMaxHeight, viewportPadding]);
+  }, [anchorRef, minVisibleHeight, minWidth, offset, open, preferredMaxHeight, viewportPadding]);
 
   return {
     menuRef,

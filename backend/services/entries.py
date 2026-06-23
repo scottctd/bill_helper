@@ -12,7 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from backend.auth.contracts import RequestPrincipal
-from backend.enums_finance import EntryKind, GroupMemberRole
+from backend.enums_finance import EntryKind, EntryLifecycle, GroupMemberRole
 from backend.models_finance import Entity, Entry, EntryGroup, EntryGroupMember, Tag
 from backend.services.access_scope import (
     ensure_principal_can_assign_user,
@@ -24,6 +24,13 @@ from backend.services.crud_policy import PolicyViolation
 from backend.services.entities import ensure_entity_by_name
 from backend.services.groups import entry_group_options, group_tree_options, set_entry_direct_group
 from backend.services.tags import generate_random_tag_color
+from backend.services.taxonomy import (
+    assign_single_term_by_name,
+    ensure_taxonomy_by_key,
+    entry_category_term_names,
+    normalize_term_name,
+)
+from backend.services.taxonomy_constants import ENTRY_CATEGORY_SUBJECT_TYPE, ENTRY_CATEGORY_TAXONOMY_KEY
 from backend.services.users import find_user_by_name, normalize_user_name
 from backend.validation.finance_names import normalize_entity_name, normalize_tag_name
 
@@ -87,6 +94,8 @@ class EntryCreateCommand(BaseModel):
     tags: list[str] = Field(default_factory=list)
     direct_group_id: str | None = None
     direct_group_member_role: GroupMemberRole | None = None
+    category: str | None = None
+    lifecycle: EntryLifecycle | None = None
 
     @model_validator(mode="after")
     def validate_direct_group_membership(self) -> EntryCreateCommand:
@@ -110,6 +119,8 @@ class EntryUpdateCommand(BaseModel):
     tags: list[str] | None = None
     direct_group_id: str | None = None
     direct_group_member_role: GroupMemberRole | None = None
+    category: str | None = None
+    lifecycle: EntryLifecycle | None = None
 
 
 def signed_amount_minor(kind: EntryKind, amount_minor: int) -> int:
@@ -273,6 +284,48 @@ def _load_entry_for_mutation(
     )
 
 
+def _validate_category_and_tags(
+    db: Session,
+    *,
+    category: str | None,
+    tags: list[str] | None,
+    owner_user_id: str,
+) -> None:
+    """Reject unknown categories and tags that collide with category term names."""
+    if category is None and not tags:
+        return
+    ensure_taxonomy_by_key(db, ENTRY_CATEGORY_TAXONOMY_KEY, owner_user_id=owner_user_id)
+    category_names = entry_category_term_names(db, owner_user_id=owner_user_id)
+    if category is not None:
+        if normalize_term_name(category) not in category_names:
+            raise PolicyViolation.bad_request(f"Unknown category '{category}'")
+    if tags:
+        blocked = {normalize_term_name(tag) for tag in tags} & category_names
+        if blocked:
+            raise PolicyViolation.bad_request(
+                "Tags cannot include category names: " + ", ".join(sorted(blocked))
+            )
+
+
+def _assign_entry_category(
+    db: Session,
+    *,
+    entry: Entry,
+    category: str | None,
+    owner_user_id: str,
+) -> None:
+    if category is None:
+        return
+    assign_single_term_by_name(
+        db,
+        taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
+        subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
+        subject_id=entry.id,
+        term_name=category,
+        owner_user_id=owner_user_id,
+    )
+
+
 def create_entry_from_command(
     db: Session,
     *,
@@ -321,15 +374,22 @@ def create_entry_from_command(
         to_entity=to_entity_name,
         owner=owner_name,
         markdown_body=command.markdown_body,
+        lifecycle=command.lifecycle,
     )
     db.add(entry)
     db.flush()
+    _validate_category_and_tags(
+        db, category=command.category, tags=command.tags, owner_user_id=owner_user_id
+    )
     set_entry_tags(db, entry, command.tags)
     set_entry_direct_group(
         db,
         entry=entry,
         group=target_group,
         member_role=command.direct_group_member_role,
+    )
+    _assign_entry_category(
+        db, entry=entry, category=command.category, owner_user_id=owner_user_id
     )
 
     db.flush()
@@ -350,6 +410,7 @@ def update_entry_from_command(
     )
 
     tags = update_data.pop("tags", None)
+    category_value = update_data.pop("category", Ellipsis)
     group_value = update_data.pop("direct_group_id", Ellipsis)
     role_value = update_data.pop("direct_group_member_role", Ellipsis)
 
@@ -393,8 +454,25 @@ def update_entry_from_command(
     for field, value in update_data.items():
         setattr(entry, field, value)
 
+    category_being_updated = category_value is not Ellipsis
+    if tags is not None or category_being_updated:
+        _validate_category_and_tags(
+            db,
+            category=category_value if category_being_updated else None,
+            tags=tags,
+            owner_user_id=resolved_owner_user_id,
+        )
     if tags is not None:
         set_entry_tags(db, entry, tags)
+    if category_being_updated:
+        assign_single_term_by_name(
+            db,
+            taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
+            subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
+            subject_id=entry.id,
+            term_name=category_value,
+            owner_user_id=resolved_owner_user_id,
+        )
 
     group_update_requested = group_value is not Ellipsis or role_value is not Ellipsis
     if group_update_requested:

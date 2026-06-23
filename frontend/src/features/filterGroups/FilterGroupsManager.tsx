@@ -6,7 +6,6 @@
  * - Side effects: React rendering and user event wiring.
  */
 import { FilterGroupEditorPanel } from "./FilterGroupEditorPanel";
-import { FilterGroupReadonlyPanel } from "./FilterGroupReadonlyPanel";
 import { FilterGroupsSidebar } from "./FilterGroupsSidebar";
 import { DiscardChangesDialog } from "./DiscardChangesDialog";
 import type { FilterGroupsPageModel } from "./useFilterGroupsPageModel";
@@ -41,10 +40,7 @@ export function FilterGroupsManager({ model }: FilterGroupsManagerProps) {
             {model.filterGroupsQuery.isLoading && !model.session ? <p>Loading filter groups...</p> : null}
 
             {model.session ? (
-              model.isSystemUntagged && model.selectedFilterGroup ? (
-                <FilterGroupReadonlyPanel filterGroup={model.selectedFilterGroup} />
-              ) : (
-                <FilterGroupEditorPanel
+              <FilterGroupEditorPanel
                   key={model.session.kind === "new" ? "new" : model.session.filterGroupId}
                   session={model.session}
                   tags={model.tags}
@@ -58,9 +54,8 @@ export function FilterGroupsManager({ model }: FilterGroupsManagerProps) {
                   mutationError={model.mutationError}
                   tagLoadError={model.tagsQuery.isError ? (model.tagsQuery.error as Error).message : null}
                   onChange={model.updateFormState}
-                  onDelete={existingSession && !existingSession.isDefault ? () => model.handleDelete(existingSession.filterGroupId) : undefined}
+                  onDelete={existingSession ? () => model.handleDelete(existingSession.filterGroupId) : undefined}
                 />
-              )
             ) : (
               <div className="rounded-md border border-dashed border-border bg-secondary/25 p-6 text-copy-14 text-muted-foreground">
                 No filter groups are available yet.

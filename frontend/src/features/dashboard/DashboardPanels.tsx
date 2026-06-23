@@ -11,7 +11,6 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
-  ReferenceLine,
   Tooltip,
   XAxis,
   YAxis
@@ -20,9 +19,17 @@ import {
 import { StatBlock } from "../../components/layout/StatBlock";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { formatMinor } from "../../lib/format";
-import type { Dashboard, DashboardBreakdownItem } from "../../lib/types";
+import type {
+  Dashboard,
+  DashboardBreakdownItem,
+  DashboardCategorySummary,
+  DashboardLifecycleSummary,
+  DashboardFilterGroupSummary
+} from "../../lib/types";
 import {
-  DashboardExpenseGroupBreakdownCard,
+  DashboardCategoryPartitionCard,
+  DashboardLifecycleCrosscutCard,
+  DashboardFilterGroupsCrosscutCard,
   DashboardProjectionChart,
   DashboardSpendingByDestinationCard
 } from "./DashboardOverviewCharts";
@@ -31,26 +38,25 @@ import {
   DashboardChartContainer,
   type DashboardViewMode,
   axisTick,
-  builtinGroupColor,
-  dashboardBarColor,
   formatDayFromDate,
   tooltipAmount,
   tooltipAmountWithName
 } from "./helpers";
 import {
   HorizontalBarValueLabels,
+  VerticalBarValueLabels,
   STACKED_BAR_CHART_MARGINS,
   STACKED_BAR_Y_AXIS_WIDTH,
-  stackedBarYAxisDomain,
-  stackTopBarLabel,
-  VerticalBarValueLabels
+  stackedBarYAxisDomain
 } from "./BarChartValueLabels";
 
 type DashboardSpendingPanelProps = {
   viewMode: DashboardViewMode;
   selectedYear: number;
   data: Dashboard;
-  spendingFilterGroups: Dashboard["filter_groups"];
+  categories: DashboardCategorySummary[];
+  lifecycles: DashboardLifecycleSummary[];
+  filterGroups: DashboardFilterGroupSummary[];
   spendingByDestination: DashboardBreakdownItem[];
   dailyChartData: Array<Record<string, unknown>>;
   yearlyQueriesLoading: boolean;
@@ -64,7 +70,9 @@ export function DashboardSpendingPanel({
   viewMode,
   selectedYear,
   data,
-  spendingFilterGroups,
+  categories,
+  lifecycles,
+  filterGroups,
   spendingByDestination,
   dailyChartData,
   yearlyQueriesLoading,
@@ -74,16 +82,34 @@ export function DashboardSpendingPanel({
   yearlyMedianExpenseMonthMinor
 }: DashboardSpendingPanelProps) {
   const titlePrefix = viewMode === "year" ? `${selectedYear} ` : "";
-  const dayToDayColor = builtinGroupColor("day_to_day");
 
   return (
     <section className="stack-lg" role="tabpanel" id="dashboard-panel-spending" aria-labelledby="dashboard-tab-spending">
-      <DashboardExpenseGroupBreakdownCard
+      <DashboardCategoryPartitionCard
         titlePrefix={titlePrefix}
-        filterGroups={spendingFilterGroups}
+        categories={categories}
         currencyCode={data.currency_code}
+        expenseTotalMinor={viewMode === "year" ? yearlyAverageExpenseMonthMinor * 12 : data.kpis.expense_total_minor}
         yearlyQueriesLoading={yearlyQueriesLoading}
         yearlyQueryError={yearlyQueryError}
+      />
+
+      <DashboardLifecycleCrosscutCard
+        titlePrefix={titlePrefix}
+        lifecycles={lifecycles}
+        currencyCode={data.currency_code}
+        expenseTotalMinor={viewMode === "year"
+          ? categories.reduce((s, c) => s + c.total_minor, 0)
+          : data.kpis.expense_total_minor}
+      />
+
+      <DashboardFilterGroupsCrosscutCard
+        titlePrefix={titlePrefix}
+        filterGroups={filterGroups}
+        currencyCode={data.currency_code}
+        expenseTotalMinor={viewMode === "year"
+          ? categories.reduce((s, c) => s + c.total_minor, 0)
+          : data.kpis.expense_total_minor}
       />
 
       <DashboardSpendingByDestinationCard
@@ -98,7 +124,7 @@ export function DashboardSpendingPanel({
         <>
           <Card>
             <CardHeader>
-              <CardTitle>Daily Spending (Day-to-Day)</CardTitle>
+              <CardTitle>Daily Spending</CardTitle>
             </CardHeader>
             <CardContent className="min-w-0 overflow-hidden">
               <div className="flex min-w-0 flex-col">
@@ -110,46 +136,12 @@ export function DashboardSpendingPanel({
                         <XAxis dataKey="date" tickFormatter={(v) => formatDayFromDate(String(v ?? ""))} />
                         <YAxis tickFormatter={axisTick} />
                         <Tooltip formatter={(value) => tooltipAmount(data.currency_code, value)} />
-                        <ReferenceLine
-                          y={data.kpis.average_day_to_day_minor ?? 0}
-                          stroke={dashboardBarColor(1)}
-                          strokeWidth={3}
-                          strokeDasharray="6 4"
-                        />
-                        <ReferenceLine
-                          y={data.kpis.median_day_to_day_minor ?? 0}
-                          stroke={dashboardBarColor(2)}
-                          strokeWidth={3}
-                          strokeDasharray="2 4"
-                        />
-                        <Bar dataKey="day_to_day" name="Day-to-Day" fill={dayToDayColor} radius={[4, 4, 0, 0]}>
-                          <VerticalBarValueLabels dataKey="day_to_day" />
+                        <Bar dataKey="expense_total_minor" name="Total Expense" fill={CHART_COLORS.expense} radius={[4, 4, 0, 0]}>
+                          <VerticalBarValueLabels dataKey="expense_total_minor" />
                         </Bar>
                       </BarChart>
                     )}
                   </DashboardChartContainer>
-                </div>
-                <div className="mt-3 flex w-full min-w-0 flex-wrap gap-4 overflow-hidden text-sm" role="list" aria-label="Daily spending legend">
-                  <span className="flex min-w-0 max-w-full shrink items-center gap-2">
-                    <span className="inline-block size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: dayToDayColor }} aria-hidden />
-                    <span className="truncate">Day-to-Day</span>
-                  </span>
-                  <span className="flex min-w-0 max-w-full shrink items-center gap-2">
-                    <svg width={20} height={4} aria-hidden="true" className="shrink-0">
-                      <line x1={0} y1={2} x2={20} y2={2} stroke={dashboardBarColor(1)} strokeWidth={2} strokeDasharray="6 4" />
-                    </svg>
-                    <span className="truncate">
-                      Mean: {formatMinor(data.kpis.average_day_to_day_minor ?? 0, data.currency_code)}
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <svg width={20} height={4} aria-hidden="true" className="shrink-0">
-                      <line x1={0} y1={2} x2={20} y2={2} stroke={dashboardBarColor(2)} strokeWidth={2} strokeDasharray="2 4" />
-                    </svg>
-                    <span className="truncate">
-                      Median: {formatMinor(data.kpis.median_day_to_day_minor ?? 0, data.currency_code)}
-                    </span>
-                  </span>
                 </div>
               </div>
             </CardContent>
@@ -186,7 +178,7 @@ export function DashboardSpendingPanel({
                 <div className="p-4">
                   <DashboardProjectionChart
                     projection={data.projection}
-                    filterGroups={data.filter_groups}
+                    categories={categories}
                     currencyCode={data.currency_code}
                   />
                 </div>
@@ -199,12 +191,12 @@ export function DashboardSpendingPanel({
           <section className="grid gap-4 md:grid-cols-3">
             <StatBlock label="Average expense month" value={formatMinor(yearlyAverageExpenseMonthMinor, data.currency_code)} />
             <StatBlock label="Median expense month" value={formatMinor(yearlyMedianExpenseMonthMinor, data.currency_code)} />
-            <StatBlock label="Tracked groups" value={data.filter_groups.length} />
+            <StatBlock label="Filter groups" value={data.filter_groups.length} />
           </section>
 
           <Card>
             <CardHeader>
-              <CardTitle>{selectedYear} Monthly Filter Group Trend</CardTitle>
+              <CardTitle>{selectedYear} Monthly Expense vs Income</CardTitle>
             </CardHeader>
             <CardContent className="h-80 min-w-0">
               {yearlyQueriesLoading ? (
@@ -225,21 +217,20 @@ export function DashboardSpendingPanel({
                       />
                       <Tooltip formatter={(value, name) => tooltipAmountWithName(data.currency_code, value, name)} />
                       <Legend />
-                      {data.filter_groups.map((group, index, groups) => (
-                        <Bar
-                          key={group.key}
-                          dataKey={group.key}
-                          name={group.name}
-                          stackId="yearly-group-spend"
-                          fill={dashboardBarColor(index)}
-                          radius={[4, 4, 0, 0]}
-                          isAnimationActive={false}
-                          label={stackTopBarLabel({
-                            stackKeys: groups.map((item) => item.key),
-                            segmentKey: group.key
-                          })}
-                        />
-                      ))}
+                      <Bar
+                        dataKey="expense_total_minor"
+                        name="Expense"
+                        fill={CHART_COLORS.expense}
+                        radius={[4, 4, 0, 0]}
+                        isAnimationActive={false}
+                      />
+                      <Bar
+                        dataKey="income_total_minor"
+                        name="Income"
+                        fill={CHART_COLORS.income}
+                        radius={[4, 4, 0, 0]}
+                        isAnimationActive={false}
+                      />
                     </BarChart>
                   )}
                 </DashboardChartContainer>
@@ -257,8 +248,6 @@ type DashboardIncomePanelProps = {
   selectedYear: number;
   currencyCode: string;
   incomeByFrom: Dashboard["income_by_from"];
-  salaryTotalMinor: number;
-  otherIncomeTotalMinor: number;
   yearlyQueriesLoading: boolean;
 };
 
@@ -267,8 +256,6 @@ export function DashboardIncomePanel({
   selectedYear,
   currencyCode,
   incomeByFrom,
-  salaryTotalMinor,
-  otherIncomeTotalMinor,
   yearlyQueriesLoading
 }: DashboardIncomePanelProps) {
   return (
@@ -278,11 +265,6 @@ export function DashboardIncomePanel({
           Income breakdown reflects the full <strong>{selectedYear}</strong> year.
         </div>
       ) : null}
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <StatBlock label="Salary" value={formatMinor(salaryTotalMinor, currencyCode)} tone="success" />
-        <StatBlock label="Other income" value={formatMinor(otherIncomeTotalMinor, currencyCode)} tone="success" />
-      </section>
 
       <Card>
         <CardHeader>

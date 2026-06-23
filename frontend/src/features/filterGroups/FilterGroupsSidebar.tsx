@@ -29,7 +29,7 @@ function FilterGroupsSidebarItem({
   label: string;
   description: string;
   color: string | null;
-  badgeLabel: string;
+  badgeLabel?: string;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -51,7 +51,7 @@ function FilterGroupsSidebarItem({
           />
           <span className="min-w-0 truncate text-sm font-medium text-foreground">{label}</span>
         </div>
-        <Badge variant={isActive ? "secondary" : "outline"}>{badgeLabel}</Badge>
+        {badgeLabel ? <Badge variant={isActive ? "secondary" : "outline"}>{badgeLabel}</Badge> : null}
       </div>
       <p className="line-clamp-2 text-sm text-muted-foreground">{description}</p>
     </button>
@@ -96,7 +96,6 @@ export function FilterGroupsSidebar({
             label={filterGroup.name}
             description={filterGroup.description ?? "No description yet."}
             color={filterGroup.color}
-            badgeLabel={filterGroup.is_default ? "Default" : "Custom"}
             isActive={selectedTarget?.kind === "existing" && selectedTarget.filterGroupId === filterGroup.id}
             onClick={() => onSelectExisting(filterGroup.id)}
           />

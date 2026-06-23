@@ -68,19 +68,20 @@ Scope (choose exactly one):
 Section filters:
   Repeat `--sections NAME` or pass comma-separated names. Default: all sections.
 
-  meta, kpis, filter_groups, daily_spending, monthly_trend,
-  spending_by_from, spending_by_to, spending_by_tag, income_by_from,
-  weekday_spending, largest_expenses, projection, reconciliation, all
+  meta, kpis, categories, lifecycles, filter_groups, daily_spending,
+  monthly_trend, spending_by_from, spending_by_to, spending_by_tag,
+  income_by_from, weekday_spending, largest_expenses, projection,
+  reconciliation, all
 
-Filter-group drill-down depth (only affects filter_groups):
-  summary       group totals only
-  tags          include tag_totals
-  destinations  include tag -> destination rows without entry rows
+Category drill-down depth (only affects categories):
+  summary       top-level category totals only
+  categories    include sub-category totals
+  destinations  include sub-category -> destination rows without entry rows
   entries       full tree with nested entry rows (default)
 
 Output:
   Default compact output is section-oriented tables. Use `--format json` for the
-  full nested filter-group tree and all numeric fields in raw minor units.
+  full nested category tree and all numeric fields in raw minor units.
 
 Data boundaries:
   - Uses the runtime dashboard currency; other currencies are excluded.
@@ -88,9 +89,9 @@ Data boundaries:
 
 Examples:
   bh dashboard finance get --sections kpis
-  bh dashboard finance get --month 2026-05 --sections filter_groups --format json
+  bh dashboard finance get --month 2026-05 --sections categories --format json
   bh dashboard finance get --year 2026 --sections kpis,monthly_trend
-  bh dashboard finance get --months 2026-01,2026-02 --sections kpis,filter_groups
+  bh dashboard finance get --months 2026-01,2026-02 --sections kpis,categories
 """
 
 _AGENT_ROOT_HELP = """\
@@ -179,9 +180,9 @@ def add_dashboard_parser(subparsers, add_format_option) -> None:
     )
     finance_get.add_argument(
         "--breakdown-depth",
-        choices=("summary", "tags", "destinations", "entries"),
+        choices=("summary", "categories", "destinations", "entries"),
         default="entries",
-        help="Filter-group drill-down depth when filter_groups is included.",
+        help="Category drill-down depth when categories is included.",
     )
     finance_get.set_defaults(handler=_handle_dashboard_finance_get, render_key="dashboard_finance")
 

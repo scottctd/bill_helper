@@ -18,7 +18,7 @@ import { Button } from "../components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { GroupsTableToolbar } from "../features/groups/GroupsTableToolbar";
 import { useAuth } from "../features/auth";
-import { includesFilter } from "../lib/catalogs";
+import { ENTRY_CATEGORY_TAXONOMY_KEY, includesFilter } from "../lib/catalogs";
 import { stringOptionsAsTags, matchesSelectedValues } from "../lib/workspaceFilters";
 import {
   addGroupMember,
@@ -33,6 +33,7 @@ import {
   listEntries,
   listGroups,
     listTags,
+    listTaxonomyTerms,
     listUsers,
     updateEntry,
   updateGroup
@@ -128,6 +129,11 @@ export function GroupsPage() {
   const tagsQuery = useQuery({
     queryKey: queryKeys.properties.tags,
     queryFn: listTags,
+    enabled: Boolean(editingEntryId)
+  });
+  const categoryTermsQuery = useQuery({
+    queryKey: queryKeys.properties.taxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY),
+    queryFn: () => listTaxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY),
     enabled: Boolean(editingEntryId)
   });
 
@@ -452,6 +458,7 @@ export function GroupsPage() {
         entities={entitiesQuery.data ?? []}
         groups={groupsQuery.data ?? []}
         tags={tagsQuery.data ?? []}
+        categoryTerms={categoryTermsQuery.data ?? []}
         currentUserId={currentUserId}
         defaultCurrencyCode={(runtimeSettingsQuery.data?.default_currency_code ?? "CAD").toUpperCase()}
         entryTaggingModel={runtimeSettingsQuery.data?.entry_tagging_model}

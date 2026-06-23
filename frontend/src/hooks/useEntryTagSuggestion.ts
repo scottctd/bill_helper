@@ -9,12 +9,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useNotifications } from "../components/ui/notification-center";
 import { suggestEntryTags } from "../lib/api";
-import type { EntryTagSuggestionRequest } from "../lib/types";
+import type { EntryTagSuggestionRequest, EntryTagSuggestionResponse } from "../lib/types";
 
 interface UseEntryTagSuggestionArgs {
   entryTaggingModel: string | null | undefined;
   buildDraft: () => EntryTagSuggestionRequest;
-  onApplySuggestion: (suggestedTags: string[]) => void;
+  onApplySuggestion: (response: EntryTagSuggestionResponse) => void;
 }
 
 function hasMeaningfulTaggingContext(draft: EntryTagSuggestionRequest): boolean {
@@ -86,7 +86,7 @@ export function useEntryTagSuggestion({
       if (abortControllerRef.current !== controller || requestVersionRef.current !== requestVersion) {
         return;
       }
-      onApplySuggestion(response.suggested_tags);
+      onApplySuggestion(response);
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         return;

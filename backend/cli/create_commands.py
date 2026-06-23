@@ -529,7 +529,7 @@ TAG_CREATE_SPEC = CreateCommandSpec(
     ),
     epilog=(
         "Example:\n"
-        "  bh tags create --name grocery --type expense"
+        "  bh tags create --name travel --type context"
     ),
     validation_model=CreateTagPayload,
     payload_builder=_build_tags_payload,

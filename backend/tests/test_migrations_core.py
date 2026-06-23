@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import bindparam, create_engine, inspect, text
 from sqlalchemy.orm import Session
 
 from backend.enums_agent import AgentRunStatus, AgentTranscriptRole
@@ -602,6 +602,323 @@ def test_migration_chain_reaches_head_from_empty_database(tmp_path):
         ).scalar_one_or_none()
         assert isinstance(version_num, str)
         assert version_num
+
+
+def test_migration_0046_backfills_category_and_lifecycle_from_tags(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0046.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0045_agent_harness_first_schema")
+
+    engine = create_engine(database_url, future=True)
+    now = datetime.now(timezone.utc)
+    grocery_entry_id = str(uuid4())
+    one_time_entry_id = str(uuid4())
+    with engine.begin() as connection:
+        owner_user_id = connection.execute(
+            text("SELECT id FROM users WHERE name = 'admin' LIMIT 1")
+        ).scalar_one()
+        connection.execute(
+            text(
+                """
+                INSERT INTO entries (
+                    id, kind, occurred_at, name, amount_minor, currency_code,
+                    owner_user_id, owner, is_deleted, created_at, updated_at
+                )
+                VALUES
+                    (:grocery_id, 'EXPENSE', '2026-01-02', 'Groceries', 1200, 'CAD',
+                     :owner_id, 'admin', 0, :now, :now),
+                    (:one_time_id, 'EXPENSE', '2026-01-03', 'Appliance', 5000, 'CAD',
+                     :owner_id, 'admin', 0, :now, :now)
+                """
+            ),
+            {
+                "grocery_id": grocery_entry_id,
+                "one_time_id": one_time_entry_id,
+                "owner_id": owner_user_id,
+                "now": now,
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO tags (owner_user_id, name, created_at)
+                VALUES
+                    (:owner_id, 'grocery', :now),
+                    (:owner_id, 'electronics', :now),
+                    (:owner_id, 'one_time', :now)
+                """
+            ),
+            {"owner_id": owner_user_id, "now": now},
+        )
+        tag_ids = {
+            str(name): int(tag_id)
+            for tag_id, name in connection.execute(
+                text("SELECT id, name FROM tags WHERE name IN ('grocery', 'electronics', 'one_time')")
+            ).all()
+        }
+        connection.execute(
+            text(
+                """
+                INSERT INTO entry_tags (entry_id, tag_id)
+                VALUES
+                    (:grocery_id, :grocery_tag_id),
+                    (:one_time_id, :electronics_tag_id),
+                    (:one_time_id, :one_time_tag_id)
+                """
+            ),
+            {
+                "grocery_id": grocery_entry_id,
+                "one_time_id": one_time_entry_id,
+                "grocery_tag_id": tag_ids["grocery"],
+                "electronics_tag_id": tag_ids["electronics"],
+                "one_time_tag_id": tag_ids["one_time"],
+            },
+        )
+
+    command.upgrade(cfg, "0046_entry_category_lifecycle")
+
+    with engine.begin() as connection:
+        lifecycle_by_entry = {
+            str(entry_id): lifecycle
+            for entry_id, lifecycle in connection.execute(
+                text("SELECT id, lifecycle FROM entries WHERE id IN (:grocery_id, :one_time_id)"),
+                {"grocery_id": grocery_entry_id, "one_time_id": one_time_entry_id},
+            ).all()
+        }
+        category_by_entry = {
+            str(subject_id): f"{parent_name}/{term_name}" if parent_name else str(term_name)
+            for subject_id, term_name, parent_name in connection.execute(
+                text(
+                    """
+                    SELECT assignment.subject_id, term.name, parent.name
+                    FROM taxonomy_assignments AS assignment
+                    JOIN taxonomies AS taxonomy ON taxonomy.id = assignment.taxonomy_id
+                    JOIN taxonomy_terms AS term ON term.id = assignment.term_id
+                    LEFT JOIN taxonomy_terms AS parent ON parent.id = term.parent_term_id
+                    WHERE taxonomy.key = 'entry_category'
+                    """
+                )
+            ).all()
+        }
+        remaining_migrated_tags = connection.execute(
+            text("SELECT name FROM tags WHERE name IN ('grocery', 'electronics', 'one_time')")
+        ).scalars().all()
+
+    assert lifecycle_by_entry[grocery_entry_id] == "DAY_TO_DAY"
+    assert lifecycle_by_entry[one_time_entry_id] == "ONE_TIME"
+    assert category_by_entry[grocery_entry_id] == "food_drink/grocery"
+    assert category_by_entry[one_time_entry_id] == "shopping_lifestyle/electronics"
+    assert remaining_migrated_tags == []
+
+
+def test_migration_0047_replaces_entry_category_schedule(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0047.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0046_entry_category_lifecycle")
+
+    engine = create_engine(database_url, future=True)
+    now = datetime.now(timezone.utc)
+    source_categories = [
+        "internet_mobile",
+        "subscriptions",
+        "debt_payment",
+        "fitness",
+        "transportation",
+    ]
+    entry_ids = {name: str(uuid4()) for name in source_categories}
+    with engine.begin() as connection:
+        owner_user_id = str(
+            connection.execute(
+                text("SELECT id FROM users WHERE name = 'admin' LIMIT 1")
+            ).scalar_one()
+        )
+        taxonomy_id = str(
+            connection.execute(
+                text(
+                    """
+                    SELECT id FROM taxonomies
+                    WHERE owner_user_id = :owner_id AND key = 'entry_category'
+                    """
+                ),
+                {"owner_id": owner_user_id},
+            ).scalar_one()
+        )
+        term_ids = {
+            str(name): str(term_id)
+            for term_id, name in connection.execute(
+                text(
+                    """
+                    SELECT id, name FROM taxonomy_terms
+                    WHERE taxonomy_id = :taxonomy_id AND name IN :names
+                    """
+                ).bindparams(bindparam("names", expanding=True)),
+                {"taxonomy_id": taxonomy_id, "names": source_categories},
+            ).all()
+        }
+        for category_name, entry_id in entry_ids.items():
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO entries (
+                        id, kind, occurred_at, name, amount_minor, currency_code,
+                        owner_user_id, owner, is_deleted, created_at, updated_at
+                    )
+                    VALUES (
+                        :id, 'EXPENSE', '2026-06-01', :name, 1000, 'CAD',
+                        :owner_id, 'admin', 0, :now, :now
+                    )
+                    """
+                ),
+                {
+                    "id": entry_id,
+                    "name": category_name,
+                    "owner_id": owner_user_id,
+                    "now": now,
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO taxonomy_assignments (
+                        id, taxonomy_id, term_id, subject_type, subject_id,
+                        position, created_at, updated_at
+                    )
+                    VALUES (
+                        :id, :taxonomy_id, :term_id, 'entry', :entry_id,
+                        0, :now, :now
+                    )
+                    """
+                ),
+                {
+                    "id": str(uuid4()),
+                    "taxonomy_id": taxonomy_id,
+                    "term_id": term_ids[category_name],
+                    "entry_id": entry_id,
+                    "now": now,
+                },
+            )
+
+    command.upgrade(cfg, "0047_entry_category_schedule")
+
+    with engine.begin() as connection:
+        category_by_entry = {
+            str(subject_id): (
+                f"{parent_name}/{term_name}" if parent_name else str(term_name)
+            )
+            for subject_id, term_name, parent_name in connection.execute(
+                text(
+                    """
+                    SELECT assignment.subject_id, term.name, parent.name
+                    FROM taxonomy_assignments AS assignment
+                    JOIN taxonomy_terms AS term ON term.id = assignment.term_id
+                    LEFT JOIN taxonomy_terms AS parent ON parent.id = term.parent_term_id
+                    WHERE assignment.taxonomy_id = :taxonomy_id
+                    """
+                ),
+                {"taxonomy_id": taxonomy_id},
+            ).all()
+        }
+        internet_metadata = connection.execute(
+            text(
+                """
+                SELECT metadata_json FROM taxonomy_terms
+                WHERE taxonomy_id = :taxonomy_id AND name = 'internet'
+                """
+            ),
+            {"taxonomy_id": taxonomy_id},
+        ).scalar_one()
+        if isinstance(internet_metadata, str):
+            internet_metadata = json.loads(internet_metadata)
+        remaining_legacy_names = connection.execute(
+            text(
+                """
+                SELECT name FROM taxonomy_terms
+                WHERE taxonomy_id = :taxonomy_id
+                  AND name IN ('internet_mobile', 'subscriptions', 'debt_payment', 'saas')
+                """
+            ),
+            {"taxonomy_id": taxonomy_id},
+        ).scalars().all()
+        lifecycle_by_entry = {
+            str(entry_id): lifecycle
+            for entry_id, lifecycle in connection.execute(
+                text("SELECT id, lifecycle FROM entries WHERE id IN :entry_ids").bindparams(
+                    bindparam("entry_ids", expanding=True)
+                ),
+                {"entry_ids": list(entry_ids.values())},
+            ).all()
+        }
+
+    assert category_by_entry[entry_ids["internet_mobile"]] == "housing/internet"
+    assert category_by_entry[entry_ids["subscriptions"]] == (
+        "software_tools/software_subscriptions"
+    )
+    assert entry_ids["debt_payment"] not in category_by_entry
+    assert category_by_entry[entry_ids["fitness"]] == "health/fitness"
+    assert category_by_entry[entry_ids["transportation"]] == "transport/transit"
+    assert lifecycle_by_entry[entry_ids["internet_mobile"]] == "FIXED"
+    assert lifecycle_by_entry[entry_ids["fitness"]] == "FIXED"
+    assert lifecycle_by_entry[entry_ids["transportation"]] == "DAY_TO_DAY"
+    assert lifecycle_by_entry[entry_ids["debt_payment"]] is None
+    assert internet_metadata["description"] == "Home internet service."
+    assert internet_metadata["default_lifecycle"] == "fixed"
+    assert remaining_legacy_names == []
+
+
+def test_migration_0048_removes_builtin_filter_groups_only(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0048.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0047_entry_category_schedule")
+
+    engine = create_engine(database_url, future=True)
+    now = datetime.now(timezone.utc)
+    default_id = str(uuid4())
+    custom_id = str(uuid4())
+    empty_rule = {
+        "include": {
+            "type": "group",
+            "operator": "AND",
+            "children": [],
+        },
+        "exclude": None,
+    }
+    with engine.begin() as connection:
+        owner_user_id = str(
+            connection.execute(
+                text("SELECT id FROM users WHERE name = 'admin' LIMIT 1")
+            ).scalar_one()
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO filter_groups (
+                    id, owner_user_id, key, name, description, color,
+                    is_default, position, definition_json, created_at, updated_at
+                )
+                VALUES
+                    (:default_id, :owner_id, 'transfers', 'transfers', NULL, NULL,
+                     1, 0, :rule, :now, :now),
+                    (:custom_id, :owner_id, 'custom_travel', 'travel', NULL, NULL,
+                     0, 1, :rule, :now, :now)
+                """
+            ),
+            {
+                "default_id": default_id,
+                "custom_id": custom_id,
+                "owner_id": owner_user_id,
+                "rule": json.dumps(empty_rule),
+                "now": now,
+            },
+        )
+
+    command.upgrade(cfg, "0048_remove_builtin_filter_groups")
+
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text("SELECT id, key, is_default FROM filter_groups ORDER BY position")
+        ).all()
+
+    assert rows == [(custom_id, "custom_travel", 0)]
 
 
 def test_migration_0024_rewrites_account_ids_to_entity_roots(tmp_path):

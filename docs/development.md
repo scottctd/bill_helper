@@ -138,6 +138,7 @@ Behavior notes:
 Legacy workspace refresh notes:
 
 - The workspace image is built from the checked-out repo and installs `bill-helper` during `docker build`; running sandbox containers do not see later source edits automatically.
+- `docker/agent-workspace-requirements.txt` must include the full `bh` CLI import closure even though the package itself is installed with `--no-deps`; verify `bh dashboard finance get --help` inside a fresh image.
 - Rebuild the image after changes to files copied into `docker/agent-workspace.dockerfile`, especially `backend/`, `telegram/`, `pyproject.toml`, `README.md`, `docker/agent-workspace.dockerfile`, or `docker/agent-workspace-entrypoint.sh`.
 - Recreate any running `bill-helper-sandbox-*` containers after that rebuild so the backend launches new workspaces from the new image. This refresh keeps the named workspace volume unless you remove it separately.
 - When the changed behavior affects installed legacy workspace tools, verify the result from inside a fresh sandbox container instead of only running the command from the host checkout.
@@ -243,6 +244,9 @@ Current revisions:
 - `0043_add_import_workflow`
 - `0044_remove_agent_change_item_rationale_text`
 - `0045_agent_harness_first_schema`
+- `0046_entry_category_lifecycle`
+- `0047_entry_category_schedule`
+- `0048_remove_builtin_filter_groups`
 
 ## Seed Data
 

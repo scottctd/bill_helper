@@ -52,7 +52,7 @@ Important read models:
 - `backend/services/entries.py`
 - `backend/services/entities.py`
 - `backend/services/tags.py`
-- `backend/services/taxonomy.py`
+- `backend/services/taxonomy.py`: taxonomy definitions, two-level entry-category terms, lifecycle defaults, assignments, and guarded term deletion
 - `backend/services/groups.py`
 - `backend/services/filter_groups.py`
 - `backend/services/account_balances.py`

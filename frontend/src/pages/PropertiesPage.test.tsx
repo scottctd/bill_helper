@@ -8,6 +8,7 @@ import {
   createTag,
   createTaxonomyTerm,
   deleteTag,
+  deleteTaxonomyTerm,
   listCurrencies,
   listTags,
   listTaxonomies,
@@ -27,6 +28,7 @@ vi.mock("../lib/api", async () => {
     listTaxonomyTerms: vi.fn(),
     createTag: vi.fn(),
     deleteTag: vi.fn(),
+    deleteTaxonomyTerm: vi.fn(),
     updateTag: vi.fn(),
     createTaxonomyTerm: vi.fn(),
     updateTaxonomyTerm: vi.fn()
@@ -41,6 +43,13 @@ function mockBasePropertiesApi() {
   vi.mocked(listTags).mockResolvedValue([{ id: 1, name: "groceries", color: "#22aa66", type: "Food", entry_count: 2 }]);
   vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 3, is_placeholder: false }]);
   vi.mocked(listTaxonomies).mockResolvedValue([
+    {
+      id: "taxonomy-entry",
+      key: "entry_category",
+      applies_to: "entry",
+      cardinality: "single",
+      display_name: "Entry Categories"
+    },
     {
       id: "taxonomy-entity",
       key: "entity_category",
@@ -57,6 +66,29 @@ function mockBasePropertiesApi() {
     }
   ]);
   vi.mocked(listTaxonomyTerms).mockImplementation(async (taxonomyKey: string) => {
+    if (taxonomyKey === "entry_category") {
+      return [
+        {
+          id: "term-entry-food",
+          taxonomy_id: "taxonomy-entry",
+          name: "food_drink",
+          normalized_name: "food_drink",
+          parent_term_id: null,
+          description: "Food bought for home or prepared away from home.",
+          usage_count: 0
+        },
+        {
+          id: "term-entry-groceries",
+          taxonomy_id: "taxonomy-entry",
+          name: "groceries",
+          normalized_name: "groceries",
+          parent_term_id: "term-entry-food",
+          description: "Food and household staples bought for home.",
+          default_lifecycle: "day_to_day",
+          usage_count: 2
+        }
+      ];
+    }
     if (taxonomyKey === "entity_category") {
       return [{ id: "term-entity-1", taxonomy_id: "taxonomy-entity", name: "Food", normalized_name: "food", parent_term_id: null, usage_count: 1 }];
     }
@@ -65,6 +97,7 @@ function mockBasePropertiesApi() {
   vi.mocked(createTag).mockResolvedValue({ id: 2, name: "rent", color: null, type: "Housing", entry_count: 0 });
   vi.mocked(updateTag).mockResolvedValue({ id: 1, name: "groceries", color: "#22aa66", type: "Food", entry_count: 2 });
   vi.mocked(deleteTag).mockResolvedValue(undefined);
+  vi.mocked(deleteTaxonomyTerm).mockResolvedValue(undefined);
   vi.mocked(createTaxonomyTerm).mockImplementation(async (_taxonomyKey, payload) => ({
     id: `term-${payload.name}`,
     taxonomy_id: "taxonomy",
@@ -124,6 +157,74 @@ describe("PropertiesPage", () => {
     });
     expect(vi.mocked(createTaxonomyTerm).mock.calls[0]?.[0]).toBe("tag_type");
     expect(vi.mocked(createTaxonomyTerm).mock.calls[0]?.[1]).toEqual({ name: "Household" });
+  });
+
+  it("creates, edits, and deletes entry-category children with lifecycle defaults", async () => {
+    mockBasePropertiesApi();
+    renderWithQueryClient(<PropertiesPage />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Entry Categories" }));
+    expect(await screen.findByText("groceries")).toBeInTheDocument();
+    expect(screen.getByText("day-to-day")).toBeInTheDocument();
+    expect(screen.getByText("Food bought for home or prepared away from home.")).toBeInTheDocument();
+    expect(screen.getByText("Food and household staples bought for home.")).toBeInTheDocument();
+    expect(screen.getByText("groceries").closest("tr")?.querySelector(".entry-category-swatch")).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add entry category" }));
+    const createDialog = await screen.findByRole("dialog", { name: "Create Entry Category" });
+    await userEvent.type(within(createDialog).getByLabelText("Name"), "restaurants");
+    await userEvent.selectOptions(within(createDialog).getByLabelText("Parent"), "term-entry-food");
+    await userEvent.type(within(createDialog).getByLabelText("Description"), "Meals prepared by restaurants.");
+    await userEvent.selectOptions(within(createDialog).getByLabelText("Default lifecycle"), "day_to_day");
+    await userEvent.click(within(createDialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(createTaxonomyTerm).toHaveBeenCalledWith("entry_category", {
+        name: "restaurants",
+        description: "Meals prepared by restaurants.",
+        parent_term_id: "term-entry-food",
+        default_lifecycle: "day_to_day"
+      });
+    });
+
+    const groceriesRow = screen.getByText("groceries").closest("tr");
+    expect(groceriesRow).not.toBeNull();
+    if (!groceriesRow) throw new Error("Expected groceries row");
+    expect(within(groceriesRow).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    await userEvent.dblClick(groceriesRow);
+    const editDialog = await screen.findByRole("dialog", { name: "Edit Entry Category" });
+    await userEvent.clear(within(editDialog).getByLabelText("Name"));
+    await userEvent.type(within(editDialog).getByLabelText("Name"), "market");
+    await userEvent.clear(within(editDialog).getByLabelText("Description"));
+    await userEvent.type(within(editDialog).getByLabelText("Description"), "Groceries and household staples.");
+    await userEvent.selectOptions(within(editDialog).getByLabelText("Default lifecycle"), "fixed");
+    await userEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(updateTaxonomyTerm).toHaveBeenCalledWith("entry_category", "term-entry-groceries", {
+        name: "market",
+        description: "Groceries and household staples.",
+        default_lifecycle: "fixed"
+      });
+    });
+
+    const parentRow = screen.getByText("food_drink").closest("tr");
+    expect(parentRow).not.toBeNull();
+    if (!parentRow) throw new Error("Expected food_drink row");
+    await userEvent.dblClick(parentRow);
+    const parentEditDialog = await screen.findByRole("dialog", { name: "Edit Entry Category" });
+    expect(within(parentEditDialog).getByLabelText("Description")).toHaveValue(
+      "Food bought for home or prepared away from home."
+    );
+    await userEvent.click(within(parentEditDialog).getByRole("button", { name: "Cancel" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete entry category food_drink/groceries" }));
+    const deleteDialog = await screen.findByRole("dialog", { name: "Delete groceries?" });
+    await userEvent.click(within(deleteDialog).getByRole("button", { name: "Delete category" }));
+
+    await waitFor(() => {
+      expect(deleteTaxonomyTerm).toHaveBeenCalledWith("entry_category", "term-entry-groceries");
+    });
   });
 
   it("deletes tags from the warning dialog", async () => {

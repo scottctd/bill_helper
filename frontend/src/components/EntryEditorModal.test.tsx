@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EntryEditorModal } from "./EntryEditorModal";
-import type { Entry } from "../lib/types";
+import type { Entry, EntryTagSuggestionResponse } from "../lib/types";
 import { suggestEntryTags } from "../lib/api";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
 
@@ -36,6 +36,8 @@ const entryFixture: Entry = {
   to_entity_missing: false,
   owner: "Alice",
   markdown_body: null,
+  lifecycle: null,
+  category: null,
   created_at: "2026-03-05T00:00:00Z",
   updated_at: "2026-03-05T00:00:00Z",
   direct_group: null,
@@ -67,6 +69,7 @@ function renderModal(overrides: Partial<ComponentProps<typeof EntryEditorModal>>
         { id: 1, name: "coffee", color: "#5f6caf", description: "Coffee purchases" },
         { id: 2, name: "grocery", color: "#7c9a4d", description: "Groceries" }
       ]}
+      categoryTerms={[]}
       currentUserId="user-1"
       defaultCurrencyCode="CAD"
       entryTaggingModel={null}
@@ -96,6 +99,72 @@ describe("EntryEditorModal", () => {
     renderModal();
 
     expect(await screen.findByText(/preserved labels remain visible/i)).toBeInTheDocument();
+  });
+
+  it("keeps category searchable and lifecycle as a basic non-searchable select", async () => {
+    const user = userEvent.setup();
+
+    renderModal({
+      entry: {
+        ...entryFixture,
+        category: "food_drink/dining_out",
+        lifecycle: "day_to_day"
+      },
+      categoryTerms: [
+        {
+          id: "category-food",
+          taxonomy_id: "entry-category",
+          name: "food_drink",
+          normalized_name: "food_drink",
+          parent_term_id: null,
+          usage_count: 1
+        },
+        {
+          id: "category-dining",
+          taxonomy_id: "entry-category",
+          name: "dining_out",
+          normalized_name: "dining_out",
+          parent_term_id: "category-food",
+          default_lifecycle: "day_to_day",
+          usage_count: 1
+        }
+      ]
+    });
+
+    const categoryControl = screen.getByRole("button", { name: "Category" });
+    const lifecycleControl = screen.getByRole("button", { name: "Lifecycle" });
+    expect(categoryControl.querySelector(".single-select-tone-label")).not.toBeNull();
+    expect(categoryControl.querySelector(".single-select-tone-pill")).toBeNull();
+    expect(lifecycleControl.querySelector(".single-select-tone-label")).not.toBeNull();
+    expect(lifecycleControl.querySelector(".single-select-tone-pill")).toBeNull();
+
+    await user.click(categoryControl);
+    const categorySearch = screen.getByRole("textbox", { name: "Search categories..." });
+    expect(categorySearch).toBeInTheDocument();
+    expect(categorySearch.closest(".floating-menu-portal-host")).not.toBeNull();
+    const categoryOption = screen.getByRole("option", { name: "food_drink / dining_out" });
+    expect(categoryOption).toBeInTheDocument();
+    expect(categoryOption.querySelector(".select-option-tone-dot")).not.toBeNull();
+    expect(categoryOption.querySelector(".single-select-tone-pill")).toBeNull();
+
+    await user.click(lifecycleControl);
+    expect(screen.queryByRole("textbox", { name: "Search categories..." })).not.toBeInTheDocument();
+    const lifecycleOption = screen.getByRole("option", { name: "day-to-day" });
+    expect(lifecycleOption).toBeInTheDocument();
+    expect(lifecycleOption.querySelector(".select-option-tone-dot")).not.toBeNull();
+    expect(lifecycleOption.querySelector(".single-select-tone-pill")).toBeNull();
+  });
+
+  it("hosts entity and tag menus inside the dialog scroll boundary", async () => {
+    const user = userEvent.setup();
+    renderModal({ mode: "create", entry: null });
+
+    await user.click(screen.getByRole("textbox", { name: "From" }));
+    expect(screen.getByText("Cafe").closest(".floating-menu-portal-host")).not.toBeNull();
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("textbox", { name: "Tags" }));
+    expect(screen.getByText("coffee").closest(".floating-menu-portal-host")).not.toBeNull();
   });
 
   it("shows a split role selector when assigning the entry to a split group", async () => {
@@ -274,7 +343,11 @@ describe("EntryEditorModal", () => {
 
   it("replaces the current tags with the AI suggestion", async () => {
     const user = userEvent.setup();
-    vi.mocked(suggestEntryTags).mockResolvedValue({ suggested_tags: ["grocery"] });
+    vi.mocked(suggestEntryTags).mockResolvedValue({
+      suggested_tags: ["grocery"],
+      suggested_category: null,
+      suggested_lifecycle: null
+    });
 
     renderModal({
       entry: {
@@ -295,7 +368,7 @@ describe("EntryEditorModal", () => {
 
   it("interrupts an in-flight suggestion without changing tags and ignores a late success", async () => {
     const user = userEvent.setup();
-    const deferred = createDeferred<{ suggested_tags: string[] }>();
+    const deferred = createDeferred<EntryTagSuggestionResponse>();
     let capturedSignal: AbortSignal | undefined;
     vi.mocked(suggestEntryTags).mockImplementation(async (payload) => {
       capturedSignal = payload.signal;
@@ -314,7 +387,7 @@ describe("EntryEditorModal", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Stop AI tag suggestion" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Stop AI tag suggestion" }));
-    deferred.resolve({ suggested_tags: ["grocery"] });
+    deferred.resolve({ suggested_tags: ["grocery"], suggested_category: null, suggested_lifecycle: null });
 
     await waitFor(() => expect(capturedSignal?.aborted).toBe(true));
     await waitFor(() => expect(screen.getByRole("button", { name: "Suggest tags with AI" })).toBeInTheDocument());
@@ -324,7 +397,7 @@ describe("EntryEditorModal", () => {
 
   it("aborts an in-flight suggestion when the modal closes", async () => {
     const user = userEvent.setup();
-    const deferred = createDeferred<{ suggested_tags: string[] }>();
+    const deferred = createDeferred<EntryTagSuggestionResponse>();
     let capturedSignal: AbortSignal | undefined;
     const onClose = vi.fn();
     vi.mocked(suggestEntryTags).mockImplementation(async (payload) => {
@@ -345,6 +418,6 @@ describe("EntryEditorModal", () => {
     await waitFor(() => expect(capturedSignal?.aborted).toBe(true));
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    deferred.resolve({ suggested_tags: ["grocery"] });
+    deferred.resolve({ suggested_tags: ["grocery"], suggested_category: null, suggested_lifecycle: null });
   });
 });

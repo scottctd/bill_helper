@@ -145,6 +145,8 @@ const entryFixture: Entry = {
   to_entity_missing: false,
   owner: null,
   markdown_body: null,
+  lifecycle: null,
+  category: null,
   created_at: "2026-03-06T00:00:00Z",
   updated_at: "2026-03-06T00:00:00Z",
   tags: [],

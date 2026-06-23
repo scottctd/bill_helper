@@ -129,7 +129,11 @@ def test_post_entry_tag_suggestion_returns_existing_catalog_tags(client, monkeyp
     response = client.post("/api/v1/entries/tag-suggestion", json=draft_payload())
     response.raise_for_status()
 
-    assert response.json() == {"suggested_tags": ["grocery", "day_to_day"]}
+    assert response.json() == {
+        "suggested_tags": ["grocery", "day_to_day"],
+        "suggested_category": None,
+        "suggested_lifecycle": None,
+    }
     messages = captured_model_call["messages"]
     assert isinstance(messages, list)
     user_payload = json.loads(messages[1]["content"])
@@ -152,9 +156,17 @@ def test_post_entry_tag_suggestion_returns_existing_catalog_tags(client, monkeyp
                                 "type": "string",
                                 "enum": ["day_to_day", "grocery"],
                             },
-                        }
+                        },
+                        "suggested_category": {
+                            "type": ["string", "null"],
+                            "enum": [None],
+                        },
+                        "suggested_lifecycle": {
+                            "type": ["string", "null"],
+                            "enum": ["fixed", "day_to_day", "one_time", None],
+                        },
                     },
-                    "required": ["suggested_tags"],
+                    "required": ["suggested_tags", "suggested_category", "suggested_lifecycle"],
                 },
             },
         },
