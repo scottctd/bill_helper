@@ -65,10 +65,19 @@ def effective_entity_category(
 
 def format_entry_record(record: dict[str, Any]) -> str:
     tags = record.get("tags") or []
+    category = record.get("category")
+    lifecycle = record.get("lifecycle")
+    classification = []
+    if category:
+        classification.append(f"category={category}")
+    if lifecycle:
+        classification.append(f"lifecycle={lifecycle}")
+    classification_text = f" {' '.join(classification)}" if classification else ""
     return (
         f"entry_id={record.get('entry_id')} {record.get('date')} {record.get('name')} "
         f"{record.get('amount_minor')} {record.get('currency_code')} "
-        f"from={record.get('from_entity') or '-'} to={record.get('to_entity') or '-'} tags={tags}"
+        f"from={record.get('from_entity') or '-'} to={record.get('to_entity') or '-'} "
+        f"tags={tags}{classification_text}"
     )
 
 

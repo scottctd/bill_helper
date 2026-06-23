@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from backend.models_finance import Entry
 from backend.services.access_scope import owner_user_condition
+from backend.services.taxonomy import get_entry_category_path_map
 from backend.validation.finance_names import normalize_tag_name
 
 ENTRY_PUBLIC_ID_LENGTH = 8
@@ -28,6 +29,8 @@ class EntryPublicRecord(TypedDict):
     to_entity: str | None
     tags: list[str]
     markdown_notes: str | None
+    category: str | None
+    lifecycle: str | None
 
 
 class EntryIdAmbiguityDetails(TypedDict):
@@ -42,8 +45,23 @@ def entry_public_id(entry_id: str, *, full: bool = False) -> str:
     return normalized if full else normalized[:ENTRY_PUBLIC_ID_LENGTH]
 
 
-def entry_to_public_record(entry: Entry, *, full_id: bool = False) -> EntryPublicRecord:
+def _entry_lifecycle_value(entry: Entry) -> str | None:
+    if entry.lifecycle is None:
+        return None
+    return entry.lifecycle.value if hasattr(entry.lifecycle, "value") else str(entry.lifecycle)
+
+
+def entry_to_public_record(
+    entry: Entry,
+    *,
+    full_id: bool = False,
+    db: Session | None = None,
+    category_path: str | None = None,
+) -> EntryPublicRecord:
     tag_names = sorted(normalize_tag_name(tag.name) for tag in entry.tags)
+    resolved_category = category_path
+    if resolved_category is None and db is not None:
+        resolved_category = get_entry_category_path_map(db, entry_ids=[entry.id]).get(entry.id)
     return {
         "entry_id": entry_public_id(entry.id, full=full_id),
         "date": entry.occurred_at.isoformat(),
@@ -55,6 +73,8 @@ def entry_to_public_record(entry: Entry, *, full_id: bool = False) -> EntryPubli
         "to_entity": _effective_entry_entity_name(entry, side="to"),
         "tags": tag_names,
         "markdown_notes": entry.markdown_body,
+        "category": resolved_category,
+        "lifecycle": _entry_lifecycle_value(entry),
     }
 
 
@@ -69,12 +89,15 @@ def _effective_entry_entity_name(entry: Entry, *, side: str) -> str | None:
         return entry.to_entity_ref.name if entry.to_entity_ref is not None else None
     raise ValueError(f"Unsupported entry entity side: {side}")
 
+
 def _entry_scope_condition(*, principal_user_id: str | None, is_admin: bool):
     return owner_user_condition(
         Entry.owner_user_id,
         principal_user_id=principal_user_id,
         is_admin=is_admin,
     )
+
+
 def find_entries_by_exact_id(
     db: Session,
     entry_id: str,
@@ -123,13 +146,24 @@ def find_entries_by_public_id_prefix(
     )
 
 
-def entry_id_ambiguity_details(entries: list[Entry], *, entry_id: str) -> EntryIdAmbiguityDetails:
+def entry_id_ambiguity_details(
+    entries: list[Entry],
+    *,
+    entry_id: str,
+    db: Session | None = None,
+) -> EntryIdAmbiguityDetails:
+    category_paths = get_entry_category_path_map(db, entry_ids=[entry.id for entry in entries]) if db is not None else {}
     return {
         "entry_id": entry_id,
         "candidate_count": len(entries),
         "candidate_entry_ids": [entry.id for entry in entries],
-        "candidates": [entry_to_public_record(entry, full_id=True) for entry in entries],
+        "candidates": [
+            entry_to_public_record(entry, full_id=True, db=db, category_path=category_paths.get(entry.id))
+            for entry in entries
+        ],
     }
+
+
 def entry_public_summary(entry: Entry) -> str:
     return (
         f"{entry_public_id(entry.id)} {entry.occurred_at.isoformat()} {entry.name} "

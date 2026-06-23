@@ -31,6 +31,24 @@ describe("buildProposalSummary", () => {
     ]);
   });
 
+  it("includes category and lifecycle in create entry summaries when present", () => {
+    const payload = {
+      kind: "EXPENSE",
+      date: "2026-05-29",
+      name: "Farm Boy",
+      amount_minor: 1234,
+      currency_code: "CAD",
+      from_entity: "Checking",
+      to_entity: "Farm Boy",
+      category: "food_drink/groceries",
+      lifecycle: "day_to_day"
+    };
+
+    expect(reviewSummaryText(buildProposalSummary("create_entry", payload))).toBe(
+      "Expense on 2026-05-29 from Checking to Farm Boy for CAD 12.34 (“Farm Boy”) Category: food_drink/groceries Lifecycle: day_to_day."
+    );
+  });
+
   it("summarizes update entity proposals with highlighted changed values", () => {
     const payload = {
       name: "Molly Tea",

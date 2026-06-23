@@ -90,6 +90,8 @@ def _predictions_from_change_items(change_items: list[AgentChangeItem]) -> Bench
                 "from_entity": arguments.get("from_entity"),
                 "to_entity": arguments.get("to_entity"),
                 "tags": arguments.get("tags", []),
+                "category": arguments.get("category"),
+                "lifecycle": arguments.get("lifecycle"),
             }
             entry_prediction[BENCHMARK_ENTRY_NOTES_KEY] = arguments.get("markdown_notes")
             predictions.entries.append(entry_prediction)

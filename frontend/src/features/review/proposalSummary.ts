@@ -106,6 +106,14 @@ function buildCreateEntrySummary(payload: Record<string, unknown>): ReviewSummar
   if (tags) {
     parts.push(plain(" Tags: "), highlight(tags));
   }
+  const category = asText(payload.category);
+  const lifecycle = asText(payload.lifecycle);
+  if (category) {
+    parts.push(plain(" Category: "), highlight(category));
+  }
+  if (lifecycle) {
+    parts.push(plain(" Lifecycle: "), highlight(lifecycle));
+  }
   parts.push(plain("."));
   return parts;
 }

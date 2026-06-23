@@ -116,6 +116,8 @@
 - the model-visible tool catalog is intentionally small: `rename_thread`, `add_user_memory`, and `run_bh`
 - app-state reads and proposal lifecycle work flow through `run_bh` running local `bh ...` commands rather than through the older large direct read/proposal tool list
 - duplicate-entry checks should happen before new entry proposals
+- entry create/import/update proposals accept optional `category` and `lifecycle`; pending `create_entry` proposals can be patched with those fields before review
+- approving entry proposals validates category names against the principal's entry-category taxonomy, matching direct `/entries` create/update behavior
 - tag/entity naming should stay canonical and generalized
 - tag-delete proposals may proceed while referenced; proposal previews should surface impact counts and apply removes entry junction rows by cascade
 - `add_user_memory` is an add-only tool for explicit remember-this requests; mutate/remove requests must be declined

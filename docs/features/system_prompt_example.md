@@ -73,6 +73,7 @@ Command specifications:
   - `--account-id ID: account id or unique short id prefix filter.`
   - `--source TEXT: free-text source filter.`
   - `--tag NAME: tag-name filter.`
+  - `--category TEXT: entry category leaf, parent, or uncategorized filter.`
   - `--filter-group-id ID: group id or unique short id prefix filter.`
   - `--limit N: integer result limit. Default 20.`
   - `--offset N: integer result offset. Default 0.`
@@ -96,6 +97,8 @@ Command specifications:
   - `--currency-code CODE: optional 3-letter currency code. Defaults to runtime settings when omitted.`
   - `--tag NAME: tag name. Repeat for multiple tags.`
   - `--markdown-notes TEXT: optional markdown notes.`
+  - `--category TEXT: optional entry category leaf or path, for example food_drink/groceries.`
+  - `--lifecycle {fixed,day_to_day,one_time}: optional lifecycle override.`
 
 ### `bh entries import`
 - Purpose: Create multiple entry proposals in the current thread from one JSON document.
@@ -400,7 +403,7 @@ Command specifications:
   - Example: bh dashboard agent get --range 90d --sections model_breakdown,top_runs --format json
 
 Compact output schemas:
-- `entries_list` -> `id|date|kind|amount_minor|currency|name|from|to|tags`
+- `entries_list` -> `id|date|kind|amount_minor|currency|name|from|to|tags|category|lifecycle`
 - `accounts_list` -> `id|name|currency|active|balance_minor|balance_as_of`
 - `snapshots_list` -> `id|date|balance_minor|note`
 - `groups_list` -> `id|type|name|descendants|first_date|last_date`
@@ -425,8 +428,10 @@ Common flows:
 - Read agent cost KPIs: `bh dashboard agent get --range 30d --sections metrics`
 - Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`
 - Create a tag proposal: `bh tags create --name travel --type context`
+- Create an entry proposal: `bh entries create --kind EXPENSE --date 2026-03-15 --name "Farm Boy" --amount-minor 1234 --from-entity Checking --to-entity "Farm Boy" --category food_drink/groceries --lifecycle day_to_day`
 - Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{"category":"groceries","lifecycle":"one_time"}'`
-- Import multiple entry proposals: `bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}'`
+- Import multiple entry proposals: `bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy","category":"food_drink/groceries","lifecycle":"day_to_day"}]}'`
+- Patch a pending create-entry proposal: `bh proposals update a1b2c3d4 --patch-json '{"category":"food_drink/groceries","lifecycle":"day_to_day"}'`
 - Create an account proposal: `bh accounts create --name "Wealthsimple Cash" --currency-code CAD --inactive`
 - Create a snapshot proposal: `bh snapshots create --account-id 1a2b3c4d --snapshot-at 2026-03-15 --balance 1234.56 --note "statement balance"`
 - Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{"patch.tags":["travel"]}'`

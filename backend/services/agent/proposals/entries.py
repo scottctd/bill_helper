@@ -58,7 +58,7 @@ def match_single_entry_reference_or_error(
     if len(matches) > 1:
         return error_result(
             "ambiguous entry_id matched multiple entries; retry with one of the candidate ids",
-            details=entry_id_ambiguity_details(matches, entry_id=entry_id),
+            details=entry_id_ambiguity_details(matches, entry_id=entry_id, db=context.db),
         )
     return matches[0]
 
@@ -82,7 +82,7 @@ def normalized_entry_reference_payload(
     )
     return {
         "entry_id": matched_entry.id,
-        "target": entry_to_public_record(matched_entry),
+        "target": entry_to_public_record(matched_entry, db=context.db),
     }
 
 
@@ -106,7 +106,7 @@ def match_existing_entry_or_error(
     if len(matches) > 1:
         return error_result(
             "ambiguous entry_id matched multiple entries; retry with one of the candidate ids",
-            details=entry_id_ambiguity_details(matches, entry_id=entry_id),
+            details=entry_id_ambiguity_details(matches, entry_id=entry_id, db=context.db),
         )
     return matches[0]
 
@@ -150,6 +150,8 @@ def entry_preview_from_proposal(item: AgentChangeItem) -> dict[str, Any]:
         "to_entity": payload.get("to_entity"),
         "tags": payload.get("tags") or [],
         "markdown_notes": payload.get("markdown_notes"),
+        "category": payload.get("category"),
+        "lifecycle": payload.get("lifecycle"),
     }
 
 
@@ -219,6 +221,8 @@ def propose_create_entry(context: ToolContext, args: ProposeCreateEntryArgs) -> 
         "from_entity": payload["from_entity"],
         "to_entity": payload["to_entity"],
         "tags": payload["tags"],
+        "category": payload.get("category"),
+        "lifecycle": payload.get("lifecycle"),
     }
     return proposal_result("proposed entry creation", preview=preview, item=item)
 
@@ -243,7 +247,7 @@ def propose_update_entry(context: ToolContext, args: ProposeUpdateEntryArgs) -> 
     payload = {
         "entry_id": matched_entry.id,
         "patch": patch,
-        "target": entry_to_public_record(matched_entry),
+        "target": entry_to_public_record(matched_entry, db=context.db),
     }
     item = create_change_item(
         context,
@@ -266,7 +270,7 @@ def propose_delete_entry(context: ToolContext, args: ProposeDeleteEntryArgs) -> 
         return matched_entry
     payload = {
         "entry_id": matched_entry.id,
-        "target": entry_to_public_record(matched_entry),
+        "target": entry_to_public_record(matched_entry, db=context.db),
     }
     item = create_change_item(
         context,

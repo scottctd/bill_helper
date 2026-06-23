@@ -77,6 +77,8 @@ def _render_entries_list_compact(payload: dict[str, Any]) -> str:
             item.get("from_entity") or "-",
             item.get("to_entity") or "-",
             ",".join(sorted(tag.get("name") or "-" for tag in item.get("tags") or [])) or "-",
+            item.get("category") or "-",
+            item.get("lifecycle") or "-",
         ]
         for item in items
     ]
@@ -100,12 +102,14 @@ def _render_entries_list_text(payload: dict[str, Any]) -> str:
             item.get("from_entity") or "-",
             item.get("to_entity") or "-",
             ",".join(sorted(tag.get("name") or "-" for tag in item.get("tags") or [])) or "-",
+            item.get("category") or "-",
+            item.get("lifecycle") or "-",
         ]
         for item in items
     ]
     return text_table(
         title=f"Entries ({len(items)} of {payload.get('total', len(items))})",
-        headers=["ID", "Date", "Kind", "Amount", "Name", "From", "To", "Tags"],
+        headers=["ID", "Date", "Kind", "Amount", "Name", "From", "To", "Tags", "Category", "Lifecycle"],
         rows=rows,
         empty_text="(none)",
     )
@@ -127,7 +131,8 @@ def _render_entry_detail_compact(payload: dict[str, Any]) -> str:
                     payload.get("from_entity") or "-",
                     payload.get("to_entity") or "-",
                     ",".join(sorted(tag.get("name") or "-" for tag in payload.get("tags") or [])) or "-",
-                    payload.get("account_id") or "-",
+                    payload.get("category") or "-",
+                    payload.get("lifecycle") or "-",
                     (payload.get("direct_group") or {}).get("id") or "-",
                     payload.get("direct_group_member_role") or "-",
                 ]
@@ -153,7 +158,8 @@ def _render_entry_detail_text(payload: dict[str, Any]) -> str:
                 ("From", payload.get("from_entity") or "-"),
                 ("To", payload.get("to_entity") or "-"),
                 ("Tags", tags),
-                ("Account", payload.get("account_id") or "-"),
+                ("Category", payload.get("category") or "-"),
+                ("Lifecycle", payload.get("lifecycle") or "-"),
                 ("Direct Group", (payload.get("direct_group") or {}).get("id") or "-"),
                 ("Group Role", payload.get("direct_group_member_role") or "-"),
             ],

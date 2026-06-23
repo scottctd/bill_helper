@@ -35,6 +35,12 @@ from backend.services.users import find_user_by_name, normalize_user_name
 from backend.validation.finance_names import normalize_entity_name, normalize_tag_name
 
 
+def normalize_entry_category_reference(category: str) -> str:
+    """Accept a leaf name or path such as food_drink/groceries and return the normalized term name."""
+    leaf = category.rstrip("/").rsplit("/", 1)[-1]
+    return normalize_term_name(leaf)
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -297,7 +303,8 @@ def _validate_category_and_tags(
     ensure_taxonomy_by_key(db, ENTRY_CATEGORY_TAXONOMY_KEY, owner_user_id=owner_user_id)
     category_names = entry_category_term_names(db, owner_user_id=owner_user_id)
     if category is not None:
-        if normalize_term_name(category) not in category_names:
+        normalized_category = normalize_entry_category_reference(category)
+        if normalized_category not in category_names:
             raise PolicyViolation.bad_request(f"Unknown category '{category}'")
     if tags:
         blocked = {normalize_term_name(tag) for tag in tags} & category_names
@@ -321,7 +328,7 @@ def _assign_entry_category(
         taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
         subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
         subject_id=entry.id,
-        term_name=category,
+        term_name=normalize_entry_category_reference(category),
         owner_user_id=owner_user_id,
     )
 

@@ -140,7 +140,7 @@ def _parse_decimal_amount(value: str) -> str:
 
 
 def _build_entries_payload(args: argparse.Namespace, _context: CliContext) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "kind": args.kind,
         "date": args.date,
         "name": args.name,
@@ -151,6 +151,11 @@ def _build_entries_payload(args: argparse.Namespace, _context: CliContext) -> di
         "tags": list(args.tags or []),
         "markdown_notes": args.markdown_notes,
     }
+    if args.category is not None:
+        payload["category"] = args.category
+    if args.lifecycle is not None:
+        payload["lifecycle"] = args.lifecycle
+    return payload
 
 
 def _build_accounts_payload(args: argparse.Namespace, _context: CliContext) -> dict[str, Any]:
@@ -256,12 +261,13 @@ ENTRY_CREATE_SPEC = CreateCommandSpec(
         "Required fields:\n"
         "  --kind, --date, --name, --amount-minor, --from-entity, --to-entity\n"
         "Optional fields:\n"
-        "  --currency-code, repeated --tag, --markdown-notes"
+        "  --currency-code, repeated --tag, --markdown-notes, --category, --lifecycle"
     ),
     epilog=(
         "Examples:\n"
         "  bh entries create --kind EXPENSE --date 2026-03-15 --name \"Farm Boy\" \\\n"
-        "    --amount-minor 1234 --from-entity Checking --to-entity \"Farm Boy\" --tag grocery\n"
+        "    --amount-minor 1234 --from-entity Checking --to-entity \"Farm Boy\" \\\n"
+        "    --category food_drink/groceries --lifecycle day_to_day --tag travel\n"
         "\n"
         "--amount-minor uses integer minor units, for example 1234 means 12.34.\n"
         "--date must use YYYY-MM-DD."
@@ -332,6 +338,19 @@ ENTRY_CREATE_SPEC = CreateCommandSpec(
             flags=("--markdown-notes",),
             payload_field="markdown_notes",
             argument_kwargs={"help": "Optional markdown notes stored with the proposal."},
+        ),
+        CreateFieldSpec(
+            flags=("--category",),
+            payload_field="category",
+            argument_kwargs={"help": "Optional entry category leaf or path, for example food_drink/groceries."},
+        ),
+        CreateFieldSpec(
+            flags=("--lifecycle",),
+            payload_field="lifecycle",
+            argument_kwargs={
+                "choices": ("fixed", "day_to_day", "one_time"),
+                "help": "Optional lifecycle override. Choices: fixed, day_to_day, one_time.",
+            },
         ),
     ),
 )

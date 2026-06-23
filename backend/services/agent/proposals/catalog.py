@@ -176,7 +176,7 @@ def propose_delete_tag(context: ToolContext, args: ProposeDeleteTagArgs) -> Tool
     preview = {
         "name": args.name,
         "referenced_entry_count": referenced_entry_count,
-        "sample_entries": [entry_to_public_record(entry) for entry in sample_entries],
+        "sample_entries": [entry_to_public_record(entry, db=context.db) for entry in sample_entries],
     }
     return proposal_result("proposed tag deletion", preview=preview, item=item)
 
@@ -272,7 +272,7 @@ def propose_delete_entity(context: ToolContext, args: ProposeDeleteEntityArgs) -
             .order_by(Entry.occurred_at.desc(), Entry.created_at.desc())
         )
     )
-    impact_records = [entry_to_public_record(entry) for entry in impacted_entries]
+    impact_records = [entry_to_public_record(entry, db=context.db) for entry in impacted_entries]
     impacted_account_count = int(
         context.db.scalar(
             select(func.count(Account.id)).where(

@@ -160,6 +160,8 @@ def test_render_output_uses_compact_schema_for_entries_list() -> None:
                     "from_entity": None,
                     "to_entity": "Farm Boy",
                     "tags": [{"name": "grocery"}],
+                    "category": "food_drink/groceries",
+                    "lifecycle": "day_to_day",
                 }
             ],
             "total": 1,
@@ -170,8 +172,11 @@ def test_render_output_uses_compact_schema_for_entries_list() -> None:
         render_key="entries_list",
     )
 
-    assert "schema: id|date|kind|amount_minor|currency|name|from|to|tags" in rendered
-    assert "12345678|2026-03-12|EXPENSE|1234|CAD|Farm Boy|-|Farm Boy|grocery" in rendered
+    assert "schema: id|date|kind|amount_minor|currency|name|from|to|tags|category|lifecycle" in rendered
+    assert (
+        "12345678|2026-03-12|EXPENSE|1234|CAD|Farm Boy|-|Farm Boy|grocery|food_drink/groceries|day_to_day"
+        in rendered
+    )
     assert "color" not in rendered
 
 
@@ -829,6 +834,65 @@ def test_entries_create_parses_tags_and_amount(monkeypatch) -> None:
     assert captured_payload["currency_code"] == "CAD"
 
 
+def test_entries_create_passes_category_and_lifecycle(monkeypatch) -> None:
+    _setup_cli_env(monkeypatch)
+
+    captured_payload: dict[str, Any] = {}
+
+    def fake_create_thread_proposal(context, *, change_type=None, payload_json=None, **kwargs):
+        captured_payload.update(payload_json or {})
+        return {"status": "OK", "proposal_id": "proposal-1"}
+
+    monkeypatch.setattr("backend.cli.main._create_thread_proposal", fake_create_thread_proposal)
+
+    exit_code = cli_main.main(
+        [
+            "entries",
+            "create",
+            "--kind",
+            "EXPENSE",
+            "--date",
+            "2026-03-16",
+            "--name",
+            "Farm Boy",
+            "--amount-minor",
+            "1234",
+            "--from-entity",
+            "Checking",
+            "--to-entity",
+            "Farm Boy",
+            "--category",
+            "food_drink/groceries",
+            "--lifecycle",
+            "day_to_day",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured_payload["category"] == "food_drink/groceries"
+    assert captured_payload["lifecycle"] == "day_to_day"
+
+
+def test_entries_list_forwards_category_filter(monkeypatch) -> None:
+    _setup_cli_env(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    def fake_request_json(context, method, path, **kwargs):
+        captured["method"] = method
+        captured["path"] = path
+        captured["params"] = kwargs.get("params")
+        return 200, {"items": [], "total": 0, "limit": 20, "offset": 0}
+
+    monkeypatch.setattr("backend.cli.main.request_json", fake_request_json)
+
+    exit_code = cli_main.main(["entries", "list", "--category", "food_drink/groceries"])
+
+    assert exit_code == 0
+    assert captured["method"] == "GET"
+    assert captured["path"] == "/entries"
+    assert captured["params"]["category"] == "food_drink/groceries"
+
+
 def test_accounts_create_respects_active_inactive_flags(monkeypatch) -> None:
     _setup_cli_env(monkeypatch)
 
@@ -969,6 +1033,8 @@ def test_entries_import_posts_batch_payload(monkeypatch) -> None:
                             "amount_minor": 1234,
                             "from_entity": "Checking",
                             "to_entity": "Farm Boy",
+                            "category": "food_drink/groceries",
+                            "lifecycle": "day_to_day",
                         }
                     ]
                 }
@@ -980,6 +1046,8 @@ def test_entries_import_posts_batch_payload(monkeypatch) -> None:
     assert captured["method"] == "POST"
     assert captured["path"] == "/agent/threads/thread-123/proposals/batch-entries"
     assert captured["json_body"]["entries"][0]["name"] == "Farm Boy"
+    assert captured["json_body"]["entries"][0]["category"] == "food_drink/groceries"
+    assert captured["json_body"]["entries"][0]["lifecycle"] == "day_to_day"
 
 
 def test_entries_import_requires_exactly_one_json_source(monkeypatch, capsys) -> None:

@@ -171,6 +171,7 @@ def _build_entries_parser(subparsers) -> None:
     list_parser.add_argument("--account-id", default=None)
     list_parser.add_argument("--source", default=None)
     list_parser.add_argument("--tag", default=None)
+    list_parser.add_argument("--category", default=None)
     list_parser.add_argument("--filter-group-id", default=None)
     list_parser.add_argument("--limit", type=int, default=20)
     list_parser.add_argument("--offset", type=int, default=0)
@@ -478,6 +479,7 @@ def _handle_entries_list(args: argparse.Namespace, context: CliContext | None) -
             "account_id": resolved_account_id,
             "source": args.source,
             "tag": args.tag,
+            "category": args.category,
             "filter_group_id": resolved_group_id,
             "limit": args.limit,
             "offset": args.offset,

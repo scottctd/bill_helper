@@ -40,6 +40,8 @@ PROPOSAL_MUTABLE_ROOTS: dict[AgentChangeType, set[str]] = {
         "to_entity",
         "tags",
         "markdown_notes",
+        "category",
+        "lifecycle",
     },
     AgentChangeType.UPDATE_ENTRY: {"entry_id", "patch"},
     AgentChangeType.DELETE_ENTRY: {"entry_id"},

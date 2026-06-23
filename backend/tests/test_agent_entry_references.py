@@ -7,11 +7,56 @@ from backend.database import get_session_maker
 from backend.services.agent.apply.entries import apply_update_entry
 from backend.services.agent.change_contracts.entries import UpdateEntryPatchPayload, UpdateEntryPayload
 from backend.services.agent.entry_references import (
+    entry_to_public_record,
     find_entries_by_exact_id,
     find_entries_by_public_id_prefix,
 )
+from backend.models_finance import Entry
 from backend.services.users import find_user_by_name
 from backend.tests.test_entries import create_account, create_entry
+
+
+def test_entry_to_public_record_includes_category_and_lifecycle(client) -> None:
+    account_id = create_account(client)
+    food_drink = client.post("/api/v1/taxonomies/entry_category/terms", json={"name": "food_drink"})
+    food_drink.raise_for_status()
+    groceries = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={
+            "name": "groceries",
+            "parent_term_id": food_drink.json()["id"],
+            "default_lifecycle": "day_to_day",
+        },
+    )
+    groceries.raise_for_status()
+
+    created = client.post(
+        "/api/v1/entries",
+        json={
+            "from_entity_id": account_id,
+            "to_entity": "Farm Boy",
+            "kind": "EXPENSE",
+            "occurred_at": "2026-03-15",
+            "name": "Farm Boy",
+            "amount_minor": 1234,
+            "currency_code": "USD",
+            "category": "food_drink/groceries",
+            "lifecycle": "day_to_day",
+            "tags": ["grocery"],
+        },
+    )
+    created.raise_for_status()
+
+    db = get_session_maker()()
+    try:
+        entry = db.get(Entry, created.json()["id"])
+        assert entry is not None
+        record = entry_to_public_record(entry, db=db)
+        assert record["category"] == "food_drink/groceries"
+        assert record["lifecycle"] == "day_to_day"
+        assert record["tags"] == ["grocery"]
+    finally:
+        db.close()
 
 
 def test_entry_reference_helpers_split_exact_and_prefix_lookup(client) -> None:

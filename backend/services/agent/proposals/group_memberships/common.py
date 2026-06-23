@@ -107,12 +107,16 @@ def resolved_group_member_target_preview(
             if len(matches) > 1:
                 return error_result(
                     "ambiguous entry_id matched multiple entries; retry with one of the candidate ids",
-                    details=entry_id_ambiguity_details(matches, entry_id=target.entry_ref.entry_id),
+                    details=entry_id_ambiguity_details(
+                        matches,
+                        entry_id=target.entry_ref.entry_id,
+                        db=context.db,
+                    ),
                 )
             entry = matches[0]
             if enforce_add_membership_rules and entry.group_membership is not None:
                 return error_result("this entry already belongs to a group")
-            preview = entry_to_public_record(entry)
+            preview = entry_to_public_record(entry, db=context.db)
             preview["source"] = "entry"
             return preview, entry.kind
 

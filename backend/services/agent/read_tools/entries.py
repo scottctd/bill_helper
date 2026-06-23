@@ -16,6 +16,7 @@ from backend.services.agent.read_tools.common import format_entry_record, string
 from backend.services.agent.tool_args.read import ListEntriesArgs
 from backend.services.agent.tool_results import format_lines
 from backend.services.agent.tool_types import ToolContext, ToolExecutionResult, ToolExecutionStatus
+from backend.services.taxonomy import get_entry_category_path_map
 from backend.validation.finance_names import normalize_tag_name
 
 
@@ -114,7 +115,11 @@ def list_entries(context: ToolContext, args: ListEntriesArgs) -> ToolExecutionRe
     ranked.sort(key=lambda pair: pair[0])
     total_available = len(ranked)
     rows = [entry for _, entry in ranked[: args.limit]]
-    records = [entry_to_public_record(entry) for entry in rows]
+    category_paths = get_entry_category_path_map(context.db, entry_ids=[entry.id for entry in rows])
+    records = [
+        entry_to_public_record(entry, db=context.db, category_path=category_paths.get(entry.id))
+        for entry in rows
+    ]
     entries_text = "; ".join(format_entry_record(record) for record in records) if records else "(none)"
 
     output_json: dict[str, Any] = {

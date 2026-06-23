@@ -159,6 +159,87 @@ def test_thread_proposal_routes_create_batch_entries(client, monkeypatch) -> Non
     assert payload["proposals"][1]["payload"]["name"] == "Coffee"
 
 
+def test_thread_proposal_routes_create_batch_entries_with_category(client, monkeypatch) -> None:
+    patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "ok"})
+    _ensure_entities(client)
+    food_drink = client.post("/api/v1/taxonomies/entry_category/terms", json={"name": "food_drink"})
+    food_drink.raise_for_status()
+    groceries = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={"name": "groceries", "parent_term_id": food_drink.json()["id"], "default_lifecycle": "day_to_day"},
+    )
+    groceries.raise_for_status()
+
+    thread = create_thread(client)
+    run = send_message(client, thread["id"], "Create a run for categorized batch entry proposals.")
+
+    response = client.post(
+        f"/api/v1/agent/threads/{thread['id']}/proposals/batch-entries",
+        headers=_run_headers(run["id"]),
+        json={
+            "entries": [
+                {
+                    "kind": "EXPENSE",
+                    "date": "2026-03-15",
+                    "name": "Farm Boy",
+                    "amount_minor": 1234,
+                    "from_entity": "Main Checking",
+                    "to_entity": "Cafe",
+                    "category": "food_drink/groceries",
+                    "lifecycle": "day_to_day",
+                }
+            ],
+        },
+    )
+    response.raise_for_status()
+    payload = response.json()["proposals"][0]["payload"]
+    assert payload["category"] == "food_drink/groceries"
+    assert payload["lifecycle"] == "day_to_day"
+
+
+def test_thread_proposal_routes_patch_create_entry_category(client, monkeypatch) -> None:
+    patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "ok"})
+    _ensure_entities(client)
+    food_drink = client.post("/api/v1/taxonomies/entry_category/terms", json={"name": "food_drink"})
+    food_drink.raise_for_status()
+    groceries = client.post(
+        "/api/v1/taxonomies/entry_category/terms",
+        json={"name": "groceries", "parent_term_id": food_drink.json()["id"], "default_lifecycle": "day_to_day"},
+    )
+    groceries.raise_for_status()
+
+    thread = create_thread(client)
+    run = send_message(client, thread["id"], "Create a run for entry proposal patching.")
+
+    create_response = client.post(
+        f"/api/v1/agent/threads/{thread['id']}/proposals",
+        headers=_run_headers(run["id"]),
+        json={
+            "change_type": "create_entry",
+            "payload_json": {
+                "kind": "EXPENSE",
+                "date": "2026-03-15",
+                "name": "Farm Boy",
+                "amount_minor": 1234,
+                "from_entity": "Main Checking",
+                "to_entity": "Cafe",
+            },
+        },
+    )
+    create_response.raise_for_status()
+    created = create_response.json()
+
+    update_response = client.patch(
+        f"/api/v1/agent/threads/{thread['id']}/proposals/{created['proposal_id']}",
+        headers=_run_headers(run["id"]),
+        json={"patch_map": {"category": "food_drink/groceries", "lifecycle": "day_to_day"}},
+    )
+    update_response.raise_for_status()
+    updated = update_response.json()
+    assert updated["payload"]["category"] == "food_drink/groceries"
+    assert updated["payload"]["lifecycle"] == "day_to_day"
+
+
 def test_thread_proposal_routes_reject_invalid_batch_entries(client, monkeypatch) -> None:
     patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "ok"})
     _ensure_entities(client)

@@ -23,6 +23,7 @@ def proposal_dedup_signature(item: AgentChangeItem) -> tuple[Any, ...]:
     change_type = item.change_type
 
     if change_type == AgentChangeType.CREATE_ENTRY:
+        normalized_tags = sorted(normalize_tag_name(str(tag)) for tag in (payload.get("tags") or []) if tag)
         return (
             change_type.value,
             payload.get("kind"),
@@ -33,6 +34,9 @@ def proposal_dedup_signature(item: AgentChangeItem) -> tuple[Any, ...]:
             payload.get("to_entity"),
             payload.get("name"),
             payload.get("markdown_notes"),
+            payload.get("category"),
+            payload.get("lifecycle"),
+            tuple(normalized_tags),
         )
     if change_type in {AgentChangeType.CREATE_ENTITY, AgentChangeType.CREATE_ACCOUNT}:
         name = payload.get("name")

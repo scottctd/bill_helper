@@ -18,7 +18,12 @@ from backend.services.agent.change_contracts.entries import (
     DeleteEntryPayload,
     UpdateEntryPayload,
 )
-from backend.services.entries import set_entry_tags, soft_delete_entry
+from backend.services.entries import (
+    _validate_category_and_tags,
+    normalize_entry_category_reference,
+    set_entry_tags,
+    soft_delete_entry,
+)
 from backend.services.entities import ensure_entity_by_name
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.services.taxonomy import assign_single_term_by_name
@@ -52,14 +57,24 @@ def apply_create_entry(
         lifecycle=payload.lifecycle,
     )
     db.add(entry)
+    db.flush()
+    resolved_category = (
+        normalize_entry_category_reference(payload.category) if payload.category is not None else None
+    )
+    _validate_category_and_tags(
+        db,
+        category=resolved_category,
+        tags=payload.tags,
+        owner_user_id=principal.user_id,
+    )
     set_entry_tags(db, entry, payload.tags)
-    if payload.category is not None:
+    if resolved_category is not None:
         assign_single_term_by_name(
             db,
             taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
             subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
             subject_id=entry.id,
-            term_name=payload.category,
+            term_name=resolved_category,
             owner_user_id=principal.user_id,
         )
     db.flush()
@@ -113,6 +128,21 @@ def apply_update_entry(
     if "markdown_notes" in payload.patch.model_fields_set:
         entry.markdown_body = payload.patch.markdown_notes
 
+    category_value = payload.patch.category if "category" in payload.patch.model_fields_set else None
+    tags_value = payload.patch.tags if "tags" in payload.patch.model_fields_set else None
+    resolved_category = (
+        normalize_entry_category_reference(category_value)
+        if category_value is not None
+        else None
+    )
+    if resolved_category is not None or tags_value is not None:
+        _validate_category_and_tags(
+            db,
+            category=resolved_category,
+            tags=tags_value,
+            owner_user_id=entry.owner_user_id,
+        )
+
     if "tags" in payload.patch.model_fields_set:
         set_entry_tags(db, entry, payload.patch.tags or [])
 
@@ -120,14 +150,24 @@ def apply_update_entry(
         entry.lifecycle = payload.patch.lifecycle
 
     if "category" in payload.patch.model_fields_set:
-        assign_single_term_by_name(
-            db,
-            taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
-            subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
-            subject_id=entry.id,
-            term_name=payload.patch.category,
-            owner_user_id=entry.owner_user_id,
-        )
+        if payload.patch.category is None:
+            assign_single_term_by_name(
+                db,
+                taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
+                subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
+                subject_id=entry.id,
+                term_name=None,
+                owner_user_id=entry.owner_user_id,
+            )
+        else:
+            assign_single_term_by_name(
+                db,
+                taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
+                subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
+                subject_id=entry.id,
+                term_name=normalize_entry_category_reference(payload.patch.category),
+                owner_user_id=entry.owner_user_id,
+            )
 
     db.add(entry)
     db.flush()

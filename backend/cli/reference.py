@@ -87,10 +87,10 @@ _HOSTED_ENTRIES_IMPORT_SPEC = CommandSpec(
 
 
 _COMPACT_SCHEMAS: tuple[CompactSchema, ...] = (
-    CompactSchema("entries_list", "id|date|kind|amount_minor|currency|name|from|to|tags"),
+    CompactSchema("entries_list", "id|date|kind|amount_minor|currency|name|from|to|tags|category|lifecycle"),
     CompactSchema(
         "entries_detail",
-        "id|date|kind|amount_minor|currency|name|from|to|tags|direct_group_id|direct_group_role",
+        "id|date|kind|amount_minor|currency|name|from|to|tags|category|lifecycle|direct_group_id|direct_group_role",
     ),
     CompactSchema("accounts_list", "id|name|currency|active|balance_minor|balance_as_of"),
     CompactSchema("snapshots_list", "id|date|balance_minor|note"),
@@ -238,6 +238,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
             "--account-id ID: account id or unique short id prefix filter.",
             "--source TEXT: free-text source filter.",
             "--tag NAME: tag-name filter.",
+            "--category TEXT: entry category leaf, parent, or uncategorized filter.",
             "--filter-group-id ID: group id or unique short id prefix filter.",
             "--limit N: integer result limit. Default 20.",
             "--offset N: integer result offset. Default 0.",
@@ -265,6 +266,8 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
             "--currency-code CODE: optional 3-letter currency code. Defaults to runtime settings when omitted.",
             "--tag NAME: tag name. Repeat for multiple tags.",
             "--markdown-notes TEXT: optional markdown notes.",
+            "--category TEXT: optional entry category leaf or path, for example food_drink/groceries.",
+            "--lifecycle {fixed,day_to_day,one_time}: optional lifecycle override.",
         ),
     ),
     CommandSpec(
@@ -276,7 +279,7 @@ _COMMAND_SPECS: tuple[CommandSpec, ...] = (
         notes=(
             "JSON must be an object with an entries array (1-100 items).",
             "Each entry requires: kind, date, name, amount_minor, from_entity, to_entity.",
-            "Each entry may include: currency_code, tags, markdown_notes.",
+            "Each entry may include: currency_code, tags, markdown_notes, category, lifecycle.",
             "Each entry becomes one pending review proposal.",
             (
                 "Example: bh entries import --payload-json "
@@ -749,8 +752,10 @@ def render_bh_cheat_sheet(*, include_source_commands: bool = True) -> str:
         "- Read agent cost KPIs: `bh dashboard agent get --range 30d --sections metrics`\n"
         "- Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`\n"
         "- Create a tag proposal: `bh tags create --name travel --type context`\n"
+        "- Create an entry proposal: `bh entries create --kind EXPENSE --date 2026-03-15 --name \"Farm Boy\" --amount-minor 1234 --from-entity Checking --to-entity \"Farm Boy\" --category food_drink/groceries --lifecycle day_to_day`\n"
         "- Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{\"category\":\"groceries\",\"lifecycle\":\"one_time\"}'`\n"
-        "- Import multiple entry proposals: `bh entries import --payload-json '{\"entries\":[{\"kind\":\"EXPENSE\",\"date\":\"2026-03-15\",\"name\":\"Farm Boy\",\"amount_minor\":1234,\"from_entity\":\"Checking\",\"to_entity\":\"Farm Boy\"}]}'`\n"
+        "- Import multiple entry proposals: `bh entries import --payload-json '{\"entries\":[{\"kind\":\"EXPENSE\",\"date\":\"2026-03-15\",\"name\":\"Farm Boy\",\"amount_minor\":1234,\"from_entity\":\"Checking\",\"to_entity\":\"Farm Boy\",\"category\":\"food_drink/groceries\",\"lifecycle\":\"day_to_day\"}]}'`\n"
+        "- Patch a pending create-entry proposal: `bh proposals update a1b2c3d4 --patch-json '{\"category\":\"food_drink/groceries\",\"lifecycle\":\"day_to_day\"}'`\n"
         "- Create an account proposal: `bh accounts create --name \"Wealthsimple Cash\" --currency-code CAD --inactive`\n"
         "- Create a snapshot proposal: `bh snapshots create --account-id 1a2b3c4d --snapshot-at 2026-03-15 --balance 1234.56 --note \"statement balance\"`\n"
         "- Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{\"patch.tags\":[\"travel\"]}'`\n"

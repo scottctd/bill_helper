@@ -309,10 +309,18 @@ def _proposal_summary(item: AgentChangeItem) -> str:
     payload = item.payload_json
     change_type = item.change_type.value
     if change_type == AgentChangeType.CREATE_ENTRY.value:
+        category = payload.get("category")
+        lifecycle = payload.get("lifecycle")
+        classification = []
+        if category:
+            classification.append(f"category={category}")
+        if lifecycle:
+            classification.append(f"lifecycle={lifecycle}")
+        classification_text = f" {' '.join(classification)}" if classification else ""
         return (
             f"create entry {payload.get('date')} {payload.get('name')} {payload.get('amount_minor')} "
             f"{payload.get('currency_code')} from={payload.get('from_entity')} to={payload.get('to_entity')} "
-            f"tags={payload.get('tags') or []}"
+            f"tags={payload.get('tags') or []}{classification_text}"
         )
     if change_type == AgentChangeType.UPDATE_ENTRY.value:
         return f"update entry target={payload.get('entry_id')} patch={payload.get('patch') or {}}"

@@ -100,6 +100,21 @@ def test_validate_patch_map_paths_rejects_non_mutable_roots() -> None:
         )
 
 
+def test_validate_patch_map_paths_accepts_create_entry_category_and_lifecycle() -> None:
+    validate_patch_map_paths(
+        AgentChangeType.CREATE_ENTRY,
+        {"category": "food_drink/groceries", "lifecycle": "day_to_day"},
+    )
+
+
+def test_validate_patch_map_paths_rejects_unknown_create_entry_roots() -> None:
+    with pytest.raises(ValueError, match="non-editable fields"):
+        validate_patch_map_paths(
+            AgentChangeType.CREATE_ENTRY,
+            {"entry_id": "abcd1234"},
+        )
+
+
 def test_validate_change_payload_normalizes_group_payloads() -> None:
     create_group = validate_change_payload(
         AgentChangeType.CREATE_GROUP,

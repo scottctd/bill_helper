@@ -375,6 +375,13 @@ Body:
 
 - `entries`: array of entry create payloads (1-100 items), each with the same fields as a single `create_entry` proposal
 
+Entry create payload fields:
+
+- required: `kind`, `date`, `name`, `amount_minor`, `from_entity`, `to_entity`
+- optional: `currency_code`, `tags`, `markdown_notes`, `category`, `lifecycle`
+- `category` accepts an entry-category leaf or path such as `food_drink/groceries`
+- `lifecycle` accepts `fixed`, `day_to_day`, or `one_time`
+
 Behavior:
 
 - validates every entry before creating any proposals; failures include the array index (`entries[2]: ...`)
@@ -397,6 +404,8 @@ Behavior:
 
 - only `PENDING_REVIEW` proposals are mutable
 - validates patch-map roots by change type before applying the update
+- for pending `create_entry` proposals, patch roots include `category` and `lifecycle` in addition to the other entry fields
+- for pending `update_entry` proposals, patch nested fields under `patch.*` such as `patch.category`
 - validates the patched payload against the stored proposal payload contract before saving it
 
 Errors:
