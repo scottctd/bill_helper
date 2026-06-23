@@ -22,14 +22,8 @@ def test_update_schemas_reject_empty_patch_payloads() -> None:
         UserUpdate()
 
 
-def test_group_member_create_uses_typed_target_payload() -> None:
-    payload = GroupMemberCreate.model_validate(
-        {
-            "target": {
-                "target_type": "entry",
-                "entry_id": "entry-1234",
-            }
-        }
-    )
+def test_group_member_create_uses_entry_id_payload() -> None:
+    payload = GroupMemberCreate.model_validate({"entry_id": "entry-1234"})
 
-    assert payload.target.target_type == "entry"
+    assert payload.entry_id == "entry-1234"
+    assert payload.override is None

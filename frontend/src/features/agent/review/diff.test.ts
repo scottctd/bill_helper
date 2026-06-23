@@ -147,9 +147,8 @@ describe("proposal diff", () => {
     const diff = buildProposalDiff("create_group_member", {
       action: "add",
       group_ref: { group_id: "group-1234" },
-      target: { target_type: "entry", entry_ref: { entry_id: "entry-1111" } },
-      member_role: "CHILD",
-      group_preview: { name: "Rent Timeline", group_type: "SPLIT" },
+      target: { target_type: "entry", entry_ref: { entry_id: "entry-1111" }, override: "include" },
+      group_preview: { name: "Rent Timeline", group_source: "rule" },
       member_preview: {
         date: "2026-03-01",
         name: "March Rent",
@@ -164,23 +163,19 @@ describe("proposal diff", () => {
 
     expect(diff.mode).toBe("update");
     expect(diff.lines.some((line) => line.path === "group" && line.value === "Rent Timeline")).toBe(true);
+    expect(diff.lines.some((line) => line.path === "override" && line.value === "include")).toBe(true);
     expect(diff.lines.some((line) => line.path === "date")).toBe(false);
-    expect(diff.lines.some((line) => line.path === "name")).toBe(false);
-    expect(diff.lines.some((line) => line.path === "amount")).toBe(false);
-    expect(diff.lines.some((line) => line.path === "member ref")).toBe(false);
-    expect(diff.lines.some((line) => line.path === "parent group ref")).toBe(false);
     expect(diff.metadata.some((line) => line.label === "Group" && line.value === "Rent Timeline")).toBe(true);
   });
 
-  it("builds reviewer override diff for create-group-member split-role edits", () => {
+  it("builds reviewer override diff for create-group-member override edits", () => {
     const diff = buildProposalDiff(
       "create_group_member",
       {
         action: "add",
         group_ref: { group_id: "group-1234" },
-        target: { target_type: "entry", entry_ref: { entry_id: "entry-1111" } },
-        member_role: "CHILD",
-        group_preview: { name: "Rent Timeline", group_type: "SPLIT" },
+        target: { target_type: "entry", entry_ref: { entry_id: "entry-1111" }, override: "include" },
+        group_preview: { name: "Rent Timeline", group_source: "rule" },
         member_preview: {
           date: "2026-03-01",
           name: "March Rent",
@@ -195,16 +190,14 @@ describe("proposal diff", () => {
       {
         action: "add",
         group_ref: { group_id: "group-1234" },
-        target: { target_type: "entry", entry_ref: { entry_id: "entry-2222" } },
-        member_role: "PARENT"
+        target: { target_type: "entry", entry_ref: { entry_id: "entry-2222" }, override: "exclude" }
       }
     );
 
     expect(diff.mode).toBe("update");
     expect(diff.note).toContain("reviewer-edited payload");
-    expect(diff.lines.some((line) => line.path === "split role" && line.value === "PARENT")).toBe(true);
-    expect(diff.lines.some((line) => line.path === "member ref")).toBe(false);
-    expect(diff.metadata.some((line) => line.label === "Group type" && line.value === "SPLIT")).toBe(true);
+    expect(diff.lines.some((line) => line.path === "override" && line.value === "exclude")).toBe(true);
+    expect(diff.metadata.some((line) => line.label === "Source" && line.value === "rule")).toBe(true);
   });
 
   it("renders delete-group-member proposals as a group removal change", () => {
@@ -212,7 +205,7 @@ describe("proposal diff", () => {
       action: "remove",
       group_ref: { group_id: "group-1234" },
       target: { target_type: "entry", entry_ref: { entry_id: "entry-1111" } },
-      group_preview: { name: "Rent Timeline", group_type: "RECURRING" },
+      group_preview: { name: "Rent Timeline", group_source: "manual" },
       member_preview: {
         date: "2026-03-01",
         name: "March Rent",
@@ -228,7 +221,6 @@ describe("proposal diff", () => {
     expect(diff.mode).toBe("update");
     expect(diff.lines.some((line) => line.sign === "-" && line.path === "group" && line.value === "Rent Timeline")).toBe(true);
     expect(diff.lines.some((line) => line.path === "date")).toBe(false);
-    expect(diff.lines.some((line) => line.path === "name")).toBe(false);
     expect(diff.metadata.some((line) => line.label === "Group" && line.value === "Rent Timeline")).toBe(true);
   });
 
@@ -237,7 +229,7 @@ describe("proposal diff", () => {
       group_id: "group-1234",
       current: {
         name: "Monthly Bills",
-        group_type: "RECURRING"
+        group_source: "manual"
       },
       patch: {
         name: "Core Bills"

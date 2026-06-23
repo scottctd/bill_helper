@@ -15,7 +15,7 @@ import {
   listCurrencies,
   listEntities,
   listEntries,
-  listFilterGroups,
+  listGroups,
   listTags,
   listTaxonomyTerms,
   listUsers,
@@ -29,7 +29,7 @@ vi.mock("../lib/api", async () => {
     listEntries: vi.fn(),
     listCurrencies: vi.fn(),
     listEntities: vi.fn(),
-    listFilterGroups: vi.fn(),
+    listGroups: vi.fn(),
     listUsers: vi.fn(),
     listTags: vi.fn(),
     listTaxonomyTerms: vi.fn(),
@@ -101,9 +101,7 @@ const entryFixture: Entry = {
   category: "food_drink/coffee_snacks",
   created_at: "2026-03-05T00:00:00Z",
   updated_at: "2026-03-05T00:00:00Z",
-  direct_group: null,
-  direct_group_member_role: null,
-  group_path: [],
+  groups: [],
   tags: [{ id: 1, name: "coffee", color: "#5f6caf", type: "Food" }]
 };
 
@@ -161,7 +159,7 @@ function mockEntriesPageData(entry: Entry) {
   vi.mocked(listEntities).mockResolvedValue([
     { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1 }
   ]);
-  vi.mocked(listFilterGroups).mockResolvedValue([]);
+  vi.mocked(listGroups).mockResolvedValue([]);
   vi.mocked(listUsers).mockResolvedValue([{ id: "user-1", name: "Alice", is_admin: false, is_current_user: true }]);
   vi.mocked(listTags).mockResolvedValue(entry.tags.map((tag) => ({ ...tag })));
   vi.mocked(listTaxonomyTerms).mockResolvedValue(categoryTermsFixture);
@@ -316,31 +314,25 @@ describe("EntriesPage", () => {
 
   it("passes the selected filter group through to the entries query", async () => {
     mockEntriesPageData(entryFixture);
-    vi.mocked(listFilterGroups).mockResolvedValue([
+    vi.mocked(listGroups).mockResolvedValue([
       {
         id: "fg-1",
-        key: "day_to_day",
         name: "day-to-day",
         description: null,
         color: "#0f766e",
-        is_default: true,
+        source: "rule",
         position: 0,
-        rule: {
-          include: {
-            type: "group",
-            operator: "AND",
-            children: [{ type: "condition", field: "entry_kind", operator: "is", value: "EXPENSE" }]
-          },
-          exclude: null
-        },
         rule_summary: "kind is expense",
+        member_count: 0,
+        first_occurred_at: null,
+        last_occurred_at: null,
         created_at: "2026-03-05T00:00:00Z",
         updated_at: "2026-03-05T00:00:00Z"
       }
     ]);
 
     renderWithQueryClient(
-      <MemoryRouter initialEntries={["/entries?filter_group_id=fg-1"]}>
+      <MemoryRouter initialEntries={["/entries?group_id=fg-1"]}>
         <EntriesPage />
       </MemoryRouter>
     );
@@ -348,7 +340,7 @@ describe("EntriesPage", () => {
     await screen.findByText("Coffee");
     expect(listEntries).toHaveBeenCalledWith(
       expect.objectContaining({
-        filter_group_id: "fg-1"
+        group_id: "fg-1"
       })
     );
   });
@@ -410,7 +402,7 @@ describe("EntriesPage", () => {
     vi.mocked(listEntities).mockResolvedValue([
       { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 2, account_count: 0, entry_count: 2 }
     ]);
-    vi.mocked(listFilterGroups).mockResolvedValue([]);
+    vi.mocked(listGroups).mockResolvedValue([]);
     vi.mocked(listUsers).mockResolvedValue([{ id: "user-1", name: "Alice", is_admin: false, is_current_user: true }]);
     vi.mocked(listTags).mockResolvedValue(entryFixture.tags.map((tag) => ({ ...tag })));
     vi.mocked(getRuntimeSettings).mockResolvedValue(runtimeSettingsFixture);

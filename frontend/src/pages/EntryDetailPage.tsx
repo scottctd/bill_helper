@@ -10,14 +10,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 
 import { EntryEditorModal, type EntryEditorSubmitPayload } from "../components/EntryEditorModal";
-import { GroupGraphView } from "../components/GroupGraphView";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { useAuth } from "../features/auth";
 import {
   getEntry,
-  getGroup,
   getRuntimeSettings,
   listCurrencies,
   listEntities,
@@ -29,7 +27,7 @@ import {
 } from "../lib/api";
 import { ENTRY_CATEGORY_TAXONOMY_KEY, formatEntryLifecycle } from "../lib/catalogs";
 import { formatMinor } from "../lib/format";
-import { invalidateEntryReadModels, invalidateGroupReadModels } from "../lib/queryInvalidation";
+import { invalidateEntryReadModels } from "../lib/queryInvalidation";
 import { queryKeys } from "../lib/queryKeys";
 
 function kindLabel(kind: string) {
@@ -56,13 +54,6 @@ export function EntryDetailPage() {
     enabled: Boolean(entryId)
   });
 
-  const directGroupId = entryQuery.data?.direct_group?.id ?? "";
-  const groupQuery = useQuery({
-    queryKey: queryKeys.groups.detail(directGroupId),
-    queryFn: () => getGroup(directGroupId),
-    enabled: Boolean(directGroupId)
-  });
-
   const currenciesQuery = useQuery({ queryKey: queryKeys.properties.currencies, queryFn: listCurrencies });
   const entitiesQuery = useQuery({ queryKey: queryKeys.properties.entities, queryFn: listEntities });
   const usersQuery = useQuery({ queryKey: queryKeys.properties.users, queryFn: listUsers });
@@ -87,7 +78,6 @@ export function EntryDetailPage() {
         return;
       }
       invalidateEntryReadModels(queryClient, entryId);
-      invalidateGroupReadModels(queryClient, entryId, directGroupId || undefined);
       setIsEditorOpen(false);
     }
   });
@@ -153,11 +143,11 @@ export function EntryDetailPage() {
       </WorkspaceSection>
 
       <WorkspaceSection
-        title="Group Context"
+        title="Groups"
         description={
-          entry.direct_group
-            ? `Direct group: ${entry.direct_group.name} (${entry.direct_group.group_type})`
-            : "This entry is currently ungrouped."
+          entry.groups.length > 0
+            ? "Manual memberships are editable in the entry editor. Rule groups are computed automatically."
+            : "This entry is not in any group yet."
         }
         actions={
           <Button asChild variant="outline" size="sm">
@@ -166,33 +156,18 @@ export function EntryDetailPage() {
         }
       >
         <div className="grid gap-3 text-sm">
-          {entry.direct_group ? (
-            <>
-              <div>
-                <strong>Direct group:</strong> {entry.direct_group.name}
-              </div>
-              <div>
-                <strong>Group path:</strong> {entry.group_path.map((group) => group.name).join(" -> ")}
-              </div>
-            </>
+          {entry.groups.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {entry.groups.map((group) => (
+                <Badge key={group.id} variant="outline">
+                  {group.name} · {group.source}
+                </Badge>
+              ))}
+            </div>
           ) : (
-            <p className="muted">Add this entry to a group from the groups workspace.</p>
+            <p className="muted">Add this entry to a manual group from the groups workspace or entry editor.</p>
           )}
         </div>
-      </WorkspaceSection>
-
-      <WorkspaceSection
-        title="Direct Group Graph"
-        description={
-          entry.direct_group
-            ? `Showing ${entry.direct_group.name} and its direct members.`
-            : "Grouped entries render here once the entry has a direct group."
-        }
-      >
-          {!entry.direct_group ? <p className="muted">No direct group assigned.</p> : null}
-          {entry.direct_group && groupQuery.isLoading ? <p>Loading group graph...</p> : null}
-          {entry.direct_group && groupQuery.isError ? <p className="error">Unable to load group graph.</p> : null}
-          {entry.direct_group && groupQuery.data ? <GroupGraphView graph={groupQuery.data} /> : null}
       </WorkspaceSection>
 
       <EntryEditorModal

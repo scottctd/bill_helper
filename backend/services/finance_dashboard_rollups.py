@@ -11,14 +11,14 @@ from datetime import date, timedelta
 from statistics import median
 
 from backend.enums_finance import EntryLifecycle
-from backend.models_finance import Entry
+from backend.models_finance import Entry, Group
 from backend.schemas_finance import (
     DashboardBreakdownEntryItem,
     DashboardBreakdownItem,
     DashboardCategoryChildSummary,
     DashboardCategorySummary,
     DashboardDailySpendingPoint,
-    DashboardFilterGroupSummary,
+    DashboardGroupSummary,
     DashboardKpisRead,
     DashboardLargestExpenseItem,
     DashboardLifecycleSummary,
@@ -26,11 +26,8 @@ from backend.schemas_finance import (
     DashboardToBreakdownItem,
     DashboardWeekdaySpendingPoint,
 )
-from backend.services.filter_groups import (
-    FilterGroupDefinition,
-    build_filter_entry_context,
-    matching_filter_group_keys,
-)
+from backend.services.group_membership import effective_entry_ids_for_group
+from backend.services.group_rule_context import build_entry_rule_context
 
 DASHBOARD_CATEGORY_TO_BREAKDOWN_LIMIT = 100
 UNCATEGORIZED_LABEL = "Uncategorized"
@@ -56,8 +53,8 @@ class ExpenseAnalyticsRollup:
     path_to_entries: dict[str, dict[str, list[DashboardBreakdownEntryItem]]]
     lifecycle_totals: dict[str, int]
     lifecycle_entry_counts: dict[str, int]
-    filter_group_totals: dict[str, int]
-    filter_group_entry_counts: dict[str, int]
+    group_totals: dict[str, int]
+    group_entry_counts: dict[str, int]
     spending_by_from: dict[str, int]
     spending_by_to: dict[str, int]
     spending_by_tag: dict[str, int]
@@ -108,7 +105,7 @@ def rollup_expense_entries(
     expense_entries: list[Entry],
     *,
     category_paths: dict[str, str],
-    filter_groups: list[FilterGroupDefinition],
+    groups: list[Group],
     account_entity_ids: set[str],
 ) -> ExpenseAnalyticsRollup:
     expense_totals_by_date: dict[date, int] = defaultdict(int)
@@ -127,13 +124,30 @@ def rollup_expense_entries(
     ] = defaultdict(lambda: defaultdict(list))
     lifecycle_totals: dict[str, int] = defaultdict(int)
     lifecycle_entry_counts: dict[str, int] = defaultdict(int)
-    filter_group_totals: dict[str, int] = defaultdict(int)
-    filter_group_entry_counts: dict[str, int] = defaultdict(int)
+    group_totals: dict[str, int] = defaultdict(int)
+    group_entry_counts: dict[str, int] = defaultdict(int)
     spending_by_from: dict[str, int] = defaultdict(int)
     spending_by_to: dict[str, int] = defaultdict(int)
     spending_by_tag: dict[str, int] = defaultdict(int)
     weekday_totals: dict[int, int] = defaultdict(int)
     largest_expenses: list[DashboardLargestExpenseItem] = []
+
+    contexts = {
+        entry.id: build_entry_rule_context(
+            entry,
+            category_path=category_paths.get(entry.id),
+            account_entity_ids=account_entity_ids,
+        )
+        for entry in expense_entries
+    }
+    membership_by_group = {
+        group.id: effective_entry_ids_for_group(
+            group,
+            entries=expense_entries,
+            contexts=contexts,
+        )
+        for group in groups
+    }
 
     for entry in expense_entries:
         amount_minor = entry.amount_minor
@@ -162,16 +176,11 @@ def rollup_expense_entries(
         lifecycle_totals[resolved_lifecycle_key] += amount_minor
         lifecycle_entry_counts[resolved_lifecycle_key] += 1
 
-        context = build_filter_entry_context(
-            entry,
-            account_entity_ids=account_entity_ids,
-        )
-        for key in matching_filter_group_keys(
-            context=context,
-            filter_groups=filter_groups,
-        ):
-            filter_group_totals[key] += amount_minor
-            filter_group_entry_counts[key] += 1
+        for group in groups:
+            if entry.id not in membership_by_group.get(group.id, set()):
+                continue
+            group_totals[group.id] += amount_minor
+            group_entry_counts[group.id] += 1
 
         spending_by_from[normalize_breakdown_label(entry.from_entity)] += amount_minor
         spending_by_to[to_label] += amount_minor
@@ -209,8 +218,8 @@ def rollup_expense_entries(
         path_to_entries=path_to_entries,
         lifecycle_totals=lifecycle_totals,
         lifecycle_entry_counts=lifecycle_entry_counts,
-        filter_group_totals=filter_group_totals,
-        filter_group_entry_counts=filter_group_entry_counts,
+        group_totals=group_totals,
+        group_entry_counts=group_entry_counts,
         spending_by_from=spending_by_from,
         spending_by_to=spending_by_to,
         spending_by_tag=spending_by_tag,
@@ -327,28 +336,28 @@ def build_lifecycle_summaries(
     ]
 
 
-def build_filter_group_summaries(
+def build_group_summaries(
     rollup: ExpenseAnalyticsRollup,
-    filter_groups: list[FilterGroupDefinition],
+    groups: list[Group],
     *,
     expense_total_minor: int,
-) -> list[DashboardFilterGroupSummary]:
+) -> list[DashboardGroupSummary]:
     return [
-        DashboardFilterGroupSummary(
-            filter_group_id=group.id,
-            key=group.key,
+        DashboardGroupSummary(
+            group_id=group.id,
             name=group.name,
+            source=group.source,
             color=group.color,
-            total_minor=rollup.filter_group_totals.get(group.key, 0),
+            total_minor=rollup.group_totals.get(group.id, 0),
             share=round(
-                rollup.filter_group_totals.get(group.key, 0) / expense_total_minor,
+                rollup.group_totals.get(group.id, 0) / expense_total_minor,
                 4,
             )
             if expense_total_minor > 0
             else 0.0,
-            entry_count=rollup.filter_group_entry_counts.get(group.key, 0),
+            entry_count=rollup.group_entry_counts.get(group.id, 0),
         )
-        for group in filter_groups
+        for group in groups
     ]
 
 

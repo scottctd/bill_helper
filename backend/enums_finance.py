@@ -20,18 +20,11 @@ class EntryLifecycle(StrEnum):
     ONE_TIME = "one_time"
 
 
-class GroupType(StrEnum):
-    BUNDLE = "BUNDLE"
-    SPLIT = "SPLIT"
-    RECURRING = "RECURRING"
+class GroupSource(StrEnum):
+    MANUAL = "manual"
+    RULE = "rule"
 
 
-class GroupMemberRole(StrEnum):
-    PARENT = "PARENT"
-    CHILD = "CHILD"
-
-
-class LinkType(StrEnum):
-    RECURRING = "RECURRING"
-    SPLIT = "SPLIT"
-    BUNDLE = "BUNDLE"
+class GroupMemberOverride(StrEnum):
+    INCLUDE = "include"
+    EXCLUDE = "exclude"

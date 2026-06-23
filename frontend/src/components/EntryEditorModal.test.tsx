@@ -40,9 +40,7 @@ const entryFixture: Entry = {
   category: null,
   created_at: "2026-03-05T00:00:00Z",
   updated_at: "2026-03-05T00:00:00Z",
-  direct_group: null,
-  direct_group_member_role: null,
-  group_path: [],
+  groups: [],
   tags: []
 };
 
@@ -167,7 +165,7 @@ describe("EntryEditorModal", () => {
     expect(screen.getByText("coffee").closest(".floating-menu-portal-host")).not.toBeNull();
   });
 
-  it("shows a split role selector when assigning the entry to a split group", async () => {
+  it("shows manual group options when groups are available", async () => {
     const user = userEvent.setup();
 
     renderModal({
@@ -177,35 +175,40 @@ describe("EntryEditorModal", () => {
       groups: [
         {
           id: "group-1",
-          name: "Bundle Group",
-          group_type: "BUNDLE",
-          parent_group_id: null,
-          direct_member_count: 0,
-          direct_entry_count: 0,
-          direct_child_group_count: 0,
-          descendant_entry_count: 0,
+          name: "Manual Group",
+          description: null,
+          color: null,
+          source: "manual",
+          rule_summary: null,
+          member_count: 0,
           first_occurred_at: null,
-          last_occurred_at: null
+          last_occurred_at: null,
+          position: 0,
+          created_at: "2026-03-05T00:00:00Z",
+          updated_at: "2026-03-05T00:00:00Z"
         },
         {
           id: "group-2",
-          name: "Dinner Split",
-          group_type: "SPLIT",
-          parent_group_id: null,
-          direct_member_count: 0,
-          direct_entry_count: 0,
-          direct_child_group_count: 0,
-          descendant_entry_count: 0,
+          name: "Rule Group",
+          description: null,
+          color: null,
+          source: "rule",
+          rule_summary: "tags has_any grocery",
+          member_count: 0,
           first_occurred_at: null,
-          last_occurred_at: null
+          last_occurred_at: null,
+          position: 1,
+          created_at: "2026-03-05T00:00:00Z",
+          updated_at: "2026-03-05T00:00:00Z"
         }
       ]
     });
 
-    await user.click(screen.getByRole("button", { name: "Group" }));
-    await user.click(screen.getByRole("option", { name: /Dinner Split/i }));
+    await user.click(screen.getByRole("textbox", { name: "Manual groups" }));
+    await user.click(screen.getByRole("button", { name: "Manual Group" }));
 
-    expect(screen.getByRole("button", { name: "Split role" })).toBeInTheDocument();
+    expect(screen.getByText("Manual Group")).toBeInTheDocument();
+    expect(screen.queryByText("Rule Group · rule")).not.toBeInTheDocument();
   });
 
   it("swaps the from and to values before submit", async () => {

@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.enums_agent import AgentChangeStatus
-from backend.enums_finance import GroupType
+from backend.enums_finance import GroupSource
 from backend.services.agent.payload_normalization import normalize_loose_text, normalize_required_text
 from backend.validation.contract_fields import (
     NormalizedTagList,
@@ -119,11 +119,11 @@ class ListGroupsArgs(ToolArgsModel):
         max_length=36,
         description=(
             "Optional full group id or unique short-id prefix to inspect one group in detail. "
-            "When provided, do not also send name/group_type/limit."
+            "When provided, do not also send name/source/limit."
         ),
     )
     name: str | None = None
-    group_type: GroupType | None = None
+    source: GroupSource | None = None
     limit: int = Field(
         default=10,
         ge=1,
@@ -144,9 +144,9 @@ class ListGroupsArgs(ToolArgsModel):
     @model_validator(mode="after")
     def validate_mode(self) -> ListGroupsArgs:
         if self.group_id is not None and (
-            self.name is not None or self.group_type is not None or self.limit != 10
+            self.name is not None or self.source is not None or self.limit != 10
         ):
-            raise ValueError("group_id cannot be combined with name, group_type, or limit")
+            raise ValueError("group_id cannot be combined with name, source, or limit")
         return self
 
 

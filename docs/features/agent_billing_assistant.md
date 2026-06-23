@@ -176,7 +176,6 @@ Compact output is line-oriented and token-efficient:
 
 
 <!-- GENERATED:bh-cheat-sheet:start -->
-
 Use `bh` for Bill Helper app reads and current-session proposal creation and proposal mutation.
 
 - Agent calls should expect `compact` output by default; use `--format text` or `--format json` only when needed.
@@ -221,7 +220,7 @@ Command specifications:
   - `--source TEXT: free-text source filter.`
   - `--tag NAME: tag-name filter.`
   - `--category TEXT: entry category leaf, parent, or uncategorized filter.`
-  - `--filter-group-id ID: group id or unique short id prefix filter.`
+  - `--group-id ID: group id or unique short id prefix filter.`
   - `--limit N: integer result limit. Default 20.`
   - `--offset N: integer result offset. Default 0.`
 
@@ -342,7 +341,7 @@ Command specifications:
 - Optional arguments: none.
 
 ### `bh groups get <group_id>`
-- Purpose: Get one group graph.
+- Purpose: Get one group.
 - Required arguments:
   - `<group_id>: full group id or unique short id prefix.`
 - Optional arguments: none.
@@ -351,8 +350,11 @@ Command specifications:
 - Purpose: Create a group proposal in the current thread.
 - Required arguments:
   - `--name TEXT: group display name.`
-  - `--group-type {BUNDLE,SPLIT,RECURRING}: group type.`
-- Optional arguments: none.
+- Optional arguments:
+  - `--source {manual,rule}: group source. Defaults to manual.`
+  - `--description TEXT: optional group description.`
+  - `--color TEXT: optional group color token.`
+  - `--rule-json JSON or --rule-file PATH: required for rule groups.`
 
 ### `bh groups update <group_id>`
 - Purpose: Create a group-update proposal in the current thread.
@@ -362,7 +364,7 @@ Command specifications:
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
-  - Patch object format: `{"name":"New Group Name"}`.
+  - Patch object format examples: `{"name":"New Group Name"}` or `{"rule":{...}}`.
 
 ### `bh groups remove <group_id>`
 - Purpose: Create a group-delete proposal in the current thread.
@@ -376,11 +378,11 @@ Command specifications:
   - `exactly one of --payload-json JSON or --payload-file PATH.`
 - Optional arguments: none.
 - Notes:
-  - Payload is nested; discriminated by `target.target_type` (`entry` vs `child_group`).
-  - Top-level JSON: `{"action":"add","group_ref":{...},"target":{...},"member_role":"PARENT|CHILD"}`. `member_role` is optional unless SPLIT rules require it.
+  - Payload is nested; `target.target_type` must be `entry`.
+  - Top-level JSON: `{"action":"add","group_ref":{...},"target":{...}}`.
   - Parent `group_ref`: exactly one of `{"group_id":"<id>"}` or `{"create_group_proposal_id":"<id>"}`.
   - Entry target: `{"target_type":"entry","entry_ref":{"entry_id":"<id>"}}` or `entry_ref` with `create_entry_proposal_id`.
-  - Child-group target: `{"target_type":"child_group","group_ref":{...}}` with `group_id` or `create_group_proposal_id`.
+  - Rule groups require `target.override` (`include` or `exclude`); manual groups must omit `override`.
 
 ### `bh groups remove-member`
 - Purpose: Create a group-membership removal proposal.
@@ -389,7 +391,7 @@ Command specifications:
 - Optional arguments: none.
 - Notes:
   - Remove supports **existing ids only**; proposal-id references are rejected for parent group and targets.
-  - Top-level JSON: `{"action":"remove","group_ref":{"group_id":"<id>"},"target":{...}}` with discriminated `target` (`entry` vs `child_group`).
+  - Top-level JSON: `{"action":"remove","group_ref":{"group_id":"<id>"},"target":{"target_type":"entry","entry_ref":{"entry_id":"<id>"}}}`.
 
 ### `bh entities list`
 - Purpose: List entities.
@@ -528,7 +530,7 @@ Command specifications:
   - `--months LIST: comma-separated YYYY-MM list (backend max 24).`
   - `--sections NAME: section filter. Repeat or comma-separate. Default: all.`
   - `--breakdown-depth {summary,categories,destinations,entries}: category drill-down depth.`
-  - `Sections: meta, kpis, categories, lifecycles, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.`
+  - `Sections: meta, kpis, categories, lifecycles, groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.`
 - Notes:
   - Dashboard currency only; internal account-to-account transfers are excluded from expense analytics.
   - Use `--format json --sections categories` for the category -> destination -> entry tree.
@@ -553,7 +555,7 @@ Compact output schemas:
 - `entries_list` -> `id|date|kind|amount_minor|currency|name|from|to|tags|category|lifecycle`
 - `accounts_list` -> `id|name|currency|active|balance_minor|balance_as_of`
 - `snapshots_list` -> `id|date|balance_minor|note`
-- `groups_list` -> `id|type|name|descendants|first_date|last_date`
+- `groups_list` -> `id|source|name|members|first_date|last_date`
 - `entities_list` -> `name|category`
 - `tags_list` -> `name|type|description`
 - `sessions_detail` -> `id|title|pending|running|updated_at`
@@ -562,7 +564,7 @@ Compact output schemas:
 - `dashboard_kpis` -> `expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|one_time_minor|core_spend_minor|uncategorized_minor`
 - `dashboard_categories` -> `name|total_minor|share|entry_count`
 - `dashboard_lifecycles` -> `lifecycle|total_minor|share|entry_count`
-- `dashboard_filter_groups` -> `key|name|total_minor|share`
+- `dashboard_groups` -> `group_id|name|source|total_minor|share`
 - `dashboard_breakdown` -> `kind|label|total_minor|share`
 - `dashboard_agent_metrics` -> `total_cost_usd|total_tokens|total_runs|completed_runs|failed_runs|avg_cost_usd|avg_tokens|cache_hit_rate|most_used_model|failure_rate`
 
@@ -584,7 +586,6 @@ Common flows:
 - Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{"patch.tags":["travel"]}'`
 - Remove a pending proposal: `bh proposals remove a1b2c3d4`
 - Create a group-membership add proposal: `bh groups add-member --payload-json '{"action":"add","group_ref":{"group_id":"a971c92e"},"target":{"target_type":"entry","entry_ref":{"entry_id":"8bf2fa83"}}}'`
-
 <!-- GENERATED:bh-cheat-sheet:end -->
 
 

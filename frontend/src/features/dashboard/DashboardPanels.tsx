@@ -24,12 +24,12 @@ import type {
   DashboardBreakdownItem,
   DashboardCategorySummary,
   DashboardLifecycleSummary,
-  DashboardFilterGroupSummary
+  DashboardGroupSummary
 } from "../../lib/types";
 import {
   DashboardCategoryPartitionCard,
   DashboardLifecycleCrosscutCard,
-  DashboardFilterGroupsCrosscutCard,
+  DashboardGroupsCrosscutCard,
   DashboardProjectionChart,
   DashboardSpendingByDestinationCard
 } from "./DashboardOverviewCharts";
@@ -56,7 +56,7 @@ type DashboardSpendingPanelProps = {
   data: Dashboard;
   categories: DashboardCategorySummary[];
   lifecycles: DashboardLifecycleSummary[];
-  filterGroups: DashboardFilterGroupSummary[];
+  groups: DashboardGroupSummary[];
   spendingByDestination: DashboardBreakdownItem[];
   dailyChartData: Array<Record<string, unknown>>;
   yearlyQueriesLoading: boolean;
@@ -72,7 +72,7 @@ export function DashboardSpendingPanel({
   data,
   categories,
   lifecycles,
-  filterGroups,
+  groups,
   spendingByDestination,
   dailyChartData,
   yearlyQueriesLoading,
@@ -103,9 +103,9 @@ export function DashboardSpendingPanel({
           : data.kpis.expense_total_minor}
       />
 
-      <DashboardFilterGroupsCrosscutCard
+      <DashboardGroupsCrosscutCard
         titlePrefix={titlePrefix}
-        filterGroups={filterGroups}
+        groups={groups}
         currencyCode={data.currency_code}
         expenseTotalMinor={viewMode === "year"
           ? categories.reduce((s, c) => s + c.total_minor, 0)
@@ -191,7 +191,7 @@ export function DashboardSpendingPanel({
           <section className="grid gap-4 md:grid-cols-3">
             <StatBlock label="Average expense month" value={formatMinor(yearlyAverageExpenseMonthMinor, data.currency_code)} />
             <StatBlock label="Median expense month" value={formatMinor(yearlyMedianExpenseMonthMinor, data.currency_code)} />
-            <StatBlock label="Filter groups" value={data.filter_groups.length} />
+            <StatBlock label="Groups" value={data.groups.length} />
           </section>
 
           <Card>

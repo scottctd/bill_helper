@@ -597,7 +597,7 @@
   }
 
   .groups-detail-modal {
-    @apply h-[92vh] w-[96vw] max-w-[86rem] overflow-hidden bg-card p-0;
+    @apply flex h-[min(92vh,56rem)] w-[min(96vw,56rem)] max-w-none flex-col overflow-hidden bg-card p-0;
   }
 
   .groups-detail-modal-shell {
@@ -605,59 +605,137 @@
   }
 
   .groups-detail-modal-header {
-    @apply gap-4 border-b border-border/75 px-6 py-5 lg:flex-row lg:items-start lg:justify-between;
+    @apply sticky top-0 z-10 shrink-0 gap-4 border-b border-border/75 bg-card px-6 py-5;
+  }
+
+  .groups-detail-modal-header-main {
+    @apply grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:justify-between;
   }
 
   .groups-detail-modal-header-copy {
-    @apply min-w-0;
+    @apply grid min-w-0 gap-2;
   }
 
   .groups-detail-modal-title-row {
     @apply flex flex-wrap items-center gap-2;
   }
 
+  .groups-detail-modal-description {
+    @apply text-copy-14 text-muted-foreground;
+  }
+
+  .groups-detail-meta-chips {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .groups-detail-meta-chip {
+    @apply inline-flex items-center rounded-full border border-border/80 bg-secondary/45 px-2.5 py-1 text-label-12 text-muted-foreground;
+  }
+
+  .groups-detail-meta-chip-rule {
+    @apply max-w-full truncate text-foreground/80;
+  }
+
   .groups-detail-modal-actions {
+    @apply grid gap-2 sm:justify-items-end;
+  }
+
+  .groups-detail-modal-actions-primary,
+  .groups-detail-modal-actions-secondary {
     @apply flex flex-wrap items-center gap-2;
   }
 
   .groups-detail-modal-body {
-    @apply grid flex-1 gap-5 overflow-y-auto px-6 py-5;
+    @apply min-h-0 flex-1 overflow-y-auto px-6 py-5;
   }
 
   .groups-detail-meta {
     @apply m-0 text-copy-14 text-muted-foreground;
   }
 
-  .groups-detail-meta-secondary {
-    @apply text-muted-foreground/80;
+  .groups-detail-stats-block {
+    @apply grid gap-2;
+  }
+
+  .groups-detail-stats-heading {
+    @apply text-label-12 font-medium uppercase tracking-wide text-muted-foreground;
   }
 
   .groups-detail-stats-grid {
-    @apply grid gap-3 md:grid-cols-2 xl:grid-cols-4;
+    @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-4;
   }
 
-  .groups-detail-stat-card {
-    @apply grid gap-1 rounded-md border border-border bg-secondary/55 px-4 py-3;
+  .groups-detail-stats-grid .stat-block {
+    @apply rounded-md border border-border/80 bg-secondary/35 px-3 py-2.5;
   }
 
-  .groups-detail-stat-label {
+  .groups-detail-panel {
+    @apply grid gap-3;
+  }
+
+  .groups-detail-panel-header {
+    @apply flex flex-wrap items-baseline justify-between gap-2;
+  }
+
+  .groups-detail-panel-header h3 {
+    @apply text-heading-16 tracking-tight text-foreground;
+  }
+
+  .groups-detail-panel-count {
+    @apply m-0 text-copy-14 text-muted-foreground;
+  }
+
+  .groups-detail-panel-body {
+    @apply grid gap-3;
+  }
+
+  .groups-detail-members-empty {
+    @apply rounded-md border border-dashed border-border/80 bg-secondary/20 px-4 py-8;
+  }
+
+  .groups-detail-members-table-shell {
+    @apply overflow-x-auto rounded-md border border-border;
+  }
+
+  .groups-detail-date-column {
+    width: 7.5rem;
+    white-space: nowrap;
+  }
+
+  .groups-detail-amount-column {
+    width: 9rem;
+  }
+
+  .groups-detail-member-date {
+    @apply text-copy-14 tabular-nums text-foreground;
+  }
+
+  .groups-detail-member-entry {
+    @apply grid gap-0.5;
+  }
+
+  .groups-detail-member-name {
+    @apply font-medium text-foreground;
+  }
+
+  .groups-detail-member-kind {
     @apply text-label-12 text-muted-foreground;
   }
 
-  .groups-detail-stat-value {
-    @apply text-heading-16 text-foreground;
+  .groups-detail-member-row {
+    @apply cursor-pointer transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
   }
 
-  .groups-detail-stat-detail {
-    @apply text-copy-14 text-muted-foreground;
+  .groups-detail-member-row:hover {
+    @apply bg-accent/45;
   }
 
   .groups-detail-section {
-    @apply grid gap-4 rounded-md border border-border/90 bg-card px-5 py-5;
+    @apply grid gap-3 rounded-md border border-border/80 bg-secondary/15 px-4 py-4;
   }
 
   .groups-detail-section-header {
-    @apply gap-3 lg:flex lg:flex-row lg:items-start lg:justify-between;
+    @apply gap-2 lg:flex lg:flex-row lg:items-start lg:justify-between;
   }
 
   .groups-detail-section-header h3 {
@@ -669,19 +747,7 @@
   }
 
   .groups-detail-section-body {
-    @apply grid gap-4;
-  }
-
-  .groups-detail-members-table-shell {
-    @apply overflow-x-auto;
-  }
-
-  .groups-detail-member-row {
-    @apply cursor-pointer transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
-  }
-
-  .groups-detail-member-row:hover {
-    @apply bg-accent/45;
+    @apply grid gap-3;
   }
 
   .groups-detail-section-body .group-flow-container {

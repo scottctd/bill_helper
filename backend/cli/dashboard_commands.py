@@ -68,7 +68,7 @@ Scope (choose exactly one):
 Section filters:
   Repeat `--sections NAME` or pass comma-separated names. Default: all sections.
 
-  meta, kpis, categories, lifecycles, filter_groups, daily_spending,
+  meta, kpis, categories, lifecycles, groups, daily_spending,
   monthly_trend, spending_by_from, spending_by_to, spending_by_tag,
   income_by_from, weekday_spending, largest_expenses, projection,
   reconciliation, all
@@ -361,7 +361,7 @@ def _finance_notes() -> list[str]:
     return [
         "Amounts are integer minor units in the dashboard currency unless rendered as text.",
         "Internal account-to-account transfers are excluded from expense analytics.",
-        "Use --format json when you need the full filter-group drill-down tree.",
+        "Use --format json when you need the full group drill-down tree.",
     ]
 
 

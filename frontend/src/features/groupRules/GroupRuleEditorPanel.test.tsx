@@ -4,9 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import { FilterGroupEditorPanel } from "./FilterGroupEditorPanel";
-import { createExistingEditorSession, updateSessionFormState } from "./filterGroupEditorState";
-import type { FilterGroup, Tag } from "../../lib/types";
+import { GroupRuleEditorPanel } from "./GroupRuleEditorPanel";
+import { createExistingEditorSession, updateSessionFormState } from "./groupRuleEditorState";
+import type { GroupRead, Tag } from "../../lib/types";
 
 const tags: Tag[] = [
   { id: 1, name: "grocery", color: "#33aa66" },
@@ -14,15 +14,18 @@ const tags: Tag[] = [
   { id: 3, name: "housing", color: "#4466cc" }
 ];
 
-function createFilterGroup(rule: FilterGroup["rule"]): FilterGroup {
+function createRuleGroup(rule: GroupRead["rule"]): GroupRead {
   return {
-    id: "fg-1",
-    key: "custom",
+    id: "group-1",
     name: "Routine",
     description: "Regular spending.",
     color: "#64748b",
-    is_default: false,
+    source: "rule",
     position: 0,
+    member_count: 0,
+    first_occurred_at: null,
+    last_occurred_at: null,
+    members: [],
     rule,
     rule_summary: "kind is expense",
     created_at: "2026-03-01T00:00:00Z",
@@ -30,12 +33,12 @@ function createFilterGroup(rule: FilterGroup["rule"]): FilterGroup {
   };
 }
 
-function ControlledEditor({ filterGroup }: { filterGroup: FilterGroup }) {
-  const [session, setSession] = useState(() => createExistingEditorSession(filterGroup));
+function ControlledEditor({ group }: { group: GroupRead }) {
+  const [session, setSession] = useState(() => createExistingEditorSession(group));
 
   return (
     <MemoryRouter>
-      <FilterGroupEditorPanel
+      <GroupRuleEditorPanel
         session={session}
         tags={tags}
         preferredTagName={tags[0]?.name}
@@ -51,10 +54,10 @@ function ControlledEditor({ filterGroup }: { filterGroup: FilterGroup }) {
   );
 }
 
-describe("FilterGroupEditorPanel", () => {
+describe("GroupRuleEditorPanel", () => {
   it("uses the shared tag multi-select and renders save in the panel header", async () => {
     const user = userEvent.setup();
-    const filterGroup = createFilterGroup({
+    const group = createRuleGroup({
       include: {
         type: "group",
         operator: "AND",
@@ -63,7 +66,7 @@ describe("FilterGroupEditorPanel", () => {
       exclude: null
     });
 
-    render(<ControlledEditor filterGroup={filterGroup} />);
+    render(<ControlledEditor group={group} />);
 
     expect(screen.queryByText("All conditions")).not.toBeInTheDocument();
     expect(screen.queryByText("Any condition")).not.toBeInTheDocument();
@@ -78,7 +81,7 @@ describe("FilterGroupEditorPanel", () => {
   });
 
   it("opens nested rules in advanced mode and keeps guided mode locked", () => {
-    const nestedRule: FilterGroup["rule"] = {
+    const nestedRule: GroupRead["rule"] = {
       include: {
         type: "group",
         operator: "AND",
@@ -97,7 +100,7 @@ describe("FilterGroupEditorPanel", () => {
       exclude: null
     };
 
-    render(<ControlledEditor filterGroup={createFilterGroup(nestedRule)} />);
+    render(<ControlledEditor group={createRuleGroup(nestedRule)} />);
 
     expect(screen.getByRole("button", { name: "Guided" })).toBeDisabled();
     expect(screen.getByText(/guided mode stays locked/i)).toBeInTheDocument();

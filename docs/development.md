@@ -206,6 +206,7 @@ Current revisions:
 - `0046_entry_category_lifecycle`
 - `0047_entry_category_schedule`
 - `0048_remove_builtin_filter_groups`
+- `0049_unified_groups`
 
 ## Seed Data
 

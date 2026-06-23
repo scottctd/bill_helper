@@ -194,7 +194,7 @@ export function buildTocLeafMeta(changeType: string, payload: Record<string, unk
     case "create_group":
     case "update_group":
     case "delete_group":
-      return asText(payload.group_type ?? current.group_type ?? target.group_type) || undefined;
+      return asText(payload.source ?? current.group_source ?? target.group_source) || undefined;
     case "create_snapshot":
       return asText(payload.snapshot_at) || undefined;
     case "delete_snapshot":

@@ -52,8 +52,8 @@ def normalize_update_group_payload(context: ToolContext, payload: dict[str, Any]
     return {
         "group_id": group.id,
         "patch": parsed.patch.model_dump(mode="json", exclude_unset=True),
-        "current": group_preview_from_existing(group),
-        "target": group_detail_public_record(group),
+        "current": group_preview_from_existing(context, group),
+        "target": group_detail_public_record(context.db, group),
     }
 
 
@@ -68,7 +68,7 @@ def normalize_delete_group_payload(context: ToolContext, payload: dict[str, Any]
         raise_normalization_error(group, default_message="group not found")
     return {
         "group_id": group.id,
-        "target": group_detail_public_record(group),
+        "target": group_detail_public_record(context.db, group),
     }
 
 
@@ -82,7 +82,6 @@ def normalize_create_group_member_payload(context: ToolContext, payload: dict[st
         context,
         group_ref=parsed.group_ref,
         target=parsed.target,
-        member_role=parsed.member_role,
     )
     if isinstance(normalized, ToolExecutionResult):
         raise_normalization_error(normalized, default_message="invalid group membership")

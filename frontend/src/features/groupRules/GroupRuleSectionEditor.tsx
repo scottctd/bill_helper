@@ -9,27 +9,27 @@ import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/button";
 import { NativeSelect } from "../../components/ui/native-select";
-import type { FilterRuleCondition, FilterRuleGroup, FilterRuleNode, Tag } from "../../lib/types";
+import type { GroupRuleCondition, GroupRuleGroup, GroupRuleNode, Tag } from "../../lib/types";
 import { cn } from "../../lib/utils";
-import { FilterRuleConditionRow } from "./FilterRuleConditionRow";
+import { GroupRuleConditionRow } from "./GroupRuleConditionRow";
 import {
   containsNestedGroups,
   createDefaultCondition,
   createEmptyGroup,
   normalizeGroup,
   normalizeNode
-} from "./filterGroupRuleUtils";
+} from "./groupRuleUtils";
 
 type RuleSectionMode = "guided" | "advanced";
 
-interface FilterRuleSectionEditorProps {
+interface GroupRuleSectionEditorProps {
   title: string;
   description: string;
-  group: FilterRuleGroup;
+  group: GroupRuleGroup;
   tags: Tag[];
   preferredTagName?: string;
   removeSectionLabel?: string;
-  onChange: (next: FilterRuleGroup) => void;
+  onChange: (next: GroupRuleGroup) => void;
   onRemoveSection?: () => void;
 }
 
@@ -39,14 +39,14 @@ function GuidedRuleEditor({
   preferredTagName,
   onChange
 }: {
-  group: FilterRuleGroup;
+  group: GroupRuleGroup;
   tags: Tag[];
   preferredTagName?: string;
-  onChange: (next: FilterRuleGroup) => void;
+  onChange: (next: GroupRuleGroup) => void;
 }) {
-  const conditions = group.children as FilterRuleCondition[];
+  const conditions = group.children as GroupRuleCondition[];
 
-  function updateCondition(index: number, nextCondition: FilterRuleCondition) {
+  function updateCondition(index: number, nextCondition: GroupRuleCondition) {
     onChange({
       ...group,
       children: group.children.map((child, childIndex) => (childIndex === index ? nextCondition : child))
@@ -71,7 +71,7 @@ function GuidedRuleEditor({
             onChange={(event) =>
               onChange({
                 ...group,
-                operator: event.target.value as FilterRuleGroup["operator"]
+                operator: event.target.value as GroupRuleGroup["operator"]
               })
             }
           >
@@ -96,7 +96,7 @@ function GuidedRuleEditor({
 
       <div className="grid gap-3">
         {conditions.map((condition, index) => (
-          <FilterRuleConditionRow
+          <GroupRuleConditionRow
             key={`guided-condition-${index}`}
             condition={condition}
             tags={tags}
@@ -119,11 +119,11 @@ function AdvancedRuleNodeEditor({
   onChange,
   onRemove
 }: {
-  node: FilterRuleNode;
+  node: GroupRuleNode;
   isRoot?: boolean;
   tags: Tag[];
   preferredTagName?: string;
-  onChange: (next: FilterRuleNode) => void;
+  onChange: (next: GroupRuleNode) => void;
   onRemove: () => void;
 }) {
   if (node.type === "group") {
@@ -140,7 +140,7 @@ function AdvancedRuleNodeEditor({
   }
 
   return (
-    <FilterRuleConditionRow
+    <GroupRuleConditionRow
       condition={node}
       tags={tags}
       preferredTagName={preferredTagName}
@@ -159,14 +159,14 @@ function AdvancedRuleGroupEditor({
   onChange,
   onRemove
 }: {
-  group: FilterRuleGroup;
+  group: GroupRuleGroup;
   isRoot?: boolean;
   tags: Tag[];
   preferredTagName?: string;
-  onChange: (next: FilterRuleGroup) => void;
+  onChange: (next: GroupRuleGroup) => void;
   onRemove: () => void;
 }) {
-  function updateChild(index: number, nextNode: FilterRuleNode) {
+  function updateChild(index: number, nextNode: GroupRuleNode) {
     onChange({
       ...group,
       children: group.children.map((child, childIndex) => (childIndex === index ? nextNode : child))
@@ -196,7 +196,7 @@ function AdvancedRuleGroupEditor({
             onChange={(event) =>
               onChange({
                 ...group,
-                operator: event.target.value as FilterRuleGroup["operator"]
+                operator: event.target.value as GroupRuleGroup["operator"]
               })
             }
           >
@@ -255,7 +255,7 @@ function AdvancedRuleGroupEditor({
   );
 }
 
-export function FilterRuleSectionEditor({
+export function GroupRuleSectionEditor({
   title,
   description,
   group,
@@ -264,7 +264,7 @@ export function FilterRuleSectionEditor({
   removeSectionLabel = "Remove section",
   onChange,
   onRemoveSection
-}: FilterRuleSectionEditorProps) {
+}: GroupRuleSectionEditorProps) {
   const hasNestedGroups = containsNestedGroups(group);
   const [mode, setMode] = useState<RuleSectionMode>(() => (hasNestedGroups ? "advanced" : "guided"));
 
@@ -274,7 +274,7 @@ export function FilterRuleSectionEditor({
     }
   }, [hasNestedGroups]);
 
-  function updateGroup(nextGroup: FilterRuleGroup) {
+  function updateGroup(nextGroup: GroupRuleGroup) {
     onChange(normalizeGroup(nextGroup, preferredTagName));
   }
 
@@ -316,7 +316,7 @@ export function FilterRuleSectionEditor({
         <GuidedRuleEditor group={group} tags={tags} preferredTagName={preferredTagName} onChange={updateGroup} />
       ) : (
         <AdvancedRuleGroupEditor
-          group={normalizeNode(group, preferredTagName) as FilterRuleGroup}
+          group={normalizeNode(group, preferredTagName) as GroupRuleGroup}
           isRoot
           tags={tags}
           preferredTagName={preferredTagName}

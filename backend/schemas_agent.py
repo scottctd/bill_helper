@@ -21,7 +21,7 @@ from backend.enums_agent import (
     AgentToolCallStatus,
     AgentTranscriptRole,
 )
-from backend.services.agent.change_contracts.entries import CreateEntryPayload
+from backend.contracts_agent_entries import CreateEntryPayload
 from backend.validation.agent_threads import THREAD_TITLE_MAX_LENGTH, validate_thread_title
 
 

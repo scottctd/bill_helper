@@ -7,12 +7,13 @@
  */
 
 import type { EntryTag } from "./catalogs";
-import type { EntryKind, EntryLifecycle, GroupMemberRole, GroupType } from "./core";
+import type { EntryKind, EntryLifecycle, GroupSource } from "./core";
 
 export interface EntryGroupRef {
   id: string;
   name: string;
-  group_type: GroupType;
+  source: GroupSource;
+  color: string | null;
 }
 
 export interface Entry {
@@ -36,9 +37,7 @@ export interface Entry {
   created_at: string;
   updated_at: string;
   tags: EntryTag[];
-  direct_group: EntryGroupRef | null;
-  direct_group_member_role: GroupMemberRole | null;
-  group_path: EntryGroupRef[];
+  groups: EntryGroupRef[];
 }
 
 export interface EntryDetail extends Entry {}

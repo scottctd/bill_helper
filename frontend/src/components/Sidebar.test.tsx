@@ -96,7 +96,7 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("auth-session-card")).toHaveAttribute("data-collapsed", "true");
   });
 
-  it("renders filters directly below groups in the sidebar nav", () => {
+  it("renders groups directly below entries in the sidebar nav", () => {
     mockUseAuth.mockReturnValue({
       status: "authenticated",
       session: {
@@ -122,7 +122,6 @@ describe("Sidebar", () => {
       "Accounts",
       "Entries",
       "Groups",
-      "Filters",
       "Entities",
       "Properties",
       "Settings",

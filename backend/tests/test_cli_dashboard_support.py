@@ -17,7 +17,7 @@ def test_parse_section_names_defaults_to_all_finance_sections() -> None:
     assert "kpis" in sections
     assert "categories" in sections
     assert "lifecycles" in sections
-    assert "filter_groups" in sections
+    assert "groups" in sections
     assert "all" not in sections
 
 
@@ -86,7 +86,7 @@ def test_apply_finance_sections_keeps_only_requested_fields() -> None:
         "month": "2026-05",
         "currency_code": "CAD",
         "kpis": {"expense_total_minor": 100},
-        "filter_groups": [],
+        "groups": [],
         "daily_spending": [],
     }
     shaped = apply_finance_sections(dashboard, frozenset({"kpis"}))

@@ -20,9 +20,8 @@ from backend.services.agent.change_contracts.catalog import (
 )
 from backend.services.agent.change_contracts.entries import CreateEntryPayload, UpdateEntryPayload
 from backend.services.agent.change_contracts.groups import (
-    ChildGroupMemberTargetPayload,
     CreateGroupMemberPayload,
-    EntryGroupMemberTargetPayload,
+    GroupMemberEntryTargetPayload,
 )
 from backend.services.agent.principal_scope import load_change_item_principal
 from backend.services.agent.reviews.common import get_change_item_or_none, thread_id_for_change_item
@@ -305,10 +304,8 @@ def validate_entry_dependencies_ready_for_approval(
 def _group_dependency_proposal_ids(payload: CreateGroupMemberPayload) -> list[str]:
     dependency_ids: list[str] = []
     references = [payload.group_ref.create_group_proposal_id]
-    if isinstance(payload.target, EntryGroupMemberTargetPayload):
+    if isinstance(payload.target, GroupMemberEntryTargetPayload):
         references.append(payload.target.entry_ref.create_entry_proposal_id)
-    elif isinstance(payload.target, ChildGroupMemberTargetPayload):
-        references.append(payload.target.group_ref.create_group_proposal_id)
     for proposal_id in references:
         if proposal_id:
             dependency_ids.append(proposal_id)

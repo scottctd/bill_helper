@@ -155,11 +155,11 @@ function buildDashboard(month: string): Dashboard {
       { lifecycle: "one_time", total_minor: 2_000, share: 2_000 / expenseTotal, entry_count: 1 },
       { lifecycle: null, total_minor: 2_000, share: 2_000 / expenseTotal, entry_count: 1 }
     ],
-    filter_groups: [
+    groups: [
       {
-        filter_group_id: "fg-custom",
-        key: "work_meals",
+        group_id: "fg-custom",
         name: "Work Meals",
+        source: "rule",
         color: "#0f766e",
         total_minor: 2_600,
         share: 2_600 / expenseTotal,

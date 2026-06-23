@@ -38,7 +38,7 @@
 - row delete actions use compact trash-can icon buttons with accessible labels instead of inline `Delete` text, and their icon-only action headers are visually hidden to keep the column minimal
 - rows show a `Missing entity` badge when preserved labels remain after entity or account deletion
 - entry create modal resolves default currency from runtime settings
-- entry create/edit modal includes a single direct-group picker; `SPLIT` groups also show a split-role picker
+- entry create/edit modal supports multi-select manual group assignment; rule groups appear as read-only badges
 - entry create/edit modal keeps the markdown notes editor inside the shared field grid with a labeled `Notes` row instead of a detached full-width block
 - entry create/edit modal includes a compact swap icon control between the `from` and `to` selectors to swap both field values in one click
 - entry create/edit modal tag picking supports fuzzy search and ranks the strongest matches first before falling back to create-new
@@ -79,17 +79,16 @@
 ### `frontend/src/pages/GroupsPage.tsx`
 
 - dedicated first-class group workspace at `/groups`
-- route shell now uses the shared page header plus one primary workspace section
-- organized around a broad searchable groups table first, with each row opening a dedicated group-detail modal on double-click and a fallback `View` action
-- toolbar includes name search plus compact group-type multi-select filtering
+- `/filters` redirects to `/groups`
+- route shell uses the shared page header plus one primary workspace section
+- organized around a searchable groups table; each row opens a group-detail modal on double-click and a fallback `View` action
+- toolbar includes name search plus compact group-source multi-select filtering (`manual` / `rule`)
 - browser table data comes from `GET /groups`
 - group detail modal content comes from `GET /groups/{group_id}`
-- supports create, rename, delete, add-entry, add-child-group, and remove-member flows
-- child-group picking is limited to top-level groups that are not already attached elsewhere, matching the depth-1/no-sharing backend rules
-- group detail modal surfaces compact direct-entry stats above the member table and keeps the derived graph at the bottom of the modal
-- direct members table inside the modal shows both entries and child groups, exposes entry amounts in the same signed compact format as the entries table, and lets a member click open the corresponding entry editor or child-group detail
-- `GroupGraphView.tsx` renders both entry nodes and child-group nodes, with layout rules per `group_type`
-- `GroupGraphView.tsx` locally filters React Flow warning `002` because it is a false positive for this graph
+- supports create, rename, delete, add-entry membership, pin/exclude overrides on rule groups, and remove-member flows
+- manual groups store direct entry membership; rule groups compute effective membership from saved rules plus optional include/exclude overrides
+- group detail modal uses a sticky header with summary chips, compact statistics, and a date-first member table; rule groups embed the rule editor below members
+- entry editor assigns manual groups via multi-select; rule groups appear read-only on entries
 
 ## Accounts
 
@@ -165,21 +164,6 @@
 - `Spending` shows the ranked category partition, lifecycle and filter-group cross-cuts, spending-by-destination bars, daily total expense, and category projection
 - the current-month projection area uses category totals with projected growth
 - `Breakdown` shows the category → sub-category → destination drill-down tree; year mode aggregates the category tree across the selected year
-
-## Filters
-
-### `frontend/src/pages/FilterGroupsPage.tsx`
-
-- dedicated first-class filter-group workspace at `/filters`
-- route shell now uses the shared page header plus one primary workspace section
-- page shell delegates the actual CRUD surface to `frontend/src/features/filterGroups/FilterGroupsManager.tsx`
-- the workspace now uses a master-detail layout: a selectable filter-group list on the left and one focused editor on the right, with the list stacking above the editor on small screens
-- the primary `Create group` / `Save changes` action now sits in the route-level page header and reflects the currently selected editor session
-- the primary editor hides the raw backend `rule_summary` prose and instead uses a guided include/exclude rule builder with literal `AND` / `OR` controls
-- filter groups are entirely user-created; an empty catalog is valid and no built-in rows are provisioned
-- tag-based conditions use the shared `TagMultiSelect` component with the existing tag catalog instead of a comma-separated text field
-- nested rule groups still work, but they are moved behind an `Advanced` mode that opens automatically for already-nested rules
-- each saved group exposes a direct `View matching entries` link that opens the entries workspace scoped to that group
 
 ## Import
 

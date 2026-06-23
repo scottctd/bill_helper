@@ -45,10 +45,10 @@ PROPOSAL_MUTABLE_ROOTS: dict[AgentChangeType, set[str]] = {
     },
     AgentChangeType.UPDATE_ENTRY: {"entry_id", "patch"},
     AgentChangeType.DELETE_ENTRY: {"entry_id"},
-    AgentChangeType.CREATE_GROUP: {"name", "group_type"},
+    AgentChangeType.CREATE_GROUP: {"name", "source", "description", "color", "rule"},
     AgentChangeType.UPDATE_GROUP: {"group_id", "patch"},
     AgentChangeType.DELETE_GROUP: {"group_id"},
-    AgentChangeType.CREATE_GROUP_MEMBER: {"action", "group_ref", "target", "member_role"},
+    AgentChangeType.CREATE_GROUP_MEMBER: {"action", "group_ref", "target"},
     AgentChangeType.DELETE_GROUP_MEMBER: {"action", "group_ref", "target"},
 }
 

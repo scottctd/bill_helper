@@ -452,7 +452,7 @@ def test_dashboard_monthly_aggregations(client):
     assert lifecycles["day_to_day"]["total_minor"] == 1200
     assert lifecycles["one_time"]["total_minor"] == 500
 
-    assert payload["filter_groups"] == []
+    assert payload["groups"] == []
 
     jan_second = next(point for point in payload["daily_spending"] if point["date"] == "2026-01-02")
     jan_third = next(point for point in payload["daily_spending"] if point["date"] == "2026-01-03")
@@ -737,7 +737,7 @@ def test_dashboard_is_scoped_by_principal(client, auth_headers):
     assert all(item["name"] != "Admin-only expense" for item in payload["largest_expenses"])
 
 
-def test_filter_groups_support_custom_overlap_without_builtin_rows(client):
+def test_groups_support_custom_rule_overlap_without_builtin_rows(client):
     account = create_account(client)
     create_entry(
         client,
@@ -749,16 +749,17 @@ def test_filter_groups_support_custom_overlap_without_builtin_rows(client):
         tags=["travel"],
     )
 
-    list_response = client.get("/api/v1/filter-groups")
+    list_response = client.get("/api/v1/groups")
     list_response.raise_for_status()
     payload = list_response.json()
 
     assert payload == []
 
     create_response = client.post(
-        "/api/v1/filter-groups",
+        "/api/v1/groups",
         json={
             "name": "trips",
+            "source": "rule",
             "description": "Track travel-tagged spending separately.",
             "rule": {
                 "include": {
@@ -774,20 +775,20 @@ def test_filter_groups_support_custom_overlap_without_builtin_rows(client):
     )
     create_response.raise_for_status()
     custom_group = create_response.json()
-    assert custom_group["key"].startswith("custom_")
+    assert custom_group["source"] == "rule"
 
     dashboard = client.get("/api/v1/dashboard", params={"month": "2026-01"})
     dashboard.raise_for_status()
     dashboard_payload = dashboard.json()
 
-    filter_groups = {item["key"]: item for item in dashboard_payload["filter_groups"]}
-    assert filter_groups[custom_group["key"]]["total_minor"] == 1500
+    groups = {item["group_id"]: item for item in dashboard_payload["groups"]}
+    assert groups[custom_group["id"]]["total_minor"] == 1500
 
-    delete_response = client.delete(f"/api/v1/filter-groups/{custom_group['id']}")
+    delete_response = client.delete(f"/api/v1/groups/{custom_group['id']}")
     assert delete_response.status_code == 204
 
 
-def test_uncategorized_category_bucket_does_not_create_filter_groups(client):
+def test_uncategorized_category_bucket_does_not_create_rule_groups(client):
     account = create_account(client)
     create_entry(
         client,
@@ -832,7 +833,7 @@ def test_uncategorized_category_bucket_does_not_create_filter_groups(client):
     assert payload["kpis"]["uncategorized_total_minor"] == 3300
     assert sum(item["total_minor"] for item in payload["categories"]) == payload["kpis"]["expense_total_minor"]
 
-    list_response = client.get("/api/v1/filter-groups")
+    list_response = client.get("/api/v1/groups")
     list_response.raise_for_status()
     assert list_response.json() == []
 

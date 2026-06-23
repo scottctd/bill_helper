@@ -12,7 +12,9 @@ from sqlalchemy import bindparam, create_engine, inspect, text
 from sqlalchemy.orm import Session
 
 from backend.enums_agent import AgentRunStatus, AgentTranscriptRole
+from backend.enums_finance import GroupSource
 from backend.models_agent import AgentRun
+from backend.models_finance import Group
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI_PATH = REPO_ROOT / "alembic.ini"
@@ -271,8 +273,12 @@ def test_migration_0026_converts_legacy_links_to_typed_groups(tmp_path):
             os.environ["BILL_HELPER_OWNER_BACKFILL_USER_NAME"] = previous_backfill_user
 
     inspector = inspect(engine)
-    assert "entry_group_members" in inspector.get_table_names()
-    assert "entry_links" not in inspector.get_table_names()
+    table_names = set(inspector.get_table_names())
+    assert "group_members" in table_names
+    assert "groups" in table_names
+    assert "entry_group_members" not in table_names
+    assert "entry_groups" not in table_names
+    assert "entry_links" not in table_names
     entry_columns = {column["name"] for column in inspector.get_columns("entries")}
     assert "group_id" not in entry_columns
 
@@ -280,20 +286,20 @@ def test_migration_0026_converts_legacy_links_to_typed_groups(tmp_path):
         groups = {
             str(row[0]): str(row[1])
             for row in connection.execute(
-                text("SELECT id, group_type FROM entry_groups ORDER BY id ASC")
+                text("SELECT id, source FROM groups ORDER BY id ASC")
             ).all()
         }
-        assert groups[split_group_id] == "SPLIT"
-        assert groups[fallback_group_id] == "BUNDLE"
+        assert groups[split_group_id] == "manual"
+        assert groups[fallback_group_id] == "manual"
         assert singleton_group_id not in groups
 
-        roles = {
-            str(row[0]): row[1]
+        member_entry_ids = {
+            str(row[0])
             for row in connection.execute(
                 text(
                     """
-                    SELECT entry_id, member_role
-                    FROM entry_group_members
+                    SELECT entry_id
+                    FROM group_members
                     WHERE group_id = :group_id
                     ORDER BY position ASC
                     """
@@ -301,9 +307,11 @@ def test_migration_0026_converts_legacy_links_to_typed_groups(tmp_path):
                 {"group_id": split_group_id},
             ).all()
         }
-        assert roles[split_parent_id] == "PARENT"
-        assert roles[split_child_id] == "CHILD"
-        assert roles[split_child_two_id] == "CHILD"
+        assert member_entry_ids == {
+            split_parent_id,
+            split_child_id,
+            split_child_two_id,
+        }
 
 
 def test_migration_0035_creates_user_files_and_backfills_agent_attachments(tmp_path, monkeypatch):
@@ -919,6 +927,138 @@ def test_migration_0048_removes_builtin_filter_groups_only(tmp_path):
         ).all()
 
     assert rows == [(custom_id, "custom_travel", 0)]
+
+
+def test_migration_0049_unifies_entry_groups_and_filter_groups(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0049.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0048_remove_builtin_filter_groups")
+
+    engine = create_engine(database_url, future=True)
+    now = datetime.now(timezone.utc)
+    manual_group_id = str(uuid4())
+    manual_member_id = str(uuid4())
+    entry_id = str(uuid4())
+    rule_group_id = str(uuid4())
+    empty_rule = {
+        "include": {
+            "type": "group",
+            "operator": "AND",
+            "children": [
+                {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
+                {"type": "condition", "field": "tags", "operator": "has_any", "value": ["travel"]},
+            ],
+        },
+        "exclude": None,
+    }
+
+    with engine.begin() as connection:
+        owner_user_id = str(
+            connection.execute(
+                text("SELECT id FROM users WHERE name = 'admin' LIMIT 1")
+            ).scalar_one()
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO entry_groups
+                  (id, owner_user_id, name, group_type, created_at, updated_at)
+                VALUES
+                  (:group_id, :owner_id, 'Monthly Bills', 'BUNDLE', :now, :now)
+                """
+            ),
+            {"group_id": manual_group_id, "owner_id": owner_user_id, "now": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO entries
+                  (
+                    id, kind, occurred_at, name, amount_minor, currency_code,
+                    owner_user_id, owner, is_deleted, created_at, updated_at
+                  )
+                VALUES
+                  (
+                    :entry_id, 'EXPENSE', '2026-01-04', 'Coffee', 500, 'USD',
+                    :owner_id, 'admin', 0, :now, :now
+                  )
+                """
+            ),
+            {"entry_id": entry_id, "owner_id": owner_user_id, "now": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO entry_group_members
+                  (id, group_id, entry_id, child_group_id, member_role, position, created_at, updated_at)
+                VALUES
+                  (:member_id, :group_id, :entry_id, NULL, NULL, 0, :now, :now)
+                """
+            ),
+            {
+                "member_id": manual_member_id,
+                "group_id": manual_group_id,
+                "entry_id": entry_id,
+                "now": now,
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO filter_groups (
+                    id, owner_user_id, key, name, description, color,
+                    is_default, position, definition_json, created_at, updated_at
+                )
+                VALUES
+                    (:rule_group_id, :owner_id, 'custom_travel', 'travel', NULL, NULL,
+                     0, 0, :rule, :now, :now)
+                """
+            ),
+            {
+                "rule_group_id": rule_group_id,
+                "owner_id": owner_user_id,
+                "rule": json.dumps(empty_rule),
+                "now": now,
+            },
+        )
+
+    command.upgrade(cfg, "0049_unified_groups")
+
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    assert "groups" in table_names
+    assert "group_members" in table_names
+    assert "entry_groups" not in table_names
+    assert "entry_group_members" not in table_names
+    assert "filter_groups" not in table_names
+
+    with engine.begin() as connection:
+        groups = {
+            str(row[0]): (str(row[1]), str(row[2]))
+            for row in connection.execute(
+                text("SELECT id, source, name FROM groups ORDER BY position ASC, id ASC")
+            ).all()
+        }
+        assert groups[manual_group_id] == ("manual", "Monthly Bills")
+        assert groups[rule_group_id] == ("rule", "travel")
+
+        members = connection.execute(
+            text(
+                """
+                SELECT group_id, entry_id, override
+                FROM group_members
+                ORDER BY group_id ASC
+                """
+            )
+        ).all()
+        assert members == [(manual_group_id, entry_id, None)]
+
+    with Session(engine) as session:
+        loaded_groups = session.query(Group).order_by(Group.position.asc(), Group.id.asc()).all()
+        assert len(loaded_groups) == 2
+        sources = {group.id: group.source for group in loaded_groups}
+        assert sources[manual_group_id] == GroupSource.MANUAL
+        assert sources[rule_group_id] == GroupSource.RULE
 
 
 def test_migration_0024_rewrites_account_ids_to_entity_roots(tmp_path):

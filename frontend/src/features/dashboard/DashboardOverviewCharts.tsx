@@ -34,7 +34,7 @@ import type {
   DashboardCategorySummary,
   DashboardCategoryChildSummary,
   DashboardLifecycleSummary,
-  DashboardFilterGroupSummary
+  DashboardGroupSummary
 } from "../../lib/types";
 import {
   CHART_COLORS,
@@ -303,27 +303,27 @@ export function DashboardLifecycleCrosscutCard({
   );
 }
 
-export function DashboardFilterGroupsCrosscutCard({
+export function DashboardGroupsCrosscutCard({
   titlePrefix,
-  filterGroups,
+  groups,
   currencyCode,
   expenseTotalMinor
 }: {
   titlePrefix: string;
-  filterGroups: DashboardFilterGroupSummary[];
+  groups: DashboardGroupSummary[];
   currencyCode: string;
   expenseTotalMinor: number;
 }) {
-  if (filterGroups.length === 0) return null;
+  if (groups.length === 0) return null;
 
-  const sorted = [...filterGroups].sort((a, b) => b.total_minor - a.total_minor);
+  const sorted = [...groups].sort((a, b) => b.total_minor - a.total_minor);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{titlePrefix}Filter Group Cross-Cut</CardTitle>
+        <CardTitle>{titlePrefix}Rule Group Cross-Cut</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Custom filter groups may overlap with categories. Values shown for reference.
+          Rule groups may overlap with categories. Values shown for reference.
         </p>
       </CardHeader>
       <CardContent>
@@ -331,7 +331,7 @@ export function DashboardFilterGroupsCrosscutCard({
           {sorted.map((group) => {
             const groupColor = group.color ?? "rgb(var(--muted-foreground))";
             return (
-              <div key={group.key} className="flex items-center gap-3 text-copy-14">
+              <div key={group.group_id} className="flex items-center gap-3 text-copy-14">
                 <span className="inline-block size-3 shrink-0 rounded-sm" style={{ backgroundColor: groupColor }} aria-hidden />
                 <span className="min-w-0 flex-1 truncate font-medium">{group.name}</span>
                 <span className="shrink-0 tabular-nums">{formatMinor(group.total_minor, currencyCode)}</span>

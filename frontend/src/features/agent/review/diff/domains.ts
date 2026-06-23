@@ -13,10 +13,15 @@ export function previewName(preview: JsonRecord, fallback: string): string {
   return typeof name === "string" && name.trim() ? name : fallback;
 }
 
+export function previewSource(preview: JsonRecord): string {
+  const source = preview.group_source ?? preview.source;
+  return typeof source === "string" && source.trim() ? source : "manual";
+}
+
 export function buildGroupRecord(payload: JsonRecord): JsonRecord {
   return {
     name: typeof payload.name === "string" ? payload.name : "",
-    group_type: typeof payload.group_type === "string" ? payload.group_type : "BUNDLE"
+    source: typeof payload.source === "string" ? payload.source : previewSource(payload)
   };
 }
 
@@ -67,12 +72,11 @@ export function buildUpdateGroupBeforeRecord(payload: JsonRecord): JsonRecord {
   const target = asRecord(payload.target);
   return {
     name: typeof current.name === "string" ? current.name : typeof target.name === "string" ? target.name : "",
-    group_type:
-      typeof current.group_type === "string"
-        ? current.group_type
-        : typeof target.group_type === "string"
-          ? target.group_type
-          : "BUNDLE"
+    source: typeof current.group_source === "string"
+      ? current.group_source
+      : typeof target.group_source === "string"
+        ? target.group_source
+        : previewSource(current.name ? current : target)
   };
 }
 
@@ -87,7 +91,10 @@ export function buildUpdateGroupAfterRecord(
     before,
     after: {
       ...before,
-      ...(typeof effectivePatch.name === "string" ? { name: effectivePatch.name } : {})
+      ...(typeof effectivePatch.name === "string" ? { name: effectivePatch.name } : {}),
+      ...(typeof effectivePatch.description === "string" ? { description: effectivePatch.description } : {}),
+      ...(typeof effectivePatch.color === "string" ? { color: effectivePatch.color } : {}),
+      ...(Object.prototype.hasOwnProperty.call(effectivePatch, "rule") ? { rule: effectivePatch.rule } : {})
     },
     reviewerEdited
   };
@@ -125,41 +132,28 @@ function buildEntryRecordFromMemberPreview(memberPreview: JsonRecord): JsonRecor
   return record;
 }
 
-function buildChildGroupRecordFromMemberPreview(memberPreview: JsonRecord): JsonRecord {
-  const record: JsonRecord = {
-    name: previewName(memberPreview, "Unknown group")
-  };
-  if (typeof memberPreview.group_type === "string" && memberPreview.group_type.trim()) {
-    record.group_type = memberPreview.group_type;
-  }
-  return record;
-}
-
-function buildGroupMembershipSubjectRecord(payload: JsonRecord): JsonRecord {
+function membershipOverride(payload: JsonRecord): string | null {
   const target = asRecord(payload.target);
-  const memberPreview = asRecord(payload.member_preview);
-  if (target.target_type === "entry") {
-    return buildEntryRecordFromMemberPreview(memberPreview);
-  }
-  return buildChildGroupRecordFromMemberPreview(memberPreview);
+  const override = target.override;
+  return typeof override === "string" && override.trim() ? override : null;
 }
 
 function decorateGroupMembershipRecord(
   subjectRecord: JsonRecord,
   options: {
     groupName: string;
-    memberRole: string | null;
+    override: string | null;
     includeMembership: boolean;
   }
 ): JsonRecord {
-  const { groupName, memberRole, includeMembership } = options;
+  const { groupName, override, includeMembership } = options;
   if (!includeMembership) {
     return { ...subjectRecord };
   }
   return {
     ...subjectRecord,
     group: groupName,
-    ...(memberRole ? { member_role: memberRole } : {})
+    ...(override ? { override } : {})
   };
 }
 
@@ -178,21 +172,19 @@ export function buildGroupMembershipDiff(
         member_preview: reviewerOverride?.member_preview ?? payload.member_preview
       }
     : payload;
-  const subjectRecord = buildGroupMembershipSubjectRecord(payload);
+  const memberPreview = asRecord(payload.member_preview);
+  const subjectRecord = buildEntryRecordFromMemberPreview(memberPreview);
   const parentGroup = asRecord(effectivePayload.group_preview);
   const groupName = previewName(parentGroup, "Unknown group");
-  const memberRole =
-    typeof effectivePayload.member_role === "string" && effectivePayload.member_role.trim()
-      ? effectivePayload.member_role
-      : null;
+  const override = membershipOverride(effectivePayload);
   const before = decorateGroupMembershipRecord(subjectRecord, {
     groupName,
-    memberRole,
+    override,
     includeMembership: action === "remove"
   });
   const after = decorateGroupMembershipRecord(subjectRecord, {
     groupName,
-    memberRole,
+    override,
     includeMembership: action === "add"
   });
   return buildRecordUpdateDiff(before, after, metadata, { reviewerEdited });

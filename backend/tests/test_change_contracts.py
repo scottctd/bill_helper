@@ -120,11 +120,25 @@ def test_validate_change_payload_normalizes_group_payloads() -> None:
         AgentChangeType.CREATE_GROUP,
         {
             "name": "  Monthly Bills  ",
-            "group_type": "RECURRING",
+            "source": "rule",
+            "rule": {
+                "include": {
+                    "type": "group",
+                    "operator": "AND",
+                    "children": [
+                        {
+                            "type": "condition",
+                            "field": "entry_kind",
+                            "operator": "is",
+                            "value": "EXPENSE",
+                        }
+                    ],
+                }
+            },
         },
     )
     assert create_group.name == "Monthly Bills"
-    assert create_group.group_type.value == "RECURRING"
+    assert create_group.source.value == "rule"
 
     create_member = validate_change_payload(
         AgentChangeType.CREATE_GROUP_MEMBER,
@@ -134,13 +148,13 @@ def test_validate_change_payload_normalizes_group_payloads() -> None:
             "target": {
                 "target_type": "entry",
                 "entry_ref": {"entry_id": " efgh5678 "},
+                "override": "include",
             },
-            "member_role": "CHILD",
         },
     )
     assert create_member.group_ref.group_id == "abcd1234"
     assert create_member.target.entry_ref.entry_id == "efgh5678"
-    assert create_member.member_role.value == "CHILD"
+    assert create_member.target.override.value == "include"
 
 
 def test_validate_change_payload_requires_entry_id_for_entry_update() -> None:

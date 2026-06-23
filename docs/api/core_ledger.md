@@ -102,8 +102,7 @@ Body:
 - `from_entity_id` / `to_entity_id` (optional)
 - `owner_user_id` (optional)
 - `from_entity` / `to_entity` / `owner` (optional name fallbacks)
-- `direct_group_id` (optional)
-- `direct_group_member_role` (`PARENT` | `CHILD`, optional, only valid when assigning into a `SPLIT` group)
+- `group_ids` (optional string array of manual group ids)
 - `markdown_body` (optional)
 - `tags` (optional string array)
 
@@ -111,16 +110,15 @@ Response: `EntryRead`
 
 Behavior:
 
-- new entries start ungrouped until a group membership is added
+- new entries start with no group memberships until manual groups are assigned or rule groups match
 - tag names are normalized to lowercase
 - missing tags are auto-created with random colors
 - owner defaults to the authenticated principal if omitted
 - ownership is scoped to the requesting principal
-- create flow can assign one direct group membership inline
+- create flow can assign many manual groups inline through `group_ids`
 - embedded `tags` use the lightweight `TagSummaryRead` shape (`id`, `name`, `color`, `description`, `type`) and do not include catalog usage counts
 - read models include `from_entity_missing` / `to_entity_missing` when preserved labels remain after entity/account deletion
-- read models expose group context through `direct_group` and `group_path`
-- read models also expose `direct_group_member_role`
+- read models expose effective group memberships through `groups[]` (`id`, `name`, `source`, optional `color`)
 
 ### `GET /entries`
 
@@ -135,7 +133,7 @@ Query params:
 - `from_entity` (repeatable; case-insensitive exact match on the entry's preserved `from_entity` label)
 - `to_entity` (repeatable; case-insensitive exact match on the entry's preserved `to_entity` label)
 - `account_id`
-- `filter_group_id`
+- `group_id` (matches entries in the group, including rule-derived membership and overrides)
 - `limit` (default `50`, max `200`)
 - `offset`
 
@@ -145,9 +143,9 @@ Behavior:
 
 - list results are principal-scoped by `owner_user_id`
 - category filtering matches one leaf exactly or all assigned child categories under a selected top-level parent
-- when `filter_group_id` is provided, results are further reduced to entries matching the caller's saved filter-group rule
+- when `group_id` is provided, results are reduced to entries whose effective membership includes that group
 - each row includes `from_entity_missing` / `to_entity_missing`
-- each row includes `direct_group` and `group_path`
+- each row includes `groups[]`
 - each row's `tags` list uses `TagSummaryRead`, not the `/tags` catalog contract
 
 ### `GET /entries/{entry_id}`
@@ -158,9 +156,8 @@ Behavior:
 
 - lookup is principal-scoped
 - response includes missing-entity flags
-- response includes `direct_group` and `group_path`
+- response includes `groups[]`
 - response `tags` remain lightweight summaries without `entry_count`
-- response no longer includes raw link rows
 
 ### `POST /entries/tag-suggestion`
 
@@ -197,74 +194,80 @@ Partial update. Response: `EntryRead`
 
 Body fields may include any editable entry fields plus:
 
-- `direct_group_id`
-- `direct_group_member_role`
+- `group_ids` (replaces manual group memberships for the entry)
 
 Behavior:
 
 - update is principal-scoped
-- update can move the entry between groups or clear its direct group
-- `direct_group_member_role` is required when assigning into a `SPLIT` group and ignored/rejected for other group types based on validation
+- update can add or remove manual group memberships through `group_ids`
+- rule-group membership is not edited through entry payloads; use group member overrides instead
 
 ### `DELETE /entries/{entry_id}`
 
-Soft-delete entry and remove any direct group membership. Response: `204`
+Soft-delete entry and remove group memberships. Response: `204`
 
 Behavior: delete is principal-scoped.
 
 ## Groups
 
+Unified groups cover both manual entry collections and saved rule-based analytics cross-cuts.
+
 ### `POST /groups`
 
-Create a named typed group.
+Create a group.
 
 Body:
 
 - `name` (required)
-- `group_type` (`BUNDLE` | `SPLIT` | `RECURRING`)
+- `description` (optional)
+- `color` (optional)
+- `source` (`manual` | `rule`, default `manual`)
+- `rule` (required when `source=rule`)
+  - `include` (`group`)
+  - `exclude` (`group`, optional)
 
-Response: `GroupSummaryRead`
+Response: `GroupRead`
 
 Behavior:
 
 - group ownership is scoped to the requesting principal
-- `group_type` is immutable after creation
-- empty groups are allowed
+- manual groups cannot include a rule
+- rule groups require a recursive include/exclude rule tree
 
 ### `GET /groups`
 
-List first-class group summaries. Response: `GroupSummaryRead[]`
+List group summaries. Response: `GroupSummaryRead[]`
 
 Behavior:
 
 - responses are principal-scoped
-- empty groups are included
-- each row includes `parent_group_id`, direct-member counts, descendant entry count, and date range summary
+- each row includes `source`, optional `rule_summary`, member counts, date range summary, and display order
 
 ### `GET /groups/{group_id}`
 
-Fetch one group graph. Response: `GroupGraphRead`
+Fetch one group. Response: `GroupRead`
 
 Behavior:
 
-- graph lookup is principal-scoped
-- nodes are discriminated as direct `ENTRY` or `GROUP` members
-- direct `ENTRY` nodes include `amount_minor` and `currency_code` so clients can render currency-aware stats
-- edges are derived from `group_type`; they are not stored or edited directly
+- lookup is principal-scoped
+- manual groups return explicit member rows
+- rule groups return parsed `rule`, member override rows, and derived member counts
 
 ### `PATCH /groups/{group_id}`
 
-Rename a group.
+Update one group. Response: `GroupRead`
 
 Body fields:
 
 - `name`
-
-Response: `GroupSummaryRead`
+- `description`
+- `color`
+- `rule` (rule groups only)
 
 Behavior:
 
-- only rename is supported in v1
+- manual groups may update name, description, and color only
+- rule groups may also update `rule`
 - `422` when no updatable fields are provided
 
 ### `DELETE /groups/{group_id}`
@@ -274,79 +277,40 @@ Delete a group. Response: `204`
 Behavior:
 
 - group lookup is principal-scoped
-- delete succeeds only when the group has no direct members and is not attached as a child group
+- deleting a group removes its `group_members` rows; entries are unchanged
 
 ### `POST /groups/{group_id}/members`
 
-Add one direct member to a group.
+Add one membership row.
 
 Body:
 
-- `target`
-  - `{"target_type":"entry","entry_id":"..."}` for direct entries
-  - `{"target_type":"child_group","group_id":"..."}` for child groups
-- `member_role` (`PARENT` | `CHILD`) is required for `SPLIT` groups and rejected for other group types
+- `entry_id`
+- `override` (`include` | `exclude`, required for rule groups; omitted for manual groups)
 
-Response: `GroupGraphRead`
+Response: `GroupRead`
 
 Errors:
 
 - `400` invalid payload or domain-rule violation
-- `404` target entry/group not visible to the principal
+- `404` target entry not visible to the principal
 - `409` duplicate membership
 
 ### `DELETE /groups/{group_id}/members/{membership_id}`
 
-Remove one direct member. Response: `204`
+Remove one membership row. Response: `204`
+
+Behavior:
+
+- manual groups remove explicit member rows
+- rule groups only allow removing override rows, not rule-derived implicit membership
 
 ## Group Rules
 
-- entries can belong to at most one direct group
-- child groups can belong to at most one parent group
-- nesting depth is exactly one level: top-level groups may contain entries and child groups; child groups may contain entries only
-- `BUNDLE` derives a fully connected graph over direct members
-- `SPLIT` allows at most one direct `PARENT`; descendant entries under the parent must be `EXPENSE` and descendant entries under children must be `INCOME`
-- `RECURRING` requires all descendant entries to share one `EntryKind` and derives a chronological chain from representative dates
-
-## Filter Groups
-
-### `GET /filter-groups`
-
-List the caller's saved filter groups. Response: `FilterGroupRead[]`
-
-Behavior:
-
-- results are always scoped to the requesting principal
-- each row includes the recursive `rule` tree plus `rule_summary`
-- returns an empty list until the caller creates a group
-
-### `POST /filter-groups`
-
-Create a custom filter group.
-
-Body:
-
-- `name`
-- `description` (optional)
-- `color` (optional)
-- `rule`
-  - `include` (`group`)
-  - `exclude` (`group`, optional)
-
-Response: `FilterGroupRead`
-
-### `PATCH /filter-groups/{filter_group_id}`
-
-Update one saved filter group. Response: `FilterGroupRead`
-
-Behavior:
-
-- saved groups may update `name`, `description`, `color`, and `rule`
-- `422` when no updatable fields are provided
-
-### `DELETE /filter-groups/{filter_group_id}`
-
-Delete one saved filter group. Response: `204`
+- manual groups store explicit many-to-many entry membership
+- rule groups evaluate recursive include/exclude trees over entry kind, tags, category, entities, amounts, dates, and internal-transfer status
+- rule groups support per-entry `include` and `exclude` overrides through `group_members`
+- overlapping rule groups are allowed and are auxiliary dashboard cross-cuts
 
 ## Dashboard
 
@@ -373,7 +337,7 @@ Current sections include:
 - `month`
 - `currency_code`
 - `kpis`
-- `filter_groups[]` (each item includes `tag_totals` and expense-only `tag_to_breakdowns[]` with ranked `to_items[]` and nested entry rows)
+- `groups[]` (saved rule-group cross-cuts with totals and shares)
 - `daily_spending[]`
 - `monthly_trend[]`
 - `spending_by_from[]`
@@ -388,7 +352,7 @@ Current sections include:
 Behavior:
 
 - dashboard expense classification uses the entry-category partition and lifecycle axis
-- user-created filter groups appear only as optional overlapping cross-cuts
+- user-created rule groups appear only as optional overlapping cross-cuts in `groups[]`
 - totals and reconciliation are principal-scoped
 - analytics exclude internal transfers when both endpoints resolve to account-backed entity roots
 - entries tagged `cash_withdrawal` are excluded from spending analytics and exposed as `kpis.cash_withdrawal_total_minor`
@@ -407,4 +371,4 @@ Behavior:
 - duplicate month keys in the query are ignored
 - invalid month formats return `422`
 - each dashboard payload matches the single-month `GET /dashboard` contract and is principal-scoped
-- `monthly_trend[]` continues to include `income_total_minor` plus per-filter-group expense buckets, which the frontend now renders as stacked expense segments in the trend bar charts
+- `monthly_trend[]` continues to include `income_total_minor` plus category and lifecycle expense buckets

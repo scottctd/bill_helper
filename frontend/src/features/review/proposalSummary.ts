@@ -258,7 +258,7 @@ export function buildProposalSummary(
     case "create_group":
       return buildNamedResourceSummary(
         "Create",
-        asText(payload.group_type, "group").toLowerCase(),
+        asText(payload.source, "manual").toLowerCase(),
         asText(payload.name, "Untitled")
       );
     case "update_group": {
@@ -273,7 +273,8 @@ export function buildProposalSummary(
     case "create_group_member": {
       const groupName = asText(groupPreview.name, "group");
       const memberName = asText(memberPreview.name, "member");
-      const role = asText(payload.member_role);
+      const target = asRecord(payload.target);
+      const override = asText(target.override);
       const parts: ReviewSummaryPart[] = [
         plain("Add “"),
         highlight(memberName),
@@ -281,8 +282,8 @@ export function buildProposalSummary(
         highlight(groupName),
         plain("”")
       ];
-      if (role) {
-        parts.push(plain(" as "), highlight(role));
+      if (override) {
+        parts.push(plain(" with "), highlight(override), plain(" override"));
       }
       parts.push(plain("."));
       return parts;

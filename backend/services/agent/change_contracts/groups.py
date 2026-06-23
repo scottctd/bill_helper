@@ -5,11 +5,12 @@
 # - Side effects: module-defined persistence, validation, or orchestration behavior.
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
-from backend.enums_finance import GroupMemberRole, GroupType
+from backend.enums_finance import GroupMemberOverride, GroupSource
+from backend.schemas_group_rules import GroupRule
 from backend.services.agent.change_contracts.common import (
     normalize_object_json_string,
     normalize_optional_proposal_id,
@@ -42,12 +43,6 @@ def normalize_group_member_payload(value: Any) -> Any:
                 normalized_target["entry_ref"] = normalized_entry_ref
             else:
                 normalized_target.pop("entry_ref", None)
-        if "group_ref" in normalized_target:
-            normalized_group_ref = normalize_object_json_string(normalized_target.get("group_ref"))
-            if normalized_group_ref is not None:
-                normalized_target["group_ref"] = normalized_group_ref
-            else:
-                normalized_target.pop("group_ref", None)
         normalized["target"] = normalized_target
     return normalized
 
@@ -73,21 +68,13 @@ class GroupReferencePayload(ChangePayloadModel):
         return self
 
 
-class EntryGroupMemberTargetPayload(ChangePayloadModel):
+class GroupMemberEntryTargetPayload(ChangePayloadModel):
     target_type: Literal["entry"] = "entry"
     entry_ref: EntryReferencePayload
+    override: GroupMemberOverride | None = None
 
 
-class ChildGroupMemberTargetPayload(ChangePayloadModel):
-    target_type: Literal["child_group"] = "child_group"
-    group_ref: GroupReferencePayload
-
-
-type GroupMemberTargetPayload = Annotated[
-    EntryGroupMemberTargetPayload | ChildGroupMemberTargetPayload,
-    Field(discriminator="target_type"),
-]
-
+type GroupMemberTargetPayload = GroupMemberEntryTargetPayload
 
 GROUP_MEMBER_TARGET_ADAPTER = TypeAdapter(GroupMemberTargetPayload)
 
@@ -98,11 +85,25 @@ def parse_group_member_target_payload(value: Any) -> GroupMemberTargetPayload:
 
 class CreateGroupPayload(ChangePayloadModel):
     name: RequiredLooseText = Field(min_length=1, max_length=255)
-    group_type: GroupType
+    source: GroupSource = GroupSource.MANUAL
+    description: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, max_length=20)
+    rule: GroupRule | None = None
+
+    @model_validator(mode="after")
+    def validate_source_rule(self) -> CreateGroupPayload:
+        if self.source == GroupSource.RULE and self.rule is None:
+            raise ValueError("rule is required for rule groups")
+        if self.source == GroupSource.MANUAL and self.rule is not None:
+            raise ValueError("manual groups cannot include a rule")
+        return self
 
 
 class UpdateGroupPatchPayload(NonEmptyPatchModel):
     name: OptionalRequiredText = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, max_length=20)
+    rule: GroupRule | None = None
 
 
 class UpdateGroupPayload(ChangePayloadModel):
@@ -146,7 +147,6 @@ class CreateGroupMemberPayload(ChangePayloadModel):
     action: Literal["add"] = "add"
     group_ref: GroupReferencePayload
     target: GroupMemberTargetPayload
-    member_role: GroupMemberRole | None = None
     group_preview: dict[str, Any] | None = None
     member_preview: dict[str, Any] | None = None
 
@@ -172,14 +172,6 @@ class DeleteGroupMemberPayload(ChangePayloadModel):
     def ensure_existing_target_present(self) -> DeleteGroupMemberPayload:
         if self.group_ref.create_group_proposal_id is not None:
             raise ValueError("remove action only supports existing group_id references")
-        if (
-            isinstance(self.target, EntryGroupMemberTargetPayload)
-            and self.target.entry_ref.create_entry_proposal_id is not None
-        ):
+        if self.target.entry_ref.create_entry_proposal_id is not None:
             raise ValueError("remove action only supports existing entry_id references")
-        if (
-            isinstance(self.target, ChildGroupMemberTargetPayload)
-            and self.target.group_ref.create_group_proposal_id is not None
-        ):
-            raise ValueError("remove action only supports existing child group_id references")
         return self

@@ -5,49 +5,42 @@
 # - Side effects: module-local behavior only.
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from backend.enums_finance import GroupMemberRole, GroupType
+from backend.enums_finance import GroupMemberOverride, GroupSource
+from backend.schemas_group_rules import GroupRule
 from backend.validation.contract_fields import NonEmptyPatchModel, OptionalRequiredText, RequiredLooseText
 
 
 class GroupCreateCommand(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: RequiredLooseText = Field(min_length=1, max_length=255)
-    group_type: GroupType
+    name: RequiredLooseText = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, max_length=20)
+    source: GroupSource = GroupSource.MANUAL
+    rule: GroupRule | None = None
+
+    @model_validator(mode="after")
+    def validate_source_rule(self) -> GroupCreateCommand:
+        if self.source == GroupSource.RULE and self.rule is None:
+            raise ValueError("rule is required for rule groups")
+        if self.source == GroupSource.MANUAL and self.rule is not None:
+            raise ValueError("manual groups cannot include a rule")
+        return self
 
 
 class GroupPatch(NonEmptyPatchModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: OptionalRequiredText = Field(default=None, min_length=1, max_length=255)
-
-
-class EntryGroupMemberTarget(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    target_type: Literal["entry"] = "entry"
-    entry_id: str
-
-
-class ChildGroupMemberTarget(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    target_type: Literal["child_group"] = "child_group"
-    group_id: str
-
-
-type GroupMemberTarget = Annotated[
-    EntryGroupMemberTarget | ChildGroupMemberTarget,
-    Field(discriminator="target_type"),
-]
+    name: OptionalRequiredText = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, max_length=20)
+    rule: GroupRule | None = None
 
 
 class GroupMemberCreateCommand(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target: GroupMemberTarget
-    member_role: GroupMemberRole | None = None
+    entry_id: str
+    override: GroupMemberOverride | None = None

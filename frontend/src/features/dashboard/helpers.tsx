@@ -13,7 +13,7 @@ import type {
   Dashboard,
   DashboardBreakdownItem,
   DashboardCategorySummary,
-  DashboardFilterGroupSummary,
+  DashboardGroupSummary,
   DashboardLifecycleSummary,
   DashboardToBreakdownItem
 } from "../../lib/types";
@@ -400,17 +400,17 @@ export function buildYearlyLifecycleTotals(
     }));
 }
 
-/** Aggregate the slim aux filter-group cross-cuts across months for a yearly view. */
-export function buildYearlyFilterGroupTotals(
+/** Aggregate group cross-cuts across months for a yearly view. */
+export function buildYearlyGroupTotals(
   monthKeys: string[],
   dashboardsByMonth: Map<string, Dashboard>
-): DashboardFilterGroupSummary[] {
+): DashboardGroupSummary[] {
   const map = new Map<
     string,
     {
-      filter_group_id: string;
-      key: string;
+      group_id: string;
       name: string;
+      source: string;
       color: string | null;
       total_minor: number;
       entry_count: number;
@@ -419,13 +419,13 @@ export function buildYearlyFilterGroupTotals(
   for (const monthKey of monthKeys) {
     const dashboard = dashboardsByMonth.get(monthKey);
     if (!dashboard) continue;
-    for (const group of dashboard.filter_groups) {
-      const existing = map.get(group.key);
+    for (const group of dashboard.groups) {
+      const existing = map.get(group.group_id);
       if (!existing) {
-        map.set(group.key, {
-          filter_group_id: group.filter_group_id,
-          key: group.key,
+        map.set(group.group_id, {
+          group_id: group.group_id,
           name: group.name,
+          source: group.source,
           color: group.color,
           total_minor: group.total_minor,
           entry_count: group.entry_count
@@ -439,9 +439,9 @@ export function buildYearlyFilterGroupTotals(
   const yearExpenseTotal = sumDashboardKpiForMonths(monthKeys, dashboardsByMonth, "expense_total_minor");
   return [...map.values()]
     .map((entry) => ({
-      filter_group_id: entry.filter_group_id,
-      key: entry.key,
+      group_id: entry.group_id,
       name: entry.name,
+      source: entry.source,
       color: entry.color,
       total_minor: entry.total_minor,
       share: yearExpenseTotal > 0 ? entry.total_minor / yearExpenseTotal : 0,

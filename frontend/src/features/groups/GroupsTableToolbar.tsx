@@ -1,7 +1,7 @@
 /**
  * CALLING SPEC:
  * - Purpose: render the groups list workspace toolbar.
- * - Inputs: search and group-type filter state plus change handlers.
+ * - Inputs: search and group-source filter state plus change handlers.
  * - Outputs: the groups table toolbar React tree.
  * - Side effects: user event wiring only.
  */
@@ -15,19 +15,19 @@ import type { Tag } from "../../lib/types";
 
 type GroupsTableToolbarProps = {
   search: string;
-  groupTypeOptions: Tag[];
-  selectedGroupTypes: string[];
+  groupSourceOptions: Tag[];
+  selectedGroupSources: string[];
   onSearchChange: (value: string) => void;
-  onGroupTypesChange: (nextGroupTypes: string[]) => void;
+  onGroupSourcesChange: (nextGroupSources: string[]) => void;
   onAddGroup: () => void;
 };
 
 export function GroupsTableToolbar({
   search,
-  groupTypeOptions,
-  selectedGroupTypes,
+  groupSourceOptions,
+  selectedGroupSources,
   onSearchChange,
-  onGroupTypesChange,
+  onGroupSourcesChange,
   onAddGroup
 }: GroupsTableToolbarProps) {
   return (
@@ -38,15 +38,15 @@ export function GroupsTableToolbar({
           <Input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Filter by name" />
         </label>
         <label className="field min-w-[180px]">
-          <span>Types</span>
+          <span>Sources</span>
           <TagMultiSelect
-            options={groupTypeOptions}
-            value={selectedGroupTypes}
-            ariaLabel="Group type filter"
-            placeholder="All types"
+            options={groupSourceOptions}
+            value={selectedGroupSources}
+            ariaLabel="Group source filter"
+            placeholder="All sources"
             allowCreate={false}
             displayMode="compact"
-            onChange={onGroupTypesChange}
+            onChange={onGroupSourcesChange}
           />
         </label>
       </div>

@@ -357,15 +357,15 @@ def _render_finance_dashboard_sections_compact(payload: dict[str, Any]) -> list[
                 ],
             )
         )
-    filter_groups = payload.get("filter_groups")
-    if isinstance(filter_groups, list) and filter_groups:
+    groups = payload.get("groups")
+    if isinstance(groups, list) and groups:
         lines.append(
             compact_table(
-                summary=f"returned {len(filter_groups)} filter group(s)",
-                schema_key="dashboard_filter_groups",
+                summary=f"returned {len(groups)} group(s)",
+                schema_key="dashboard_groups",
                 rows=[
-                    [item.get("key"), item.get("name"), item.get("total_minor"), item.get("share")]
-                    for item in filter_groups
+                    [item.get("group_id"), item.get("name"), item.get("source"), item.get("total_minor"), item.get("share")]
+                    for item in groups
                     if isinstance(item, dict)
                 ],
             )
@@ -546,10 +546,16 @@ def _render_finance_dashboard_sections_text(payload: dict[str, Any]) -> str:
     blocks.append(
         _optional_table(
             payload,
-            "filter_groups",
-            ["Key", "Name", "Total minor", "Share"],
-            row_factory=lambda item: [item.get("key"), item.get("name"), item.get("total_minor"), item.get("share")],
-            title="Filter groups",
+            "groups",
+            ["Group", "Name", "Source", "Total minor", "Share"],
+            row_factory=lambda item: [
+                item.get("group_id"),
+                item.get("name"),
+                item.get("source"),
+                item.get("total_minor"),
+                item.get("share"),
+            ],
+            title="Groups",
         )
     )
     for kind, title in (

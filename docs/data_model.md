@@ -7,12 +7,9 @@ All data is persisted in SQLite via SQLAlchemy.
 Core:
 
 - `EntryKind`: `EXPENSE`, `INCOME`, `TRANSFER`
-- `GroupType`: `BUNDLE`, `SPLIT`, `RECURRING`
-- `GroupMemberRole`: `PARENT`, `CHILD`
-
-Legacy note:
-
-- `LinkType` remains in code only to support pre-`0026_entry_groups_v2` migration logic; active group storage no longer persists `entry_links`
+- `EntryLifecycle`: `fixed`, `day_to_day`, `one_time`
+- `GroupSource`: `manual`, `rule`
+- `GroupMemberOverride`: `include`, `exclude`
 
 Agent:
 
@@ -58,13 +55,26 @@ Operational rules:
 - `account_id` (FK -> `accounts.id`)
 - `snapshot_at`, `balance_minor`, `note`, `created_at`
 
-## `entry_groups`
+## `groups`
 
-- `id` (PK)
+- `id` (PK UUID string)
 - `owner_user_id` (FK -> `users.id`)
-- `name`
-- `group_type`
+- `name` (user-visible label)
+- `description` (nullable)
+- `color` (nullable chart/display color)
+- `source` (`manual` | `rule`)
+- `definition_json` (nullable structured include/exclude rule tree for `rule` groups)
+- `position` (owner-local display order)
 - `created_at`, `updated_at`
+
+Operational rules:
+
+- groups are always principal-owned; admin access does not expose another user's saved groups
+- `manual` groups store explicit entry membership in `group_members` with `override = NULL`
+- `rule` groups derive membership from `definition_json` plus optional per-entry `include` / `exclude` overrides
+- no built-in groups are provisioned; the saved list is empty until the user creates one
+- rule groups may overlap and are auxiliary dashboard cross-cuts, not the primary expense partition
+- rule definitions are recursive logical trees over entry fields such as `entry_kind`, tags, category, entities, amounts, dates, and `is_internal_transfer`
 
 ## `users`
 
@@ -88,26 +98,6 @@ Operational rules:
 - password mode never stores raw session tokens in the database
 - deleting a user cascades through owned sessions
 - logout and admin revocation delete rows from this table
-
-## `filter_groups`
-
-- `id` (PK UUID string)
-- `owner_user_id` (FK -> `users.id`)
-- `key` (stable internal identifier, unique per owner)
-- `name` (user-visible label)
-- `description` (nullable)
-- `color` (nullable chart/display color)
-- `is_default` (legacy compatibility flag; new and retained groups are user-created)
-- `position` (owner-local display order)
-- `definition_json` (structured include/exclude rule tree)
-- `created_at`, `updated_at`
-
-Operational rules:
-
-- filter groups are always principal-owned; admin access does not expose another user's saved groups
-- no built-in filter groups are provisioned; the saved list is empty until the user creates one
-- custom groups may overlap and are auxiliary dashboard cross-cuts
-- rule definitions are recursive logical trees over `entry_kind`, tag inclusion/exclusion, and `is_internal_transfer`
 
 ## `runtime_settings`
 
@@ -175,33 +165,30 @@ Deletion semantics:
 - `from_entity_id` / `to_entity_id` use `ON DELETE SET NULL`
 - when an entity or account root is deleted, the denormalized `from_entity` / `to_entity` text is intentionally preserved so historical labels remain visible
 - API serializers derive `from_entity_missing` / `to_entity_missing` when preserved text remains but the linked entity FK is now `NULL`
-- group context is derived from optional membership rows plus parent-chain traversal; there is no persisted `entries.group_id`
+- group context is derived from effective membership across manual and rule groups; there is no persisted `entries.group_id`
 
-## `entry_group_members`
+## `group_members`
 
-- `id` (PK)
-- `group_id` (FK -> `entry_groups.id`)
-- `entry_id` (nullable FK -> `entries.id`)
-- `child_group_id` (nullable FK -> `entry_groups.id`)
-- `member_role` (nullable `GroupMemberRole`)
+- `id` (PK UUID string)
+- `group_id` (FK -> `groups.id`)
+- `entry_id` (FK -> `entries.id`)
+- `override` (nullable `GroupMemberOverride`; required semantics for rule-group membership edits)
 - `position`
 - `created_at`, `updated_at`
 
 Core constraints:
 
-- exactly one of `entry_id` or `child_group_id` must be set
-- `entry_id` is globally unique, so an entry can belong to at most one direct group
-- `child_group_id` is globally unique, so a child group can belong to at most one parent group
-- `(group_id, entry_id)` and `(group_id, child_group_id)` are unique
-- `child_group_id != group_id`
+- `(group_id, entry_id)` is unique
+- an entry may belong to many manual groups simultaneously
+- manual membership rows use `override = NULL`
+- rule-group override rows use `include` or `exclude` to force or block rule matches
 
 Operational rules:
 
-- top-level groups may contain direct entries and/or child groups
-- child groups may contain direct entries only
-- edges are not persisted; graph topology is derived at read time from `group_type` plus sorted direct membership
-- `position` and `created_at` provide deterministic ordering for recurring-group chain derivation
-- entry create/update flows may assign or clear one direct group membership inline; split-group assignment also requires a direct member role
+- manual groups require explicit member rows without overrides
+- rule groups evaluate `definition_json` against each entry, then apply override rows
+- entry create/update flows may assign many manual groups through `group_ids`
+- soft-deleting an entry removes its `group_members` rows
 
 ## `tags`
 
@@ -296,8 +283,8 @@ Deletion semantics:
 - deleting an account deletes the shared account/entity root, cascades account snapshots, and detaches `from_entity_id` / `to_entity_id` references that pointed at that root while preserving label text
 - deleting a generic entity detaches `from_entity_id` / `to_entity_id` and preserves label text
 - deleting an account-backed entity through generic entity routes is blocked; account-backed roots are managed through `/accounts`
-- soft-deleting an entry removes its direct `entry_group_members` row if one exists
-- deleting a group is allowed only when it has no direct members and is not attached as a child group
+- soft-deleting an entry removes its `group_members` rows
+- deleting a group removes its `group_members` rows; entries are unchanged
 
 ## Agent Tables (`0045_agent_harness_first_schema`)
 

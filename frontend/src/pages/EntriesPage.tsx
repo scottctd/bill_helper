@@ -146,7 +146,7 @@ export function EntriesPage() {
       kind: filters.kind || undefined,
       source: filters.source || undefined,
       category: filters.category || undefined,
-      filter_group_id: filters.filterGroupId || undefined,
+      group_id: filters.groupId || undefined,
       start_date: filters.startDate || undefined,
       end_date: filters.endDate || undefined,
       from_entity: filters.fromEntities.length > 0 ? filters.fromEntities : undefined,
@@ -155,7 +155,7 @@ export function EntriesPage() {
     [
       filters.endDate,
       filters.category,
-      filters.filterGroupId,
+      filters.groupId,
       filters.fromEntities,
       filters.kind,
       filters.source,
@@ -316,7 +316,7 @@ export function EntriesPage() {
         state.startDate === next.startDate &&
         state.endDate === next.endDate &&
         state.category === next.category &&
-        state.filterGroupId === next.filterGroupId &&
+        state.groupId === next.groupId &&
         state.fromEntities.join("\u0000") === next.fromEntities.join("\u0000") &&
         state.toEntities.join("\u0000") === next.toEntities.join("\u0000")
       ) {
@@ -327,7 +327,7 @@ export function EntriesPage() {
         startDate: next.startDate,
         endDate: next.endDate,
         category: next.category,
-        filterGroupId: next.filterGroupId,
+        groupId: next.groupId,
         fromEntities: next.fromEntities,
         toEntities: next.toEntities
       };
@@ -346,7 +346,7 @@ export function EntriesPage() {
   function clearFilters() {
     setFilters({ ...EMPTY_ENTRY_LIST_FILTERS });
     const nextSearchParams = new URLSearchParams(searchParams);
-    nextSearchParams.delete("filter_group_id");
+    nextSearchParams.delete("group_id");
     nextSearchParams.delete("category");
     nextSearchParams.delete("start_date");
     nextSearchParams.delete("end_date");
@@ -375,8 +375,7 @@ export function EntriesPage() {
       to_entity_id: payload.to_entity_id || undefined,
       to_entity: payload.to_entity || undefined,
       owner_user_id: payload.owner_user_id,
-      direct_group_id: payload.direct_group_id || undefined,
-      direct_group_member_role: payload.direct_group_member_role ?? undefined,
+      group_ids: payload.group_ids.length > 0 ? payload.group_ids : undefined,
       markdown_body: payload.markdown_body || undefined,
       tags: payload.tags
     });

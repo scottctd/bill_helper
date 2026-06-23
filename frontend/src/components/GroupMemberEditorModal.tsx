@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 
-import type { GroupMemberCreatePayload, GroupMemberRole, GroupType } from "../lib/types";
+import type { GroupMemberCreatePayload, GroupMemberOverride, GroupSource } from "../lib/types";
 import { SingleSelect } from "./SingleSelect";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
@@ -21,9 +21,8 @@ interface MemberOption {
 interface GroupMemberEditorModalProps {
   isOpen: boolean;
   groupName: string;
-  groupType: GroupType;
+  groupSource: GroupSource;
   entryOptions: MemberOption[];
-  groupOptions: MemberOption[];
   isSaving: boolean;
   saveError?: string | null;
   onClose: () => void;
@@ -33,105 +32,83 @@ interface GroupMemberEditorModalProps {
 export function GroupMemberEditorModal({
   isOpen,
   groupName,
-  groupType,
+  groupSource,
   entryOptions,
-  groupOptions,
   isSaving,
   saveError = null,
   onClose,
   onSubmit
 }: GroupMemberEditorModalProps) {
-  const [subjectType, setSubjectType] = useState<"ENTRY" | "GROUP">("ENTRY");
-  const [selectedId, setSelectedId] = useState("");
-  const [memberRole, setMemberRole] = useState<GroupMemberRole>("CHILD");
+  const [selectedEntryId, setSelectedEntryId] = useState("");
+  const [override, setOverride] = useState<GroupMemberOverride | "">("");
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
-    setSubjectType("ENTRY");
-    setSelectedId("");
-    setMemberRole(groupType === "SPLIT" ? "CHILD" : "CHILD");
+    setSelectedEntryId("");
+    setOverride("");
     setFormError(null);
-  }, [groupType, isOpen]);
+  }, [groupSource, isOpen]);
 
   const selectOptions = useMemo(
     () =>
-      (subjectType === "ENTRY" ? entryOptions : groupOptions).map((option) => ({
+      entryOptions.map((option) => ({
         value: option.id,
         label: option.label
       })),
-    [entryOptions, groupOptions, subjectType]
+    [entryOptions]
   );
 
   function submit() {
-    if (!selectedId) {
-      setFormError(`Select a ${subjectType === "ENTRY" ? "direct entry" : "child group"}.`);
+    if (!selectedEntryId) {
+      setFormError("Select an entry.");
       return;
     }
     setFormError(null);
-    onSubmit(
-      subjectType === "ENTRY"
-        ? {
-            target: {
-              target_type: "entry",
-              entry_id: selectedId
-            },
-            member_role: groupType === "SPLIT" ? memberRole : undefined
-          }
-        : {
-            target: {
-              target_type: "child_group",
-              group_id: selectedId
-            },
-            member_role: groupType === "SPLIT" ? memberRole : undefined
-          }
-    );
+    onSubmit({
+      entry_id: selectedEntryId,
+      override: groupSource === "rule" && override ? override : undefined
+    });
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Group Member</DialogTitle>
-          <DialogDescription>{`Add a direct member to ${groupName}.`}</DialogDescription>
+          <DialogTitle>{groupSource === "manual" ? "Add Group Member" : "Pin or Exclude Entry"}</DialogTitle>
+          <DialogDescription>
+            {groupSource === "manual"
+              ? `Add an entry to ${groupName}.`
+              : `Override rule membership for ${groupName}.`}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="stack-sm">
           <label className="field min-w-0">
-            <span>Member type</span>
-            <NativeSelect
-              value={subjectType}
-              onChange={(event) => {
-                setSubjectType(event.target.value as "ENTRY" | "GROUP");
-                setSelectedId("");
-              }}
-            >
-              <option value="ENTRY">Entry</option>
-              <option value="GROUP">Child group</option>
-            </NativeSelect>
-          </label>
-
-          <label className="field min-w-0">
-            <span>{subjectType === "ENTRY" ? "Entry" : "Child group"}</span>
+            <span>Entry</span>
             <SingleSelect
-              value={selectedId}
+              value={selectedEntryId}
               options={selectOptions}
-              placeholder={subjectType === "ENTRY" ? "Select entry..." : "Select group..."}
+              placeholder="Select entry..."
               searchable
-              searchPlaceholder={subjectType === "ENTRY" ? "Search entries..." : "Search groups..."}
-              emptyLabel={`No ${subjectType === "ENTRY" ? "entries" : "groups"} available.`}
-              onChange={setSelectedId}
+              searchPlaceholder="Search entries..."
+              emptyLabel="No entries available."
+              onChange={setSelectedEntryId}
             />
           </label>
 
-          {groupType === "SPLIT" ? (
+          {groupSource === "rule" ? (
             <label className="field min-w-0">
-              <span>Split role</span>
-              <NativeSelect value={memberRole} onChange={(event) => setMemberRole(event.target.value as GroupMemberRole)}>
-                <option value="PARENT">PARENT</option>
-                <option value="CHILD">CHILD</option>
+              <span>Override</span>
+              <NativeSelect
+                value={override}
+                onChange={(event) => setOverride(event.target.value as GroupMemberOverride | "")}
+              >
+                <option value="">Default (rule match)</option>
+                <option value="include">Pin (include)</option>
+                <option value="exclude">Exclude</option>
               </NativeSelect>
             </label>
           ) : null}
@@ -145,7 +122,7 @@ export function GroupMemberEditorModal({
             Cancel
           </Button>
           <Button type="button" onClick={submit} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Add member"}
+            {isSaving ? "Saving..." : groupSource === "manual" ? "Add member" : "Save override"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,10 +1,11 @@
+import { MemoryRouter } from "react-router-dom";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GroupsPage } from "./GroupsPage";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
-import type { Entry, GroupGraph, GroupSummary, RuntimeSettings } from "../lib/types";
+import type { Entry, GroupRead, GroupSummary, RuntimeSettings } from "../lib/types";
 import {
   addGroupMember,
   createGroup,
@@ -22,10 +23,6 @@ import {
   updateEntry,
   updateGroup
 } from "../lib/api";
-
-vi.mock("../components/GroupGraphView", () => ({
-  GroupGraphView: ({ graph }: { graph: GroupGraph }) => <div>Graph mock: {graph.name}</div>
-}));
 
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
@@ -49,44 +46,50 @@ vi.mock("../lib/api", async () => {
   };
 });
 
-const groupsFixture: GroupSummary[] = [
+const groupsFixture = [
   {
     id: "group-1",
     name: "OpenAI ChatGPT Plus Subscription",
-    group_type: "RECURRING",
-    parent_group_id: null,
-    direct_member_count: 2,
-    direct_entry_count: 1,
-    direct_child_group_count: 1,
-    descendant_entry_count: 2,
+    description: null,
+    color: null,
+    source: "manual" as const,
+    rule_summary: null,
+    member_count: 2,
+    position: 0,
     first_occurred_at: "2026-01-06",
-    last_occurred_at: "2026-03-06"
+    last_occurred_at: "2026-03-06",
+    created_at: "2026-03-05T00:00:00Z",
+    updated_at: "2026-03-05T00:00:00Z"
   },
   {
     id: "group-2",
     name: "Payroll Deposit",
-    group_type: "RECURRING",
-    parent_group_id: null,
-    direct_member_count: 2,
-    direct_entry_count: 2,
-    direct_child_group_count: 0,
-    descendant_entry_count: 2,
+    description: null,
+    color: null,
+    source: "manual" as const,
+    rule_summary: null,
+    member_count: 2,
+    position: 1,
     first_occurred_at: "2026-01-15",
-    last_occurred_at: "2026-02-15"
+    last_occurred_at: "2026-02-15",
+    created_at: "2026-03-05T00:00:00Z",
+    updated_at: "2026-03-05T00:00:00Z"
   },
   {
-    id: "group-3",
-    name: "January Subscriptions",
-    group_type: "BUNDLE",
-    parent_group_id: "group-1",
-    direct_member_count: 1,
-    direct_entry_count: 1,
-    direct_child_group_count: 0,
-    descendant_entry_count: 1,
-    first_occurred_at: "2026-01-06",
-    last_occurred_at: "2026-01-06"
+    id: "group-4",
+    name: "Travel expenses",
+    description: null,
+    color: "#889977",
+    source: "rule" as const,
+    rule_summary: "tags include travel",
+    member_count: 3,
+    position: 3,
+    first_occurred_at: "2026-01-01",
+    last_occurred_at: "2026-03-01",
+    created_at: "2026-03-05T00:00:00Z",
+    updated_at: "2026-03-05T00:00:00Z"
   }
-];
+] satisfies GroupSummary[];
 
 const runtimeSettingsFixture: RuntimeSettings = {
   user_memory: null,
@@ -150,97 +153,43 @@ const entryFixture: Entry = {
   created_at: "2026-03-06T00:00:00Z",
   updated_at: "2026-03-06T00:00:00Z",
   tags: [],
-  direct_group: {
-    id: "group-1",
-    name: "OpenAI ChatGPT Plus Subscription",
-    group_type: "RECURRING"
-  },
-  direct_group_member_role: null,
-  group_path: []
+  groups: [
+    {
+      id: "group-1",
+      name: "OpenAI ChatGPT Plus Subscription",
+      source: "manual",
+      color: null
+    }
+  ]
 };
 
-const parentGraphFixture: GroupGraph = {
+const groupDetailFixture = {
   id: "group-1",
   name: "OpenAI ChatGPT Plus Subscription",
-  group_type: "RECURRING",
-  parent_group_id: null,
-  direct_member_count: 2,
-  direct_entry_count: 1,
-  direct_child_group_count: 1,
-  descendant_entry_count: 2,
+  description: null,
+  color: null,
+  source: "manual" as const,
+  rule_summary: null,
+  member_count: 2,
+  position: 0,
+  rule: null,
+  members: [
+    {
+      id: "membership-1",
+      entry_id: "entry-1",
+      override: null,
+      entry_name: "OpenAI ChatGPT Subscription",
+      occurred_at: "2026-03-06",
+      kind: "EXPENSE" as const,
+      amount_minor: 3178,
+      currency_code: "CAD"
+    }
+  ],
   first_occurred_at: "2026-01-06",
   last_occurred_at: "2026-03-06",
-  nodes: [
-    {
-      graph_id: "node-1",
-      membership_id: "membership-1",
-      subject_id: "entry-1",
-      node_type: "ENTRY",
-      name: "OpenAI ChatGPT Subscription",
-      member_role: null,
-      representative_occurred_at: "2026-03-06",
-      kind: "EXPENSE",
-      amount_minor: 3178,
-      currency_code: "CAD",
-      occurred_at: "2026-03-06",
-      group_type: null,
-      descendant_entry_count: null,
-      first_occurred_at: null,
-      last_occurred_at: null
-    },
-    {
-      graph_id: "node-2",
-      membership_id: "membership-2",
-      subject_id: "group-3",
-      node_type: "GROUP",
-      name: "January Subscriptions",
-      member_role: null,
-      representative_occurred_at: null,
-      kind: null,
-      amount_minor: null,
-      currency_code: null,
-      occurred_at: null,
-      group_type: "BUNDLE",
-      descendant_entry_count: 1,
-      first_occurred_at: "2026-01-06",
-      last_occurred_at: "2026-01-06"
-    }
-  ],
-  edges: []
-};
-
-const childGraphFixture: GroupGraph = {
-  id: "group-3",
-  name: "January Subscriptions",
-  group_type: "BUNDLE",
-  parent_group_id: "group-1",
-  direct_member_count: 1,
-  direct_entry_count: 1,
-  direct_child_group_count: 0,
-  descendant_entry_count: 1,
-  first_occurred_at: "2026-01-06",
-  last_occurred_at: "2026-01-06",
-  nodes: [
-    {
-      graph_id: "node-3",
-      membership_id: "membership-3",
-      subject_id: "entry-1",
-      node_type: "ENTRY",
-      name: "OpenAI ChatGPT Subscription",
-      member_role: null,
-      representative_occurred_at: "2026-01-06",
-      kind: "EXPENSE",
-      amount_minor: 3178,
-      currency_code: "CAD",
-      occurred_at: "2026-01-06",
-      group_type: null,
-      descendant_entry_count: null,
-      first_occurred_at: null,
-      last_occurred_at: null
-    }
-  ],
-  edges: []
-};
+  created_at: "2026-03-06T00:00:00Z",
+  updated_at: "2026-03-06T00:00:00Z"
+} satisfies GroupRead;
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -248,22 +197,17 @@ afterEach(() => {
 
 function mockGroupsPageData() {
   vi.mocked(listGroups).mockResolvedValue(groupsFixture);
-  vi.mocked(getGroup).mockImplementation(async (groupId: string) => {
-    if (groupId === "group-3") {
-      return childGraphFixture;
-    }
-    return parentGraphFixture;
-  });
+  vi.mocked(getGroup).mockResolvedValue(groupDetailFixture);
   vi.mocked(listEntries).mockResolvedValue({
     items: [entryFixture],
     total: 1,
     limit: 200,
     offset: 0
   });
-  vi.mocked(createGroup).mockResolvedValue(groupsFixture[0]);
-  vi.mocked(updateGroup).mockResolvedValue(groupsFixture[0]);
+  vi.mocked(createGroup).mockResolvedValue({ ...groupsFixture[0], members: [], rule: null });
+  vi.mocked(updateGroup).mockResolvedValue({ ...groupsFixture[0], members: [], rule: null });
   vi.mocked(deleteGroup).mockResolvedValue(undefined);
-  vi.mocked(addGroupMember).mockResolvedValue(parentGraphFixture);
+  vi.mocked(addGroupMember).mockResolvedValue(groupDetailFixture);
   vi.mocked(deleteGroupMember).mockResolvedValue(undefined);
   vi.mocked(getEntry).mockResolvedValue(entryFixture);
   vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 1, is_placeholder: false }]);
@@ -278,37 +222,43 @@ function mockGroupsPageData() {
 }
 
 describe("GroupsPage", () => {
-  it("filters groups by selected type", async () => {
+  it("filters groups by selected source", async () => {
     mockGroupsPageData();
     const user = userEvent.setup();
 
-    renderWithQueryClient(<GroupsPage />);
+    renderWithQueryClient(
+      <MemoryRouter>
+        <GroupsPage />
+      </MemoryRouter>
+    );
 
     expect(await screen.findByText("OpenAI ChatGPT Plus Subscription")).toBeInTheDocument();
-    expect(screen.getByText("Payroll Deposit")).toBeInTheDocument();
+    expect(screen.getByText("Travel expenses")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Group type filter" }));
-    await user.click(await screen.findByRole("button", { name: /BUNDLE/i }));
+    await user.click(screen.getByRole("button", { name: "Group source filter" }));
+    await user.click(await screen.findByRole("button", { name: /rule/i }));
 
     await waitFor(() => {
       expect(screen.queryByText("OpenAI ChatGPT Plus Subscription")).not.toBeInTheDocument();
     });
-    expect(screen.getByText("January Subscriptions")).toBeInTheDocument();
+    expect(screen.getByText("Travel expenses")).toBeInTheDocument();
   });
 
-  it("uses a double-click groups browser without raw ids or the direct structure column", async () => {
+  it("uses a double-click groups browser without raw ids", async () => {
     mockGroupsPageData();
     const user = userEvent.setup();
 
-    renderWithQueryClient(<GroupsPage />);
+    renderWithQueryClient(
+      <MemoryRouter>
+        <GroupsPage />
+      </MemoryRouter>
+    );
 
     expect(await screen.findByText("OpenAI ChatGPT Plus Subscription")).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: "Group" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Hierarchy" })).toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Level" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Direct structure" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Source" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Members" })).toBeInTheDocument();
     expect(screen.queryByText("group-1")).not.toBeInTheDocument();
-    expect(screen.queryByText("Derived graph")).not.toBeInTheDocument();
 
     const groupRow = screen.getByText("OpenAI ChatGPT Plus Subscription").closest("tr");
     expect(groupRow).not.toBeNull();
@@ -323,10 +273,8 @@ describe("GroupsPage", () => {
 
     const groupDialog = await screen.findByRole("dialog", { name: "OpenAI ChatGPT Plus Subscription" });
     expect(within(groupDialog).getByRole("heading", { name: "Statistics" })).toBeInTheDocument();
-    expect(within(groupDialog).getByRole("heading", { name: "Direct members" })).toBeInTheDocument();
+    expect(within(groupDialog).getByRole("heading", { name: "Members" })).toBeInTheDocument();
     expect(within(groupDialog).getByText("Total cost")).toBeInTheDocument();
-    expect(within(groupDialog).getByRole("heading", { name: "Derived graph" })).toBeInTheDocument();
-    expect(within(groupDialog).getByText("Graph mock: OpenAI ChatGPT Plus Subscription")).toBeInTheDocument();
     expect(within(groupDialog).getByText("OpenAI ChatGPT Subscription")).toBeInTheDocument();
 
     const entryMemberRow = within(groupDialog).getByText("OpenAI ChatGPT Subscription").closest("tr");
@@ -348,7 +296,11 @@ describe("GroupsPage", () => {
     mockGroupsPageData();
     const user = userEvent.setup();
 
-    renderWithQueryClient(<GroupsPage />);
+    renderWithQueryClient(
+      <MemoryRouter>
+        <GroupsPage />
+      </MemoryRouter>
+    );
 
     const groupRow = await screen.findByText("OpenAI ChatGPT Plus Subscription");
     await user.dblClick(groupRow.closest("tr") as HTMLElement);
@@ -361,20 +313,16 @@ describe("GroupsPage", () => {
     await waitFor(() => expect(getEntry).toHaveBeenCalledWith("entry-1"));
   });
 
-  it("opens the child group detail when clicking a direct child-group member", async () => {
+  it("shows rule summary for rule groups in the table", async () => {
     mockGroupsPageData();
-    const user = userEvent.setup();
 
-    renderWithQueryClient(<GroupsPage />);
+    renderWithQueryClient(
+      <MemoryRouter>
+        <GroupsPage />
+      </MemoryRouter>
+    );
 
-    const groupRow = await screen.findByText("OpenAI ChatGPT Plus Subscription");
-    await user.dblClick(groupRow.closest("tr") as HTMLElement);
-
-    const groupDialog = await screen.findByRole("dialog", { name: "OpenAI ChatGPT Plus Subscription" });
-    const childGroupRow = within(groupDialog).getByText("January Subscriptions").closest("tr");
-    await user.click(childGroupRow as HTMLElement);
-
-    expect(await screen.findByRole("dialog", { name: "January Subscriptions" })).toBeInTheDocument();
-    await waitFor(() => expect(getGroup).toHaveBeenCalledWith("group-3"));
+    expect(await screen.findByText("Travel expenses")).toBeInTheDocument();
+    expect(screen.getByText("tags include travel")).toBeInTheDocument();
   });
 });

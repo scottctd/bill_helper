@@ -1,55 +1,79 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `groups`.
-# - Inputs: callers that import `backend/services/groups.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `groups`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: implement group CRUD, membership mutations, and read-model summaries.
+# - Inputs: callers that import `backend/services/groups.py` with commands and principal scope.
+# - Outputs: group service functions and load options.
+# - Side effects: database persistence and validation.
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from backend.contracts_groups import (
-    ChildGroupMemberTarget,
-    EntryGroupMemberTarget,
-    GroupCreateCommand,
-    GroupMemberCreateCommand,
-    GroupPatch,
-)
-from backend.enums_finance import EntryKind, GroupMemberRole, GroupType
-from backend.models_finance import Entry, EntryGroup, EntryGroupMember
-from backend.schemas_finance import GroupEdge, GroupGraphRead, GroupNode, GroupSummaryRead
+from backend.auth.contracts import RequestPrincipal
+from backend.contracts_groups import GroupCreateCommand, GroupMemberCreateCommand, GroupPatch
+from backend.enums_finance import GroupMemberOverride, GroupSource
+from backend.models_finance import Entry, Group, GroupMember
+from backend.schemas_group_rules import GroupRule
+from backend.schemas_finance import GroupMemberRead, GroupRead, GroupSummaryRead
 from backend.services.crud_policy import PolicyViolation
+from backend.services.group_membership import (
+    effective_entry_ids_for_group,
+    manual_member_entry_ids,
+    sorted_group_members,
+)
+from backend.services.group_rule_context import build_entry_rule_context
+from backend.services.group_rules import summarize_group_rule
+from backend.services.tags import normalize_tag_color
+from backend.services.taxonomy import get_entry_category_path_map
 
 
-def entry_group_options():
+@dataclass(frozen=True, slots=True)
+class GroupDefinition:
+    id: str
+    owner_user_id: str
+    name: str
+    description: str | None
+    color: str | None
+    source: GroupSource
+    rule: GroupRule | None
+    position: int
+    created_at: datetime
+    updated_at: datetime
+
+
+def group_load_options():
     return (
-        selectinload(Entry.group_membership)
-        .selectinload(EntryGroupMember.group)
-        .selectinload(EntryGroup.parent_membership)
-        .selectinload(EntryGroupMember.group),
+        selectinload(Group.members).selectinload(GroupMember.entry).selectinload(Entry.tags),
     )
 
 
-def group_tree_options():
-    memberships = selectinload(EntryGroup.memberships)
-    return (
-        selectinload(EntryGroup.parent_membership).selectinload(EntryGroupMember.group),
-        memberships.selectinload(EntryGroupMember.entry),
-        memberships.selectinload(EntryGroupMember.child_group)
-        .selectinload(EntryGroup.memberships)
-        .selectinload(EntryGroupMember.entry),
-    )
-
-
-def load_group_tree(db: Session, group_id: str) -> EntryGroup | None:
+def load_group(db: Session, group_id: str) -> Group | None:
     return db.scalar(
-        select(EntryGroup)
+        select(Group)
         .execution_options(populate_existing=True)
-        .options(*group_tree_options())
-        .where(EntryGroup.id == group_id)
+        .options(*group_load_options())
+        .where(Group.id == group_id)
     )
+
+
+def list_group_definitions(db: Session, *, principal: RequestPrincipal) -> list[GroupDefinition]:
+    rows = list(
+        db.scalars(
+            select(Group)
+            .where(Group.owner_user_id == principal.user_id)
+            .order_by(Group.position.asc(), Group.created_at.asc())
+        )
+    )
+    return [_build_definition(row) for row in rows]
+
+
+def normalize_group_name(name: str) -> str:
+    normalized = " ".join(name.split()).strip()
+    if not normalized:
+        raise PolicyViolation.bad_request("Group name cannot be empty")
+    return normalized
 
 
 def create_group(
@@ -57,16 +81,29 @@ def create_group(
     *,
     command: GroupCreateCommand,
     owner_user_id: str,
-) -> EntryGroup:
-    group = EntryGroup(
+) -> Group:
+    normalized_name = normalize_group_name(command.name)
+    next_position = int(
+        db.scalar(
+            select(func.coalesce(func.max(Group.position), -1)).where(
+                Group.owner_user_id == owner_user_id
+            )
+        )
+        or -1
+    ) + 1
+    group = Group(
         owner_user_id=owner_user_id,
-        name=command.name,
-        group_type=command.group_type,
+        name=normalized_name,
+        description=_normalize_optional_text(command.description),
+        color=normalize_tag_color(command.color),
+        source=command.source,
+        definition_json=command.rule.model_dump(mode="json") if command.rule is not None else None,
+        position=next_position,
     )
     db.add(group)
     db.flush()
-    loaded = load_group_tree(db, group.id)
-    if loaded is None:  # pragma: no cover - post-flush invariant
+    loaded = load_group(db, group.id)
+    if loaded is None:  # pragma: no cover
         raise RuntimeError("Failed to load created group.")
     return loaded
 
@@ -74,24 +111,30 @@ def create_group(
 def update_group(
     db: Session,
     *,
-    group: EntryGroup,
+    group: Group,
     patch: GroupPatch,
-) -> EntryGroup:
+) -> Group:
+    if group.source == GroupSource.MANUAL and "rule" in patch.model_fields_set:
+        raise PolicyViolation.bad_request("Manual groups cannot update their rule.")
     if "name" in patch.model_fields_set and patch.name is not None:
-        group.name = patch.name
+        group.name = normalize_group_name(patch.name)
+    if "description" in patch.model_fields_set:
+        group.description = _normalize_optional_text(patch.description)
+    if "color" in patch.model_fields_set:
+        group.color = normalize_tag_color(patch.color)
+    if "rule" in patch.model_fields_set and patch.rule is not None:
+        if group.source != GroupSource.RULE:
+            raise PolicyViolation.bad_request("Only rule groups accept rule updates.")
+        group.definition_json = patch.rule.model_dump(mode="json")
     db.add(group)
     db.flush()
-    loaded = load_group_tree(db, group.id)
-    if loaded is None:  # pragma: no cover - post-flush invariant
-        raise RuntimeError("Failed to load renamed group.")
+    loaded = load_group(db, group.id)
+    if loaded is None:  # pragma: no cover
+        raise RuntimeError("Failed to load updated group.")
     return loaded
 
 
-def delete_group(db: Session, *, group: EntryGroup) -> None:
-    if group.parent_membership is not None:
-        raise PolicyViolation.bad_request("Remove this group from its parent before deleting it.")
-    if group.memberships:
-        raise PolicyViolation.bad_request("Remove all direct members before deleting this group.")
+def delete_group(db: Session, *, group: Group) -> None:
     db.delete(group)
     db.flush()
 
@@ -99,376 +142,293 @@ def delete_group(db: Session, *, group: EntryGroup) -> None:
 def add_group_member(
     db: Session,
     *,
-    group: EntryGroup,
+    group: Group,
     command: GroupMemberCreateCommand,
-) -> EntryGroupMember:
-    entry, child_group = _resolve_member_target(db, target=command.target)
-    _validate_member_target(
-        db,
-        group=group,
-        entry=entry,
-        child_group=child_group,
-        member_role=command.member_role,
-    )
+) -> GroupMember:
+    entry = db.get(Entry, command.entry_id)
+    if entry is None or entry.is_deleted:
+        raise PolicyViolation.not_found("Entry not found.")
+    if entry.owner_user_id != group.owner_user_id:
+        raise PolicyViolation.bad_request("Entry and group must belong to the same owner.")
 
-    member = EntryGroupMember(
+    if group.source == GroupSource.MANUAL:
+        if command.override is not None:
+            raise PolicyViolation.bad_request("Manual groups do not accept override values.")
+    elif command.override is None:
+        raise PolicyViolation.bad_request("Rule group membership changes require an override.")
+
+    existing = db.scalar(
+        select(GroupMember).where(
+            GroupMember.group_id == group.id,
+            GroupMember.entry_id == entry.id,
+        )
+    )
+    if existing is not None:
+        raise PolicyViolation.conflict("Entry is already a member of this group.")
+
+    member = GroupMember(
         group_id=group.id,
-        entry_id=entry.id if entry is not None else None,
-        child_group_id=child_group.id if child_group is not None else None,
-        member_role=command.member_role,
+        entry_id=entry.id,
+        override=command.override,
         position=_next_member_position(group),
     )
     db.add(member)
     db.flush()
-    db.expire_all()
-
-    loaded_group = load_group_tree(db, group.id)
-    if loaded_group is None:  # pragma: no cover - post-flush invariant
-        raise RuntimeError("Failed to load group after membership update.")
-    validate_group_integrity(loaded_group)
-
-    if loaded_group.parent_membership is not None:
-        loaded_parent = load_group_tree(db, loaded_group.parent_membership.group_id)
-        if loaded_parent is not None:
-            validate_group_integrity(loaded_parent)
-
-    loaded_member = db.get(EntryGroupMember, member.id)
-    if loaded_member is None:  # pragma: no cover - post-flush invariant
+    loaded = db.get(GroupMember, member.id)
+    if loaded is None:  # pragma: no cover
         raise RuntimeError("Failed to load created membership.")
-    return loaded_member
+    return loaded
 
 
 def remove_group_member(
     db: Session,
     *,
-    group: EntryGroup,
+    group: Group,
     membership_id: str,
 ) -> None:
     membership = db.scalar(
-        select(EntryGroupMember).where(
-            EntryGroupMember.id == membership_id,
-            EntryGroupMember.group_id == group.id,
+        select(GroupMember).where(
+            GroupMember.id == membership_id,
+            GroupMember.group_id == group.id,
         )
     )
     if membership is None:
         raise PolicyViolation.not_found("Group membership not found.")
+    if group.source == GroupSource.RULE and membership.override is None:
+        raise PolicyViolation.bad_request("Rule groups only allow removing override memberships.")
     db.delete(membership)
     db.flush()
 
 
-def set_entry_direct_group(
+def set_entry_manual_group_ids(
     db: Session,
     *,
     entry: Entry,
-    group: EntryGroup | None,
-    member_role: GroupMemberRole | None = None,
+    group_ids: list[str],
+    principal: RequestPrincipal,
 ) -> None:
-    if group is None and member_role is not None:
-        raise PolicyViolation.bad_request("direct_group_member_role requires a direct group.")
-
-    existing_membership = entry.group_membership
-    if existing_membership is not None:
-        current_group_id = existing_membership.group_id
-        current_role = existing_membership.member_role
-        if group is not None and current_group_id == group.id and current_role == member_role:
-            return
-        entry.group_membership = None
-        db.delete(existing_membership)
-        db.flush()
-
-    if group is None:
-        return
-
-    add_group_member(
-        db,
-        group=group,
-        command=GroupMemberCreateCommand(
-            target=EntryGroupMemberTarget(entry_id=entry.id),
-            member_role=member_role,
-        ),
+    desired = set(group_ids)
+    current_memberships = list(
+        db.scalars(
+            select(GroupMember)
+            .join(Group, Group.id == GroupMember.group_id)
+            .where(
+                GroupMember.entry_id == entry.id,
+                Group.source == GroupSource.MANUAL,
+                GroupMember.override.is_(None),
+            )
+        )
     )
+    current_by_group = {member.group_id: member for member in current_memberships}
+
+    for group_id, member in current_by_group.items():
+        if group_id not in desired:
+            db.delete(member)
+
+    if current_by_group:
+        db.flush()
+        db.expire(entry, ["group_members"])
+
+    for group_id in desired:
+        if group_id in current_by_group:
+            continue
+        group = load_group(db, group_id)
+        if group is None or group.owner_user_id != principal.user_id:
+            raise PolicyViolation.not_found("Group not found.")
+        if group.source != GroupSource.MANUAL:
+            raise PolicyViolation.bad_request("Only manual groups can be assigned directly to entries.")
+        add_group_member(
+            db,
+            group=group,
+            command=GroupMemberCreateCommand(entry_id=entry.id),
+        )
+    db.flush()
 
 
-def build_group_summary(group: EntryGroup) -> GroupSummaryRead:
-    direct_members = _sorted_memberships(group)
-    descendant_entries = _descendant_entries_for_group(group)
-    first_occurred_at = min((entry.occurred_at for entry in descendant_entries), default=None)
-    last_occurred_at = max((entry.occurred_at for entry in descendant_entries), default=None)
-    direct_entry_count = sum(1 for membership in direct_members if membership.entry_id is not None)
-    direct_child_group_count = sum(1 for membership in direct_members if membership.child_group_id is not None)
+def build_group_summary(
+    db: Session,
+    group: Group,
+    *,
+    account_entity_ids: set[str] | None = None,
+) -> GroupSummaryRead:
+    entries = _scoped_entries_for_group(db, group)
+    category_paths = get_entry_category_path_map(db, entry_ids=[entry.id for entry in entries])
+    contexts = {
+        entry.id: build_entry_rule_context(
+            entry,
+            category_path=category_paths.get(entry.id),
+            account_entity_ids=account_entity_ids or set(),
+        )
+        for entry in entries
+    }
+    effective_ids = effective_entry_ids_for_group(
+        group,
+        entries=entries,
+        contexts=contexts,
+    )
+    effective_entries = [entry for entry in entries if entry.id in effective_ids]
+    first_occurred_at = min((entry.occurred_at for entry in effective_entries), default=None)
+    last_occurred_at = max((entry.occurred_at for entry in effective_entries), default=None)
     return GroupSummaryRead(
         id=group.id,
         name=group.name,
-        group_type=group.group_type,
-        parent_group_id=group.parent_membership.group_id if group.parent_membership is not None else None,
-        direct_member_count=len(direct_members),
-        direct_entry_count=direct_entry_count,
-        direct_child_group_count=direct_child_group_count,
-        descendant_entry_count=len(descendant_entries),
+        description=group.description,
+        color=group.color,
+        source=group.source,
+        rule_summary=_rule_summary(group),
+        member_count=len(effective_ids),
         first_occurred_at=first_occurred_at,
         last_occurred_at=last_occurred_at,
+        position=group.position,
+        created_at=group.created_at,
+        updated_at=group.updated_at,
     )
 
 
-def build_group_graph(group: EntryGroup) -> GroupGraphRead:
-    direct_members = _sorted_memberships(group)
-    summary = build_group_summary(group)
-    nodes = [_membership_to_node(membership) for membership in direct_members]
-    edges = _build_group_edges(group.group_type, direct_members)
-    return GroupGraphRead(
-        id=group.id,
-        name=group.name,
-        group_type=group.group_type,
-        parent_group_id=summary.parent_group_id,
-        direct_member_count=summary.direct_member_count,
-        direct_entry_count=summary.direct_entry_count,
-        direct_child_group_count=summary.direct_child_group_count,
-        descendant_entry_count=summary.descendant_entry_count,
-        first_occurred_at=summary.first_occurred_at,
-        last_occurred_at=summary.last_occurred_at,
-        nodes=nodes,
-        edges=edges,
+def build_group_read(
+    db: Session,
+    group: Group,
+    *,
+    account_entity_ids: set[str] | None = None,
+) -> GroupRead:
+    summary = build_group_summary(db, group, account_entity_ids=account_entity_ids)
+    members = _build_member_reads(db, group, account_entity_ids=account_entity_ids or set())
+    return GroupRead(
+        **summary.model_dump(),
+        members=members,
+        rule=_group_rule(group),
     )
 
 
-def validate_group_integrity(group: EntryGroup) -> None:
-    direct_members = _sorted_memberships(group)
+def build_group_read_from_row(
+    db: Session,
+    group: Group,
+    *,
+    account_entity_ids: set[str] | None = None,
+) -> GroupRead:
+    return build_group_read(db, group, account_entity_ids=account_entity_ids)
 
-    if group.parent_membership is not None and any(member.child_group_id is not None for member in direct_members):
-        raise PolicyViolation.bad_request("Nested groups cannot contain child groups.")
 
-    for member in direct_members:
-        if member.child_group is None:
+def list_account_entity_ids_for_principal(db: Session, *, principal: RequestPrincipal) -> set[str]:
+    from backend.models_finance import Account
+    from backend.services.access_scope import account_owner_filter
+
+    return {
+        entity_id
+        for entity_id in db.scalars(select(Account.id).where(account_owner_filter(principal))).all()
+        if entity_id
+    }
+
+
+def entry_matches_group(
+    db: Session,
+    *,
+    entry: Entry,
+    group: Group,
+    principal: RequestPrincipal,
+) -> bool:
+    account_entity_ids = list_account_entity_ids_for_principal(db, principal=principal)
+    entries = _scoped_entries_for_group(db, group)
+    category_paths = get_entry_category_path_map(db, entry_ids=[candidate.id for candidate in entries])
+    contexts = {
+        candidate.id: build_entry_rule_context(
+            candidate,
+            category_path=category_paths.get(candidate.id),
+            account_entity_ids=account_entity_ids,
+        )
+        for candidate in entries
+    }
+    return entry.id in effective_entry_ids_for_group(group, entries=entries, contexts=contexts)
+
+
+def _build_member_reads(
+    db: Session,
+    group: Group,
+    *,
+    account_entity_ids: set[str],
+) -> list[GroupMemberRead]:
+    entries = _scoped_entries_for_group(db, group)
+    category_paths = get_entry_category_path_map(db, entry_ids=[entry.id for entry in entries])
+    contexts = {
+        entry.id: build_entry_rule_context(
+            entry,
+            category_path=category_paths.get(entry.id),
+            account_entity_ids=account_entity_ids,
+        )
+        for entry in entries
+    }
+    effective_ids = effective_entry_ids_for_group(group, entries=entries, contexts=contexts)
+    reads: list[GroupMemberRead] = []
+    for member in sorted_group_members(group):
+        if member.entry_id not in effective_ids:
             continue
-        nested_members = _sorted_memberships(member.child_group)
-        if any(nested_member.child_group_id is not None for nested_member in nested_members):
-            raise PolicyViolation.bad_request("Nesting depth cannot exceed one level.")
-
-    if group.group_type == GroupType.BUNDLE:
-        if any(member.member_role is not None for member in direct_members):
-            raise PolicyViolation.bad_request("Bundle groups do not accept member roles.")
-        return
-
-    if group.group_type == GroupType.SPLIT:
-        parents = [member for member in direct_members if member.member_role == GroupMemberRole.PARENT]
-        if len(parents) > 1:
-            raise PolicyViolation.bad_request("Split groups can have at most one parent member.")
-
-        for member in direct_members:
-            if member.member_role is None:
-                raise PolicyViolation.bad_request("Split groups require a role for every direct member.")
-            expected_kind = (
-                EntryKind.EXPENSE
-                if member.member_role == GroupMemberRole.PARENT
-                else EntryKind.INCOME
-            )
-            for entry in _descendant_entries_for_membership(member):
-                if entry.kind != expected_kind:
-                    raise PolicyViolation.bad_request(
-                        "Split group descendants must be EXPENSE under the parent and INCOME under children."
-                    )
-        return
-
-    if any(member.member_role is not None for member in direct_members):
-        raise PolicyViolation.bad_request("Recurring groups do not accept member roles.")
-
-    descendant_kinds = {entry.kind for entry in _descendant_entries_for_group(group)}
-    if len(descendant_kinds) > 1:
-        raise PolicyViolation.bad_request("Recurring groups require all descendant entries to share the same kind.")
-
-
-def _validate_member_target(
-    db: Session,
-    *,
-    group: EntryGroup,
-    entry: Entry | None,
-    child_group: EntryGroup | None,
-    member_role: GroupMemberRole | None,
-) -> None:
-    if group.group_type == GroupType.SPLIT:
-        if member_role is None:
-            raise PolicyViolation.bad_request("Split groups require a member role.")
-    elif member_role is not None:
-        raise PolicyViolation.bad_request("Only split groups accept member roles.")
-
-    if entry is not None:
-        if entry.is_deleted:
-            raise PolicyViolation.bad_request("Cannot add a deleted entry to a group.")
-        existing_entry_membership = db.scalar(
-            select(EntryGroupMember).where(EntryGroupMember.entry_id == entry.id)
-        )
-        if existing_entry_membership is not None:
-            raise PolicyViolation.bad_request("This entry already belongs to a group.")
-        return
-
-    assert child_group is not None  # narrowed by caller
-    if child_group.id == group.id:
-        raise PolicyViolation.bad_request("A group cannot contain itself.")
-    if group.parent_membership is not None:
-        raise PolicyViolation.bad_request("Nested groups cannot contain child groups.")
-
-    existing_child_membership = db.scalar(
-        select(EntryGroupMember).where(EntryGroupMember.child_group_id == child_group.id)
-    )
-    if existing_child_membership is not None:
-        raise PolicyViolation.bad_request("This child group already belongs to a parent group.")
-
-    if any(member.child_group_id is not None for member in _sorted_memberships(child_group)):
-        raise PolicyViolation.bad_request("Child groups cannot themselves contain child groups.")
-
-
-def _resolve_member_target(
-    db: Session,
-    *,
-    target: EntryGroupMemberTarget | ChildGroupMemberTarget,
-) -> tuple[Entry | None, EntryGroup | None]:
-    if isinstance(target, EntryGroupMemberTarget):
-        entry = db.get(Entry, target.entry_id)
+        entry = member.entry
         if entry is None:
-            raise PolicyViolation.not_found("Entry not found.")
-        return entry, None
-
-    child_group = db.get(EntryGroup, target.group_id)
-    if child_group is None:
-        raise PolicyViolation.not_found("Child group not found.")
-    return None, child_group
-
-
-def _next_member_position(group: EntryGroup) -> int:
-    if not group.memberships:
-        return 0
-    return max(member.position for member in group.memberships) + 1
-
-
-def _sorted_memberships(group: EntryGroup) -> list[EntryGroupMember]:
-    return sorted(
-        group.memberships,
-        key=lambda member: (member.position, member.created_at, member.id),
-    )
-
-
-def _descendant_entries_for_group(group: EntryGroup) -> list[Entry]:
-    entries: list[Entry] = []
-    for membership in _sorted_memberships(group):
-        entries.extend(_descendant_entries_for_membership(membership))
-    return entries
-
-
-def _descendant_entries_for_membership(membership: EntryGroupMember) -> list[Entry]:
-    if membership.entry is not None:
-        return [] if membership.entry.is_deleted else [membership.entry]
-
-    if membership.child_group is None:
-        return []
-
-    return [
-        child_membership.entry
-        for child_membership in _sorted_memberships(membership.child_group)
-        if child_membership.entry is not None and not child_membership.entry.is_deleted
-    ]
-
-
-def _membership_representative_date(membership: EntryGroupMember) -> date | None:
-    descendant_entries = _descendant_entries_for_membership(membership)
-    if not descendant_entries:
-        return None
-    return min(entry.occurred_at for entry in descendant_entries)
-
-
-def _membership_graph_id(membership: EntryGroupMember) -> str:
-    return f"member-{membership.id}"
-
-
-def _membership_to_node(membership: EntryGroupMember) -> GroupNode:
-    representative_occurred_at = _membership_representative_date(membership)
-    if membership.entry is not None:
-        entry = membership.entry
-        return GroupNode(
-            graph_id=_membership_graph_id(membership),
-            membership_id=membership.id,
-            subject_id=entry.id,
-            node_type="ENTRY",
-            name=entry.name,
-            member_role=membership.member_role,
-            representative_occurred_at=representative_occurred_at,
-            kind=entry.kind,
-            amount_minor=entry.amount_minor,
-            currency_code=entry.currency_code,
-            occurred_at=entry.occurred_at,
-        )
-
-    child_group = membership.child_group
-    if child_group is None:  # pragma: no cover - schema invariant
-        raise RuntimeError("Group membership is missing its target.")
-
-    descendant_entries = _descendant_entries_for_group(child_group)
-    return GroupNode(
-        graph_id=_membership_graph_id(membership),
-        membership_id=membership.id,
-        subject_id=child_group.id,
-        node_type="GROUP",
-        name=child_group.name,
-        member_role=membership.member_role,
-        representative_occurred_at=representative_occurred_at,
-        group_type=child_group.group_type,
-        descendant_entry_count=len(descendant_entries),
-        first_occurred_at=min((entry.occurred_at for entry in descendant_entries), default=None),
-        last_occurred_at=max((entry.occurred_at for entry in descendant_entries), default=None),
-    )
-
-
-def _build_group_edges(group_type: GroupType, memberships: list[EntryGroupMember]) -> list[GroupEdge]:
-    if len(memberships) < 2:
-        return []
-
-    if group_type == GroupType.BUNDLE:
-        edges: list[GroupEdge] = []
-        for source_index, source in enumerate(memberships):
-            for target in memberships[source_index + 1 :]:
-                edges.append(
-                    GroupEdge(
-                        id=f"edge-{source.id}-{target.id}",
-                        source_graph_id=_membership_graph_id(source),
-                        target_graph_id=_membership_graph_id(target),
-                        group_type=group_type,
-                    )
-                )
-        return edges
-
-    if group_type == GroupType.SPLIT:
-        parent_member = next(
-            (member for member in memberships if member.member_role == GroupMemberRole.PARENT),
-            None,
-        )
-        if parent_member is None:
-            return []
-        return [
-            GroupEdge(
-                id=f"edge-{parent_member.id}-{child.id}",
-                source_graph_id=_membership_graph_id(parent_member),
-                target_graph_id=_membership_graph_id(child),
-                group_type=group_type,
+            continue
+        reads.append(
+            GroupMemberRead(
+                id=member.id,
+                entry_id=member.entry_id,
+                override=member.override,
+                entry_name=entry.name,
+                occurred_at=entry.occurred_at,
+                kind=entry.kind,
+                amount_minor=entry.amount_minor,
+                currency_code=entry.currency_code,
             )
-            for child in memberships
-            if child.id != parent_member.id
-        ]
-
-    sorted_memberships = sorted(
-        memberships,
-        key=lambda member: (
-            _membership_representative_date(member) is None,
-            _membership_representative_date(member) or date.max,
-            member.position,
-            member.created_at,
-            member.id,
-        ),
-    )
-    return [
-        GroupEdge(
-            id=f"edge-{left.id}-{right.id}",
-            source_graph_id=_membership_graph_id(left),
-            target_graph_id=_membership_graph_id(right),
-            group_type=group_type,
         )
-        for left, right in zip(sorted_memberships, sorted_memberships[1:], strict=False)
-    ]
+    return reads
+
+
+def _scoped_entries_for_group(db: Session, group: Group) -> list[Entry]:
+    return list(
+        db.scalars(
+            select(Entry)
+            .where(
+                Entry.owner_user_id == group.owner_user_id,
+                Entry.is_deleted.is_(False),
+            )
+            .options(selectinload(Entry.tags))
+        )
+    )
+
+
+def _next_member_position(group: Group) -> int:
+    if not group.members:
+        return 0
+    return max(member.position for member in group.members) + 1
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = " ".join(value.split()).strip()
+    return normalized or None
+
+
+def _group_rule(group: Group) -> GroupRule | None:
+    if group.definition_json is None:
+        return None
+    return GroupRule.model_validate(group.definition_json)
+
+
+def _rule_summary(group: Group) -> str | None:
+    rule = _group_rule(group)
+    if rule is None:
+        return None
+    return summarize_group_rule(rule)
+
+
+def _build_definition(row: Group) -> GroupDefinition:
+    return GroupDefinition(
+        id=row.id,
+        owner_user_id=row.owner_user_id,
+        name=row.name,
+        description=row.description,
+        color=row.color,
+        source=row.source,
+        rule=_group_rule(row),
+        position=row.position,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )

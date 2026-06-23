@@ -39,8 +39,7 @@ def create_entry(
     occurred_at: str = "2026-01-01",
     kind: str = "EXPENSE",
     *,
-    direct_group_id: str | None = None,
-    direct_group_member_role: str | None = None,
+    group_ids: list[str] | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict:
     payload = {
@@ -60,10 +59,8 @@ def create_entry(
     else:
         payload["from_entity_id"] = account_id
         payload["to_entity"] = "Other account"
-    if direct_group_id is not None:
-        payload["direct_group_id"] = direct_group_id
-    if direct_group_member_role is not None:
-        payload["direct_group_member_role"] = direct_group_member_role
+    if group_ids is not None:
+        payload["group_ids"] = group_ids
 
     response = client.post(
         "/api/v1/entries",
@@ -77,17 +74,34 @@ def create_entry(
 def create_group(
     client,
     name: str,
-    group_type: str = "BUNDLE",
     *,
+    source: str = "manual",
+    rule: dict | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict:
+    payload: dict[str, object] = {"name": name, "source": source}
+    if rule is not None:
+        payload["rule"] = rule
     response = client.post(
         "/api/v1/groups",
-        json={"name": name, "group_type": group_type},
+        json=payload,
         headers=headers,
     )
     response.raise_for_status()
     return response.json()
+
+
+def _expense_tag_rule(*, tags: list[str]) -> dict:
+    return {
+        "include": {
+            "type": "group",
+            "operator": "AND",
+            "children": [
+                {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
+                {"type": "condition", "field": "tags", "operator": "has_any", "value": tags},
+            ],
+        }
+    }
 
 
 def test_entry_filters_and_tags(client):
@@ -150,7 +164,7 @@ def test_entry_filters_by_from_and_to_entity(client):
     assert [item["name"] for item in to_response.json()["items"]] == ["Coffee"]
 
 
-def test_entry_filters_by_filter_group(client):
+def test_entry_filters_by_rule_group(client):
     account_id = create_account(client)
     coffee = client.post(
         "/api/v1/entries",
@@ -182,50 +196,34 @@ def test_entry_filters_by_filter_group(client):
     rent.raise_for_status()
 
     snacks_group = client.post(
-        "/api/v1/filter-groups",
+        "/api/v1/groups",
         json={
             "name": "snacks",
-            "rule": {
-                "include": {
-                    "type": "group",
-                    "operator": "AND",
-                    "children": [
-                        {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
-                        {"type": "condition", "field": "tags", "operator": "has_any", "value": ["coffee_snacks"]},
-                    ],
-                }
-            },
+            "source": "rule",
+            "rule": _expense_tag_rule(tags=["coffee_snacks"]),
         },
     )
     snacks_group.raise_for_status()
     housing_group = client.post(
-        "/api/v1/filter-groups",
+        "/api/v1/groups",
         json={
             "name": "housing",
-            "rule": {
-                "include": {
-                    "type": "group",
-                    "operator": "AND",
-                    "children": [
-                        {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
-                        {"type": "condition", "field": "tags", "operator": "has_any", "value": ["housing"]},
-                    ],
-                }
-            },
+            "source": "rule",
+            "rule": _expense_tag_rule(tags=["housing"]),
         },
     )
     housing_group.raise_for_status()
 
     snacks_entries = client.get(
         "/api/v1/entries",
-        params={"filter_group_id": snacks_group.json()["id"]},
+        params={"group_id": snacks_group.json()["id"]},
     )
     snacks_entries.raise_for_status()
     assert [item["name"] for item in snacks_entries.json()["items"]] == ["Coffee"]
 
     housing_entries = client.get(
         "/api/v1/entries",
-        params={"filter_group_id": housing_group.json()["id"]},
+        params={"group_id": housing_group.json()["id"]},
     )
     housing_entries.raise_for_status()
     assert [item["name"] for item in housing_entries.json()["items"]] == ["Rent"]
@@ -322,7 +320,7 @@ def test_entry_filters_by_leaf_or_parent_category(client):
     ]
 
 
-def test_entry_filters_by_custom_aux_tag_filter_group(client):
+def test_entry_filters_by_custom_aux_tag_rule_group(client):
     account_id = create_account(client)
     client.post(
         "/api/v1/entries",
@@ -352,47 +350,45 @@ def test_entry_filters_by_custom_aux_tag_filter_group(client):
     ).raise_for_status()
 
     misc_group = client.post(
-        "/api/v1/filter-groups",
+        "/api/v1/groups",
         json={
             "name": "misc",
-            "rule": {
-                "include": {
-                    "type": "group",
-                    "operator": "AND",
-                    "children": [
-                        {"type": "condition", "field": "entry_kind", "operator": "is", "value": "EXPENSE"},
-                        {"type": "condition", "field": "tags", "operator": "has_any", "value": ["misc"]},
-                    ],
-                }
-            },
+            "source": "rule",
+            "rule": _expense_tag_rule(tags=["misc"]),
         },
     )
     misc_group.raise_for_status()
 
     misc_entries = client.get(
         "/api/v1/entries",
-        params={"filter_group_id": misc_group.json()["id"]},
+        params={"group_id": misc_group.json()["id"]},
     )
     misc_entries.raise_for_status()
     assert [item["name"] for item in misc_entries.json()["items"]] == ["Misc expense"]
 
 
-def test_group_membership_updates_entry_context_and_allows_group_delete_after_unassign(client):
+def test_group_membership_updates_entry_context_and_group_delete_preserves_entry(client):
     account_id = create_account(client)
     entry = create_entry(client, account_id, "Entry 1")
-    group = create_group(client, "Bills", "BUNDLE")
+    group = create_group(client, "Bills")
 
     membership_response = client.post(
         f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": entry["id"]}},
+        json={"entry_id": entry["id"]},
     )
     membership_response.raise_for_status()
 
     entry_detail = client.get(f"/api/v1/entries/{entry['id']}")
     entry_detail.raise_for_status()
     payload = entry_detail.json()
-    assert payload["direct_group"]["id"] == group["id"]
-    assert payload["group_path"] == [payload["direct_group"]]
+    assert payload["groups"] == [
+        {
+            "id": group["id"],
+            "name": group["name"],
+            "source": "manual",
+            "color": None,
+        }
+    ]
 
     rename_response = client.patch(f"/api/v1/groups/{group['id']}", json={"name": "Utilities"})
     rename_response.raise_for_status()
@@ -400,62 +396,51 @@ def test_group_membership_updates_entry_context_and_allows_group_delete_after_un
 
     renamed_entry_detail = client.get(f"/api/v1/entries/{entry['id']}")
     renamed_entry_detail.raise_for_status()
-    assert renamed_entry_detail.json()["direct_group"]["name"] == "Utilities"
-
-    blocked_delete = client.delete(f"/api/v1/groups/{group['id']}")
-    assert blocked_delete.status_code == 400
-
-    membership_id = membership_response.json()["nodes"][0]["membership_id"]
-    remove_response = client.delete(f"/api/v1/groups/{group['id']}/members/{membership_id}")
-    assert remove_response.status_code == 204
-
-    entry_detail_after = client.get(f"/api/v1/entries/{entry['id']}")
-    entry_detail_after.raise_for_status()
-    assert entry_detail_after.json()["direct_group"] is None
-    assert entry_detail_after.json()["group_path"] == []
+    assert renamed_entry_detail.json()["groups"][0]["name"] == "Utilities"
 
     delete_response = client.delete(f"/api/v1/groups/{group['id']}")
     assert delete_response.status_code == 204
 
+    entry_detail_after = client.get(f"/api/v1/entries/{entry['id']}")
+    entry_detail_after.raise_for_status()
+    assert entry_detail_after.json()["groups"] == []
+    assert entry_detail_after.json()["name"] == "Entry 1"
 
-def test_entry_create_update_and_clear_direct_group_membership(client):
+    missing_group = client.get(f"/api/v1/groups/{group['id']}")
+    assert missing_group.status_code == 404
+
+
+def test_entry_create_update_and_clear_manual_group_membership(client):
     account_id = create_account(client)
-    bundle_group = create_group(client, "Bills", "BUNDLE")
-    split_group = create_group(client, "Dinner Split", "SPLIT")
+    bills_group = create_group(client, "Bills")
+    travel_group = create_group(client, "Travel")
 
-    entry = create_entry(client, account_id, "Hydro Bill", direct_group_id=bundle_group["id"])
-    assert entry["direct_group"]["id"] == bundle_group["id"]
-    assert entry["direct_group_member_role"] is None
+    entry = create_entry(client, account_id, "Hydro Bill", group_ids=[bills_group["id"]])
+    assert entry["groups"][0]["id"] == bills_group["id"]
 
     detail_response = client.get(f"/api/v1/entries/{entry['id']}")
     detail_response.raise_for_status()
-    assert detail_response.json()["group_path"] == [detail_response.json()["direct_group"]]
+    assert [group["id"] for group in detail_response.json()["groups"]] == [bills_group["id"]]
 
     move_response = client.patch(
         f"/api/v1/entries/{entry['id']}",
-        json={
-            "direct_group_id": split_group["id"],
-            "direct_group_member_role": "PARENT",
-        },
+        json={"group_ids": [travel_group["id"]]},
     )
     move_response.raise_for_status()
     moved = move_response.json()
-    assert moved["direct_group"]["id"] == split_group["id"]
-    assert moved["direct_group_member_role"] == "PARENT"
+    assert [group["id"] for group in moved["groups"]] == [travel_group["id"]]
 
-    old_group_graph = client.get(f"/api/v1/groups/{bundle_group['id']}")
-    old_group_graph.raise_for_status()
-    assert old_group_graph.json()["nodes"] == []
+    old_group_detail = client.get(f"/api/v1/groups/{bills_group['id']}")
+    old_group_detail.raise_for_status()
+    assert old_group_detail.json()["members"] == []
 
     clear_response = client.patch(
         f"/api/v1/entries/{entry['id']}",
-        json={"direct_group_id": None},
+        json={"group_ids": []},
     )
     clear_response.raise_for_status()
     cleared = clear_response.json()
-    assert cleared["direct_group"] is None
-    assert cleared["direct_group_member_role"] is None
-    assert cleared["group_path"] == []
+    assert cleared["groups"] == []
 
 
 def test_update_entry_resolves_entity_labels_from_ids(client):
@@ -508,9 +493,14 @@ def test_update_entry_resolves_entity_labels_from_ids(client):
     assert detail["to_entity"] == "Main Saving Counterparty"
 
 
-def test_entry_group_assignment_validates_split_role_requirements(client):
+def test_entry_rejects_rule_group_assignment_via_group_ids(client):
     account_id = create_account(client)
-    split_group = create_group(client, "Split Dinner", "SPLIT")
+    rule_group = create_group(
+        client,
+        "Tagged Expenses",
+        source="rule",
+        rule=_expense_tag_rule(tags=["food"]),
+    )
 
     create_response = client.post(
         "/api/v1/entries",
@@ -523,7 +513,7 @@ def test_entry_group_assignment_validates_split_role_requirements(client):
             "amount_minor": 1234,
             "currency_code": "USD",
             "tags": ["food"],
-            "direct_group_id": split_group["id"],
+            "group_ids": [rule_group["id"]],
         },
     )
     assert create_response.status_code == 400
@@ -531,217 +521,95 @@ def test_entry_group_assignment_validates_split_role_requirements(client):
     entry = create_entry(client, account_id, "Dinner Parent")
     update_response = client.patch(
         f"/api/v1/entries/{entry['id']}",
-        json={
-            "direct_group_id": split_group["id"],
-        },
+        json={"group_ids": [rule_group["id"]]},
     )
     assert update_response.status_code == 400
 
 
-def test_bundle_group_graph_and_summary_include_empty_groups(client):
+def test_manual_group_summary_and_members_include_empty_groups(client):
     account_id = create_account(client)
     first = create_entry(client, account_id, "Gym", occurred_at="2026-01-02")
     second = create_entry(client, account_id, "Coffee", occurred_at="2026-01-06")
-    create_group(client, "Empty Group", "BUNDLE")
-    group = create_group(client, "Bundle Group", "BUNDLE")
+    create_group(client, "Empty Group")
+    group = create_group(client, "Monthly Bills")
 
     add_first = client.post(
         f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": first["id"]}},
+        json={"entry_id": first["id"]},
     )
     add_first.raise_for_status()
     add_second = client.post(
         f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": second["id"]}},
+        json={"entry_id": second["id"]},
     )
     add_second.raise_for_status()
 
     groups_response = client.get("/api/v1/groups")
     groups_response.raise_for_status()
     groups = groups_response.json()
-    assert {group_item["name"] for group_item in groups} == {"Bundle Group", "Empty Group"}
+    assert {group_item["name"] for group_item in groups} == {"Monthly Bills", "Empty Group"}
 
-    bundle_summary = next(group_item for group_item in groups if group_item["name"] == "Bundle Group")
-    assert bundle_summary["group_type"] == "BUNDLE"
-    assert bundle_summary["direct_member_count"] == 2
-    assert bundle_summary["direct_entry_count"] == 2
-    assert bundle_summary["direct_child_group_count"] == 0
-    assert bundle_summary["descendant_entry_count"] == 2
-    assert bundle_summary["first_occurred_at"] == "2026-01-02"
-    assert bundle_summary["last_occurred_at"] == "2026-01-06"
+    bills_summary = next(group_item for group_item in groups if group_item["name"] == "Monthly Bills")
+    assert bills_summary["source"] == "manual"
+    assert bills_summary["member_count"] == 2
+    assert bills_summary["first_occurred_at"] == "2026-01-02"
+    assert bills_summary["last_occurred_at"] == "2026-01-06"
 
-    graph_response = client.get(f"/api/v1/groups/{group['id']}")
-    graph_response.raise_for_status()
-    graph = graph_response.json()
-    assert graph["name"] == "Bundle Group"
-    assert graph["group_type"] == "BUNDLE"
-    assert len(graph["nodes"]) == 2
-    assert len(graph["edges"]) == 1
-    assert {node["node_type"] for node in graph["nodes"]} == {"ENTRY"}
-    assert {node["currency_code"] for node in graph["nodes"]} == {"USD"}
+    detail_response = client.get(f"/api/v1/groups/{group['id']}")
+    detail_response.raise_for_status()
+    detail = detail_response.json()
+    assert detail["name"] == "Monthly Bills"
+    assert detail["source"] == "manual"
+    assert len(detail["members"]) == 2
+    assert {member["entry_name"] for member in detail["members"]} == {"Gym", "Coffee"}
+    assert {member["currency_code"] for member in detail["members"]} == {"USD"}
 
 
-def test_split_group_validation_and_graph(client):
+def test_rule_group_membership_requires_override(client):
     account_id = create_account(client)
-    parent = create_entry(client, account_id, "Dinner", occurred_at="2026-01-02")
-    child_income = client.post(
-        "/api/v1/entries",
-        json={
-            "to_entity_id": account_id,
-            "from_entity": "Counterparty",
-            "kind": "INCOME",
-            "occurred_at": "2026-01-03",
-            "name": "Alice paid back",
-            "amount_minor": 617,
-            "currency_code": "USD",
-            "tags": ["food"],
-        },
+    entry = create_entry(client, account_id, "Coffee", occurred_at="2026-01-04")
+    group = create_group(
+        client,
+        "Food Expenses",
+        source="rule",
+        rule=_expense_tag_rule(tags=["food"]),
     )
-    child_income.raise_for_status()
-    other_child_income = client.post(
-        "/api/v1/entries",
-        json={
-            "to_entity_id": account_id,
-            "from_entity": "Counterparty",
-            "kind": "INCOME",
-            "occurred_at": "2026-01-04",
-            "name": "Bob paid back",
-            "amount_minor": 617,
-            "currency_code": "USD",
-            "tags": ["food"],
-        },
-    )
-    other_child_income.raise_for_status()
-    invalid_child = create_entry(client, account_id, "Invalid expense child", occurred_at="2026-01-05")
-    group = create_group(client, "Split Dinner", "SPLIT")
 
-    parent_response = client.post(
+    missing_override = client.post(
         f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": parent["id"]}, "member_role": "PARENT"},
+        json={"entry_id": entry["id"]},
     )
-    parent_response.raise_for_status()
-    child_response = client.post(
+    assert missing_override.status_code == 400
+
+    include_response = client.post(
         f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": child_income.json()["id"]}, "member_role": "CHILD"},
+        json={"entry_id": entry["id"], "override": "include"},
     )
-    child_response.raise_for_status()
-    second_child_response = client.post(
-        f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": other_child_income.json()["id"]}, "member_role": "CHILD"},
-    )
-    second_child_response.raise_for_status()
-
-    invalid_response = client.post(
-        f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": invalid_child["id"]}, "member_role": "CHILD"},
-    )
-    assert invalid_response.status_code == 400
-
-    graph_response = client.get(f"/api/v1/groups/{group['id']}")
-    graph_response.raise_for_status()
-    graph = graph_response.json()
-    parent_node = next(node for node in graph["nodes"] if node["member_role"] == "PARENT")
-    assert parent_node["name"] == "Dinner"
-    assert len(graph["edges"]) == 2
-    assert all(edge["group_type"] == "SPLIT" for edge in graph["edges"])
+    include_response.raise_for_status()
+    detail = include_response.json()
+    assert detail["members"][0]["override"] == "include"
+    assert detail["members"][0]["entry_name"] == "Coffee"
 
 
-def test_recurring_group_validation_and_graph(client):
+def test_entry_can_belong_to_multiple_manual_groups(client):
     account_id = create_account(client)
-    first = create_entry(client, account_id, "Rent Jan", occurred_at="2026-01-01")
-    second = create_entry(client, account_id, "Rent Feb", occurred_at="2026-02-01")
-    third = create_entry(client, account_id, "Rent Mar", occurred_at="2026-03-01")
-    invalid_income = client.post(
-        "/api/v1/entries",
-        json={
-            "to_entity_id": account_id,
-            "from_entity": "Counterparty",
-            "kind": "INCOME",
-            "occurred_at": "2026-04-01",
-            "name": "Refund",
-            "amount_minor": 1234,
-            "currency_code": "USD",
-            "tags": ["housing"],
-        },
-    )
-    invalid_income.raise_for_status()
-    group = create_group(client, "Monthly Rent", "RECURRING")
+    entry = create_entry(client, account_id, "Netflix", occurred_at="2026-01-01")
+    subscriptions = create_group(client, "Subscriptions")
+    entertainment = create_group(client, "Entertainment")
 
-    for entry in (first, second, third):
+    for group in (subscriptions, entertainment):
         response = client.post(
             f"/api/v1/groups/{group['id']}/members",
-            json={"target": {"target_type": "entry", "entry_id": entry["id"]}},
+            json={"entry_id": entry["id"]},
         )
         response.raise_for_status()
 
-    invalid_response = client.post(
-        f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": invalid_income.json()["id"]}},
-    )
-    assert invalid_response.status_code == 400
-
-    graph_response = client.get(f"/api/v1/groups/{group['id']}")
-    graph_response.raise_for_status()
-    graph = graph_response.json()
-    assert [node["name"] for node in graph["nodes"]] == ["Rent Jan", "Rent Feb", "Rent Mar"]
-    assert len(graph["edges"]) == 2
-    assert graph["edges"][0]["group_type"] == "RECURRING"
-
-
-def test_nested_groups_depth_one_and_no_sharing(client):
-    account_id = create_account(client)
-    child_entry = create_entry(client, account_id, "Netflix", occurred_at="2026-01-01")
-    other_entry = create_entry(client, account_id, "Spotify", occurred_at="2026-01-02")
-    second_parent = create_group(client, "Entertainment", "BUNDLE")
-    parent = create_group(client, "Monthly Bills", "BUNDLE")
-    child = create_group(client, "Streaming", "BUNDLE")
-    second_child = create_group(client, "Podcasts", "BUNDLE")
-
-    add_child_entry = client.post(
-        f"/api/v1/groups/{child['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": child_entry["id"]}},
-    )
-    add_child_entry.raise_for_status()
-
-    attach_child = client.post(
-        f"/api/v1/groups/{parent['id']}/members",
-        json={"target": {"target_type": "child_group", "group_id": child["id"]}},
-    )
-    attach_child.raise_for_status()
-
-    nested_response = client.post(
-        f"/api/v1/groups/{child['id']}/members",
-        json={"target": {"target_type": "child_group", "group_id": second_child["id"]}},
-    )
-    assert nested_response.status_code == 400
-
-    shared_response = client.post(
-        f"/api/v1/groups/{second_parent['id']}/members",
-        json={"target": {"target_type": "child_group", "group_id": child["id"]}},
-    )
-    assert shared_response.status_code == 400
-
-    add_second_child_entry = client.post(
-        f"/api/v1/groups/{second_child['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": other_entry["id"]}},
-    )
-    add_second_child_entry.raise_for_status()
-    parented_nested_child = client.post(
-        f"/api/v1/groups/{child['id']}/members",
-        json={"target": {"target_type": "child_group", "group_id": second_child["id"]}},
-    )
-    assert parented_nested_child.status_code == 400
-
-    entry_detail = client.get(f"/api/v1/entries/{child_entry['id']}")
+    entry_detail = client.get(f"/api/v1/entries/{entry['id']}")
     entry_detail.raise_for_status()
-    assert [group["name"] for group in entry_detail.json()["group_path"]] == ["Monthly Bills", "Streaming"]
-
-    graph_response = client.get(f"/api/v1/groups/{parent['id']}")
-    graph_response.raise_for_status()
-    graph = graph_response.json()
-    assert graph["direct_child_group_count"] == 1
-    assert graph["descendant_entry_count"] == 1
-    assert graph["nodes"][0]["node_type"] == "GROUP"
+    assert {group["name"] for group in entry_detail.json()["groups"]} == {
+        "Subscriptions",
+        "Entertainment",
+    }
 
 
 def test_entry_routes_are_scoped_by_principal(client, auth_headers):
@@ -762,20 +630,20 @@ def test_entry_routes_are_scoped_by_principal(client, auth_headers):
 def test_group_routes_are_scoped_by_principal(client, auth_headers):
     admin_account_id = create_account(client)
     admin_entry = create_entry(client, admin_account_id, "Admin Entry 1")
-    admin_group = create_group(client, "Admin Group", "BUNDLE")
+    admin_group = create_group(client, "Admin Group")
     admin_add = client.post(
         f"/api/v1/groups/{admin_group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": admin_entry["id"]}},
+        json={"entry_id": admin_entry["id"]},
     )
     admin_add.raise_for_status()
 
     alice_headers = auth_headers("alice")
     alice_account_id = create_account(client, name="Alice Checking", headers=alice_headers)
     alice_entry = create_entry(client, alice_account_id, "Alice Entry 1", headers=alice_headers)
-    alice_group = create_group(client, "Alice Group", "BUNDLE", headers=alice_headers)
+    alice_group = create_group(client, "Alice Group", headers=alice_headers)
     alice_add = client.post(
         f"/api/v1/groups/{alice_group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": alice_entry["id"]}},
+        json={"entry_id": alice_entry["id"]},
         headers=alice_headers,
     )
     alice_add.raise_for_status()
@@ -792,10 +660,10 @@ def test_group_routes_are_scoped_by_principal(client, auth_headers):
 def test_soft_delete_entry_removes_group_membership(client):
     account_id = create_account(client)
     entry = create_entry(client, account_id, "Child")
-    group = create_group(client, "Temp Group", "BUNDLE")
+    group = create_group(client, "Temp Group")
     add_response = client.post(
         f"/api/v1/groups/{group['id']}/members",
-        json={"target": {"target_type": "entry", "entry_id": entry["id"]}},
+        json={"entry_id": entry["id"]},
     )
     add_response.raise_for_status()
 
@@ -805,8 +673,8 @@ def test_soft_delete_entry_removes_group_membership(client):
     group_response = client.get(f"/api/v1/groups/{group['id']}")
     group_response.raise_for_status()
     payload = group_response.json()
-    assert payload["nodes"] == []
-    assert payload["descendant_entry_count"] == 0
+    assert payload["members"] == []
+    assert payload["member_count"] == 0
 
 
 def test_entry_defaults_owner_to_current_user(client):
@@ -828,7 +696,7 @@ def test_entry_defaults_owner_to_current_user(client):
 def test_catalog_patch_endpoints_reject_empty_payloads(client):
     account_id = create_account(client)
     entity = create_entity(client, "Merchant")
-    group = create_group(client, "Bills", "BUNDLE")
+    group = create_group(client, "Bills")
 
     tag_response = client.post(
         "/api/v1/tags",

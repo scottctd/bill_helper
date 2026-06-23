@@ -16,8 +16,7 @@ import {
   Layers3,
   Network,
   Settings2,
-  Shield,
-  SlidersHorizontal
+  Shield
 } from "lucide-react";
 
 export type AppNavItem = {
@@ -34,7 +33,6 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   { to: "/accounts", label: "Accounts", icon: CreditCard },
   { to: "/entries", label: "Entries", icon: Layers3 },
   { to: "/groups", label: "Groups", icon: Network },
-  { to: "/filters", label: "Filters", icon: SlidersHorizontal },
   { to: "/entities", label: "Entities", icon: Building2 },
   { to: "/properties", label: "Properties", icon: FolderKanban }
 ];

@@ -30,8 +30,8 @@ from backend.services.agent.change_contracts.catalog import (
     ProposeCreateSnapshotArgs,
 )
 from backend.services.agent.change_contracts.entries import CreateEntryPayload
-from backend.services.agent.change_contracts.groups import CreateGroupPayload
-from backend.cli.support import CliContext, CliError, resolve_account_id
+from backend.contracts_groups import GroupCreateCommand
+from backend.cli.support import CliContext, CliError, resolve_account_id, load_json_argument
 
 
 _PYDANTIC_LINK_PATTERN = re.compile(r"https?://errors\.pydantic\.dev/\S+")
@@ -177,10 +177,17 @@ def _build_snapshots_payload(args: argparse.Namespace, context: CliContext) -> d
 
 
 def _build_groups_payload(args: argparse.Namespace, _context: CliContext) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "name": args.name,
-        "group_type": args.group_type,
+        "source": args.source,
     }
+    if args.description is not None:
+        payload["description"] = args.description
+    if args.color is not None:
+        payload["color"] = args.color
+    if args.rule_json is not None:
+        payload["rule"] = load_json_argument(inline_json=args.rule_json, json_file=args.rule_file)
+    return payload
 
 
 def _build_entities_payload(args: argparse.Namespace, _context: CliContext) -> dict[str, Any]:
@@ -469,16 +476,21 @@ GROUP_CREATE_SPEC = CreateCommandSpec(
     description=(
         "Create a group proposal in the current thread.\n\n"
         "Required fields:\n"
-        "  --name, --group-type"
+        "  --name\n"
+        "Optional fields:\n"
+        "  --source {manual,rule}, --description, --color, --rule-json or --rule-file"
     ),
     epilog=(
-        "Example:\n"
-        "  bh groups create --name \"Monthly Bills\" --group-type BUNDLE\n"
+        "Examples:\n"
+        "  bh groups create --name \"Monthly Bills\" --source manual\n"
+        "  bh groups create --name \"Groceries\" --source rule --rule-json "
+        '\'{"include":{"type":"group","operator":"AND","children":[{"type":"condition","field":"tags","operator":"has_any","value":["groceries"]}]},"exclude":null}\'\n'
         "\n"
-        "--group-type choices: BUNDLE, SPLIT, RECURRING."
+        "--source defaults to manual. Rule groups require --rule-json or --rule-file."
     ),
-    validation_model=CreateGroupPayload,
+    validation_model=GroupCreateCommand,
     payload_builder=_build_groups_payload,
+    parser_defaults={"source": "manual"},
     fields=(
         CreateFieldSpec(
             flags=("--name",),
@@ -487,14 +499,36 @@ GROUP_CREATE_SPEC = CreateCommandSpec(
             argument_kwargs={"help": "Group display name."},
         ),
         CreateFieldSpec(
-            flags=("--group-type",),
-            payload_field="group_type",
-            required=True,
+            flags=("--source",),
+            payload_field="source",
             argument_kwargs={
-                "choices": ("BUNDLE", "SPLIT", "RECURRING"),
-                "type": str.upper,
-                "help": "Group type. Choices: BUNDLE, SPLIT, RECURRING.",
+                "choices": ("manual", "rule"),
+                "type": str.lower,
+                "default": "manual",
+                "help": "Group source. Choices: manual, rule. Defaults to manual.",
             },
+        ),
+        CreateFieldSpec(
+            flags=("--description",),
+            payload_field="description",
+            argument_kwargs={"help": "Optional group description."},
+        ),
+        CreateFieldSpec(
+            flags=("--color",),
+            payload_field="color",
+            argument_kwargs={"help": "Optional group color token."},
+        ),
+        CreateFieldSpec(
+            flags=("--rule-json",),
+            payload_field="rule",
+            exclusive_group="rule",
+            argument_kwargs={"dest": "rule_json", "help": "Inline JSON rule document for rule groups."},
+        ),
+        CreateFieldSpec(
+            flags=("--rule-file",),
+            payload_field="rule",
+            exclusive_group="rule",
+            argument_kwargs={"dest": "rule_file", "help": "Local JSON rule file for rule groups."},
         ),
     ),
 )

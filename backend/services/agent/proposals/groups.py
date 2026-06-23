@@ -8,9 +8,9 @@ from __future__ import annotations
 from typing import Any
 
 from backend.enums_agent import AgentChangeStatus, AgentChangeType
-from backend.enums_finance import GroupType
+from backend.enums_finance import GroupSource
 from backend.models_agent import AgentChangeItem
-from backend.models_finance import Entry, EntryGroup, EntryGroupMember
+from backend.models_finance import Group
 from backend.services.agent.change_contracts.groups import (
     CreateGroupPayload as ProposeCreateGroupArgs,
     DeleteGroupPayload as ProposeDeleteGroupArgs,
@@ -58,7 +58,7 @@ def resolve_group_proposal_reference_or_error(
     return item
 
 
-def _find_groups_for_reference(context: ToolContext, *, group_id: str) -> list[EntryGroup]:
+def _find_groups_for_reference(context: ToolContext, *, group_id: str) -> list[Group]:
     try:
         principal = require_tool_principal(context)
     except ValueError:
@@ -70,37 +70,15 @@ def _find_groups_for_reference(context: ToolContext, *, group_id: str) -> list[E
     )
 
 
-def sorted_group_memberships(group: EntryGroup) -> list[EntryGroupMember]:
-    return sorted(
-        group.memberships,
-        key=lambda member: (member.position, member.created_at, member.id),
-    )
-
-
-def descendant_entries_for_group(group: EntryGroup) -> list[Entry]:
-    entries: list[Entry] = []
-    for membership in sorted_group_memberships(group):
-        if membership.entry is not None and not membership.entry.is_deleted:
-            entries.append(membership.entry)
-            continue
-        if membership.child_group is None:
-            continue
-        for child_membership in sorted_group_memberships(membership.child_group):
-            if child_membership.entry is not None and not child_membership.entry.is_deleted:
-                entries.append(child_membership.entry)
-    return entries
-
-
-def group_preview_from_existing(group: EntryGroup) -> dict[str, Any]:
-    summary = build_group_summary(group)
+def group_preview_from_existing(context: ToolContext, group: Group) -> dict[str, Any]:
+    summary = build_group_summary(context.db, group)
     return {
         "source": "group",
         "group_id": group.id,
         "group_short_id": group_public_id(group.id),
         "name": summary.name,
-        "group_type": summary.group_type.value,
-        "direct_member_count": summary.direct_member_count,
-        "descendant_entry_count": summary.descendant_entry_count,
+        "group_source": summary.source.value,
+        "member_count": summary.member_count,
     }
 
 
@@ -112,7 +90,7 @@ def group_preview_from_proposal(item: AgentChangeItem) -> dict[str, Any]:
         "proposal_short_id": proposal_short_id(item.id),
         "proposal_status": item.status.value,
         "name": payload.get("name"),
-        "group_type": payload.get("group_type"),
+        "group_source": payload.get("source"),
     }
 
 
@@ -120,14 +98,14 @@ def match_existing_group_or_error(
     context: ToolContext,
     *,
     group_id: str,
-) -> EntryGroup | ToolExecutionResult:
+) -> Group | ToolExecutionResult:
     matches = _find_groups_for_reference(context, group_id=group_id)
     if not matches:
         return error_result("no group matched group_id", details={"group_id": group_id})
     if len(matches) > 1:
         return error_result(
             "ambiguous group_id matched multiple groups; retry with one of the candidate ids",
-            details=group_id_ambiguity_details(matches, group_id=group_id),
+            details=group_id_ambiguity_details(context.db, matches, group_id=group_id),
         )
     return matches[0]
 
@@ -137,7 +115,7 @@ def canonical_group_ref_payload(
     *,
     group_ref: GroupReferencePayload,
     expected_statuses: set[AgentChangeStatus] | None = None,
-) -> tuple[dict[str, Any], EntryGroup | None, AgentChangeItem | None] | ToolExecutionResult:
+) -> tuple[dict[str, Any], Group | None, AgentChangeItem | None] | ToolExecutionResult:
     if group_ref.group_id is not None:
         group = match_existing_group_or_error(context, group_id=group_ref.group_id)
         if isinstance(group, ToolExecutionResult):
@@ -155,15 +133,15 @@ def canonical_group_ref_payload(
     return {"create_group_proposal_id": proposal.id}, None, proposal
 
 
-def resolved_group_type_from_ref(
+def resolved_group_source_from_ref(
     context: ToolContext,
     group_ref: GroupReferencePayload,
-) -> tuple[GroupType | None, dict[str, Any], EntryGroup | None, AgentChangeItem | None] | ToolExecutionResult:
+) -> tuple[GroupSource | None, dict[str, Any], Group | None, AgentChangeItem | None] | ToolExecutionResult:
     if group_ref.group_id is not None:
         group = match_existing_group_or_error(context, group_id=group_ref.group_id)
         if isinstance(group, ToolExecutionResult):
             return group
-        return group.group_type, group_preview_from_existing(group), group, None
+        return group.source, group_preview_from_existing(context, group), group, None
 
     assert group_ref.create_group_proposal_id is not None
     proposal = resolve_group_proposal_reference_or_error(
@@ -178,9 +156,9 @@ def resolved_group_type_from_ref(
     if isinstance(proposal, ToolExecutionResult):
         return proposal
     payload = proposal.payload_json
-    raw_type = payload.get("group_type")
-    group_type = GroupType(str(raw_type)) if isinstance(raw_type, str) else None
-    return group_type, group_preview_from_proposal(proposal), None, proposal
+    raw_source = payload.get("source")
+    group_source = GroupSource(str(raw_source)) if isinstance(raw_source, str) else None
+    return group_source, group_preview_from_proposal(proposal), None, proposal
 
 
 def group_ref_signature(group_ref: GroupReferencePayload) -> tuple[str, str]:
@@ -230,7 +208,7 @@ def pending_create_group_conflict(
     context: ToolContext,
     *,
     name: str,
-    group_type: str,
+    source: str,
     exclude_item_id: str | None = None,
 ) -> ToolExecutionResult | None:
     for item in pending_proposals_for_thread(context):
@@ -238,7 +216,7 @@ def pending_create_group_conflict(
             continue
         if item.change_type != AgentChangeType.CREATE_GROUP:
             continue
-        if item.payload_json.get("name") != name or item.payload_json.get("group_type") != group_type:
+        if item.payload_json.get("name") != name or item.payload_json.get("source") != source:
             continue
         return error_result(
             "a matching pending group creation proposal already exists in this thread",
@@ -251,12 +229,12 @@ def propose_create_group(context: ToolContext, args: ProposeCreateGroupArgs) -> 
     conflict = pending_create_group_conflict(
         context,
         name=args.name,
-        group_type=args.group_type.value,
+        source=args.source.value,
     )
     if conflict is not None:
         return conflict
 
-    payload = {"name": args.name, "group_type": args.group_type.value}
+    payload = args.model_dump(mode="json", exclude_unset=True)
     item = create_change_item(
         context,
         change_type=AgentChangeType.CREATE_GROUP,
@@ -282,8 +260,8 @@ def propose_update_group(context: ToolContext, args: ProposeUpdateGroupArgs) -> 
     payload = {
         "group_id": group.id,
         "patch": patch,
-        "current": group_preview_from_existing(group),
-        "target": group_detail_public_record(group),
+        "current": group_preview_from_existing(context, group),
+        "target": group_detail_public_record(context.db, group),
     }
     item = create_change_item(
         context,
@@ -307,10 +285,10 @@ def propose_delete_group(context: ToolContext, args: ProposeDeleteGroupArgs) -> 
     if conflict is not None:
         return conflict
 
-    summary = build_group_summary(group)
+    summary = build_group_summary(context.db, group)
     payload = {
         "group_id": group.id,
-        "target": group_detail_public_record(group),
+        "target": group_detail_public_record(context.db, group),
     }
     item = create_change_item(
         context,
@@ -320,7 +298,6 @@ def propose_delete_group(context: ToolContext, args: ProposeDeleteGroupArgs) -> 
     preview = {
         "group_id": group_public_id(group.id),
         "name": summary.name,
-        "direct_member_count": summary.direct_member_count,
-        "descendant_entry_count": summary.descendant_entry_count,
+        "member_count": summary.member_count,
     }
     return proposal_result("proposed group deletion", preview=preview, item=item)

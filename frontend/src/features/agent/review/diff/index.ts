@@ -27,7 +27,8 @@ import {
   buildUpdateAccountAfterRecord,
   buildUpdateGroupAfterRecord,
   buildUpdateGroupBeforeRecord,
-  previewName
+  previewName,
+  previewSource
 } from "./domains";
 import type { DiffMetadata, JsonRecord, ProposalDiff } from "./types";
 
@@ -104,7 +105,7 @@ export function buildProposalDiff(
     case "create_entity":
       return buildCreateDiff(payload, metadata, reviewerOverride);
     case "create_group":
-      pushMetadata(metadata, "Group type", (reviewerOverride?.group_type as unknown) ?? payload.group_type);
+      pushMetadata(metadata, "Source", (reviewerOverride?.source as unknown) ?? payload.source ?? "manual");
       return buildCreateDiff(buildGroupRecord(payload), metadata, reviewerOverride ? buildGroupRecord(reviewerOverride) : undefined);
     case "update_account": {
       const { before, after, reviewerEdited } = buildUpdateAccountAfterRecord(payload, reviewerOverride);
@@ -116,7 +117,7 @@ export function buildProposalDiff(
       return buildUpdateDiff(payload, metadata, reviewerOverride);
     case "update_group": {
       pushMetadata(metadata, "Group ID", payload.group_id);
-      pushMetadata(metadata, "Group type", asRecord(payload.current).group_type);
+      pushMetadata(metadata, "Source", previewSource(asRecord(payload.current)));
       const { before, after, reviewerEdited } = buildUpdateGroupAfterRecord(payload, reviewerOverride);
       return buildRecordUpdateDiff(before, after, metadata, { reviewerEdited });
     }
@@ -144,9 +145,10 @@ export function buildProposalDiff(
       const memberPreview = asRecord(payload.member_preview);
       pushMetadata(metadata, "Group", previewName(parentGroup, "Unknown group"));
       pushMetadata(metadata, "Member", previewName(memberPreview, "Unknown member"));
-      pushMetadata(metadata, "Group type", parentGroup.group_type);
-      if (typeof payload.member_role === "string") {
-        pushMetadata(metadata, "Split role", payload.member_role);
+      pushMetadata(metadata, "Source", previewSource(parentGroup));
+      const override = asRecord(payload.target).override;
+      if (typeof override === "string") {
+        pushMetadata(metadata, "Override", override);
       }
       return buildGroupMembershipDiff(payload, metadata, "add", reviewerOverride);
     }
@@ -155,7 +157,7 @@ export function buildProposalDiff(
       const memberPreview = asRecord(payload.member_preview);
       pushMetadata(metadata, "Group", previewName(parentGroup, "Unknown group"));
       pushMetadata(metadata, "Member", previewName(memberPreview, "Unknown member"));
-      pushMetadata(metadata, "Group type", parentGroup.group_type);
+      pushMetadata(metadata, "Source", previewSource(parentGroup));
       return buildGroupMembershipDiff(payload, metadata, "remove");
     }
     default:

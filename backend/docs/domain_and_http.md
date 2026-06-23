@@ -53,7 +53,6 @@ Important read models:
 - `backend/services/tags.py`
 - `backend/services/taxonomy.py`: taxonomy definitions, two-level entry-category terms, lifecycle defaults, assignments, and guarded term deletion
 - `backend/services/groups.py`
-- `backend/services/filter_groups.py`
 - `backend/services/account_balances.py`
 - `backend/services/finance_reconciliation.py`
 - `backend/services/users.py`
@@ -87,7 +86,6 @@ Protected routers:
 - `entries.py`
 - `groups.py`
 - `dashboard.py`
-- `filter_groups.py`
 - `entities.py`
 - `tags.py`
 - `taxonomies.py`

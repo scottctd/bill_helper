@@ -56,7 +56,8 @@ Command specifications:
   - `--account-id ID: account id or unique short id prefix filter.`
   - `--source TEXT: free-text source filter.`
   - `--tag NAME: tag-name filter.`
-  - `--filter-group-id ID: group id or unique short id prefix filter.`
+  - `--category TEXT: entry category leaf, parent, or uncategorized filter.`
+  - `--group-id ID: group id or unique short id prefix filter.`
   - `--limit N: integer result limit. Default 20.`
   - `--offset N: integer result offset. Default 0.`
 
@@ -79,6 +80,8 @@ Command specifications:
   - `--currency-code CODE: optional 3-letter currency code. Defaults to runtime settings when omitted.`
   - `--tag NAME: tag name. Repeat for multiple tags.`
   - `--markdown-notes TEXT: optional markdown notes.`
+  - `--category TEXT: optional entry category leaf or path, for example food_drink/groceries.`
+  - `--lifecycle {fixed,day_to_day,one_time}: optional lifecycle override.`
 
 ### `bh entries import`
 - Purpose: Create multiple entry proposals in the current thread from one JSON document.
@@ -175,7 +178,7 @@ Command specifications:
 - Optional arguments: none.
 
 ### `bh groups get <group_id>`
-- Purpose: Get one group graph.
+- Purpose: Get one group.
 - Required arguments:
   - `<group_id>: full group id or unique short id prefix.`
 - Optional arguments: none.
@@ -184,8 +187,11 @@ Command specifications:
 - Purpose: Create a group proposal in the current thread.
 - Required arguments:
   - `--name TEXT: group display name.`
-  - `--group-type {BUNDLE,SPLIT,RECURRING}: group type.`
-- Optional arguments: none.
+- Optional arguments:
+  - `--source {manual,rule}: group source. Defaults to manual.`
+  - `--description TEXT: optional group description.`
+  - `--color TEXT: optional group color token.`
+  - `--rule-json JSON or --rule-file PATH: required for rule groups.`
 
 ### `bh groups update <group_id>`
 - Purpose: Create a group-update proposal in the current thread.
@@ -195,7 +201,7 @@ Command specifications:
 - Optional arguments: none.
 - Notes:
   - JSON/PATH must contain a patch object.
-  - Patch object format: `{"name":"New Group Name"}`.
+  - Patch object format examples: `{"name":"New Group Name"}` or `{"rule":{...}}`.
 
 ### `bh groups remove <group_id>`
 - Purpose: Create a group-delete proposal in the current thread.
@@ -209,11 +215,11 @@ Command specifications:
   - `exactly one of --payload-json JSON or --payload-file PATH.`
 - Optional arguments: none.
 - Notes:
-  - Payload is nested; discriminated by `target.target_type` (`entry` vs `child_group`).
-  - Top-level JSON: `{"action":"add","group_ref":{...},"target":{...},"member_role":"PARENT|CHILD"}`. `member_role` is optional unless SPLIT rules require it.
+  - Payload is nested; `target.target_type` must be `entry`.
+  - Top-level JSON: `{"action":"add","group_ref":{...},"target":{...}}`.
   - Parent `group_ref`: exactly one of `{"group_id":"<id>"}` or `{"create_group_proposal_id":"<id>"}`.
   - Entry target: `{"target_type":"entry","entry_ref":{"entry_id":"<id>"}}` or `entry_ref` with `create_entry_proposal_id`.
-  - Child-group target: `{"target_type":"child_group","group_ref":{...}}` with `group_id` or `create_group_proposal_id`.
+  - Rule groups require `target.override` (`include` or `exclude`); manual groups must omit `override`.
 
 ### `bh groups remove-member`
 - Purpose: Create a group-membership removal proposal.
@@ -222,7 +228,7 @@ Command specifications:
 - Optional arguments: none.
 - Notes:
   - Remove supports **existing ids only**; proposal-id references are rejected for parent group and targets.
-  - Top-level JSON: `{"action":"remove","group_ref":{"group_id":"<id>"},"target":{...}}` with discriminated `target` (`entry` vs `child_group`).
+  - Top-level JSON: `{"action":"remove","group_ref":{"group_id":"<id>"},"target":{"target_type":"entry","entry_ref":{"entry_id":"<id>"}}}`.
 
 ### `bh entities list`
 - Purpose: List entities.
@@ -361,7 +367,7 @@ Command specifications:
   - `--months LIST: comma-separated YYYY-MM list (backend max 24).`
   - `--sections NAME: section filter. Repeat or comma-separate. Default: all.`
   - `--breakdown-depth {summary,categories,destinations,entries}: category drill-down depth.`
-  - `Sections: meta, kpis, categories, lifecycles, filter_groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.`
+  - `Sections: meta, kpis, categories, lifecycles, groups, daily_spending, monthly_trend, spending_by_from, spending_by_to, spending_by_tag, income_by_from, weekday_spending, largest_expenses, projection, reconciliation, all.`
 - Notes:
   - Dashboard currency only; internal account-to-account transfers are excluded from expense analytics.
   - Use `--format json --sections categories` for the category -> destination -> entry tree.
@@ -383,10 +389,10 @@ Command specifications:
   - Example: bh dashboard agent get --range 90d --sections model_breakdown,top_runs --format json
 
 Compact output schemas:
-- `entries_list` -> `id|date|kind|amount_minor|currency|name|from|to|tags`
+- `entries_list` -> `id|date|kind|amount_minor|currency|name|from|to|tags|category|lifecycle`
 - `accounts_list` -> `id|name|currency|active|balance_minor|balance_as_of`
 - `snapshots_list` -> `id|date|balance_minor|note`
-- `groups_list` -> `id|type|name|descendants|first_date|last_date`
+- `groups_list` -> `id|source|name|members|first_date|last_date`
 - `entities_list` -> `name|category`
 - `tags_list` -> `name|type|description`
 - `sessions_detail` -> `id|title|pending|running|updated_at`
@@ -395,7 +401,7 @@ Compact output schemas:
 - `dashboard_kpis` -> `expense_minor|income_minor|net_minor|cash_withdrawal_minor|avg_day_minor|median_day_minor|spending_days|one_time_minor|core_spend_minor|uncategorized_minor`
 - `dashboard_categories` -> `name|total_minor|share|entry_count`
 - `dashboard_lifecycles` -> `lifecycle|total_minor|share|entry_count`
-- `dashboard_filter_groups` -> `key|name|total_minor|share`
+- `dashboard_groups` -> `group_id|name|source|total_minor|share`
 - `dashboard_breakdown` -> `kind|label|total_minor|share`
 - `dashboard_agent_metrics` -> `total_cost_usd|total_tokens|total_runs|completed_runs|failed_runs|avg_cost_usd|avg_tokens|cache_hit_rate|most_used_model|failure_rate`
 
@@ -408,8 +414,10 @@ Common flows:
 - Read agent cost KPIs: `bh dashboard agent get --range 30d --sections metrics`
 - Inspect current proposal state: `bh proposals list --proposal-status PENDING_REVIEW --limit 20`
 - Create a tag proposal: `bh tags create --name travel --type context`
+- Create an entry proposal: `bh entries create --kind EXPENSE --date 2026-03-15 --name "Farm Boy" --amount-minor 1234 --from-entity Checking --to-entity "Farm Boy" --category food_drink/groceries --lifecycle day_to_day`
 - Create an entry-update proposal: `bh entries update 8bf2fa83 --patch-json '{"category":"groceries","lifecycle":"one_time"}'`
-- Import multiple entry proposals: `bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}'`
+- Import multiple entry proposals: `bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy","category":"food_drink/groceries","lifecycle":"day_to_day"}]}'`
+- Patch a pending create-entry proposal: `bh proposals update a1b2c3d4 --patch-json '{"category":"food_drink/groceries","lifecycle":"day_to_day"}'`
 - Create an account proposal: `bh accounts create --name "Wealthsimple Cash" --currency-code CAD --inactive`
 - Create a snapshot proposal: `bh snapshots create --account-id 1a2b3c4d --snapshot-at 2026-03-15 --balance 1234.56 --note "statement balance"`
 - Update a pending proposal: `bh proposals update a1b2c3d4 --patch-json '{"patch.tags":["travel"]}'`
@@ -479,16 +487,15 @@ For tag deletion:
 - Use `bh snapshots reconciliation` to explain interval deltas, identify mismatched periods, and help the user find untracked transactions.
 
 ### Groups
-#### Group Types
-- `BUNDLE`: a related set of direct members that should be treated together; the derived graph is fully connected across the direct members. Example: an Uber trip plus a separate Uber tip, or two split payments for the same Loblaw grocery run.
-- `SPLIT`: one parent side split across child side members; at most one direct member is `PARENT`, parent descendants must be `EXPENSE`, and child descendants must be `INCOME`. Example: the user paid for dinner and friends pay them back.
-- `RECURRING`: repeated entries of the same `EntryKind` over time; descendant entries must share one kind and the derived graph is a chronological chain. Example: subscriptions, utility bills, or rent.
+#### Sources
+- `manual`: explicit entry membership only.
+- `rule`: membership comes from the saved rule tree plus optional include/exclude override rows on individual entries.
 
 #### Group Proposal Workflow
-- Before mutating an existing group, inspect the current group first.
+- Before mutating an existing group, inspect the current group first with `bh groups get`.
 - Before proposing group membership changes involving entries, inspect entries first and use the exact entry id.
-- After proposing a new entry, check whether it should join an existing recurring, split, or bundle group.
-  If it should, inspect the likely group and then create the group-membership proposal.
+- Manual groups: add members without an `override` field.
+- Rule groups: membership changes require `override` (`include` or `exclude`) on the entry target.
 - When building a new structure across multiple proposals, use pending create_group and create_entry proposal ids as references
   in later membership proposals instead of inventing ids.
 - If a group membership proposal depends on pending create proposals, those dependencies must be approved and applied before the dependent group proposal can be approved.

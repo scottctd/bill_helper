@@ -20,7 +20,7 @@ from backend.config import get_settings
 from backend.database import build_engine_for_url
 
 
-REQUIRED_REVISION = "0048_remove_builtin_filter_groups"
+REQUIRED_REVISION = "0049_unified_groups"
 VALID_CONFIDENCES = {"high", "medium", "low"}
 
 

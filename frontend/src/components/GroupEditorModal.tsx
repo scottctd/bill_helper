@@ -7,37 +7,37 @@
  */
 import { useEffect, useState } from "react";
 
-import type { GroupType } from "../lib/types";
+import type { GroupSource } from "../lib/types";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { NativeSelect } from "./ui/native-select";
 
-const GROUP_TYPE_OPTIONS: GroupType[] = ["BUNDLE", "SPLIT", "RECURRING"];
+const GROUP_SOURCE_OPTIONS: GroupSource[] = ["manual", "rule"];
 
 interface GroupEditorModalProps {
   isOpen: boolean;
   mode: "create" | "rename";
   initialName?: string;
-  initialGroupType?: GroupType;
+  initialGroupSource?: GroupSource;
   isSaving: boolean;
   saveError?: string | null;
   onClose: () => void;
-  onSubmit: (payload: { name: string; group_type: GroupType }) => void;
+  onSubmit: (payload: { name: string; source: GroupSource }) => void;
 }
 
 export function GroupEditorModal({
   isOpen,
   mode,
   initialName = "",
-  initialGroupType = "BUNDLE",
+  initialGroupSource = "manual",
   isSaving,
   saveError = null,
   onClose,
   onSubmit
 }: GroupEditorModalProps) {
   const [name, setName] = useState(initialName);
-  const [groupType, setGroupType] = useState<GroupType>(initialGroupType);
+  const [groupSource, setGroupSource] = useState<GroupSource>(initialGroupSource);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,9 +45,9 @@ export function GroupEditorModal({
       return;
     }
     setName(initialName);
-    setGroupType(initialGroupType);
+    setGroupSource(initialGroupSource);
     setFormError(null);
-  }, [initialGroupType, initialName, isOpen]);
+  }, [initialGroupSource, initialName, isOpen]);
 
   function submit() {
     const normalizedName = name.trim();
@@ -56,7 +56,7 @@ export function GroupEditorModal({
       return;
     }
     setFormError(null);
-    onSubmit({ name: normalizedName, group_type: groupType });
+    onSubmit({ name: normalizedName, source: groupSource });
   }
 
   return (
@@ -66,8 +66,8 @@ export function GroupEditorModal({
           <DialogTitle>{mode === "create" ? "Create Group" : "Rename Group"}</DialogTitle>
           <DialogDescription>
             {mode === "create"
-              ? "Create an empty typed group now and add members afterwards."
-              : "Rename this group without changing its type."}
+              ? "Create a group now and add members or rules afterwards."
+              : "Rename this group without changing its source."}
           </DialogDescription>
         </DialogHeader>
 
@@ -78,13 +78,13 @@ export function GroupEditorModal({
           </label>
 
           <label className="field min-w-0">
-            <span>Type</span>
+            <span>Source</span>
             <NativeSelect
-              value={groupType}
-              onChange={(event) => setGroupType(event.target.value as GroupType)}
+              value={groupSource}
+              onChange={(event) => setGroupSource(event.target.value as GroupSource)}
               disabled={mode === "rename"}
             >
-              {GROUP_TYPE_OPTIONS.map((option) => (
+              {GROUP_SOURCE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>

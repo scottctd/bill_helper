@@ -327,16 +327,18 @@ def _proposal_summary(item: AgentChangeItem) -> str:
     if change_type == AgentChangeType.DELETE_ENTRY.value:
         return f"delete entry target={payload.get('entry_id')}"
     if change_type == AgentChangeType.CREATE_GROUP.value:
-        return f"create group name={payload.get('name')} group_type={payload.get('group_type')}"
+        return f"create group name={payload.get('name')} source={payload.get('source')}"
     if change_type == AgentChangeType.UPDATE_GROUP.value:
         return f"update group group_id={payload.get('group_id')} patch={payload.get('patch') or {}}"
     if change_type == AgentChangeType.DELETE_GROUP.value:
         return f"delete group group_id={payload.get('group_id')}"
     if change_type == AgentChangeType.CREATE_GROUP_MEMBER.value:
+        target = payload.get("target") or {}
+        override = target.get("override") if isinstance(target, dict) else None
+        override_text = f" override={override}" if override else ""
         return (
             f"add group member group_ref={payload.get('group_ref')} "
-            f"target={payload.get('target')} "
-            f"member_role={payload.get('member_role')}"
+            f"target={payload.get('target')}{override_text}"
         )
     if change_type == AgentChangeType.DELETE_GROUP_MEMBER.value:
         return f"remove group member group_ref={payload.get('group_ref')} target={payload.get('target')}"

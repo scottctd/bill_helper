@@ -11,8 +11,7 @@ import type {
   EntryLifecycle,
   EntryListResponse,
   EntryTagSuggestionRequest,
-  EntryTagSuggestionResponse,
-  GroupMemberRole
+  EntryTagSuggestionResponse
 } from "../types";
 import { request } from "./core";
 
@@ -27,7 +26,7 @@ export function listEntries(params: {
   to_entity?: string[];
   account_id?: string;
   category?: string;
-  filter_group_id?: string;
+  group_id?: string;
   limit?: number;
   offset?: number;
 }): Promise<EntryListResponse> {
@@ -65,8 +64,7 @@ export function createEntry(payload: {
   tags?: string[];
   category?: string;
   lifecycle?: EntryLifecycle | null;
-  direct_group_id?: string;
-  direct_group_member_role?: GroupMemberRole | null;
+  group_ids?: string[];
 }) {
   return request("/api/v1/entries", {
     method: "POST",

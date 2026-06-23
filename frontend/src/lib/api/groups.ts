@@ -6,26 +6,40 @@
  * - Side effects: HTTP requests only.
  */
 
-import type { GroupGraph, GroupMemberCreatePayload, GroupSummary, GroupType } from "../types";
+import type { GroupMemberCreatePayload, GroupRead, GroupRule, GroupSource, GroupSummary } from "../types";
 import { request } from "./core";
 
-export function createGroup(payload: { name: string; group_type: GroupType }): Promise<GroupSummary> {
-  return request<GroupSummary>("/api/v1/groups", {
+export function createGroup(payload: {
+  name: string;
+  source?: GroupSource;
+  description?: string | null;
+  color?: string | null;
+  rule?: GroupRule | null;
+}): Promise<GroupRead> {
+  return request<GroupRead>("/api/v1/groups", {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
-export function getGroup(groupId: string): Promise<GroupGraph> {
-  return request<GroupGraph>(`/api/v1/groups/${groupId}`);
+export function getGroup(groupId: string): Promise<GroupRead> {
+  return request<GroupRead>(`/api/v1/groups/${groupId}`);
 }
 
 export function listGroups(): Promise<GroupSummary[]> {
   return request<GroupSummary[]>("/api/v1/groups");
 }
 
-export function updateGroup(groupId: string, payload: { name: string }): Promise<GroupSummary> {
-  return request<GroupSummary>(`/api/v1/groups/${groupId}`, {
+export function updateGroup(
+  groupId: string,
+  payload: {
+    name?: string;
+    description?: string | null;
+    color?: string | null;
+    rule?: GroupRule | null;
+  }
+): Promise<GroupRead> {
+  return request<GroupRead>(`/api/v1/groups/${groupId}`, {
     method: "PATCH",
     body: JSON.stringify(payload)
   });
@@ -37,8 +51,8 @@ export function deleteGroup(groupId: string): Promise<void> {
   });
 }
 
-export function addGroupMember(groupId: string, payload: GroupMemberCreatePayload): Promise<GroupGraph> {
-  return request<GroupGraph>(`/api/v1/groups/${groupId}/members`, {
+export function addGroupMember(groupId: string, payload: GroupMemberCreatePayload): Promise<GroupRead> {
+  return request<GroupRead>(`/api/v1/groups/${groupId}/members`, {
     method: "POST",
     body: JSON.stringify(payload)
   });

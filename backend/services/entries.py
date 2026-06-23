@@ -12,17 +12,16 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from backend.auth.contracts import RequestPrincipal
-from backend.enums_finance import EntryKind, EntryLifecycle, GroupMemberRole
-from backend.models_finance import Entity, Entry, EntryGroup, EntryGroupMember, Tag
+from backend.enums_finance import EntryKind, EntryLifecycle
+from backend.models_finance import Entity, Entry, GroupMember, Tag
 from backend.services.access_scope import (
     ensure_principal_can_assign_user,
     load_entry_for_principal,
-    load_group_for_principal,
     load_user_for_principal,
 )
 from backend.services.crud_policy import PolicyViolation
 from backend.services.entities import ensure_entity_by_name
-from backend.services.groups import entry_group_options, group_tree_options, set_entry_direct_group
+from backend.services.groups import load_group, set_entry_manual_group_ids
 from backend.services.tags import generate_random_tag_color
 from backend.services.taxonomy import (
     assign_single_term_by_name,
@@ -98,16 +97,9 @@ class EntryCreateCommand(BaseModel):
     owner_ref: UserRef | None = None
     markdown_body: str | None = None
     tags: list[str] = Field(default_factory=list)
-    direct_group_id: str | None = None
-    direct_group_member_role: GroupMemberRole | None = None
+    group_ids: list[str] = Field(default_factory=list)
     category: str | None = None
     lifecycle: EntryLifecycle | None = None
-
-    @model_validator(mode="after")
-    def validate_direct_group_membership(self) -> EntryCreateCommand:
-        if self.direct_group_id is None and self.direct_group_member_role is not None:
-            raise ValueError("direct_group_member_role requires direct_group_id.")
-        return self
 
 
 class EntryUpdateCommand(BaseModel):
@@ -123,8 +115,7 @@ class EntryUpdateCommand(BaseModel):
     owner_ref: UserRefPatch | None = None
     markdown_body: str | None = None
     tags: list[str] | None = None
-    direct_group_id: str | None = None
-    direct_group_member_role: GroupMemberRole | None = None
+    group_ids: list[str] | None = None
     category: str | None = None
     lifecycle: EntryLifecycle | None = None
 
@@ -176,9 +167,7 @@ def set_entry_tags(db: Session, entry: Entry, tag_names: list[str]) -> None:
 def soft_delete_entry(db: Session, entry: Entry) -> None:
     entry.is_deleted = True
     entry.deleted_at = utc_now()
-    db.execute(
-        delete(EntryGroupMember).where(EntryGroupMember.entry_id == entry.id)
-    )
+    db.execute(delete(GroupMember).where(GroupMember.entry_id == entry.id))
     db.flush()
 
 
@@ -260,20 +249,23 @@ def _resolve_user_ref(
     return None, None
 
 
-def _load_target_group(
+def _load_target_groups(
     db: Session,
     *,
-    group_id: str | None,
+    group_ids: list[str],
     principal: RequestPrincipal,
-) -> EntryGroup | None:
-    if group_id is None:
-        return None
-    return load_group_for_principal(
-        db,
-        group_id=group_id,
-        principal=principal,
-        stmt=select(EntryGroup).options(*group_tree_options()),
-    )
+) -> list[str]:
+    resolved: list[str] = []
+    for group_id in group_ids:
+        group = load_group(db, group_id)
+        if group is None or group.owner_user_id != principal.user_id:
+            raise PolicyViolation.not_found("Group not found.")
+        resolved.append(group.id)
+    return resolved
+
+
+def entry_load_options():
+    return (selectinload(Entry.tags), selectinload(Entry.group_members))
 
 
 def _load_entry_for_mutation(
@@ -286,7 +278,7 @@ def _load_entry_for_mutation(
         db,
         entry_id=entry_id,
         principal=principal,
-        stmt=select(Entry).options(selectinload(Entry.tags), *entry_group_options()),
+        stmt=select(Entry).options(*entry_load_options()),
     )
 
 
@@ -339,8 +331,6 @@ def create_entry_from_command(
     command: EntryCreateCommand,
     principal: RequestPrincipal,
 ) -> Entry:
-    target_group = _load_target_group(db, group_id=command.direct_group_id, principal=principal)
-
     if command.owner_ref is None:
         owner_user_id = principal.user_id
         owner_name = principal.user_name
@@ -389,12 +379,14 @@ def create_entry_from_command(
         db, category=command.category, tags=command.tags, owner_user_id=owner_user_id
     )
     set_entry_tags(db, entry, command.tags)
-    set_entry_direct_group(
-        db,
-        entry=entry,
-        group=target_group,
-        member_role=command.direct_group_member_role,
-    )
+    if command.group_ids:
+        _load_target_groups(db, group_ids=command.group_ids, principal=principal)
+        set_entry_manual_group_ids(
+            db,
+            entry=entry,
+            group_ids=command.group_ids,
+            principal=principal,
+        )
     _assign_entry_category(
         db, entry=entry, category=command.category, owner_user_id=owner_user_id
     )
@@ -418,8 +410,7 @@ def update_entry_from_command(
 
     tags = update_data.pop("tags", None)
     category_value = update_data.pop("category", Ellipsis)
-    group_value = update_data.pop("direct_group_id", Ellipsis)
-    role_value = update_data.pop("direct_group_member_role", Ellipsis)
+    group_value = update_data.pop("group_ids", Ellipsis)
 
     if "currency_code" in update_data and update_data["currency_code"] is not None:
         update_data["currency_code"] = update_data["currency_code"].upper()
@@ -481,25 +472,12 @@ def update_entry_from_command(
             owner_user_id=resolved_owner_user_id,
         )
 
-    group_update_requested = group_value is not Ellipsis or role_value is not Ellipsis
-    if group_update_requested:
-        existing_membership = entry.group_membership
-        target_group_id = (
-            existing_membership.group_id if group_value is Ellipsis and existing_membership is not None else None
-        ) if group_value is Ellipsis else group_value
-        target_role = (
-            existing_membership.member_role if role_value is Ellipsis and existing_membership is not None else None
-        ) if role_value is Ellipsis else role_value
-        if target_group_id is None:
-            target_role = None
-
-        target_group = _load_target_group(db, group_id=target_group_id, principal=principal)
-
-        set_entry_direct_group(
+    if group_value is not Ellipsis:
+        set_entry_manual_group_ids(
             db,
             entry=entry,
-            group=target_group,
-            member_role=target_role,
+            group_ids=group_value or [],
+            principal=principal,
         )
 
     db.add(entry)

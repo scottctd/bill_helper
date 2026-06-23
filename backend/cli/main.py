@@ -172,7 +172,7 @@ def _build_entries_parser(subparsers) -> None:
     list_parser.add_argument("--source", default=None)
     list_parser.add_argument("--tag", default=None)
     list_parser.add_argument("--category", default=None)
-    list_parser.add_argument("--filter-group-id", default=None)
+    list_parser.add_argument("--group-id", default=None)
     list_parser.add_argument("--limit", type=int, default=20)
     list_parser.add_argument("--offset", type=int, default=0)
     list_parser.set_defaults(handler=_handle_entries_list, render_key="entries_list")
@@ -270,7 +270,7 @@ def _build_groups_parser(subparsers) -> None:
     _add_format_option(list_parser)
     list_parser.set_defaults(handler=_handle_groups_list, render_key="groups_list")
 
-    get_parser = groups.add_parser("get", help="Get one group graph.")
+    get_parser = groups.add_parser("get", help="Get one group.")
     _add_format_option(get_parser)
     get_parser.add_argument("group_id")
     get_parser.set_defaults(handler=_handle_groups_get, render_key="groups_detail")
@@ -466,7 +466,7 @@ def _resolve_login_password(args: argparse.Namespace) -> str:
 def _handle_entries_list(args: argparse.Namespace, context: CliContext | None) -> Any:
     assert context is not None
     resolved_account_id = resolve_account_id(context, account_id=args.account_id) if args.account_id is not None else None
-    resolved_group_id = resolve_group_id(context, group_id=args.filter_group_id) if args.filter_group_id is not None else None
+    resolved_group_id = resolve_group_id(context, group_id=args.group_id) if args.group_id is not None else None
     _, payload = request_json(
         context,
         "GET",
@@ -480,7 +480,7 @@ def _handle_entries_list(args: argparse.Namespace, context: CliContext | None) -
             "source": args.source,
             "tag": args.tag,
             "category": args.category,
-            "filter_group_id": resolved_group_id,
+            "group_id": resolved_group_id,
             "limit": args.limit,
             "offset": args.offset,
         },

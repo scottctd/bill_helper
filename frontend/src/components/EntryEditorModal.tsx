@@ -16,7 +16,6 @@ import type {
   EntryKind,
   EntryLifecycle,
   EntryTagSuggestionRequest,
-  GroupMemberRole,
   GroupSummary,
   Tag,
   TaxonomyTerm,
@@ -31,7 +30,6 @@ import { CreatableSingleSelect } from "./CreatableSingleSelect";
 import {
   KIND_OPTIONS,
   LIFECYCLE_OPTIONS,
-  SPLIT_ROLE_OPTIONS,
   areFormStatesEqual,
   buildCreateForm,
   buildEditForm,
@@ -45,6 +43,7 @@ import { MarkdownBlockEditor } from "./MarkdownBlockEditor";
 import { SingleSelect } from "./SingleSelect";
 import { TagMultiSelect } from "./TagMultiSelect";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { NativeSelect } from "./ui/native-select";
@@ -146,41 +145,65 @@ export function EntryEditorModal({
     () => uniqueNormalizedEntityNames([...(entities.map((entity) => entity.name) ?? []), ...createdEntityOptionNames]),
     [createdEntityOptionNames, entities]
   );
-  const groupOptions = useMemo(
-    () => {
-      const availableGroups = [...groups];
-      if (entry?.direct_group && !availableGroups.some((group) => group.id === entry.direct_group?.id)) {
+  const manualGroups = useMemo(() => {
+    const availableGroups = [...groups].filter((group) => group.source === "manual");
+    for (const entryGroup of entry?.groups ?? []) {
+      if (entryGroup.source !== "manual") {
+        continue;
+      }
+      if (!availableGroups.some((group) => group.id === entryGroup.id)) {
         availableGroups.push({
-          id: entry.direct_group.id,
-          name: entry.direct_group.name,
-          group_type: entry.direct_group.group_type,
-          parent_group_id: null,
-          direct_member_count: 0,
-          direct_entry_count: 0,
-          direct_child_group_count: 0,
-          descendant_entry_count: 0,
+          id: entryGroup.id,
+          name: entryGroup.name,
+          description: null,
+          color: entryGroup.color,
+          source: entryGroup.source,
+          rule_summary: null,
+          member_count: 0,
           first_occurred_at: null,
-          last_occurred_at: null
+          last_occurred_at: null,
+          position: 0,
+          created_at: "",
+          updated_at: ""
         });
       }
+    }
 
-      return [
-        { value: "", label: "Ungrouped" },
-        ...availableGroups
-          .sort((left, right) => left.name.localeCompare(right.name))
-        .map((group) => ({
-          value: group.id,
-          label: `${group.name} · ${group.group_type}${group.parent_group_id ? " · child group" : ""}`
-        }))
-      ];
-    },
-    [entry?.direct_group, groups]
-  );
-  const selectedGroupType = useMemo(
+    return availableGroups.sort((left, right) => left.name.localeCompare(right.name));
+  }, [entry?.groups, groups]);
+
+  const manualGroupOptions = useMemo(
     () =>
-      groups.find((group) => group.id === formState.direct_group_id)?.group_type ??
-      (entry?.direct_group?.id === formState.direct_group_id ? entry.direct_group.group_type : null),
-    [entry?.direct_group, formState.direct_group_id, groups]
+      manualGroups.map((group, index) => ({
+        id: index,
+        name: group.name,
+        color: group.color,
+        description: null,
+        type: null,
+        entry_count: null
+      })),
+    [manualGroups]
+  );
+
+  const manualGroupNameById = useMemo(() => {
+    return new Map(manualGroups.map((group) => [group.id, group.name] as const));
+  }, [manualGroups]);
+
+  const manualGroupIdByName = useMemo(() => {
+    return new Map(manualGroups.map((group) => [group.name, group.id] as const));
+  }, [manualGroups]);
+
+  const selectedManualGroupNames = useMemo(
+    () =>
+      formState.manual_group_ids
+        .map((groupId) => manualGroupNameById.get(groupId))
+        .filter((groupName): groupName is string => Boolean(groupName)),
+    [formState.manual_group_ids, manualGroupNameById]
+  );
+
+  const ruleGroups = useMemo(
+    () => (entry?.groups ?? []).filter((group) => group.source === "rule"),
+    [entry?.groups]
   );
   const categoryOptionModels = useMemo(() => buildCategoryOptions(categoryTerms), [categoryTerms]);
   const categoryOptions = useMemo(
@@ -277,8 +300,7 @@ export function EntryEditorModal({
       to_entity_id: toEntityResolution.entityId,
       to_entity: toEntityResolution.entityName,
       owner_user_id: ownerUserId,
-      direct_group_id: formState.direct_group_id || null,
-      direct_group_member_role: formState.direct_group_id ? (selectedGroupType === "SPLIT" ? formState.direct_group_member_role : null) : null,
+      group_ids: formState.manual_group_ids,
       tags: formState.tags,
       category: formState.category.trim() || null,
       lifecycle: (formState.lifecycle || null) as EntryLifecycle | null,
@@ -581,43 +603,36 @@ export function EntryEditorModal({
             </div>
 
             <div className="entry-property-line entry-property-line-group">
-              <span className="entry-property-label">Group:</span>
+              <span className="entry-property-label">Groups:</span>
               <div className="grid gap-2">
                 <div className="entry-property-group entry-property-group-group">
-                  <SingleSelect
-                    value={formState.direct_group_id}
-                    options={groupOptions}
-                    ariaLabel="Group"
-                    placeholder="Ungrouped"
-                    searchable
-                    searchPlaceholder="Search groups..."
-                    emptyLabel="No matching groups."
+                  <TagMultiSelect
+                    options={manualGroupOptions}
+                    value={selectedManualGroupNames}
+                    ariaLabel="Manual groups"
+                    placeholder="Select manual groups..."
                     disabled={isSaving}
-                    onChange={(nextValue) =>
+                    onChange={(nextNames) =>
                       setFormState((state) => ({
                         ...state,
-                        direct_group_id: nextValue,
-                        direct_group_member_role: nextValue ? state.direct_group_member_role : "CHILD"
+                        manual_group_ids: nextNames
+                          .map((groupName) => manualGroupIdByName.get(groupName))
+                          .filter((groupId): groupId is string => Boolean(groupId))
                       }))
                     }
                   />
-                  {selectedGroupType === "SPLIT" ? (
-                    <>
-                      <span className="entry-property-inline-label">Split role:</span>
-                      <SingleSelect
-                        value={formState.direct_group_member_role}
-                        options={SPLIT_ROLE_OPTIONS}
-                        ariaLabel="Split role"
-                        disabled={isSaving}
-                        onChange={(nextValue) =>
-                          setFormState((state) => ({ ...state, direct_group_member_role: nextValue as GroupMemberRole }))
-                        }
-                      />
-                    </>
-                  ) : null}
                 </div>
+                {ruleGroups.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {ruleGroups.map((group) => (
+                      <Badge key={group.id} variant="outline">
+                        {group.name} · rule
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
                 <p className="text-xs text-muted-foreground">
-                  Each entry can belong to one direct group. Choose a child group here if you want the parent path to be derived automatically.
+                  Manual groups are editable here. Rule groups are computed automatically and shown read-only.
                 </p>
               </div>
             </div>

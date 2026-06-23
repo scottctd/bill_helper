@@ -306,20 +306,19 @@ def test_render_output_formats_group_node_amounts_as_major_units_in_text() -> No
     payload = {
         "id": "group-123",
         "name": "Trip",
-        "group_type": "manual",
-        "nodes": [
+        "source": "manual",
+        "members": [
             {
-                "subject_id": "entry-123",
-                "node_type": "entry",
-                "name": "Hotel",
-                "member_role": "member",
+                "id": "member-123",
+                "entry_id": "entry-123",
+                "entry_name": "Hotel",
+                "override": None,
                 "occurred_at": "2026-03-31",
                 "kind": "EXPENSE",
                 "amount_minor": 12345,
                 "currency_code": "CAD",
             }
         ],
-        "edges": [],
     }
 
     text_rendered = render_output(payload, output_format="text", render_key="groups_detail")
@@ -327,7 +326,7 @@ def test_render_output_formats_group_node_amounts_as_major_units_in_text() -> No
 
     assert "123.45 CAD" in text_rendered
     assert "12345" not in text_rendered
-    assert "entry-123|entry|Hotel|member|2026-03-31|EXPENSE|12345|-|-" in compact_rendered
+    assert "member-123|entry-123|Hotel|-|2026-03-31|EXPENSE|12345|CAD" in compact_rendered
     assert "123.45" not in compact_rendered
 
 
@@ -748,9 +747,9 @@ def test_group_and_account_lists_render_short_ids() -> None:
         [
             {
                 "id": "fedcba98-1234-5678-90ab-cdef12345678",
-                "group_type": "BUNDLE",
+                "source": "manual",
                 "name": "Bills",
-                "descendant_entry_count": 3,
+                "member_count": 3,
                 "first_occurred_at": "2026-01-01",
                 "last_occurred_at": "2026-03-01",
             }
@@ -760,7 +759,7 @@ def test_group_and_account_lists_render_short_ids() -> None:
     )
 
     assert "abcdef12|Main Checking|USD|true" in accounts_rendered
-    assert "fedcba98|BUNDLE|Bills|3|2026-01-01|2026-03-01" in groups_rendered
+    assert "fedcba98|manual|Bills|3|2026-01-01|2026-03-01" in groups_rendered
 
 
 def test_entries_create_help_mentions_required_and_optional_fields() -> None:

@@ -15,6 +15,5 @@ export * from "./api/catalogs";
 export * from "./api/core";
 export * from "./api/dashboard";
 export * from "./api/entries";
-export * from "./api/filterGroups";
 export * from "./api/groups";
 export * from "./api/settings";

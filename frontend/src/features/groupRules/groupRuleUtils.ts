@@ -1,16 +1,16 @@
 /**
  * CALLING SPEC:
- * - Purpose: provide normalized rule-building helpers for the filter-groups editor.
- * - Inputs: frontend callers that create, inspect, or sanitize filter-group rules.
+ * - Purpose: provide normalized rule-building helpers for the group rule editor.
+ * - Inputs: frontend callers that create, inspect, or sanitize group rules.
  * - Outputs: pure helper functions and editor-friendly defaults.
  * - Side effects: none.
  */
 import type {
-  FilterGroupRule,
-  FilterRuleCondition,
-  FilterRuleField,
-  FilterRuleGroup,
-  FilterRuleNode
+  GroupRule,
+  GroupRuleCondition,
+  GroupRuleField,
+  GroupRuleGroup,
+  GroupRuleNode
 } from "../../lib/types";
 
 const FALLBACK_TAG_NAME = "needs_review";
@@ -35,9 +35,9 @@ function normalizeTagList(values: unknown[]): string[] {
 }
 
 export function createDefaultCondition(
-  field: FilterRuleField = "entry_kind",
+  field: GroupRuleField = "entry_kind",
   preferredTagName?: string
-): FilterRuleCondition {
+): GroupRuleCondition {
   if (field === "tags") {
     const fallbackTagName = normalizeTagValue(preferredTagName) ?? FALLBACK_TAG_NAME;
     return {
@@ -66,9 +66,9 @@ export function createDefaultCondition(
 }
 
 export function createEmptyGroup(
-  preferredField: FilterRuleField = "entry_kind",
+  preferredField: GroupRuleField = "entry_kind",
   preferredTagName?: string
-): FilterRuleGroup {
+): GroupRuleGroup {
   return {
     type: "group",
     operator: "AND",
@@ -76,21 +76,21 @@ export function createEmptyGroup(
   };
 }
 
-export function buildDefaultRule(preferredTagName?: string): FilterGroupRule {
+export function buildDefaultRule(preferredTagName?: string): GroupRule {
   return {
     include: createEmptyGroup("entry_kind", preferredTagName),
     exclude: null
   };
 }
 
-export function normalizeRule(rule: FilterGroupRule, preferredTagName?: string): FilterGroupRule {
+export function normalizeRule(rule: GroupRule, preferredTagName?: string): GroupRule {
   return {
     include: normalizeGroup(rule.include, preferredTagName),
     exclude: rule.exclude ? normalizeGroup(rule.exclude, preferredTagName) : null
   };
 }
 
-export function normalizeGroup(group: FilterRuleGroup, preferredTagName?: string): FilterRuleGroup {
+export function normalizeGroup(group: GroupRuleGroup, preferredTagName?: string): GroupRuleGroup {
   return {
     ...group,
     operator: group.operator === "OR" ? "OR" : "AND",
@@ -101,7 +101,7 @@ export function normalizeGroup(group: FilterRuleGroup, preferredTagName?: string
   };
 }
 
-export function normalizeNode(node: FilterRuleNode, preferredTagName?: string): FilterRuleNode {
+export function normalizeNode(node: GroupRuleNode, preferredTagName?: string): GroupRuleNode {
   if (node.type === "group") {
     return normalizeGroup(node, preferredTagName);
   }
@@ -130,17 +130,17 @@ export function normalizeNode(node: FilterRuleNode, preferredTagName?: string): 
   };
 }
 
-export function containsNestedGroups(group: FilterRuleGroup): boolean {
+export function containsNestedGroups(group: GroupRuleGroup): boolean {
   return group.children.some((child) => child.type === "group");
 }
 
 export function createConditionForField(
-  field: FilterRuleField,
-  current: FilterRuleCondition | null,
+  field: GroupRuleField,
+  current: GroupRuleCondition | null,
   preferredTagName?: string
-): FilterRuleCondition {
+): GroupRuleCondition {
   if (current?.field === field) {
-    return normalizeNode(current, preferredTagName) as FilterRuleCondition;
+    return normalizeNode(current, preferredTagName) as GroupRuleCondition;
   }
   return createDefaultCondition(field, preferredTagName);
 }

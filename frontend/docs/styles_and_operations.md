@@ -8,13 +8,13 @@
 - `layout/StatBlock.tsx`
 - `layout/EmptyState.tsx`
 - `layout/InlineStatusMessage.tsx`
-- `EntryEditorModal.tsx` (entry fields, direct-group picker, and conditional split-role picker)
+- `EntryEditorModal.tsx` (entry fields, manual-group multi-select, and read-only rule-group badges)
 - `SingleSelect.tsx`
 - `CreatableSingleSelect.tsx`
 - `TagMultiSelect.tsx`
 - `hooks/useFloatingMenuPosition.ts`
 - `MarkdownBlockEditor.tsx`
-- `GroupGraphView.tsx`
+- `GroupDetailModal.tsx`
 - `GroupEditorModal.tsx`
 - `GroupMemberEditorModal.tsx`
 - `MetricCard.tsx`
@@ -102,7 +102,7 @@ Key ownership boundaries:
 ## Operational Impact
 
 - frontend depends on entry group-context fields (`direct_group`, `group_path`) in entry read models
-- frontend also depends on entry read/write support for `direct_group_member_role` when editing split-group membership from the entry modal
+- entry editor assigns manual groups via multi-select; rule group membership is computed from rules plus include/exclude overrides
 - frontend depends on group CRUD and graph APIs:
   - `POST /groups`
   - `GET /groups`

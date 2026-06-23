@@ -16,7 +16,7 @@ export type EntryListFilters = {
   currencies: string[];
   source: string;
   category: string;
-  filterGroupId: string;
+  groupId: string;
 };
 
 export const EMPTY_ENTRY_LIST_FILTERS: EntryListFilters = {
@@ -29,7 +29,7 @@ export const EMPTY_ENTRY_LIST_FILTERS: EntryListFilters = {
   currencies: [],
   source: "",
   category: "",
-  filterGroupId: ""
+  groupId: ""
 };
 
 export function entryListFiltersFromSearchParams(searchParams: URLSearchParams): EntryListFilters {
@@ -43,7 +43,7 @@ export function entryListFiltersFromSearchParams(searchParams: URLSearchParams):
     currencies: [],
     source: "",
     category: searchParams.get("category") ?? "",
-    filterGroupId: searchParams.get("filter_group_id") ?? ""
+    groupId: searchParams.get("group_id") ?? ""
   };
 }
 
@@ -62,10 +62,10 @@ export function entryListFiltersToSearchParams(filters: EntryListFilters, curren
     next.delete("end_date");
   }
 
-  if (filters.filterGroupId) {
-    next.set("filter_group_id", filters.filterGroupId);
+  if (filters.groupId) {
+    next.set("group_id", filters.groupId);
   } else {
-    next.delete("filter_group_id");
+    next.delete("group_id");
   }
 
   if (filters.category) {
@@ -112,7 +112,7 @@ export function countActiveEntryListFilters(filters: EntryListFilters): number {
   if (filters.currencies.length > 0) count += 1;
   if (filters.source.trim()) count += 1;
   if (filters.category) count += 1;
-  if (filters.filterGroupId) count += 1;
+  if (filters.groupId) count += 1;
   return count;
 }
 

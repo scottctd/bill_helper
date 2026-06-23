@@ -8,9 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from backend.enums_agent import AgentChangeStatus, AgentChangeType
-from backend.enums_finance import GroupMemberRole
 from backend.services.agent.change_contracts.groups import (
-    ChildGroupMemberTargetPayload,
     GroupMemberTargetPayload,
     GroupReferencePayload,
 )
@@ -24,7 +22,7 @@ from backend.services.agent.proposals.group_memberships.common import (
     canonical_group_member_target_payload,
     group_member_signature,
 )
-from backend.services.agent.proposals.groups import canonical_group_ref_payload, group_ref_signature
+from backend.services.agent.proposals.groups import canonical_group_ref_payload
 from backend.services.agent.proposals.group_memberships.validation import (
     validate_group_member_add_rules,
     validate_group_member_remove_rules,
@@ -74,18 +72,11 @@ def build_add_group_membership_payload(
     *,
     group_ref: GroupReferencePayload,
     target: GroupMemberTargetPayload,
-    member_role: GroupMemberRole | None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]] | ToolExecutionResult:
-    if isinstance(target, ChildGroupMemberTargetPayload) and group_ref_signature(group_ref) == group_ref_signature(
-        target.group_ref
-    ):
-        return error_result("a group cannot contain itself")
-
     previews = validate_group_member_add_rules(
         context,
         group_ref=group_ref,
         target=target,
-        member_role=member_role,
     )
     if isinstance(previews, ToolExecutionResult):
         return previews
@@ -119,7 +110,6 @@ def build_add_group_membership_payload(
         "action": "add",
         "group_ref": canonical_group_ref[0],
         "target": canonical_target[0],
-        "member_role": member_role.value if member_role is not None else None,
         "group_preview": group_preview,
         "member_preview": member_preview,
     }
@@ -159,7 +149,6 @@ def propose_update_group_membership(
             context,
             group_ref=args.group_ref,
             target=args.target,
-            member_role=args.member_role,
         )
         if isinstance(normalized, ToolExecutionResult):
             return normalized
@@ -181,7 +170,6 @@ def propose_update_group_membership(
             "action": "add",
             "group": group_preview,
             "member": member_preview,
-            "member_role": payload["member_role"],
         }
         return proposal_result("proposed group membership add", preview=preview, item=item)
 

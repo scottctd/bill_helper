@@ -115,6 +115,16 @@ def _render_entries_list_text(payload: dict[str, Any]) -> str:
     )
 
 
+def _format_entry_groups(groups: list[dict[str, Any]] | None) -> str:
+    if not groups:
+        return "-"
+    return ",".join(
+        escape_compact(str(group.get("name") or group.get("id") or "-"))
+        for group in groups
+        if isinstance(group, dict)
+    ) or "-"
+
+
 def _render_entry_detail_compact(payload: dict[str, Any]) -> str:
     lines = [
         compact_table(
@@ -133,8 +143,7 @@ def _render_entry_detail_compact(payload: dict[str, Any]) -> str:
                     ",".join(sorted(tag.get("name") or "-" for tag in payload.get("tags") or [])) or "-",
                     payload.get("category") or "-",
                     payload.get("lifecycle") or "-",
-                    (payload.get("direct_group") or {}).get("id") or "-",
-                    payload.get("direct_group_member_role") or "-",
+                    _format_entry_groups(payload.get("groups")),
                 ]
             ],
         )
@@ -146,6 +155,12 @@ def _render_entry_detail_compact(payload: dict[str, Any]) -> str:
 
 def _render_entry_detail_text(payload: dict[str, Any]) -> str:
     tags = ", ".join(sorted(tag.get("name") or "-" for tag in payload.get("tags") or [])) or "-"
+    groups = payload.get("groups") or []
+    group_labels = ", ".join(
+        str(group.get("name") or group.get("id") or "-")
+        for group in groups
+        if isinstance(group, dict)
+    ) or "-"
     lines = [
         detail_block(
             "Entry",
@@ -160,8 +175,7 @@ def _render_entry_detail_text(payload: dict[str, Any]) -> str:
                 ("Tags", tags),
                 ("Category", payload.get("category") or "-"),
                 ("Lifecycle", payload.get("lifecycle") or "-"),
-                ("Direct Group", (payload.get("direct_group") or {}).get("id") or "-"),
-                ("Group Role", payload.get("direct_group_member_role") or "-"),
+                ("Groups", group_labels),
             ],
         )
     ]
@@ -297,9 +311,9 @@ def _render_groups_list_compact(payload: list[dict[str, Any]]) -> str:
     rows = [
         [
             short_ids.get(str(item.get("id")), item.get("id") or "-"),
-            item.get("group_type") or "-",
+            item.get("source") or "-",
             item.get("name") or "-",
-            item.get("descendant_entry_count") or 0,
+            item.get("member_count") or 0,
             item.get("first_occurred_at") or "-",
             item.get("last_occurred_at") or "-",
         ]
@@ -313,9 +327,9 @@ def _render_groups_list_text(payload: list[dict[str, Any]]) -> str:
     rows = [
         [
             short_ids.get(str(item.get("id")), item.get("id") or "-"),
-            item.get("group_type") or "-",
+            item.get("source") or "-",
             item.get("name") or "-",
-            item.get("descendant_entry_count") or 0,
+            item.get("member_count") or 0,
             item.get("first_occurred_at") or "-",
             item.get("last_occurred_at") or "-",
         ]
@@ -323,42 +337,36 @@ def _render_groups_list_text(payload: list[dict[str, Any]]) -> str:
     ]
     return text_table(
         title="Groups",
-        headers=["ID", "Type", "Name", "Descendants", "First Date", "Last Date"],
+        headers=["ID", "Source", "Name", "Members", "First Date", "Last Date"],
         rows=rows,
         empty_text="(none)",
     )
 
 
 def _render_group_detail_compact(payload: dict[str, Any]) -> str:
-    node_rows = [
+    member_rows = [
         [
-            node.get("subject_id") or "-",
-            node.get("node_type") or "-",
-            node.get("name") or "-",
-            node.get("member_role") or "-",
-            node.get("occurred_at") or node.get("representative_occurred_at") or "-",
-            node.get("kind") or "-",
-            node.get("amount_minor") if node.get("amount_minor") is not None else "-",
-            node.get("group_type") or "-",
-            node.get("descendant_entry_count") if node.get("descendant_entry_count") is not None else "-",
+            member.get("id") or "-",
+            member.get("entry_id") or "-",
+            member.get("entry_name") or "-",
+            member.get("override") or "-",
+            member.get("occurred_at") or "-",
+            member.get("kind") or "-",
+            member.get("amount_minor") if member.get("amount_minor") is not None else "-",
+            member.get("currency_code") or "-",
         ]
-        for node in payload.get("nodes") or []
-    ]
-    edge_rows = [
-        [edge.get("source_graph_id") or "-", edge.get("target_graph_id") or "-", edge.get("group_type") or "-"]
-        for edge in payload.get("edges") or []
+        for member in payload.get("members") or []
+        if isinstance(member, dict)
     ]
     lines = [
         "OK",
         f"group_id: {escape_compact(payload.get('id') or '-')}",
         f"name: {escape_compact(payload.get('name') or '-')}",
-        f"type: {escape_compact(payload.get('group_type') or '-')}",
-        f"descendants: {payload.get('descendant_entry_count') or 0}",
-        f"nodes_schema: {compact_schema_for('groups_nodes')}",
+        f"source: {escape_compact(payload.get('source') or '-')}",
+        f"members: {payload.get('member_count') or len(member_rows)}",
+        f"schema: {compact_schema_for('groups_detail')}",
     ]
-    lines.extend(compact_row(row) for row in node_rows) if node_rows else lines.append("(none)")
-    lines.append(f"edges_schema: {compact_schema_for('groups_edges')}")
-    lines.extend(compact_row(row) for row in edge_rows) if edge_rows else lines.append("(none)")
+    lines.extend(compact_row(row) for row in member_rows) if member_rows else lines.append("(none)")
     return "\n".join(lines)
 
 
@@ -368,47 +376,34 @@ def _render_group_detail_text(payload: dict[str, Any]) -> str:
         [
             ("ID", payload.get("id")),
             ("Name", payload.get("name")),
-            ("Type", payload.get("group_type")),
-            ("Parent", payload.get("parent_group_id") or "-"),
-            ("Direct Members", payload.get("direct_member_count") or 0),
-            ("Descendant Entries", payload.get("descendant_entry_count") or 0),
+            ("Source", payload.get("source")),
+            ("Description", payload.get("description") or "-"),
+            ("Color", payload.get("color") or "-"),
+            ("Members", payload.get("member_count") or 0),
             ("First Date", payload.get("first_occurred_at") or "-"),
             ("Last Date", payload.get("last_occurred_at") or "-"),
+            ("Rule Summary", payload.get("rule_summary") or "-"),
         ],
     )
-    node_rows = [
+    member_rows = [
         [
-            node.get("subject_id") or "-",
-            node.get("node_type") or "-",
-            node.get("name") or "-",
-            node.get("member_role") or "-",
-            node.get("occurred_at") or node.get("representative_occurred_at") or "-",
-            node.get("kind") or "-",
-            format_minor_amount(node.get("amount_minor"), node.get("currency_code")),
-            node.get("group_type") or "-",
+            member.get("id") or "-",
+            member.get("entry_id") or "-",
+            member.get("entry_name") or "-",
+            member.get("override") or "-",
+            member.get("occurred_at") or "-",
+            member.get("kind") or "-",
+            format_minor_amount(member.get("amount_minor"), member.get("currency_code")),
+            member.get("currency_code") or "-",
         ]
-        for node in payload.get("nodes") or []
+        for member in payload.get("members") or []
+        if isinstance(member, dict)
     ]
-    edge_rows = [
-        [edge.get("source_graph_id") or "-", edge.get("target_graph_id") or "-", edge.get("group_type") or "-"]
-        for edge in payload.get("edges") or []
-    ]
-    return (
-        header
-        + "\n\n"
-        + text_table(
-            title="Nodes",
-            headers=["ID", "Type", "Name", "Role", "Date", "Kind", "Amount", "Group Type"],
-            rows=node_rows,
-            empty_text="(none)",
-        )
-        + "\n\n"
-        + text_table(
-            title="Edges",
-            headers=["Source", "Target", "Relation"],
-            rows=edge_rows,
-            empty_text="(none)",
-        )
+    return header + "\n\n" + text_table(
+        title="Members",
+        headers=["Membership", "Entry", "Name", "Override", "Date", "Kind", "Amount", "Currency"],
+        rows=member_rows,
+        empty_text="(none)",
     )
 
 

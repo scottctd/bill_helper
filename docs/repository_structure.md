@@ -57,6 +57,7 @@
 - `versions/0046_entry_category_lifecycle.py`: replaces tag/filter-group expense partitioning with entry-category assignments and lifecycle values.
 - `versions/0047_entry_category_schedule.py`: installs the canonical entry-category schedule and remaps legacy assignments to safe fallback leaves.
 - `versions/0048_remove_builtin_filter_groups.py`: removes persisted built-in filter groups while retaining custom groups.
+- `versions/0049_unified_groups.py`: merges legacy `entry_groups` and `filter_groups` into unified `groups` and `group_members` with `manual` and `rule` sources.
 - `versions/0037_add_agent_message_attachments_use_ocr.py`: adds persisted message-level OCR mode for attachment-bearing user turns.
 - `versions/0038_add_agent_model_display_names_to_runtime_settings.py`: adds optional JSON map of model id → UI label (`runtime_settings.agent_model_display_names`).
 - `versions/0039_add_agent_run_approval_policy.py`: adds `agent_runs.approval_policy` (`default` vs `yolo`) for optional post-run auto-approval.
@@ -75,10 +76,10 @@
 - `__main__.py`: package-local launcher (`python -m backend`).
 - `db_meta.py`: side-effect-free SQLAlchemy metadata root (`Base`).
 - `database.py`: explicit SQLAlchemy engine/session factories plus cached runtime accessors/dependencies.
-- `enums_finance.py`: ledger enums (`EntryKind`, `GroupType`, `GroupMemberRole`, plus legacy migration-only `LinkType`).
+- `enums_finance.py`: ledger enums (`EntryKind`, `EntryLifecycle`, `GroupSource`, `GroupMemberOverride`).
 - `enums_agent.py`: agent run/review/message enums.
 - `enums_import.py`: import job/task status enums.
-- `models_finance.py`: ledger/account/entity/tag/taxonomy/filter-group/entry ORM models.
+- `models_finance.py`: ledger/account/entity/tag/taxonomy/group ORM models.
 - `models_agent.py`: harness-first agent ORM models for threads, runs, canonical transcript rows, steps, tool calls, events, and review items.
 - `models_import.py`: import job/task ORM models.
 - `models_files.py`: canonical per-user durable file registry ORM model.
@@ -87,7 +88,8 @@
 - `contracts_users.py`: shared user create/update contracts reused by schemas, routers, and services.
 - `contracts_settings.py`: shared runtime-settings write contract used by both schema and service layers.
 - `models_shared.py`: shared model defaults (`utc_now`, `uuid_str`) used by both model domains.
-- `schemas_finance.py`: ledger, filter-group, and dashboard request/response schemas.
+- `schemas_finance.py`: ledger, group, and dashboard request/response schemas.
+- `schemas_group_rules.py`: recursive group rule tree schemas shared by contracts, services, and API layers.
 - `schemas_agent.py`: agent thread/turn/run/step/review request/response schemas.
 - `schemas_agent_sessions.py`: external-agent session and source request/response schemas.
 - `schemas_import.py`: import workflow request/response schemas.
@@ -106,13 +108,12 @@
 - `auth.py`: login/logout/current-session endpoints.
 - `admin.py`: admin user/session management and impersonation endpoints.
 - `users.py`: visible-user reads plus self-service password change.
-- `entries.py`: entry CRUD, filtering, and direct group-context reads.
+- `entries.py`: entry CRUD, filtering (including `group_id`), and group-context reads.
 - `entities.py`: entity list/create/update/delete endpoints for entry selectors/properties.
 - `tags.py`: tag list/create/update/delete endpoints for property/tag selectors.
 - `taxonomies.py`: taxonomy/term list and term create/rename endpoints.
 - `currencies.py`: currency catalog placeholder endpoint for selector/property tables.
-- `groups.py`: first-class group CRUD, typed membership mutation, and derived direct-member graph reads.
-- `filter_groups.py`: principal-owned saved filter-group CRUD for dashboard analytics classification.
+- `groups.py`: unified group CRUD, membership mutation, and read-model summaries for manual and rule groups.
 - `dashboard.py`: monthly analytics endpoint.
 - `agent.py`: append-only agent thread/message/run/review endpoints.
 - `settings.py`: runtime settings read/update endpoints backed by `models_settings.py` / `schemas_settings.py`, with env fallback where applicable and DB-backed list-form `user_memory`.
@@ -124,9 +125,10 @@
 ### Backend Services (`/backend/services`)
 
 - `accounts.py`: account create/update/delete workflows for shared account/entity roots.
-- `entries.py`: typed entry create/update workflows, typed entity/user refs, tag handling, and entry soft-delete helper.
-- `filter_group_rules.py`: recursive rule evaluation and plain-language summaries for saved filter groups.
-- `filter_groups.py`: principal-scoped custom filter-group CRUD, rule persistence, and overlap evaluation.
+- `entries.py`: typed entry create/update workflows, typed entity/user refs, tag handling, manual group assignment, and entry soft-delete helper.
+- `group_membership.py`: effective membership resolution for manual and rule groups, including overrides.
+- `group_rules.py`: recursive rule evaluation and plain-language summaries for rule groups.
+- `groups.py`: group CRUD, membership validation, summaries, and rule-group persistence.
 - `finance_contracts.py`: service-owned account/entity/tag write commands shared across routers and agent apply flows.
 - `tags.py`: tag CRUD helpers, taxonomy cleanup, and random default color generation.
 - `entities.py`: entity normalization, account-backed guards, and preserve-label delete helpers.
@@ -134,9 +136,9 @@
 - `principals.py`: request-principal materialization from a persisted user row plus optional session row.
 - `passwords.py`: Argon2 hashing and reset-required password helpers.
 - `sessions.py`: session creation, lookup, and revocation.
-- `groups.py`: group CRUD, typed membership validation, depth-1 nesting enforcement, and derived graph generation.
+- `groups.py`: group CRUD, membership validation, and read-model generation.
 - `finance_dashboard.py`: dashboard query orchestration and monthly trend reads.
-- `finance_dashboard_rollups.py`: deterministic category, lifecycle, filter-group, KPI, projection, and breakdown rollups.
+- `finance_dashboard_rollups.py`: deterministic category, lifecycle, rule-group, KPI, projection, and breakdown rollups.
 - `crud_policy.py`: shared CRUD validation/conflict policy primitives and standardized error-translation helpers.
 - `serializers.py`: ORM-to-schema mapping helpers.
 - `taxonomy.py`: shared taxonomy normalization, term assignment, and usage-count helpers.
@@ -184,9 +186,9 @@
 
 - `conftest.py`: test app/client setup with isolated SQLite DB.
 - `agent_test_utils.py`: shared agent test harness helpers (model patching, thread/message flows, SSE parsing, PDF fixture builders).
-- `test_entries.py`: entry/group/delete behavior tests, including typed-group validation and principal scoping.
+- `test_entries.py`: entry/group/delete behavior tests, including unified-group validation and principal scoping.
 - `test_finance.py`: reconciliation and dashboard aggregation tests.
-- `test_migrations_core.py`: migration regression coverage, including legacy link-to-typed-group conversion.
+- `test_migrations_core.py`: migration regression coverage, including unified-group migration `0049_unified_groups`.
 - `test_taxonomies.py`: taxonomy endpoints and tag/entity category assignment behavior tests.
 - `test_auth_boundaries.py`: app-level principal dependency boundary regression tests.
 - `test_agent_sessions.py`: external-agent session/source and CLI proposal ownership coverage.
@@ -215,13 +217,12 @@
 - `Sidebar.tsx`: collapsible left-panel navigation with icon+label links and the active-principal switcher.
 - `MetricCard.tsx`: reusable metric container.
 - `LineChart.tsx`: legacy SVG daily expense chart helper (dashboard now uses Recharts).
-- `GroupGraphView.tsx`: React Flow-based graph rendering for entry groups.
-- `GroupEditorModal.tsx`: create/rename dialog for named typed groups.
-- `GroupDetailModal.tsx`: wide group-detail modal for derived graph inspection and direct-member management.
-- `GroupMemberEditorModal.tsx`: add-member dialog that submits the typed group-member target payload shared with the backend.
+- `GroupEditorModal.tsx`: create/rename dialog for manual groups.
+- `GroupDetailModal.tsx`: wide group-detail modal for manual-group inspection and membership management.
+- `GroupMemberEditorModal.tsx`: add-member dialog for manual groups.
 - `TagMultiSelect.tsx`: Notion-style chip/dropdown multi-select for entry tags.
 - `DeleteConfirmDialog.tsx`: shared destructive confirmation dialog for account, entity, and tag deletes.
-- `EntryEditorModal.tsx`: shared popup for entry create/edit, including direct-group assignment and split-role selection when needed.
+- `EntryEditorModal.tsx`: shared popup for entry create/edit, including manual-group assignment.
 - `MarkdownBlockEditor.tsx`: BlockNote wrapper for markdown + pasted images.
 - `agent/AgentRunBlock.tsx`: extracted run activity/summary renderer used by `AgentPanel`.
 - `agent/activity.ts`: extracted run/activity derivation helpers for agent timeline state.
@@ -238,9 +239,10 @@
 - `WorkspacePage.tsx`: legacy current-user workspace IDE shell retained without an active app route.
 - `SettingsPage.tsx`: thin runtime-settings page shell that composes the `features/settings` controller and section modules.
 - `EntriesPage.tsx`: list/filter/delete entries and open popup create/edit editor.
-- `EntryDetailPage.tsx`: show entry detail, direct-group context, direct-group graph, and popup editing.
-- `GroupsPage.tsx`: first-class group workspace with a table-first browser and detail modal for group editing.
+- `EntryDetailPage.tsx`: show entry detail, group memberships, and popup editing.
+- `GroupsPage.tsx`: manual group workspace with a table-first browser and detail modal for group editing.
 - `GroupsPage.test.tsx`: page-level integration test for table-first group browsing and detail-modal opening.
+- `GroupsPage.tsx`: unified manual and rule group workspace at `/groups` (`/filters` redirects here).
 - `AccountsPage.tsx`: thin page orchestrator that composes accounts feature modules.
 - `PropertiesPage.tsx`: thin page orchestrator that composes properties feature modules.
 - `AccountsPage.test.tsx`: page-level integration tests for account create, snapshot, and delete flows.

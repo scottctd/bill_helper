@@ -9,7 +9,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from backend.enums_finance import GroupMemberRole
 from backend.services.agent.change_contracts.groups import (
     CreateGroupMemberPayload,
     DeleteGroupMemberPayload,
@@ -25,7 +24,6 @@ class ProposeUpdateGroupMembershipArgs(ToolArgsModel):
     action: Literal["add", "remove"]
     group_ref: GroupReferencePayload
     target: GroupMemberTargetPayload
-    member_role: GroupMemberRole | None = None
 
     @model_validator(mode="before")
     @classmethod

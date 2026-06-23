@@ -16,6 +16,7 @@ import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { buildDefaultRule } from "../features/groupRules/groupRuleUtils";
 import { GroupsTableToolbar } from "../features/groups/GroupsTableToolbar";
 import { useAuth } from "../features/auth";
 import { ENTRY_CATEGORY_TAXONOMY_KEY, includesFilter } from "../lib/catalogs";
@@ -58,14 +59,6 @@ function groupRangeLabel(summary: GroupSummary): string {
   return `${summary.first_occurred_at} to ${summary.last_occurred_at}`;
 }
 
-function groupHierarchyLabel(summary: GroupSummary, groupsById: Map<string, GroupSummary>): string {
-  if (!summary.parent_group_id) {
-    return "Top level";
-  }
-  const parent = groupsById.get(summary.parent_group_id);
-  return parent ? `Child of ${parent.name}` : "Child group";
-}
-
 function rowKeyDownHandler(event: React.KeyboardEvent<HTMLTableRowElement>, onOpen: () => void) {
   if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
@@ -77,7 +70,7 @@ export function GroupsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [groupSearch, setGroupSearch] = useState("");
-  const [selectedGroupTypes, setSelectedGroupTypes] = useState<string[]>([]);
+  const [selectedGroupSources, setSelectedGroupSources] = useState<string[]>([]);
   const deferredGroupSearch = useDeferredValue(groupSearch);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -96,7 +89,7 @@ export function GroupsPage() {
     queryFn: () => listEntries(ENTRY_PICKER_FILTERS)
   });
 
-  const groupGraphQuery = useQuery({
+  const groupDetailQuery = useQuery({
     queryKey: queryKeys.groups.detail(selectedGroupId),
     queryFn: () => getGroup(selectedGroupId),
     enabled: isDetailOpen && Boolean(selectedGroupId)
@@ -157,7 +150,12 @@ export function GroupsPage() {
   }, [groupsQuery.data, selectedGroupId]);
 
   const createGroupMutation = useMutation({
-    mutationFn: createGroup,
+    mutationFn: (payload: { name: string; source: GroupSummary["source"] }) =>
+      createGroup({
+        name: payload.name,
+        source: payload.source,
+        ...(payload.source === "rule" ? { rule: buildDefaultRule() } : {})
+      }),
     onSuccess: (group) => {
       queryClient.setQueryData<GroupSummary[]>(queryKeys.groups.list, (current) => {
         const existing = current ?? [];
@@ -218,10 +216,10 @@ export function GroupsPage() {
     }
   });
 
-  const groupTypeFilterOptions = useMemo(
+  const groupSourceFilterOptions = useMemo(
     () =>
       stringOptionsAsTags(
-        Array.from(new Set((groupsQuery.data ?? []).map((group) => group.group_type))).sort((left, right) =>
+        Array.from(new Set((groupsQuery.data ?? []).map((group) => group.source))).sort((left, right) =>
           left.localeCompare(right)
         )
       ),
@@ -233,55 +231,33 @@ export function GroupsPage() {
       if (!includesFilter(group.name, deferredGroupSearch) && !includesFilter(group.id, deferredGroupSearch)) {
         return false;
       }
-      return matchesSelectedValues(group.group_type, selectedGroupTypes);
+      return matchesSelectedValues(group.source, selectedGroupSources);
     });
-  }, [deferredGroupSearch, groupsQuery.data, selectedGroupTypes]);
-
-  const groupsById = useMemo(() => {
-    return new Map((groupsQuery.data ?? []).map((group) => [group.id, group]));
-  }, [groupsQuery.data]);
+  }, [deferredGroupSearch, groupsQuery.data, selectedGroupSources]);
 
   const selectedGroupSummary = useMemo(
     () => groupsQuery.data?.find((group) => group.id === selectedGroupId) ?? null,
     [groupsQuery.data, selectedGroupId]
   );
 
-  const selectedParentGroup = useMemo(() => {
-    if (!selectedGroupSummary?.parent_group_id) {
-      return null;
-    }
-    return groupsById.get(selectedGroupSummary.parent_group_id) ?? null;
-  }, [groupsById, selectedGroupSummary]);
-
   const currentUserId = auth.session?.user.id ?? usersQuery.data?.find((user) => user.is_current_user)?.id ?? "";
+
+  const memberEntryIds = useMemo(() => {
+    return new Set((groupDetailQuery.data?.members ?? []).map((member) => member.entry_id));
+  }, [groupDetailQuery.data]);
 
   const entryOptions = useMemo(() => {
     return (entryPickerQuery.data?.items ?? [])
-      .filter((entry) => entry.direct_group === null)
+      .filter((entry) => !memberEntryIds.has(entry.id))
       .map((entry) => ({
         id: entry.id,
         label: `${entry.occurred_at} · ${entry.name}`
       }))
       .sort((left, right) => left.label.localeCompare(right.label));
-  }, [entryPickerQuery.data]);
-
-  const childGroupOptions = useMemo(() => {
-    if (!selectedGroupSummary || selectedGroupSummary.parent_group_id) {
-      return [];
-    }
-    return (groupsQuery.data ?? [])
-      .filter((group) => group.id !== selectedGroupSummary.id)
-      .filter((group) => group.parent_group_id === null)
-      .filter((group) => group.direct_child_group_count === 0)
-      .map((group) => ({
-        id: group.id,
-        label: `${group.name} · ${group.group_type}`
-      }))
-      .sort((left, right) => left.label.localeCompare(right.label));
-  }, [groupsQuery.data, selectedGroupSummary]);
+  }, [entryPickerQuery.data, memberEntryIds]);
 
   const groupsError = groupsQuery.isError ? (groupsQuery.error as Error).message : null;
-  const selectedGroupError = groupGraphQuery.isError ? (groupGraphQuery.error as Error).message : null;
+  const selectedGroupError = groupDetailQuery.isError ? (groupDetailQuery.error as Error).message : null;
   const createGroupError = createGroupMutation.isError ? (createGroupMutation.error as Error).message : null;
   const renameGroupError = renameGroupMutation.isError ? (renameGroupMutation.error as Error).message : null;
   const addMemberError = addGroupMemberMutation.isError ? (addGroupMemberMutation.error as Error).message : null;
@@ -309,10 +285,10 @@ export function GroupsPage() {
       <WorkspaceSection className="groups-browser-card" contentClassName="workspace-table-body">
         <GroupsTableToolbar
           search={groupSearch}
-          groupTypeOptions={groupTypeFilterOptions}
-          selectedGroupTypes={selectedGroupTypes}
+          groupSourceOptions={groupSourceFilterOptions}
+          selectedGroupSources={selectedGroupSources}
           onSearchChange={setGroupSearch}
-          onGroupTypesChange={setSelectedGroupTypes}
+          onGroupSourcesChange={setSelectedGroupSources}
           onAddGroup={() => setIsCreateGroupOpen(true)}
         />
 
@@ -333,9 +309,9 @@ export function GroupsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="groups-browser-group-column">Group</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Hierarchy</TableHead>
-                  <TableHead>Descendants</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Members</TableHead>
+                  <TableHead>Rule</TableHead>
                   <TableHead>Date range</TableHead>
                   <TableHead className="groups-browser-action-column">
                     <span className="sr-only">Open detail</span>
@@ -359,10 +335,10 @@ export function GroupsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{group.group_type}</Badge>
+                        <Badge variant="outline">{group.source}</Badge>
                       </TableCell>
-                      <TableCell>{groupHierarchyLabel(group, groupsById)}</TableCell>
-                      <TableCell>{group.descendant_entry_count} entries</TableCell>
+                      <TableCell>{group.member_count}</TableCell>
+                      <TableCell>{group.rule_summary ?? "-"}</TableCell>
                       <TableCell>{groupRangeLabel(group)}</TableCell>
                       <TableCell className="groups-browser-action-column">
                         <Button
@@ -390,9 +366,8 @@ export function GroupsPage() {
       <GroupDetailModal
         isOpen={isDetailOpen}
         groupSummary={selectedGroupSummary}
-        parentGroupName={selectedParentGroup?.name ?? null}
-        groupGraph={groupGraphQuery.data ?? null}
-        isLoading={groupGraphQuery.isLoading}
+        groupDetail={groupDetailQuery.data ?? null}
+        isLoading={groupDetailQuery.isLoading}
         loadError={selectedGroupError}
         deleteGroupError={deleteGroupError}
         deleteMemberError={deleteMemberError}
@@ -406,13 +381,7 @@ export function GroupsPage() {
           }
         }}
         onAddMember={() => setIsAddMemberOpen(true)}
-        onOpenMember={(node) => {
-          if (node.node_type === "GROUP") {
-            openGroupDetail(node.subject_id);
-            return;
-          }
-          setEditingEntryId(node.subject_id);
-        }}
+        onOpenEntry={(entryId) => setEditingEntryId(entryId)}
         onRemoveMember={(membershipId) => deleteGroupMemberMutation.mutate(membershipId)}
       />
 
@@ -429,7 +398,7 @@ export function GroupsPage() {
         isOpen={isRenameGroupOpen}
         mode="rename"
         initialName={selectedGroupSummary?.name ?? ""}
-        initialGroupType={selectedGroupSummary?.group_type ?? "BUNDLE"}
+        initialGroupSource={selectedGroupSummary?.source ?? "manual"}
         isSaving={renameGroupMutation.isPending}
         saveError={renameGroupError}
         onClose={() => setIsRenameGroupOpen(false)}
@@ -440,9 +409,8 @@ export function GroupsPage() {
         <GroupMemberEditorModal
           isOpen={isAddMemberOpen}
           groupName={selectedGroupSummary.name}
-          groupType={selectedGroupSummary.group_type}
+          groupSource={selectedGroupSummary.source}
           entryOptions={entryOptions}
-          groupOptions={childGroupOptions}
           isSaving={addGroupMemberMutation.isPending}
           saveError={addMemberError}
           onClose={() => setIsAddMemberOpen(false)}

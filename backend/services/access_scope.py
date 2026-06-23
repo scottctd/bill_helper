@@ -17,7 +17,7 @@ from backend.models_agent import (
     AgentTranscriptAttachment,
     AgentTranscriptMessage,
 )
-from backend.models_finance import Account, Entity, Entry, EntryGroup, FilterGroup, Tag, Taxonomy, User
+from backend.models_finance import Account, Entity, Entry, Group, Tag, Taxonomy, User
 from backend.services.crud_policy import PolicyViolation
 
 
@@ -51,11 +51,7 @@ def entry_owner_filter(principal: RequestPrincipal):
 
 
 def group_owner_filter(principal: RequestPrincipal):
-    return owner_user_filter(EntryGroup.owner_user_id, principal)
-
-
-def filter_group_owner_filter(principal: RequestPrincipal):
-    return owner_user_filter(FilterGroup.owner_user_id, principal)
+    return owner_user_filter(Group.owner_user_id, principal)
 
 
 def entity_owner_filter(principal: RequestPrincipal):
@@ -197,8 +193,8 @@ def get_group_for_principal_or_404(
     *,
     group_id: str,
     principal: RequestPrincipal,
-    stmt: Select[tuple[EntryGroup]] | None = None,
-) -> EntryGroup:
+    stmt: Select[tuple[Group]] | None = None,
+) -> Group:
     return load_group_for_principal(
         db,
         group_id=group_id,
@@ -212,35 +208,18 @@ def load_group_for_principal(
     *,
     group_id: str,
     principal: RequestPrincipal,
-    stmt: Select[tuple[EntryGroup]] | None = None,
-) -> EntryGroup:
-    query = stmt if stmt is not None else select(EntryGroup)
+    stmt: Select[tuple[Group]] | None = None,
+) -> Group:
+    query = stmt if stmt is not None else select(Group)
     group = db.scalar(
         query.where(
-            EntryGroup.id == group_id,
+            Group.id == group_id,
             group_owner_filter(principal),
         )
     )
     if group is None:
         raise PolicyViolation.not_found("Group not found")
     return group
-
-
-def load_filter_group_for_principal(
-    db: Session,
-    *,
-    filter_group_id: str,
-    principal: RequestPrincipal,
-) -> FilterGroup:
-    filter_group = db.scalar(
-        select(FilterGroup).where(
-            FilterGroup.id == filter_group_id,
-            filter_group_owner_filter(principal),
-        )
-    )
-    if filter_group is None:
-        raise PolicyViolation.not_found("Filter group not found")
-    return filter_group
 
 
 def load_taxonomy_for_principal(

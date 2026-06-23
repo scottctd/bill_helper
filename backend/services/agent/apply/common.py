@@ -14,12 +14,11 @@ from sqlalchemy.orm import Session
 from backend.auth.contracts import RequestPrincipal
 from backend.enums_agent import AgentChangeType
 from backend.models_agent import AgentChangeItem
-from backend.models_finance import Entry, EntryGroup
+from backend.models_finance import Entry, Group
 from backend.services.agent.change_contracts import ChangePayloadModel
 from backend.services.agent.change_contracts.entries import EntryReferencePayload
 from backend.services.agent.change_contracts.groups import (
-    ChildGroupMemberTargetPayload,
-    EntryGroupMemberTargetPayload,
+    GroupMemberEntryTargetPayload,
     GroupReferencePayload,
 )
 from backend.services.agent.entry_references import (
@@ -31,7 +30,7 @@ from backend.services.agent.group_references import (
     group_owner_condition,
     group_public_summary,
 )
-from backend.services.groups import group_tree_options
+from backend.services.groups import group_load_options
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +79,7 @@ def resolve_existing_group_id(
     if not matches:
         raise ValueError("Group not found")
     if len(matches) > 1:
-        candidates = "; ".join(group_public_summary(group) for group in matches)
+        candidates = "; ".join(group_public_summary(db, group) for group in matches)
         raise ValueError(f"Group id is ambiguous ({len(matches)} matches): {candidates}")
     return str(matches[0].id)
 
@@ -141,15 +140,13 @@ def resolve_applied_entry_id(
     return item.applied_resource_id
 
 
-def resolve_applied_group_member_target_ids(
+def resolve_applied_group_member_entry_id(
     db: Session,
     *,
-    target: EntryGroupMemberTargetPayload | ChildGroupMemberTargetPayload,
+    target: GroupMemberEntryTargetPayload,
     principal: RequestPrincipal,
-) -> tuple[str | None, str | None]:
-    if isinstance(target, EntryGroupMemberTargetPayload):
-        return resolve_applied_entry_id(db, target.entry_ref, principal=principal), None
-    return None, resolve_applied_group_id(db, target.group_ref, principal=principal)
+) -> str:
+    return resolve_applied_entry_id(db, target.entry_ref, principal=principal)
 
 
 def find_scoped_group_by_id(
@@ -157,15 +154,15 @@ def find_scoped_group_by_id(
     *,
     group_id: str,
     principal: RequestPrincipal,
-) -> EntryGroup:
+) -> Group:
     resolved_group_id = resolve_existing_group_id(db, group_id=group_id, principal=principal)
     group = db.scalar(
-        select(EntryGroup)
+        select(Group)
         .where(
-            EntryGroup.id == resolved_group_id,
+            Group.id == resolved_group_id,
             group_owner_condition(principal.user_id),
         )
-        .options(*group_tree_options())
+        .options(*group_load_options())
     )
     if group is None:  # pragma: no cover - guarded by resolve_existing_group_id
         raise ValueError("Group not found")

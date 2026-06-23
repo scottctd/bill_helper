@@ -5,22 +5,23 @@
  * - Outputs: React components and UI helpers exported by `GroupDetailModal`.
  * - Side effects: React rendering and user event wiring.
  */
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { DeleteIconButton } from "./DeleteIconButton";
-import { GroupGraphView } from "./GroupGraphView";
+import { StatBlock } from "./layout/StatBlock";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { formatMinor, formatMinorCompact } from "../lib/format";
-import type { GroupGraph, GroupNode, GroupSummary } from "../lib/types";
+import { GroupRuleEditorSection } from "../features/groups/GroupRuleEditorSection";
+import type { GroupMemberRead, GroupRead, GroupSummary } from "../lib/types";
 
 interface GroupDetailModalProps {
   isOpen: boolean;
   groupSummary: GroupSummary | null;
-  parentGroupName: string | null;
-  groupGraph: GroupGraph | null;
+  groupDetail: GroupRead | null;
   isLoading: boolean;
   loadError?: string | null;
   deleteGroupError?: string | null;
@@ -31,7 +32,7 @@ interface GroupDetailModalProps {
   onRename: () => void;
   onDelete: () => void;
   onAddMember: () => void;
-  onOpenMember: (node: GroupNode) => void;
+  onOpenEntry: (entryId: string) => void;
   onRemoveMember: (membershipId: string) => void;
 }
 
@@ -45,62 +46,35 @@ function groupRangeLabel(summary: GroupSummary): string {
   return `${summary.first_occurred_at} to ${summary.last_occurred_at}`;
 }
 
-function memberContextLabel(node: GroupNode): string {
-  if (node.node_type === "ENTRY") {
-    const tone = node.kind === "INCOME" ? "Income" : node.kind === "TRANSFER" ? "Transfer" : "Expense";
-    return `${node.occurred_at ?? node.representative_occurred_at ?? "No date"} · ${tone}`;
-  }
-
-  if (node.first_occurred_at && node.last_occurred_at) {
-    if (node.first_occurred_at === node.last_occurred_at) {
-      return `${node.group_type ?? "GROUP"} · ${node.first_occurred_at}`;
-    }
-    return `${node.group_type ?? "GROUP"} · ${node.first_occurred_at} to ${node.last_occurred_at}`;
-  }
-
-  return `${node.group_type ?? "GROUP"} · No entries yet`;
-}
-
-function memberTypeLabel(node: GroupNode): string {
-  if (node.node_type === "GROUP") {
-    return `${node.group_type ?? "GROUP"} GROUP`;
-  }
-  return node.kind ?? "ENTRY";
-}
-
-function groupDetailMeta(summary: GroupSummary): string {
-  const directMemberLabel = summary.direct_member_count === 1 ? "1 direct member" : `${summary.direct_member_count} direct members`;
-  const descendantLabel = summary.descendant_entry_count === 1 ? "1 descendant entry" : `${summary.descendant_entry_count} descendant entries`;
-  return `${directMemberLabel} · ${descendantLabel} · ${groupRangeLabel(summary)}`;
-}
-
-function kindLabel(kind: GroupNode["kind"]): string {
+function kindLabel(kind: GroupMemberRead["kind"]): string {
   if (kind === "INCOME") return "Income";
   if (kind === "TRANSFER") return "Transfer";
   return "Expense";
 }
 
-function kindSymbol(kind: GroupNode["kind"]): string {
+function kindSymbol(kind: GroupMemberRead["kind"]): string {
   if (kind === "INCOME") return "+";
   if (kind === "TRANSFER") return "~";
   return "-";
 }
 
-function kindToneClass(kind: GroupNode["kind"]): string {
+function kindToneClass(kind: GroupMemberRead["kind"]): string {
   if (kind === "INCOME") return "entries-amount-marker-income";
   if (kind === "TRANSFER") return "entries-amount-marker-transfer";
   return "entries-amount-marker-expense";
 }
 
-function normalizedCurrencyCode(currencyCode: string | null): string {
-  return currencyCode?.trim().toUpperCase() || "CAD";
-}
-
-function memberRowKeyDownHandler(event: React.KeyboardEvent<HTMLTableRowElement>, onOpen: () => void) {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    onOpen();
-  }
+function renderMemberAmount(member: GroupMemberRead) {
+  return (
+    <span className="entries-amount-cell">
+      <span className={`entries-amount-marker ${kindToneClass(member.kind)}`} aria-hidden="true">
+        {kindSymbol(member.kind)}
+      </span>
+      <span className="sr-only">{kindLabel(member.kind)}</span>
+      <span className="entries-amount-value">{formatMinorCompact(member.amount_minor)}</span>
+      <span className="entries-amount-currency">{member.currency_code.trim().toUpperCase() || "CAD"}</span>
+    </span>
+  );
 }
 
 interface GroupStat {
@@ -109,35 +83,24 @@ interface GroupStat {
   detail: string;
 }
 
-function isEntryNode(node: GroupNode): node is GroupNode & { node_type: "ENTRY"; amount_minor: number; currency_code: string } {
-  return node.node_type === "ENTRY" && node.amount_minor !== null && typeof node.currency_code === "string" && node.currency_code.length > 0;
-}
-
-function hasNodeKind(node: GroupNode): node is GroupNode & { kind: NonNullable<GroupNode["kind"]> } {
-  return node.kind !== null;
-}
-
-function renderMemberAmount(node: GroupNode) {
-  if (!isEntryNode(node)) {
-    return <span className="text-muted-foreground">-</span>;
+function formatCurrencyBucketSummary(buckets: Map<string, number>): { value: string; detail: string } {
+  if (buckets.size === 0) {
+    return { value: "-", detail: "No entry amounts yet" };
   }
 
-  return (
-    <span className="entries-amount-cell">
-      <span className={`entries-amount-marker ${kindToneClass(node.kind)}`} aria-hidden="true">
-        {kindSymbol(node.kind)}
-      </span>
-      <span className="sr-only">{kindLabel(node.kind)}</span>
-      <span className="entries-amount-value">{formatMinorCompact(node.amount_minor)}</span>
-      <span className="entries-amount-currency">{normalizedCurrencyCode(node.currency_code)}</span>
-    </span>
-  );
+  const formatted = Array.from(buckets.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([currencyCode, amountMinor]) => formatMinor(amountMinor, currencyCode));
+  if (formatted.length === 1) {
+    return { value: formatted[0], detail: "From listed members" };
+  }
+  return { value: "Mixed currencies", detail: formatted.join(" · ") };
 }
 
-function amountStatLabel(nodes: GroupNode[], variant: "total" | "average"): string {
-  const kinds = Array.from(new Set(nodes.filter(hasNodeKind).map((node) => node.kind)));
+function amountStatLabel(members: GroupMemberRead[], variant: "total" | "average"): string {
+  const kinds = Array.from(new Set(members.map((member) => member.kind)));
   if (kinds.length !== 1) {
-    return variant === "total" ? "Direct total" : "Average amount";
+    return variant === "total" ? "Total" : "Average";
   }
 
   if (kinds[0] === "EXPENSE") {
@@ -149,79 +112,84 @@ function amountStatLabel(nodes: GroupNode[], variant: "total" | "average"): stri
   return variant === "total" ? "Total moved" : "Average transfer";
 }
 
-function formatCurrencyBucketSummary(buckets: Map<string, number>): { value: string; detail: string } {
-  if (buckets.size === 0) {
-    return { value: "-", detail: "No direct entry amounts yet" };
-  }
-
-  const formatted = Array.from(buckets.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([currencyCode, amountMinor]) => formatMinor(amountMinor, currencyCode));
-  if (formatted.length === 1) {
-    return { value: formatted[0], detail: "Direct entry members only" };
-  }
-  return { value: "Mixed currencies", detail: formatted.join(" · ") };
-}
-
-function buildGroupStats(summary: GroupSummary, graph: GroupGraph | null): GroupStat[] {
-  const entryNodes = (graph?.nodes ?? []).filter(isEntryNode);
+function buildGroupStats(summary: GroupSummary, members: GroupMemberRead[]): GroupStat[] {
   const totalBuckets = new Map<string, number>();
   const averageBuckets = new Map<string, number>();
 
-  for (const node of entryNodes) {
-    totalBuckets.set(node.currency_code, (totalBuckets.get(node.currency_code) ?? 0) + node.amount_minor);
+  for (const member of members) {
+    totalBuckets.set(member.currency_code, (totalBuckets.get(member.currency_code) ?? 0) + member.amount_minor);
   }
 
   for (const [currencyCode, totalMinor] of totalBuckets.entries()) {
-    const count = entryNodes.filter((node) => node.currency_code === currencyCode).length;
+    const count = members.filter((member) => member.currency_code === currencyCode).length;
     averageBuckets.set(currencyCode, Math.round(totalMinor / count));
   }
 
   const totalSummary = formatCurrencyBucketSummary(totalBuckets);
   const averageSummary = formatCurrencyBucketSummary(averageBuckets);
 
-  const latestEntry = [...entryNodes].sort((left, right) => {
-    const leftDate = left.occurred_at ?? left.representative_occurred_at ?? "";
-    const rightDate = right.occurred_at ?? right.representative_occurred_at ?? "";
-    return rightDate.localeCompare(leftDate);
-  })[0];
-
-  const coverageValue = summary.first_occurred_at && summary.last_occurred_at ? groupRangeLabel(summary) : "No range yet";
-  const coverageDetail = summary.first_occurred_at && summary.last_occurred_at
-    ? summary.first_occurred_at === summary.last_occurred_at
-      ? "Single recorded date"
-      : `${summary.parent_group_id ? "Nested child group" : "Top-level group"} coverage`
-    : "Add dated entries to establish a range";
+  const latestMember = [...members].sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))[0];
 
   return [
     {
-      label: amountStatLabel(entryNodes, "total"),
+      label: amountStatLabel(members, "total"),
       value: totalSummary.value,
-      detail: totalSummary.detail,
+      detail: totalSummary.detail
     },
     {
-      label: amountStatLabel(entryNodes, "average"),
+      label: amountStatLabel(members, "average"),
       value: averageSummary.value,
-      detail: averageSummary.detail,
+      detail: averageSummary.detail
     },
     {
-      label: "Latest amount",
-      value: latestEntry ? formatMinor(latestEntry.amount_minor, latestEntry.currency_code) : "-",
-      detail: latestEntry ? `${latestEntry.occurred_at ?? latestEntry.representative_occurred_at ?? "No date"} · ${latestEntry.name}` : "No direct entry amounts yet",
+      label: "Latest",
+      value: latestMember ? formatMinor(latestMember.amount_minor, latestMember.currency_code) : "-",
+      detail: latestMember ? latestMember.occurred_at : "No amounts yet"
     },
     {
       label: "Coverage",
-      value: coverageValue,
-      detail: coverageDetail,
-    },
+      value: summary.first_occurred_at && summary.last_occurred_at ? groupRangeLabel(summary) : "-",
+      detail:
+        summary.first_occurred_at && summary.last_occurred_at
+          ? summary.first_occurred_at === summary.last_occurred_at
+            ? "Single date"
+            : "First to last member"
+          : "No dated members"
+    }
   ];
+}
+
+function sortMembers(members: GroupMemberRead[]): GroupMemberRead[] {
+  return [...members].sort((left, right) => {
+    const dateCompare = right.occurred_at.localeCompare(left.occurred_at);
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+    return left.entry_name.localeCompare(right.entry_name);
+  });
+}
+
+function memberRowKeyDownHandler(event: React.KeyboardEvent<HTMLTableRowElement>, onOpen: () => void) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    onOpen();
+  }
+}
+
+function overrideLabel(override: GroupMemberRead["override"]): string {
+  if (override === "include") return "Pinned";
+  if (override === "exclude") return "Excluded";
+  return "-";
+}
+
+function sourceBadgeVariant(source: GroupSummary["source"]): "secondary" | "outline" {
+  return source === "rule" ? "outline" : "secondary";
 }
 
 export function GroupDetailModal({
   isOpen,
   groupSummary,
-  parentGroupName,
-  groupGraph,
+  groupDetail,
   isLoading,
   loadError = null,
   deleteGroupError = null,
@@ -232,42 +200,84 @@ export function GroupDetailModal({
   onRename,
   onDelete,
   onAddMember,
-  onOpenMember,
+  onOpenEntry,
   onRemoveMember
 }: GroupDetailModalProps) {
-  const stats = groupSummary ? buildGroupStats(groupSummary, groupGraph) : [];
+  const members = sortMembers(groupDetail?.members ?? []);
+  const stats = groupSummary ? buildGroupStats(groupSummary, members) : [];
+  const isManual = groupSummary?.source === "manual";
+  const isRule = groupSummary?.source === "rule";
+  const memberCount = groupSummary?.member_count ?? members.length;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent className="groups-detail-modal">
         <div className="groups-detail-modal-shell">
           <DialogHeader className="groups-detail-modal-header">
-            <div className="groups-detail-modal-header-copy">
-              <div className="groups-detail-modal-title-row">
-                <DialogTitle>{groupSummary ? groupSummary.name : "Group detail"}</DialogTitle>
-                {groupSummary ? <Badge variant="secondary">{groupSummary.group_type}</Badge> : null}
-                {parentGroupName ? <Badge variant="outline">Parent: {parentGroupName}</Badge> : null}
+            <div className="groups-detail-modal-header-main">
+              <div className="groups-detail-modal-header-copy">
+                <div className="groups-detail-modal-title-row">
+                  <DialogTitle>{groupSummary ? groupSummary.name : "Group detail"}</DialogTitle>
+                  {groupSummary ? (
+                    <Badge variant={sourceBadgeVariant(groupSummary.source)}>{groupSummary.source}</Badge>
+                  ) : null}
+                </div>
+                <DialogDescription className="groups-detail-modal-description">
+                  {groupSummary
+                    ? isManual
+                      ? "Direct entry membership."
+                      : "Rule matches with optional pin or exclude overrides."
+                    : "Open a group from the table."}
+                </DialogDescription>
+                {groupSummary ? (
+                  <div className="groups-detail-meta-chips" aria-label="Group summary">
+                    <span className="groups-detail-meta-chip">
+                      {memberCount === 1 ? "1 member" : `${memberCount} members`}
+                    </span>
+                    <span className="groups-detail-meta-chip">{groupRangeLabel(groupSummary)}</span>
+                    {isRule && groupSummary.rule_summary ? (
+                      <span className="groups-detail-meta-chip groups-detail-meta-chip-rule">{groupSummary.rule_summary}</span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
-              <DialogDescription>
-                {groupSummary
-                  ? "Inspect the derived graph, then manage direct membership without squeezing the workspace."
-                  : "Open a group from the table to inspect its detail."}
-              </DialogDescription>
+
+              {groupSummary ? (
+                <div className="groups-detail-modal-actions">
+                  <div className="groups-detail-modal-actions-primary">
+                    <Button type="button" size="sm" onClick={onAddMember}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      {isManual ? "Add member" : "Pin or exclude"}
+                    </Button>
+                    <Button asChild type="button" size="sm" variant="outline">
+                      <Link to={`/entries?group_id=${groupSummary.id}`}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        View entries
+                      </Link>
+                    </Button>
+                  </div>
+                  <div className="groups-detail-modal-actions-secondary">
+                    <Button type="button" size="sm" variant="outline" onClick={onRename}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Rename
+                    </Button>
+                    <Button type="button" size="sm" variant="destructive" onClick={onDelete} disabled={isDeletingGroup}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            {groupSummary ? (
-              <div className="groups-detail-modal-actions">
-                <Button type="button" size="sm" variant="outline" onClick={onRename}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Rename
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={onAddMember}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add member
-                </Button>
-                <Button type="button" size="sm" variant="destructive" onClick={onDelete} disabled={isDeletingGroup}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
+
+            {groupSummary && stats.length > 0 ? (
+              <div className="groups-detail-stats-block">
+                <h3 className="groups-detail-stats-heading">Statistics</h3>
+                <div className="groups-detail-stats-grid" aria-label="Group statistics">
+                  {stats.map((stat) => (
+                    <StatBlock key={stat.label} label={stat.label} value={stat.value} detail={stat.detail} />
+                  ))}
+                </div>
               </div>
             ) : null}
           </DialogHeader>
@@ -282,91 +292,81 @@ export function GroupDetailModal({
               </div>
             ) : (
               <>
-                <p className="groups-detail-meta">
-                  {groupDetailMeta(groupSummary)}
-                  {groupSummary.direct_member_count > 0 ? (
-                    <span className="groups-detail-meta-secondary">
-                      {` · ${groupSummary.direct_entry_count} entries · ${groupSummary.direct_child_group_count} child groups`}
-                    </span>
-                  ) : null}
-                </p>
+                <section className="groups-detail-panel">
+                  <div className="groups-detail-panel-header">
+                    <h3>{isManual ? "Members" : "Effective members"}</h3>
+                    <p className="groups-detail-panel-count">
+                      {members.length === 0 ? "No members loaded" : `${members.length} shown`}
+                    </p>
+                  </div>
 
-                <section className="groups-detail-section">
-                  <div className="groups-detail-section-header">
-                    <div>
-                      <h3>Statistics</h3>
-                      <p>Amounts are calculated from direct entry members only. Child-group totals are not rolled up in this view.</p>
-                    </div>
-                  </div>
-                  <div className="groups-detail-section-body">
-                    <div className="groups-detail-stats-grid">
-                      {stats.map((stat) => (
-                        <div key={stat.label} className="groups-detail-stat-card">
-                          <span className="groups-detail-stat-label">{stat.label}</span>
-                          <strong className="groups-detail-stat-value">{stat.value}</strong>
-                          <span className="groups-detail-stat-detail">{stat.detail}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="groups-detail-section">
-                  <div className="groups-detail-section-header">
-                    <div>
-                      <h3>Direct members</h3>
-                      <p>Manage the top-level members that define this group’s derived structure.</p>
-                    </div>
-                  </div>
-                  <div className="groups-detail-section-body">
+                  <div className="groups-detail-panel-body">
                     {deleteMemberError ? <p className="error">{deleteMemberError}</p> : null}
-                    {!groupGraph ? (
+                    {isLoading ? <p className="muted">Loading members...</p> : null}
+                    {loadError ? <p className="error">{loadError}</p> : null}
+                    {!isLoading && !loadError && !groupDetail ? (
                       <p className="muted">Group detail is not loaded yet.</p>
-                    ) : groupGraph.nodes.length === 0 ? (
-                      <div className="groups-empty-state">
-                        <p className="groups-empty-title">No direct members yet</p>
-                        <p className="muted">Add entries or child groups to define the group structure.</p>
+                    ) : null}
+                    {!isLoading && !loadError && groupDetail && members.length === 0 ? (
+                      <div className="groups-empty-state groups-detail-members-empty">
+                        <p className="groups-empty-title">No members yet</p>
+                        <p className="muted">
+                          {isManual ? "Add entries to populate this group." : "No entries match this rule yet."}
+                        </p>
+                        <Button type="button" size="sm" variant="outline" onClick={onAddMember}>
+                          {isManual ? "Add first member" : "Add override"}
+                        </Button>
                       </div>
-                    ) : (
+                    ) : null}
+                    {!isLoading && !loadError && members.length > 0 ? (
                       <div className="groups-detail-members-table-shell">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Member</TableHead>
-                              <TableHead>Amount</TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Role</TableHead>
-                              <TableHead>Context</TableHead>
+                              <TableHead className="groups-detail-date-column">Date</TableHead>
+                              <TableHead>Entry</TableHead>
+                              <TableHead className="groups-detail-amount-column">Amount</TableHead>
+                              {isRule ? <TableHead>Override</TableHead> : null}
                               <TableHead className="icon-action-column">
                                 <span className="sr-only">Actions</span>
                               </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {groupGraph.nodes.map((node) => (
+                            {members.map((member) => (
                               <TableRow
-                                key={node.membership_id}
+                                key={member.id}
                                 className="groups-detail-member-row"
                                 tabIndex={0}
-                                onClick={() => onOpenMember(node)}
-                                onKeyDown={(event) => memberRowKeyDownHandler(event, () => onOpenMember(node))}
+                                onClick={() => onOpenEntry(member.entry_id)}
+                                onKeyDown={(event) => memberRowKeyDownHandler(event, () => onOpenEntry(member.entry_id))}
                               >
-                                <TableCell>
-                                  <p className="font-medium">{node.name}</p>
+                                <TableCell className="groups-detail-date-column">
+                                  <span className="groups-detail-member-date">{member.occurred_at}</span>
                                 </TableCell>
-                                <TableCell>{renderMemberAmount(node)}</TableCell>
                                 <TableCell>
-                                  <Badge variant="outline">{memberTypeLabel(node)}</Badge>
+                                  <div className="groups-detail-member-entry">
+                                    <p className="groups-detail-member-name">{member.entry_name}</p>
+                                    <p className="groups-detail-member-kind">{kindLabel(member.kind)}</p>
+                                  </div>
                                 </TableCell>
-                                <TableCell>{node.member_role ? <Badge variant="secondary">{node.member_role}</Badge> : "-"}</TableCell>
-                                <TableCell>{memberContextLabel(node)}</TableCell>
+                                <TableCell className="groups-detail-amount-column">{renderMemberAmount(member)}</TableCell>
+                                {isRule ? (
+                                  <TableCell>
+                                    {member.override ? (
+                                      <Badge variant="secondary">{overrideLabel(member.override)}</Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">Rule match</span>
+                                    )}
+                                  </TableCell>
+                                ) : null}
                                 <TableCell className="icon-action-column">
                                   <DeleteIconButton
-                                    label={`Remove member ${node.name}`}
+                                    label={`Remove member ${member.entry_name}`}
                                     disabled={isDeletingMember}
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      onRemoveMember(node.membership_id);
+                                      onRemoveMember(member.id);
                                     }}
                                     onDoubleClick={(event) => event.stopPropagation()}
                                   />
@@ -376,24 +376,11 @@ export function GroupDetailModal({
                           </TableBody>
                         </Table>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </section>
 
-                <section className="groups-detail-section">
-                  <div className="groups-detail-section-header">
-                    <div>
-                      <h3>Derived graph</h3>
-                      <p>Graph edges are read-only and derived from the current direct membership plus group type.</p>
-                    </div>
-                    <Badge variant="outline">{groupSummary.group_type} layout</Badge>
-                  </div>
-                  <div className="groups-detail-section-body">
-                    {isLoading ? <p>Loading group graph...</p> : null}
-                    {loadError ? <p className="error">{loadError}</p> : null}
-                    {!isLoading && !loadError && groupGraph ? <GroupGraphView graph={groupGraph} /> : null}
-                  </div>
-                </section>
+                {isRule && groupDetail ? <GroupRuleEditorSection group={groupDetail} /> : null}
               </>
             )}
           </div>

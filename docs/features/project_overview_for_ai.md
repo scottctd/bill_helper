@@ -168,7 +168,7 @@
 - Counterparty entities, tags, entry groups.
 - Entry kinds: EXPENSE, INCOME, TRANSFER.
 - Money in minor units per currency.
-- **Entry editor:** Modal-based create and edit (Notion-like); properties plus optional markdown body. Swap from/to control. Ranked fuzzy tag picker. Optional direct group assignment; SPLIT groups require member role.
+- **Entry editor:** Modal-based create and edit (Notion-like); properties plus optional markdown body. Swap from/to control. Ranked fuzzy tag picker. Multi-select manual group assignment; rule groups appear as read-only badges.
 
 ### 7.2 Entities
 
@@ -200,12 +200,10 @@ The most recent snapshot produces one **open interval** from that snapshot to to
 
 ### 7.4 Groups
 
-- First-class typed groups with direct membership (entries or child groups). Graph derived from type plus membership; no explicit edge storage.
-- **BUNDLE:** Fully connected graph over direct members.
-- **SPLIT:** At most one PARENT; parent descendants must be EXPENSE, children must be INCOME; requires member roles.
-- **RECURRING:** All descendants same EntryKind; edges form chronological chain.
-- Group nesting limited to one level; child groups cannot be shared across parents.
-- Entry detail and groups workspace show graph visualization.
+- Unified groups with `manual` or `rule` source.
+- Manual groups store explicit entry membership rows.
+- Rule groups compute membership from a saved rule tree plus optional include/exclude override rows on individual entries.
+- Groups workspace lists and edits groups; rule groups embed the shared rule editor from `frontend/src/features/groupRules/`.
 
 ### 7.5 Taxonomy
 

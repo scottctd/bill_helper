@@ -22,13 +22,8 @@ const ENTRY_FIELD_ORDER: Record<string, number> = {
   markdown_body: 9,
   markdown_notes: 10,
   group: 11,
-  group_type: 12,
-  parent_group: 13,
-  parent_group_ref: 14,
-  member_kind: 15,
-  member: 16,
-  member_ref: 17,
-  member_role: 18
+  source: 12,
+  override: 13
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -41,12 +36,8 @@ const FIELD_LABELS: Record<string, string> = {
   to_entity: "to",
   markdown_body: "notes",
   markdown_notes: "notes",
-  group_type: "group type",
-  parent_group: "parent group",
-  parent_group_ref: "parent group ref",
-  member_kind: "member type",
-  member_ref: "member ref",
-  member_role: "split role"
+  source: "source",
+  override: "override"
 };
 
 export function isRecord(value: unknown): value is JsonRecord {

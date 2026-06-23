@@ -16,23 +16,20 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from backend.auth.contracts import RequestPrincipal
 from backend.enums_finance import EntryKind
-from backend.models_finance import Account, Entry
+from backend.models_finance import Account, Entry, Group
 from backend.schemas_finance import (
     DashboardMonthlyTrendPoint,
     DashboardRead,
     DashboardTimelineRead,
 )
-from backend.services.access_scope import account_owner_filter, entry_owner_filter
-from backend.services.filter_groups import (
-    FilterGroupDefinition,
-    list_filter_group_definitions,
-)
+from backend.services.access_scope import account_owner_filter, entry_owner_filter, group_owner_filter
+from backend.services.groups import group_load_options
 from backend.services.finance_dashboard_rollups import (
     build_breakdown_items,
     build_category_summaries,
     build_daily_spending_points,
     build_dashboard_kpis,
-    build_filter_group_summaries,
+    build_group_summaries,
     build_lifecycle_summaries,
     build_projection,
     build_weekday_spending_points,
@@ -95,7 +92,14 @@ def build_dashboard_read(
 
     runtime_settings = resolve_runtime_settings(db)
     dashboard_currency_code = runtime_settings.dashboard_currency_code
-    filter_groups = list_filter_group_definitions(db, principal=principal)
+    groups = list(
+        db.scalars(
+            select(Group)
+            .where(group_owner_filter(principal))
+            .options(*group_load_options())
+            .order_by(Group.position.asc(), Group.created_at.asc())
+        )
+    )
 
     analytics = build_dashboard_analytics(
         db,
@@ -106,7 +110,7 @@ def build_dashboard_read(
             entry_filter=entry_owner_filter(principal),
             account_filter=account_owner_filter(principal),
         ),
-        filter_groups=filter_groups,
+        groups=groups,
     )
 
     as_of = min(date.today(), end - timedelta(days=1))
@@ -334,11 +338,11 @@ def build_dashboard_analytics(
     start: date,
     end: date,
     options: DashboardAnalyticsOptions | None = None,
-    filter_groups: list[FilterGroupDefinition] | None = None,
+    groups: list[Group] | None = None,
 ) -> dict[str, object]:
     analytics_options = options or DashboardAnalyticsOptions()
     normalized_currency = analytics_options.currency_code.upper()
-    active_filter_groups = filter_groups or []
+    active_groups = groups or []
     account_entity_ids = _account_entity_ids(
         db,
         account_filter=analytics_options.account_filter,
@@ -366,7 +370,7 @@ def build_dashboard_analytics(
     rollup = rollup_expense_entries(
         expense_entries,
         category_paths=category_paths,
-        filter_groups=active_filter_groups,
+        groups=active_groups,
         account_entity_ids=account_entity_ids,
     )
 
@@ -413,8 +417,8 @@ def build_dashboard_analytics(
         "kpis": kpis,
         "categories": build_category_summaries(rollup, expense_total_minor=expense_total_minor),
         "lifecycles": build_lifecycle_summaries(rollup, expense_total_minor=expense_total_minor),
-        "filter_groups": build_filter_group_summaries(
-            rollup, active_filter_groups, expense_total_minor=expense_total_minor
+        "groups": build_group_summaries(
+            rollup, active_groups, expense_total_minor=expense_total_minor
         ),
         "daily_spending": daily_spending,
         "monthly_trend": monthly_trend,

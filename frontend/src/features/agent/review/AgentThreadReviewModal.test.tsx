@@ -203,7 +203,7 @@ describe("AgentThreadReviewModal", () => {
           change_type: "create_group",
           payload_json: {
             name: "Monthly Bills",
-            group_type: "RECURRING"
+            source: "manual"
           }
         }),
         buildChangeItem({
@@ -219,12 +219,12 @@ describe("AgentThreadReviewModal", () => {
               target_type: "entry",
               entry_ref: {
                 entry_id: "entry-1234"
-              }
+              },
+              override: "include"
             },
-            member_role: "CHILD",
             group_preview: {
               name: "Monthly Bills",
-              group_type: "SPLIT"
+              group_source: "manual"
             },
             member_preview: {
               date: "2026-03-01",
@@ -254,8 +254,8 @@ describe("AgentThreadReviewModal", () => {
     const pendingSection = within(dialog.querySelector(".agent-review-sidebar") as HTMLElement).getByLabelText("Pending");
     expect(within(pendingSection).getByText("Groups")).toBeInTheDocument();
     const initialFields = screen.getByLabelText("Proposal fields");
-    expect(within(initialFields).getByText("Group Type")).toBeInTheDocument();
-    expect(within(initialFields).getByText("RECURRING")).toBeInTheDocument();
+    expect(within(initialFields).getByText("Source")).toBeInTheDocument();
+    expect(within(initialFields).getByText("manual")).toBeInTheDocument();
 
     await userEvent.click(screen.getByText("March Rent"));
 
@@ -263,8 +263,8 @@ describe("AgentThreadReviewModal", () => {
     const memberFields = screen.getByLabelText("Proposal fields");
     expect(within(memberFields).getByText("Group")).toBeInTheDocument();
     expect(within(memberFields).getByText("Monthly Bills")).toBeInTheDocument();
-    expect(within(memberFields).getByText("Split Role")).toBeInTheDocument();
-    expect(within(memberFields).getByText("CHILD")).toBeInTheDocument();
+    expect(within(memberFields).getByText("Override")).toBeInTheDocument();
+    expect(within(memberFields).getByText("include")).toBeInTheDocument();
   });
 
   it("shows update proposals as before → after field rows", async () => {

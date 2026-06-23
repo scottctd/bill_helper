@@ -29,6 +29,7 @@ export function invalidateEntryReadModels(queryClient: QueryClient, entryId?: st
 export function invalidateGroupReadModels(queryClient: QueryClient, entryId?: string, groupId?: string): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.entries.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
   if (groupId) {
     queryClient.invalidateQueries({ queryKey: queryKeys.groups.detail(groupId) });
   }
@@ -38,8 +39,6 @@ export function invalidateGroupReadModels(queryClient: QueryClient, entryId?: st
   }
   queryClient.invalidateQueries({ queryKey: queryKeys.entries.detailRoot });
 }
-
-export const invalidateEntryLinkReadModels = invalidateGroupReadModels;
 
 export function invalidateAgentThreadData(queryClient: QueryClient, threadId?: string): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.agent.threads });
@@ -84,12 +83,6 @@ export function invalidateTagReadModels(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.properties.taxonomyTerms(TAG_TYPE_TAXONOMY_KEY) });
   queryClient.invalidateQueries({ queryKey: queryKeys.entries.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-}
-
-export function invalidateFilterGroupReadModels(queryClient: QueryClient): void {
-  queryClient.invalidateQueries({ queryKey: queryKeys.filterGroups.all });
-  queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-  queryClient.invalidateQueries({ queryKey: queryKeys.entries.all });
 }
 
 export function invalidateUserReadModels(queryClient: QueryClient): void {

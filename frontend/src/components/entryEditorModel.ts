@@ -11,8 +11,7 @@ import type {
   Entity,
   Entry,
   EntryKind,
-  EntryLifecycle,
-  GroupMemberRole
+  EntryLifecycle
 } from "../lib/types";
 import { formatEntryLifecycle } from "../lib/catalogs";
 import { entryLifecycleColor } from "../lib/entryClassificationColors";
@@ -28,8 +27,7 @@ export interface EntryEditorFormState {
   from_entity_selected_id: string | null;
   to_entity_selected_id: string | null;
   owner_user_id: string;
-  direct_group_id: string;
-  direct_group_member_role: GroupMemberRole;
+  manual_group_ids: string[];
   tags: string[];
   category: string;
   lifecycle: string;
@@ -47,8 +45,7 @@ export interface EntryEditorSubmitPayload {
   to_entity_id: string | null;
   to_entity: string | null;
   owner_user_id: string;
-  direct_group_id: string | null;
-  direct_group_member_role: GroupMemberRole | null;
+  group_ids: string[];
   tags: string[];
   category: string | null;
   lifecycle: EntryLifecycle | null;
@@ -68,14 +65,6 @@ export const LIFECYCLE_OPTIONS: Array<{ value: string; label: string; color: str
     label: formatEntryLifecycle(value),
     color: entryLifecycleColor(value)
   }))
-];
-
-export const SPLIT_ROLE_OPTIONS: Array<{
-  value: GroupMemberRole;
-  label: string;
-}> = [
-  { value: "CHILD", label: "Child" },
-  { value: "PARENT", label: "Parent" }
 ];
 
 function todayDateInputValue() {
@@ -100,8 +89,7 @@ export function buildCreateForm(
     from_entity_selected_id: null,
     to_entity_selected_id: null,
     owner_user_id: currentUserId,
-    direct_group_id: "",
-    direct_group_member_role: "CHILD",
+    manual_group_ids: [],
     tags: [],
     category: "",
     lifecycle: "",
@@ -121,8 +109,7 @@ export function buildEditForm(entry: Entry): EntryEditorFormState {
     from_entity_selected_id: entry.from_entity_id,
     to_entity_selected_id: entry.to_entity_id,
     owner_user_id: entry.owner_user_id,
-    direct_group_id: entry.direct_group?.id ?? "",
-    direct_group_member_role: entry.direct_group_member_role ?? "CHILD",
+    manual_group_ids: entry.groups.filter((group) => group.source === "manual").map((group) => group.id),
     tags: entry.tags.map((tag) => tag.name),
     category: categoryPathLeaf(entry.category) ?? "",
     lifecycle: entry.lifecycle ?? "",
@@ -168,10 +155,7 @@ function normalizeFormStateForDiff(
       ? state.to_entity_selected_id
       : null,
     owner_user_id: state.owner_user_id,
-    direct_group_id: state.direct_group_id,
-    direct_group_member_role: state.direct_group_id
-      ? state.direct_group_member_role
-      : null,
+    manual_group_ids: [...state.manual_group_ids].sort(),
     tags: normalizeTagValues(state.tags),
     category: state.category.trim().toLowerCase(),
     lifecycle: state.lifecycle,

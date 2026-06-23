@@ -1,6 +1,6 @@
 # High-Level Data Flow and Group Model (Current MVP)
 
-This document summarizes end-to-end flows for the current implementation: manual ledger writes, first-class typed groups, dashboard reads, and agent review-gated proposals.
+This document summarizes end-to-end flows for the current implementation: manual ledger writes, unified groups, dashboard reads, and agent review-gated proposals.
 
 ## System View
 
@@ -14,43 +14,41 @@ flowchart LR
     API --> UI
 ```
 
-## Typed Group-Based Entry Management
+## Unified Group Model
 
-Groups are first-class records. Topology is derived from direct membership plus group type:
+Groups are first-class records with two sources:
 
-- Group table: `entry_groups`
-- Membership table: `entry_group_members`
+- `manual`: explicit many-to-many entry membership through `group_members`
+- `rule`: recursive include/exclude definitions in `groups.definition_json`, plus optional per-entry `include` / `exclude` overrides
+
+Storage:
+
+- Group table: `groups`
+- Membership table: `group_members`
 - Entry table: `entries`
 
-Direct graph rules:
+Rules:
 
-1. Users create a named group with `group_type`.
-2. Users add direct members as entries or child groups.
-3. Backend validates depth-1 nesting and no-sharing rules.
-4. `GET /groups/{group_id}` derives graph nodes and edges from the current direct membership set.
+1. Users create manual groups and add entries, or create rule groups with saved analytics rules.
+2. Entry reads compute effective membership across all owned groups.
+3. Rule groups may overlap; they are auxiliary dashboard cross-cuts, not the primary expense partition.
+4. There is no typed graph model, child-group nesting, or derived edge storage.
 
-Derived edge semantics:
-
-- `BUNDLE`: fully connected graph over direct members
-- `SPLIT`: one optional `PARENT` member with directed edges to `CHILD` members
-- `RECURRING`: chronological chain ordered by representative descendant date
-
-Implemented in `backend/services/groups.py`.
+Implemented in `backend/services/groups.py`, `backend/services/group_membership.py`, and `backend/services/group_rules.py`.
 
 ## Storage Model (High Level)
 
 Primary tables:
 
 - `entries`: core expense/income/transfer records, entity refs, soft-delete flags, markdown note body.
-- `entry_groups`: first-class named typed groups.
-- `entry_group_members`: direct membership rows connecting a group to either an entry or a child group.
+- `groups`: principal-owned manual or rule groups.
+- `group_members`: explicit manual membership and rule-group override rows.
 - `accounts`, `account_snapshots`: account metadata and reconciliation checkpoints.
-- `users`: normalized owners used by entries/accounts/groups/filter groups.
+- `users`: normalized owners used by entries/accounts/groups.
 - `user_files`: canonical per-user registry for durable uploads.
 - `entities`: normalized names for `from`/`to` and account-linked entities.
 - `tags`, `entry_tags`: tag catalog and many-to-many entry mapping.
-- `filter_groups`: per-user saved analytics filters with recursive rule definitions.
-- `taxonomies`, `taxonomy_terms`, `taxonomy_assignments`: reusable categorical system for entities/tags.
+- `taxonomies`, `taxonomy_terms`, `taxonomy_assignments`: reusable categorical system for entities/tags/entries.
 - `sessions`: password-backed bearer sessions stored as hashed token digests.
 
 Agent harness and review tables:
@@ -68,19 +66,19 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
 
 1. Frontend submits to `/api/v1/entries` or `/api/v1/entries/{id}`.
 2. Popup editor serializes notes into `markdown_body`.
-3. Optional `direct_group_id` and `direct_group_member_role` are sent from the same modal when the user assigns a direct group inline.
+3. Optional `group_ids` are sent from the same modal when the user assigns manual groups inline.
 4. Router validates payload with Pydantic schemas.
-5. Services normalize tags/entities/users, then apply or clear direct group membership through the group service.
+5. Services normalize tags/entities/users, then apply manual group memberships through the group service.
 6. SQLAlchemy writes rows to SQLite and commits.
 7. Frontend invalidates query caches and refreshes dependent views.
-8. Entry reads expose `direct_group`, `direct_group_member_role`, and `group_path`; new entries still default to ungrouped.
+8. Entry reads expose `groups[]`; new entries default to no memberships until assigned or matched by rules.
 
 ### Group Mutation Path
 
-1. Group create, rename, delete, add-member, or remove-member mutates `entry_groups` and/or `entry_group_members`.
-2. Backend validates membership ownership, depth-1 nesting, and group-type invariants.
-3. Graph reads (`GET /groups`, `GET /groups/{group_id}`) derive counts, nodes, and edges from the current membership tree.
-4. Entry detail reads reflect updated `direct_group` and `group_path`.
+1. Group create, update, delete, add-member, or remove-member mutates `groups` and/or `group_members`.
+2. Backend validates ownership, source-specific rules, and override semantics.
+3. Group reads (`GET /groups`, `GET /groups/{group_id}`) return summaries, members, and parsed rules.
+4. Entry reads recompute effective membership from manual rows, rule evaluation, and overrides.
 
 ### Agent-Assisted Write Path (Review-Gated)
 
@@ -89,47 +87,47 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
 3. Proposed creates are persisted as `agent_change_items` (`PENDING_REVIEW`).
 4. Human reviewer approves/rejects individual items.
 5. On approval, apply handlers create domain rows (including entries) and record review actions.
-6. Agent-created entries remain ungrouped until a user assigns them through the groups workspace.
+6. Agent-created entries remain ungrouped until a user assigns manual groups or saved rules match them.
 
 ### Read Path (Dashboard + Account Reconciliation)
 
 1. Frontend calls `/api/v1/dashboard?month=YYYY-MM` and account reconciliation endpoints.
 2. Finance service computes:
    - runtime-configured currency monthly KPIs
-   - saved-filter-group month totals
-   - daily and monthly expense series grouped by saved filter groups
+   - saved rule-group month totals in `groups[]`
+   - daily and monthly expense series grouped by entry category and lifecycle
    - monthly trend, breakdowns (`from`, `to`, `tag`)
    - weekday distribution, largest expenses, projection
    - account reconciliation interval summaries for the account workspace
 3. Frontend renders dashboard charts/tables from the aggregated payload and renders account reconciliation in the accounts workspace.
 
-### Filter-Group Configuration Path
+### Rule-Group Configuration Path
 
-1. Frontend calls `/api/v1/filter-groups`.
-2. Backend returns only the caller's saved custom groups; an empty list is valid.
+1. Frontend calls `/api/v1/groups` and creates or edits groups with `source=rule`.
+2. Backend returns only the caller's saved groups; an empty list is valid.
 3. Users create or edit recursive include/exclude rules with nested `AND`/`OR` groups.
-4. Dashboard reads consume those saved definitions as optional overlapping cross-cuts.
+4. Dashboard reads consume saved rule groups as optional overlapping cross-cuts.
 
 ## Module Map
 
 - API routers:
   - `backend/routers/entries.py`
   - `backend/routers/groups.py`
-  - `backend/routers/filter_groups.py`
   - `backend/routers/dashboard.py`
   - `backend/routers/accounts.py`
   - `backend/routers/agent.py`
   - `backend/routers/settings.py`
 - Core services:
   - `backend/services/groups.py`
+  - `backend/services/group_membership.py`
+  - `backend/services/group_rules.py`
   - `backend/services/entries.py`
   - `backend/services/entities.py`
   - `backend/services/users.py`
   - `backend/services/runtime_settings.py`
   - `backend/services/taxonomy.py`
-  - `backend/services/filter_groups.py`
-  - `backend/services/filter_group_rules.py`
-  - `backend/services/finance.py`
+  - `backend/services/finance_dashboard.py`
+  - `backend/services/finance_dashboard_rollups.py`
 - Agent services:
   - `backend/services/agent/harness/`
   - `backend/services/agent/production_runtime.py`
@@ -150,6 +148,7 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
   - `backend/models_finance.py`
   - `backend/models_agent.py`
   - `backend/schemas_finance.py`
+  - `backend/schemas_group_rules.py`
   - `backend/schemas_agent.py`
 - Frontend access/render paths:
   - `frontend/src/lib/api.ts`
@@ -157,7 +156,7 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
   - `frontend/src/pages/EntriesPage.tsx`
   - `frontend/src/pages/EntryDetailPage.tsx`
   - `frontend/src/pages/GroupsPage.tsx`
-  - `frontend/src/components/GroupGraphView.tsx`
+  - `frontend/src/features/groups/GroupRuleEditorSection.tsx`
   - `frontend/src/components/GroupEditorModal.tsx`
   - `frontend/src/components/GroupMemberEditorModal.tsx`
   - `frontend/src/pages/DashboardPage.tsx`
@@ -170,45 +169,7 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
 
 ## Operational Impact
 
-- Migration path includes:
-  - `0001_initial`
-  - `0002_entities_and_entry_entity_refs`
-  - `0003_entity_category`
-  - `0004_users_and_account_entity_links`
-  - `0005_remove_attachments`
-  - `0006_agent_append_only_core`
-  - `0007_taxonomy_core`
-  - `0008_agent_run_usage_metrics`
-  - `0009_remove_entry_status`
-  - `0010_runtime_settings_overrides`
-  - `0011_remove_openrouter_runtime_settings_fields`
-  - `0012_remove_related_link_type`
-  - `0013_add_account_markdown_body`
-  - `0014_remove_account_institution_type`
-- `0015_add_agent_tool_call_output_text`
-- `0016_add_user_memory_to_runtime_settings`
-- `0017_rename_tag_category_taxonomy`
-- `0018_add_tag_description`
-- `0019_add_transfer_entry_kind`
-- `0020_add_agent_message_attachment_original_filename`
-- `0021_add_agent_run_context_tokens`
-- `0022_agent_run_events_and_tool_lifecycle`
-- `0023_add_agent_provider_config`
-- `0024_entity_root_accounts`
-- `0025_user_memory_json_list`
-- `0026_entry_groups_v2`
-- `0027_add_agent_bulk_concurrency_setting`
-- `0028_add_available_agent_models_to_runtime_settings`
-- `0029_add_agent_run_surface`
-- `0030_add_account_agent_change_types`
-- `0031_add_user_is_admin`
-- `0032_add_filter_groups`
-- `0033_multi_user_security`
-- `0034_add_entry_tagging_model_to_runtime_settings`
-- `0035_add_user_files_and_agent_workspace`
-- `0036_add_agent_run_created_at_index`
-- `0037_add_agent_message_attachments_use_ocr`
-- `0038_add_agent_model_display_names_to_runtime_settings`
+- Migration path includes historical group migrations through `0049_unified_groups`, which merges legacy `entry_groups` / `filter_groups` storage into unified `groups` / `group_members`.
 - Operational commands:
   - `uv run alembic upgrade head`
   - `uv run python scripts/bootstrap_admin.py --name <user> --password <pass>`
@@ -225,7 +186,6 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
 ## Current Constraints and Limitations
 
 - app auth is still prototype-grade and limited to admin/non-admin roles
-- group nesting depth is capped at one
-- child groups cannot be shared across multiple parents
-- edges are derived only; there is no explicit edge storage or arbitrary edge editor
+- manual groups support many-to-many entry membership; rule groups derive membership and allow per-entry overrides only
 - dashboard analytics use runtime-configured currency selection (`/settings` override, else env default)
+- overlapping rule groups can make summed cross-cut shares exceed `100%`

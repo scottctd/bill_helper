@@ -78,10 +78,10 @@ export interface DashboardLifecycleSummary {
   entry_count: number;
 }
 
-export interface DashboardFilterGroupSummary {
-  filter_group_id: string;
-  key: string;
+export interface DashboardGroupSummary {
+  group_id: string;
   name: string;
+  source: string;
   color: string | null;
   total_minor: number;
   share: number;
@@ -137,7 +137,7 @@ export interface Dashboard {
   kpis: DashboardKpis;
   categories: DashboardCategorySummary[];
   lifecycles: DashboardLifecycleSummary[];
-  filter_groups: DashboardFilterGroupSummary[];
+  groups: DashboardGroupSummary[];
   daily_spending: DashboardDailySpendingPoint[];
   monthly_trend: DashboardMonthlyTrendPoint[];
   spending_by_from: DashboardBreakdownItem[];

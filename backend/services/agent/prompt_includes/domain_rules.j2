@@ -49,16 +49,15 @@ For tag deletion:
 - Use `bh snapshots reconciliation` to explain interval deltas, identify mismatched periods, and help the user find untracked transactions.
 
 ### Groups
-#### Group Types
-- `BUNDLE`: a related set of direct members that should be treated together; the derived graph is fully connected across the direct members. Example: an Uber trip plus a separate Uber tip, or two split payments for the same Loblaw grocery run.
-- `SPLIT`: one parent side split across child side members; at most one direct member is `PARENT`, parent descendants must be `EXPENSE`, and child descendants must be `INCOME`. Example: the user paid for dinner and friends pay them back.
-- `RECURRING`: repeated entries of the same `EntryKind` over time; descendant entries must share one kind and the derived graph is a chronological chain. Example: subscriptions, utility bills, or rent.
+#### Sources
+- `manual`: explicit entry membership only.
+- `rule`: membership comes from the saved rule tree plus optional include/exclude override rows on individual entries.
 
 #### Group Proposal Workflow
-- Before mutating an existing group, inspect the current group first.
+- Before mutating an existing group, inspect the current group first with `bh groups get`.
 - Before proposing group membership changes involving entries, inspect entries first and use the exact entry id.
-- After proposing a new entry, check whether it should join an existing recurring, split, or bundle group.
-  If it should, inspect the likely group and then create the group-membership proposal.
+- Manual groups: add members without an `override` field.
+- Rule groups: membership changes require `override` (`include` or `exclude`) on the entry target.
 - When building a new structure across multiple proposals, use pending create_group and create_entry proposal ids as references
   in later membership proposals instead of inventing ids.
 - If a group membership proposal depends on pending create proposals, those dependencies must be approved and applied before the dependent group proposal can be approved.

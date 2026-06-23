@@ -12,7 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from backend.contracts_groups import GroupCreateCommand, GroupMemberCreateCommand, GroupPatch
 from backend.contracts_users import UserCreateCommand, UserPatch
-from backend.enums_finance import EntryKind, EntryLifecycle, GroupMemberRole, GroupType
+from backend.enums_finance import EntryKind, EntryLifecycle, GroupMemberOverride, GroupSource
+from backend.schemas_group_rules import GroupRule
 from backend.validation.contract_fields import NonEmptyPatchModel
 from backend.validation.finance_names import normalize_tag_name
 
@@ -240,16 +241,9 @@ class EntryBase(BaseModel):
 
 class EntryCreate(EntryBase):
     tags: list[str] = Field(default_factory=list)
-    direct_group_id: str | None = None
-    direct_group_member_role: GroupMemberRole | None = None
+    group_ids: list[str] = Field(default_factory=list)
     category: str | None = Field(default=None, min_length=1, max_length=120)
     lifecycle: EntryLifecycle | None = None
-
-    @model_validator(mode="after")
-    def validate_direct_group_membership(self) -> EntryCreate:
-        if self.direct_group_id is None and self.direct_group_member_role is not None:
-            raise ValueError("direct_group_member_role requires direct_group_id.")
-        return self
 
 
 class EntryUpdate(BaseModel):
@@ -266,8 +260,7 @@ class EntryUpdate(BaseModel):
     owner: str | None = Field(default=None, max_length=255)
     markdown_body: str | None = None
     tags: list[str] | None = None
-    direct_group_id: str | None = None
-    direct_group_member_role: GroupMemberRole | None = None
+    group_ids: list[str] | None = None
     category: str | None = Field(default=None, min_length=1, max_length=120)
     lifecycle: EntryLifecycle | None = None
 
@@ -293,9 +286,7 @@ class EntryRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     tags: list[TagSummaryRead] = Field(default_factory=list)
-    direct_group: EntryGroupRefRead | None = None
-    direct_group_member_role: GroupMemberRole | None = None
-    group_path: list[EntryGroupRefRead] = Field(default_factory=list)
+    groups: list["GroupRefRead"] = Field(default_factory=list)
 
 
 class EntryDetailRead(EntryRead):
@@ -343,10 +334,42 @@ class EntryTagSuggestionResponse(BaseModel):
     suggested_lifecycle: EntryLifecycle | None = None
 
 
-class EntryGroupRefRead(BaseModel):
+class GroupRefRead(BaseModel):
     id: str
     name: str
-    group_type: GroupType
+    source: GroupSource
+    color: str | None = None
+
+
+class GroupSummaryRead(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    color: str | None = None
+    source: GroupSource
+    rule_summary: str | None = None
+    member_count: int
+    first_occurred_at: date | None = None
+    last_occurred_at: date | None = None
+    position: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class GroupMemberRead(BaseModel):
+    id: str
+    entry_id: str
+    override: GroupMemberOverride | None = None
+    entry_name: str
+    occurred_at: date
+    kind: EntryKind
+    amount_minor: int
+    currency_code: str
+
+
+class GroupRead(GroupSummaryRead):
+    members: list[GroupMemberRead] = Field(default_factory=list)
+    rule: GroupRule | None = None
 
 
 class GroupCreate(GroupCreateCommand):
@@ -361,152 +384,7 @@ class GroupMemberCreate(GroupMemberCreateCommand):
     pass
 
 
-class GroupNode(BaseModel):
-    graph_id: str
-    membership_id: str
-    subject_id: str
-    node_type: Literal["ENTRY", "GROUP"]
-    name: str
-    member_role: GroupMemberRole | None = None
-    representative_occurred_at: date | None = None
-    kind: EntryKind | None = None
-    amount_minor: int | None = None
-    currency_code: str | None = None
-    occurred_at: date | None = None
-    group_type: GroupType | None = None
-    descendant_entry_count: int | None = None
-    first_occurred_at: date | None = None
-    last_occurred_at: date | None = None
-
-
-class GroupEdge(BaseModel):
-    id: str
-    source_graph_id: str
-    target_graph_id: str
-    group_type: GroupType
-
-
-class GroupGraphRead(BaseModel):
-    id: str
-    name: str
-    group_type: GroupType
-    parent_group_id: str | None = None
-    direct_member_count: int
-    direct_entry_count: int
-    direct_child_group_count: int
-    descendant_entry_count: int
-    first_occurred_at: date | None = None
-    last_occurred_at: date | None = None
-    nodes: list[GroupNode]
-    edges: list[GroupEdge]
-
-
-class GroupSummaryRead(BaseModel):
-    id: str
-    name: str
-    group_type: GroupType
-    parent_group_id: str | None = None
-    direct_member_count: int
-    direct_entry_count: int
-    direct_child_group_count: int
-    descendant_entry_count: int
-    first_occurred_at: date | None = None
-    last_occurred_at: date | None = None
-
-
-FilterRuleField = Literal["entry_kind", "tags", "is_internal_transfer"]
-FilterRuleConditionOperator = Literal["is", "has_any", "has_none"]
-FilterRuleLogicalOperator = Literal["AND", "OR"]
-
-
-class FilterRuleCondition(BaseModel):
-    type: Literal["condition"] = "condition"
-    field: FilterRuleField
-    operator: FilterRuleConditionOperator
-    value: str | bool | list[str]
-
-    @model_validator(mode="after")
-    def validate_condition(self) -> FilterRuleCondition:
-        if self.field == "entry_kind":
-            if self.operator != "is":
-                raise ValueError("entry_kind supports only the 'is' operator")
-            if not isinstance(self.value, str):
-                raise ValueError("entry_kind condition value must be a string")
-            EntryKind(self.value)
-            return self
-
-        if self.field == "is_internal_transfer":
-            if self.operator != "is":
-                raise ValueError("is_internal_transfer supports only the 'is' operator")
-            if not isinstance(self.value, bool):
-                raise ValueError("is_internal_transfer condition value must be a boolean")
-            return self
-
-        if self.field == "tags":
-            if self.operator not in {"has_any", "has_none"}:
-                raise ValueError("tags support only 'has_any' or 'has_none' operators")
-            if not isinstance(self.value, list) or not self.value:
-                raise ValueError("tags condition value must be a non-empty list")
-            normalized_values = [normalize_tag_name(str(item)) for item in self.value if str(item).strip()]
-            normalized_values = sorted({item for item in normalized_values if item})
-            if not normalized_values:
-                raise ValueError("tags condition value must include at least one tag")
-            self.value = normalized_values
-            return self
-
-        raise ValueError(f"Unsupported filter condition field '{self.field}'")
-
-
-class FilterRuleGroup(BaseModel):
-    type: Literal["group"] = "group"
-    operator: FilterRuleLogicalOperator
-    children: list["FilterRuleNode"] = Field(default_factory=list, min_length=1)
-
-
-FilterRuleNode = Annotated[
-    FilterRuleCondition | FilterRuleGroup,
-    Field(discriminator="type"),
-]
-
-
-class FilterGroupRule(BaseModel):
-    include: FilterRuleGroup
-    exclude: FilterRuleGroup | None = None
-
-
-FilterRuleGroup.model_rebuild()
-
-
-class FilterGroupCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(min_length=1, max_length=120)
-    description: str | None = Field(default=None, max_length=2000)
-    color: str | None = Field(default=None, max_length=20)
-    rule: FilterGroupRule
-
-
-class FilterGroupUpdate(NonEmptyPatchModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    description: str | None = Field(default=None, max_length=2000)
-    color: str | None = Field(default=None, max_length=20)
-    rule: FilterGroupRule | None = None
-
-
-class FilterGroupRead(BaseModel):
-    id: str
-    key: str
-    name: str
-    description: str | None = None
-    color: str | None = None
-    is_default: bool
-    position: int
-    rule: FilterGroupRule
-    rule_summary: str
-    created_at: datetime
-    updated_at: datetime
+EntryRead.model_rebuild()
 
 
 class DailyExpensePoint(BaseModel):
@@ -573,10 +451,10 @@ class DashboardLifecycleSummary(BaseModel):
     entry_count: int
 
 
-class DashboardFilterGroupSummary(BaseModel):
-    filter_group_id: str
-    key: str
+class DashboardGroupSummary(BaseModel):
+    group_id: str
     name: str
+    source: GroupSource
     color: str | None = None
     total_minor: int
     share: float
@@ -638,7 +516,7 @@ class DashboardRead(BaseModel):
     kpis: DashboardKpisRead
     categories: list[DashboardCategorySummary]
     lifecycles: list[DashboardLifecycleSummary]
-    filter_groups: list[DashboardFilterGroupSummary]
+    groups: list[DashboardGroupSummary]
     daily_spending: list[DashboardDailySpendingPoint]
     monthly_trend: list[DashboardMonthlyTrendPoint]
     spending_by_from: list[DashboardBreakdownItem]

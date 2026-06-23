@@ -30,7 +30,7 @@ import {
   buildTimelineYears,
   buildYearMonthKeys,
   buildYearlyCategoryTotals,
-  buildYearlyFilterGroupTotals,
+  buildYearlyGroupTotals,
   buildYearlyLifecycleTotals,
   buildYearlyOverviewData,
   median,
@@ -334,10 +334,10 @@ export function DashboardPage() {
     viewMode === "year"
       ? buildYearlyLifecycleTotals(selectedYearMonths, yearlyDashboardsByMonth)
       : data.lifecycles;
-  const spendingFilterGroups =
+  const spendingGroups =
     viewMode === "year"
-      ? buildYearlyFilterGroupTotals(selectedYearMonths, yearlyDashboardsByMonth)
-      : data.filter_groups;
+      ? buildYearlyGroupTotals(selectedYearMonths, yearlyDashboardsByMonth)
+      : data.groups;
 
   const spendingByDestination =
     viewMode === "year"
@@ -510,7 +510,7 @@ export function DashboardPage() {
             data={data}
             categories={spendingCategories}
             lifecycles={spendingLifecycles}
-            filterGroups={spendingFilterGroups}
+            groups={spendingGroups}
             spendingByDestination={spendingByDestination}
             dailyChartData={dailyChartData}
             yearlyQueriesLoading={yearlyQueriesLoading}

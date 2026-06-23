@@ -11,10 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from backend.models_finance import Account, Entity, Entry
-from backend.services.agent.group_references import (
-    GroupMemberPublicRecord,
-    GroupRelationshipRecord,
-)
+from backend.services.agent.group_references import GroupMemberPublicRecord
 from backend.services.agent.payload_normalization import normalize_loose_text
 from backend.services.agent.principal_scope import load_run_principal
 from backend.services.agent.user_context import normalize_account_markdown_for_context
@@ -127,26 +124,8 @@ def get_account_by_id_for_tool_context(context: ToolContext, account_id: str) ->
 
 
 def format_group_member_record(record: GroupMemberPublicRecord | dict[str, Any]) -> str:
-    member_type = record.get("member_type")
-    member_role = f" role={record.get('member_role')}" if record.get("member_role") else ""
-    if member_type == "entry":
-        return (
-            f"entry_id={record.get('entry_id')} {record.get('occurred_at')} {record.get('name')} "
-            f"{record.get('amount_minor')} {record.get('kind')}{member_role}"
-        )
-    date_range = record.get("date_range") or {}
+    override = f" override={record.get('override')}" if record.get("override") else ""
     return (
-        f"group_id={record.get('group_id')} {record.get('name')} ({record.get('group_type')}, "
-        f"descendants={record.get('descendant_entry_count')}, "
-        f"range={date_range.get('first_occurred_at') or '-'} to {date_range.get('last_occurred_at') or '-'}){member_role}"
+        f"entry_id={record.get('entry_id')} {record.get('occurred_at')} {record.get('name')} "
+        f"{record.get('amount_minor')} {record.get('kind')}{override}"
     )
-
-
-def format_group_relationship_record(record: GroupRelationshipRecord | dict[str, Any]) -> str:
-    source = record.get("source") or {}
-    target = record.get("target") or {}
-    source_id = source.get("entry_id") or source.get("group_id") or "?"
-    target_id = target.get("entry_id") or target.get("group_id") or "?"
-    source_name = source.get("name") or "Unknown"
-    target_name = target.get("name") or "Unknown"
-    return f"{source_id} {source_name} -> {target_id} {target_name} ({record.get('relation')})"

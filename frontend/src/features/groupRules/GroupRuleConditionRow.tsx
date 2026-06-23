@@ -8,20 +8,20 @@
 import { Button } from "../../components/ui/button";
 import { NativeSelect } from "../../components/ui/native-select";
 import { TagMultiSelect } from "../../components/TagMultiSelect";
-import type { FilterRuleCondition, FilterRuleField, Tag } from "../../lib/types";
-import { createConditionForField } from "./filterGroupRuleUtils";
+import type { GroupRuleCondition, GroupRuleField, Tag } from "../../lib/types";
+import { createConditionForField } from "./groupRuleUtils";
 
-interface FilterRuleConditionRowProps {
-  condition: FilterRuleCondition;
+interface GroupRuleConditionRowProps {
+  condition: GroupRuleCondition;
   tags: Tag[];
   preferredTagName?: string;
   removeLabel?: string;
   disableRemove?: boolean;
-  onChange: (next: FilterRuleCondition) => void;
+  onChange: (next: GroupRuleCondition) => void;
   onRemove?: () => void;
 }
 
-export function FilterRuleConditionRow({
+export function GroupRuleConditionRow({
   condition,
   tags,
   preferredTagName,
@@ -29,7 +29,7 @@ export function FilterRuleConditionRow({
   disableRemove = false,
   onChange,
   onRemove
-}: FilterRuleConditionRowProps) {
+}: GroupRuleConditionRowProps) {
   return (
     <div className="rounded-md border border-border bg-card/80 p-3">
       <div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)_auto] lg:items-start">
@@ -38,7 +38,7 @@ export function FilterRuleConditionRow({
           <NativeSelect
             value={condition.field}
             onChange={(event) =>
-              onChange(createConditionForField(event.target.value as FilterRuleField, condition, preferredTagName))
+              onChange(createConditionForField(event.target.value as GroupRuleField, condition, preferredTagName))
             }
           >
             <option value="entry_kind">Entry kind</option>
@@ -67,7 +67,7 @@ export function FilterRuleConditionRow({
                 onChange={(event) =>
                   onChange({
                     ...condition,
-                    operator: event.target.value as FilterRuleCondition["operator"]
+                    operator: event.target.value as GroupRuleCondition["operator"]
                   })
                 }
               >
@@ -79,7 +79,7 @@ export function FilterRuleConditionRow({
               <span>Tags</span>
               <TagMultiSelect
                 options={tags}
-                value={Array.isArray(condition.value) ? condition.value : []}
+                value={Array.isArray(condition.value) ? condition.value.filter((item): item is string => typeof item === "string") : []}
                 onChange={(nextTags) => onChange({ ...condition, value: nextTags })}
                 placeholder="Select tags"
                 ariaLabel="Rule tags"

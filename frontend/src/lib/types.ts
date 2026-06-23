@@ -14,6 +14,14 @@ export * from "./types/catalogs";
 export * from "./types/core";
 export * from "./types/dashboard";
 export * from "./types/entries";
-export * from "./types/filterGroups";
 export * from "./types/groups";
+export type {
+  GroupRead,
+  GroupRule,
+  GroupRuleCondition,
+  GroupRuleField,
+  GroupRuleGroup,
+  GroupRuleNode,
+  GroupSummary
+} from "./types/groups";
 export * from "./types/settings";

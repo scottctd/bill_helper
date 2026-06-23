@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+from sqlalchemy import select
 
 from backend.auth.contracts import RequestPrincipal
 from backend.database import get_session_maker
-from backend.enums_finance import EntryKind, GroupType
-from backend.models_finance import Account, Entity, EntryGroup, User
+from backend.enums_finance import EntryKind, GroupSource
+from backend.models_finance import Account, Entity, Group, GroupMember, User
 from backend.services.crud_policy import PolicyViolation
 from backend.services.accounts import create_account_root
 from backend.services.entries import (
@@ -54,18 +55,18 @@ def _create_account(db, *, name: str, owner_user_id: str) -> Account:
     return account
 
 
-def _create_group(db, *, name: str, owner_user_id: str) -> EntryGroup:
-    group = EntryGroup(
+def _create_group(db, *, name: str, owner_user_id: str) -> Group:
+    group = Group(
         owner_user_id=owner_user_id,
         name=name,
-        group_type=GroupType.BUNDLE,
+        source=GroupSource.MANUAL,
     )
     db.add(group)
     db.flush()
     return group
 
 
-def test_create_entry_from_command_assigns_tags_and_direct_group() -> None:
+def test_create_entry_from_command_assigns_tags_and_manual_groups() -> None:
     make_session = get_session_maker()
     db = make_session()
     try:
@@ -85,7 +86,7 @@ def test_create_entry_from_command_assigns_tags_and_direct_group() -> None:
                 from_ref=EntityRef(entity_id=account.id, name="Checking"),
                 owner_ref=UserRef(user_id=admin.id),
                 tags=["Food"],
-                direct_group_id=group.id,
+                group_ids=[group.id],
             ),
             principal=principal,
         )
@@ -96,9 +97,16 @@ def test_create_entry_from_command_assigns_tags_and_direct_group() -> None:
         assert entry.from_entity_id == account.id
         assert entry.from_entity == "Checking"
         assert [tag.name for tag in entry.tags] == ["food"]
-        assert entry.group_membership is not None
-        assert entry.group_membership.entry_id == entry.id
-        assert entry.group_membership.group_id == group.id
+        memberships = list(
+            db.scalars(
+                select(GroupMember).where(
+                    GroupMember.group_id == group.id,
+                    GroupMember.entry_id == entry.id,
+                )
+            )
+        )
+        assert len(memberships) == 1
+        assert memberships[0].override is None
     finally:
         db.close()
 

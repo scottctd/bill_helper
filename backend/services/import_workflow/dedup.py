@@ -47,7 +47,7 @@ def proposal_dedup_signature(item: AgentChangeItem) -> tuple[Any, ...]:
         normalized = normalize_tag_name(str(name)) if isinstance(name, str) else name
         return (change_type.value, normalized)
     if change_type == AgentChangeType.CREATE_GROUP:
-        return (change_type.value, payload.get("name"), payload.get("group_type"))
+        return (change_type.value, payload.get("name"), payload.get("source"))
     if change_type.value.startswith("update_") or change_type.value.startswith("delete_"):
         payload_hash = hashlib.sha256(_stable_json(payload).encode("utf-8")).hexdigest()
         return (

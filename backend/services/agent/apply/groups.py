@@ -8,19 +8,13 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from backend.auth.contracts import RequestPrincipal
-from backend.contracts_groups import (
-    ChildGroupMemberTarget,
-    EntryGroupMemberTarget,
-    GroupCreateCommand,
-    GroupMemberCreateCommand,
-    GroupPatch,
-)
+from backend.contracts_groups import GroupCreateCommand, GroupMemberCreateCommand, GroupPatch
 from backend.services.agent.apply.common import (
     AppliedResource,
     find_scoped_group_by_id,
     find_unique_entry_by_id,
     resolve_applied_group_id,
-    resolve_applied_group_member_target_ids,
+    resolve_applied_group_member_entry_id,
 )
 from backend.services.agent.change_contracts.groups import (
     CreateGroupMemberPayload,
@@ -45,7 +39,13 @@ def apply_create_group(
 ) -> AppliedResource:
     group = create_group(
         db,
-        command=GroupCreateCommand(name=payload.name, group_type=payload.group_type),
+        command=GroupCreateCommand(
+            name=payload.name,
+            source=payload.source,
+            description=payload.description,
+            color=payload.color,
+            rule=payload.rule,
+        ),
         owner_user_id=principal.user_id,
     )
     db.flush()
@@ -87,23 +87,16 @@ def apply_create_group_member(
     group_id = resolve_applied_group_id(db, payload.group_ref, principal=principal)
     group = find_scoped_group_by_id(db, group_id=group_id, principal=principal)
 
-    target_entry_id, target_child_group_id = resolve_applied_group_member_target_ids(
+    target_entry_id = resolve_applied_group_member_entry_id(
         db,
         target=payload.target,
         principal=principal,
     )
-    if target_entry_id is not None:
-        entry = find_unique_entry_by_id(db, target_entry_id, principal=principal)
-        command = GroupMemberCreateCommand(
-            target=EntryGroupMemberTarget(entry_id=entry.id),
-            member_role=payload.member_role,
-        )
-    else:
-        child_group = find_scoped_group_by_id(db, group_id=target_child_group_id, principal=principal)
-        command = GroupMemberCreateCommand(
-            target=ChildGroupMemberTarget(group_id=child_group.id),
-            member_role=payload.member_role,
-        )
+    entry = find_unique_entry_by_id(db, target_entry_id, principal=principal)
+    command = GroupMemberCreateCommand(
+        entry_id=entry.id,
+        override=payload.target.override,
+    )
 
     membership = add_group_member(db, group=group, command=command)
     db.flush()
@@ -117,18 +110,13 @@ def apply_delete_group_member(
 ) -> AppliedResource:
     group = find_scoped_group_by_id(db, group_id=payload.group_ref.group_id or "", principal=principal)
 
-    target_entry_id, target_child_group_id = resolve_applied_group_member_target_ids(
+    target_entry_id = resolve_applied_group_member_entry_id(
         db,
         target=payload.target,
         principal=principal,
     )
     membership = next(
-        (
-            item
-            for item in group.memberships
-            if (target_entry_id is not None and item.entry_id == target_entry_id)
-            or (target_child_group_id is not None and item.child_group_id == target_child_group_id)
-        ),
+        (item for item in group.members if item.entry_id == target_entry_id),
         None,
     )
     if membership is None:

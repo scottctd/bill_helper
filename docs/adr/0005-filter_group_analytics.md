@@ -1,6 +1,6 @@
 # ADR 0005: Filter-Group-Based Dashboard Classification
 
-- Status: accepted
+- Status: superseded by `0009-unified_groups.md`
 - Date: 2026-03-10
 - Deciders: Bill Helper maintainers
 

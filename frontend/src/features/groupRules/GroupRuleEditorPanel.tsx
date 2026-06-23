@@ -1,8 +1,8 @@
 /**
  * CALLING SPEC:
- * - Purpose: render the focused detail editor for one selected filter group.
+ * - Purpose: render the focused detail editor for one rule group.
  * - Inputs: callers that provide editor session state, tag catalog data, and CRUD handlers.
- * - Outputs: React UI for editing one filter group.
+ * - Outputs: React UI for editing one rule group.
  * - Side effects: React rendering and user event wiring.
  */
 import { Link } from "react-router-dom";
@@ -13,12 +13,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import type { Tag } from "../../lib/types";
-import type { FilterGroupEditorFormState, FilterGroupEditorSession } from "./filterGroupEditorState";
-import { FilterRuleSectionEditor } from "./FilterRuleSectionEditor";
-import { createEmptyGroup } from "./filterGroupRuleUtils";
+import type { GroupRuleEditorFormState, GroupRuleEditorSession } from "./groupRuleEditorState";
+import { GroupRuleSectionEditor } from "./GroupRuleSectionEditor";
+import { createEmptyGroup } from "./groupRuleUtils";
 
-interface FilterGroupEditorPanelProps {
-  session: FilterGroupEditorSession;
+interface GroupRuleEditorPanelProps {
+  session: GroupRuleEditorSession;
   tags: Tag[];
   preferredTagName?: string;
   isDirty: boolean;
@@ -29,11 +29,11 @@ interface FilterGroupEditorPanelProps {
   onSubmit: () => void;
   mutationError?: string | null;
   tagLoadError?: string | null;
-  onChange: (nextFormState: FilterGroupEditorFormState) => void;
+  onChange: (nextFormState: GroupRuleEditorFormState) => void;
   onDelete?: () => void;
 }
 
-export function FilterGroupEditorPanel({
+export function GroupRuleEditorPanel({
   session,
   tags,
   preferredTagName,
@@ -47,10 +47,10 @@ export function FilterGroupEditorPanel({
   tagLoadError,
   onChange,
   onDelete
-}: FilterGroupEditorPanelProps) {
-  const title = session.formState.name.trim() || (session.kind === "new" ? "New custom group" : "Unnamed filter group");
+}: GroupRuleEditorPanelProps) {
+  const title = session.formState.name.trim() || (session.kind === "new" ? "New rule group" : "Unnamed rule group");
 
-  function updateFormState(patch: Partial<FilterGroupEditorFormState>) {
+  function updateFormState(patch: Partial<GroupRuleEditorFormState>) {
     onChange({
       ...session.formState,
       ...patch
@@ -71,7 +71,7 @@ export function FilterGroupEditorPanel({
           <div className="flex flex-wrap items-center gap-2">
             {session.kind === "existing" ? (
               <Button asChild type="button" variant="outline" size="sm">
-                <Link to={`/entries?filter_group_id=${session.filterGroupId}`}>View matching entries</Link>
+                <Link to={`/entries?group_id=${session.groupId}`}>View matching entries</Link>
               </Button>
             ) : null}
             <Button type="button" size="sm" disabled={!canSubmit || isPending} onClick={onSubmit}>
@@ -101,13 +101,13 @@ export function FilterGroupEditorPanel({
             rows={3}
             value={session.formState.description}
             onChange={(event) => updateFormState({ description: event.target.value })}
-            placeholder="Explain what this filter group is for."
+            placeholder="Explain what this rule group is for."
           />
         </label>
       </CardHeader>
 
       <CardContent className="grid gap-4">
-        <FilterRuleSectionEditor
+        <GroupRuleSectionEditor
           title="Include when"
           description="Choose the rules an entry must match to land in this group."
           group={session.formState.rule.include}
@@ -124,7 +124,7 @@ export function FilterGroupEditorPanel({
         />
 
         {session.formState.rule.exclude ? (
-          <FilterRuleSectionEditor
+          <GroupRuleSectionEditor
             title="Exclude when"
             description="Remove entries from this group when any exclusion rule matches."
             group={session.formState.rule.exclude}
