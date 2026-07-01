@@ -1,7 +1,11 @@
 @import "./styles/tokens.css";
 @import "./styles/base.css";
 @import "./styles/shell.css";
-@import "./styles/workspaces.css";
+@import "./styles/sections.css";
+@import "./styles/entries.css";
+@import "./styles/groups.css";
+@import "./styles/properties.css";
+@import "./styles/settings.css";
 @import "./styles/dashboard.css";
 @import "./styles/overlays.css";
 @import "./styles/agent.css";

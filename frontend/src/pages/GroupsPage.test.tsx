@@ -110,6 +110,7 @@ const runtimeSettingsFixture: RuntimeSettings = {
   agent_max_pdf_pages: 10,
   agent_base_url: null,
   agent_api_key_configured: false,
+  vision_capable_agent_models: [],
   overrides: {
     user_memory: null,
     default_currency_code: null,
@@ -212,8 +213,8 @@ function mockGroupsPageData() {
   vi.mocked(getEntry).mockResolvedValue(entryFixture);
   vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 1, is_placeholder: false }]);
   vi.mocked(listEntities).mockResolvedValue([
-    { id: "entity-1", name: "Scotiabank Credit", category: null, is_account: true, from_count: 1, to_count: 0, account_count: 1, entry_count: 1 },
-    { id: "entity-2", name: "OpenAI", category: "Software", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1 }
+    { id: "entity-1", name: "Scotiabank Credit", category: null, is_account: true, from_count: 1, to_count: 0, account_count: 1, entry_count: 1, net_amount_mixed_currencies: false },
+    { id: "entity-2", name: "OpenAI", category: "Software", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1, net_amount_mixed_currencies: false }
   ]);
   vi.mocked(listUsers).mockResolvedValue([{ id: "user-1", name: "Alice", is_admin: false, is_current_user: true }]);
   vi.mocked(listTags).mockResolvedValue([]);

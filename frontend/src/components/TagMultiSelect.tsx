@@ -5,15 +5,17 @@
  * - Outputs: React components and UI helpers exported by `TagMultiSelect`.
  * - Side effects: React rendering and user event wiring.
  */
-import { KeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-import { useFloatingMenuPosition } from "../hooks/useFloatingMenuPosition";
 import { resolveTagColor } from "../lib/tagColors";
 import type { Tag } from "../lib/types";
-import { useFloatingMenuPortal } from "./FloatingMenuPortal";
-import { SelectMenuSurface } from "./SelectMenuSurface";
+import { FloatingSelectMenu } from "./ui/floating-select/FloatingSelectMenu";
+import {
+  onFloatingSelectActionKeyDown,
+  onFloatingSelectPointerDown
+} from "./ui/floating-select/floatingSelectActions";
+import { useFloatingSelectMenu } from "./ui/floating-select/useFloatingSelectMenu";
 
 type TagMultiSelectDisplayMode = "inline" | "compact";
 
@@ -151,20 +153,17 @@ export function TagMultiSelect({
   displayMode = "inline"
 }: TagMultiSelectProps) {
   const isCompact = displayMode === "compact";
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const compactControlRef = useRef<HTMLButtonElement | null>(null);
   const inlineControlRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const portalNode = useFloatingMenuPortal();
   const menuAnchorRef = isCompact ? compactControlRef : inlineControlRef;
   const normalizedValue = useMemo(() => normalizeTagList(value), [value]);
   const [selectedValues, setSelectedValues] = useState<string[]>(normalizedValue);
   const selectedValuesRef = useRef<string[]>(selectedValues);
   const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const { menuRef, menuStyle } = useFloatingMenuPosition({
+  const { rootRef, menuRef, menuStyle, portalNode, isOpen, setIsOpen, toggleMenu, openMenu } = useFloatingSelectMenu({
     anchorRef: menuAnchorRef,
-    open: isOpen
+    disabled
   });
 
   useEffect(() => {
@@ -199,7 +198,8 @@ export function TagMultiSelect({
       map.set(normalized, {
         id: -1 - index,
         name: selectedTagName.trim(),
-        color: null
+        color: null,
+        entry_count: 0
       });
     });
     return Array.from(map.values()).sort((left, right) => left.name.localeCompare(right.name));
@@ -256,21 +256,6 @@ export function TagMultiSelect({
     return normalized;
   }, [allowCreate, optionsByName, query, selectedKeys]);
 
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current) {
-        return;
-      }
-      if (rootRef.current.contains(event.target as Node) || menuRef.current?.contains(event.target as Node)) {
-        return;
-      }
-      setIsOpen(false);
-    };
-
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [menuRef]);
-
   function commitTags(update: (current: string[]) => string[]) {
     const current = selectedValuesRef.current;
     const next = normalizeTagList(update(current));
@@ -283,10 +268,11 @@ export function TagMultiSelect({
   }
 
   const compactLabel = useMemo(
-    () => compactTagMultiSelectLabel(
-      selected.map((tag) => tag.name),
-      placeholder
-    ),
+    () =>
+      compactTagMultiSelectLabel(
+        selected.map((tag) => tag.name),
+        placeholder
+      ),
     [placeholder, selected]
   );
 
@@ -295,18 +281,11 @@ export function TagMultiSelect({
       return;
     }
     if (isCompact) {
-      setIsOpen(true);
+      openMenu();
       return;
     }
     inputRef.current?.focus();
-    setIsOpen(true);
-  }
-
-  function toggleCompactMenu() {
-    if (disabled) {
-      return;
-    }
-    setIsOpen((open) => !open);
+    openMenu();
   }
 
   function addTag(tagName: string) {
@@ -321,7 +300,7 @@ export function TagMultiSelect({
       return [...current, normalized];
     });
     setQuery("");
-    setIsOpen(true);
+    openMenu();
   }
 
   function removeTagAt(index: number) {
@@ -348,7 +327,7 @@ export function TagMultiSelect({
       return [...current, normalized];
     });
     setQuery("");
-    setIsOpen(true);
+    openMenu();
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -387,26 +366,6 @@ export function TagMultiSelect({
     }
   }
 
-  function onOptionPointerDown(event: ReactPointerEvent<HTMLButtonElement>, action: () => void) {
-    if (disabled || event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    action();
-  }
-
-  function onActionKeyDown(event: KeyboardEvent<HTMLButtonElement>, action: () => void) {
-    if (disabled) {
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      event.stopPropagation();
-      action();
-    }
-  }
-
   return (
     <div
       className={`tag-multiselect ${isCompact ? "tag-multiselect-compact" : ""} ${disabled ? "is-disabled" : ""}`}
@@ -416,16 +375,14 @@ export function TagMultiSelect({
         <button
           type="button"
           className="tag-multiselect-control tag-multiselect-compact-trigger"
-          onClick={toggleCompactMenu}
+          onClick={toggleMenu}
           ref={compactControlRef}
           disabled={disabled}
           aria-label={ariaLabel}
           aria-expanded={isOpen}
           aria-haspopup="listbox"
         >
-          <span
-            className={`tag-multiselect-compact-value ${compactLabel.isPlaceholder ? "is-placeholder" : ""}`}
-          >
+          <span className={`tag-multiselect-compact-value ${compactLabel.isPlaceholder ? "is-placeholder" : ""}`}>
             {compactLabel.text}
           </span>
           <ChevronDown className="tag-multiselect-compact-caret" aria-hidden="true" />
@@ -440,11 +397,11 @@ export function TagMultiSelect({
                 type="button"
                 className="tag-chip-remove"
                 onPointerDown={(event) => {
-                  onOptionPointerDown(event, () => {
+                  onFloatingSelectPointerDown(event, disabled, () => {
                     removeTagAt(index);
                   });
                 }}
-                onKeyDown={(event) => onActionKeyDown(event, () => removeTagAt(index))}
+                onKeyDown={(event) => onFloatingSelectActionKeyDown(event, disabled, () => removeTagAt(index))}
                 disabled={disabled}
                 aria-label={`Remove tag ${tag.name}`}
               >
@@ -459,9 +416,9 @@ export function TagMultiSelect({
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
-              setIsOpen(true);
+              openMenu();
             }}
-            onFocus={() => setIsOpen(true)}
+            onFocus={openMenu}
             onKeyDown={onKeyDown}
             placeholder={selected.length === 0 ? placeholder : ""}
             disabled={disabled}
@@ -469,72 +426,71 @@ export function TagMultiSelect({
         </div>
       )}
 
-      {isOpen && typeof document !== "undefined"
-        ? createPortal(
-            <SelectMenuSurface
-              className="tag-multiselect-menu"
-              menuRef={menuRef}
-              menuStyle={menuStyle}
-              search={isCompact ? (
-                  <input
-                    ref={inputRef}
-                    className="select-menu-search-input"
-                    aria-label={ariaLabel ? `${ariaLabel} search` : "Search tags"}
-                    value={query}
-                    onChange={(event) => {
-                      setQuery(event.target.value);
-                    }}
-                    onKeyDown={onKeyDown}
-                    placeholder="Search..."
-                    disabled={disabled}
-                  />
-              ) : undefined}
+      <FloatingSelectMenu
+        open={isOpen}
+        portalNode={portalNode}
+        menuRef={menuRef}
+        menuStyle={menuStyle}
+        className="tag-multiselect-menu"
+        search={
+          isCompact ? (
+            <input
+              ref={inputRef}
+              className="select-menu-search-input"
+              aria-label={ariaLabel ? `${ariaLabel} search` : "Search tags"}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+              onKeyDown={onKeyDown}
+              placeholder="Search..."
+              disabled={disabled}
+            />
+          ) : undefined
+        }
+      >
+        {filteredOptions.length === 0 && !creatableTag ? <p className="tag-multiselect-empty">No matching tags.</p> : null}
+        {filteredOptions.map((tag) => {
+          const key = normalizeTagName(tag.name);
+          const isSelected = selectedKeys.has(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`tag-multiselect-option ${isSelected ? "is-selected" : ""}`}
+              onPointerDown={(event) => {
+                onFloatingSelectPointerDown(event, disabled, () => {
+                  toggleTag(tag.name);
+                });
+              }}
+              onKeyDown={(event) => onFloatingSelectActionKeyDown(event, disabled, () => toggleTag(tag.name))}
+              aria-pressed={isSelected}
             >
-              {filteredOptions.length === 0 && !creatableTag ? <p className="tag-multiselect-empty">No matching tags.</p> : null}
-              {filteredOptions.map((tag) => {
-                const key = normalizeTagName(tag.name);
-                const isSelected = selectedKeys.has(key);
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`tag-multiselect-option ${isSelected ? "is-selected" : ""}`}
-                    onPointerDown={(event) => {
-                      onOptionPointerDown(event, () => {
-                        toggleTag(tag.name);
-                      });
-                    }}
-                    onKeyDown={(event) => onActionKeyDown(event, () => toggleTag(tag.name))}
-                    aria-pressed={isSelected}
-                  >
-                    <span className="tag-option-label">
-                      <span className="tag-option-color" style={{ backgroundColor: resolveTagColor(tag.name, tag.color) }} />
-                      {tag.name}
-                    </span>
-                    <span className="tag-option-check">{isSelected ? "✓" : ""}</span>
-                  </button>
-                );
-              })}
-              {creatableTag ? (
-                <button
-                  type="button"
-                  className="tag-multiselect-option"
-                  onPointerDown={(event) => {
-                    onOptionPointerDown(event, () => {
-                      addTag(creatableTag);
-                    });
-                  }}
-                  onKeyDown={(event) => onActionKeyDown(event, () => addTag(creatableTag))}
-                >
-                  <span className="tag-option-label">
-                    {createLabelPrefix} "{creatableTag}"
-                  </span>
-                </button>
-              ) : null}
-            </SelectMenuSurface>,
-            portalNode ?? document.body
-          )
-        : null}
+              <span className="tag-option-label">
+                <span className="tag-option-color" style={{ backgroundColor: resolveTagColor(tag.name, tag.color) }} />
+                {tag.name}
+              </span>
+              <span className="tag-option-check">{isSelected ? "✓" : ""}</span>
+            </button>
+          );
+        })}
+        {creatableTag ? (
+          <button
+            type="button"
+            className="tag-multiselect-option"
+            onPointerDown={(event) => {
+              onFloatingSelectPointerDown(event, disabled, () => {
+                addTag(creatableTag);
+              });
+            }}
+            onKeyDown={(event) => onFloatingSelectActionKeyDown(event, disabled, () => addTag(creatableTag))}
+          >
+            <span className="tag-option-label">
+              {createLabelPrefix} "{creatableTag}"
+            </span>
+          </button>
+        ) : null}
+      </FloatingSelectMenu>
     </div>
   );
 }

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `groups`.
-# - Inputs: callers that import `backend/services/agent/apply/groups.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `groups`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Apply approved agent change payloads for the `groups` domain.
+# - Inputs: Callers import `backend/services/agent/apply/groups` and invoke `apply_create_group`, `apply_update_group`, `apply_delete_group`, `apply_create_group_member`.
+# - Outputs: Exports `apply_create_group`, `apply_update_group`, `apply_delete_group`, `apply_create_group_member`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from sqlalchemy.orm import Session

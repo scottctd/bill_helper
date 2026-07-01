@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from backend.cli.reference import compact_schema_for
+from backend.cli_reference import compact_schema_for
 
 _SHORT_ID_LENGTH = 8
 

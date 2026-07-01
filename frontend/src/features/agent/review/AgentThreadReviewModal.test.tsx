@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildChangeItem, buildRun } from "../../../test/factories/agent";
+import { listOrEmpty } from "../../../lib/collections";
 import { renderWithQueryClient } from "../../../test/renderWithQueryClient";
 import { AgentThreadReviewModal } from "./AgentThreadReviewModal";
 import type { AgentThreadReviewModalProps } from "./modalTypes";
@@ -169,7 +170,7 @@ describe("AgentThreadReviewModal", () => {
     const onApproveItem = vi
       .fn()
       .mockResolvedValueOnce({
-        ...firstRun.change_items[1],
+        ...listOrEmpty(firstRun.change_items)[1],
         status: "APPLIED",
         applied_resource_type: "entity",
         applied_resource_id: "entity-1"
@@ -336,7 +337,7 @@ describe("AgentThreadReviewModal", () => {
       ]
     });
     const onBatchApproveItems = vi.fn().mockResolvedValue({
-      items: run.change_items.map((item) => ({ ...item, status: "APPLIED" as const })),
+      items: listOrEmpty(run.change_items).map((item) => ({ ...item, status: "APPLIED" as const })),
       summary: { succeeded: 2, failed: 0, failedItemIds: [] }
     });
 

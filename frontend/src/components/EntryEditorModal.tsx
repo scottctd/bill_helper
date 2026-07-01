@@ -44,7 +44,7 @@ import { SingleSelect } from "./SingleSelect";
 import { TagMultiSelect } from "./TagMultiSelect";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
+import { ModalShell } from "./ui/modal-shell";
 import { Input } from "./ui/input";
 import { NativeSelect } from "./ui/native-select";
 
@@ -180,7 +180,7 @@ export function EntryEditorModal({
         color: group.color,
         description: null,
         type: null,
-        entry_count: null
+        entry_count: 0
       })),
     [manualGroups]
   );
@@ -244,7 +244,7 @@ export function EntryEditorModal({
     onApplySuggestion: (response) =>
       setFormState((state) => ({
         ...state,
-        tags: response.suggested_tags,
+        tags: response.suggested_tags ?? state.tags,
         category: response.suggested_category ?? state.category,
         lifecycle: response.suggested_lifecycle ?? state.lifecycle
       })),
@@ -377,32 +377,28 @@ export function EntryEditorModal({
   }
 
   return (
-    <Dialog
+    <ModalShell
       open={isOpen}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
           handleCloseRequest();
         }
       }}
+      contentClassName="entry-editor-sheet h-[90vh] max-h-[90vh] overflow-y-auto"
+      onInteractOutside={(event) => {
+        if (isSaving) {
+          event.preventDefault();
+        }
+      }}
+      onEscapeKeyDown={(event) => {
+        if (isSaving) {
+          event.preventDefault();
+        }
+      }}
+      headerClassName="entry-editor-header"
+      title={mode === "create" ? "New Entry" : "Edit Entry"}
+      description="Close the popup to auto-save changes."
     >
-      <DialogContent
-        className="entry-editor-sheet h-[90vh] max-h-[90vh] overflow-y-auto"
-        onInteractOutside={(event) => {
-          if (isSaving) {
-            event.preventDefault();
-          }
-        }}
-        onEscapeKeyDown={(event) => {
-          if (isSaving) {
-            event.preventDefault();
-          }
-        }}
-      >
-        <DialogHeader className="entry-editor-header">
-          <DialogTitle>{mode === "create" ? "New Entry" : "Edit Entry"}</DialogTitle>
-          <DialogDescription>Close the popup to auto-save changes.</DialogDescription>
-        </DialogHeader>
-
         {mode === "edit" && !entry && !loadError ? <p>Loading entry...</p> : null}
         {loadError ? <p className="error">{loadError}</p> : null}
 
@@ -654,7 +650,6 @@ export function EntryEditorModal({
             {saveError ? <p className="error">{saveError}</p> : null}
           </form>
         ) : null}
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }

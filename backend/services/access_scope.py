@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `access_scope`.
-# - Inputs: callers that import `backend/services/access_scope.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `access_scope`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `access_scope`.
+# - Inputs: Callers import `backend/services/access_scope` and invoke `owner_user_condition`, `owner_user_filter`, `account_owner_filter`, `entry_owner_filter`.
+# - Outputs: Exports `owner_user_condition`, `owner_user_filter`, `account_owner_filter`, `entry_owner_filter`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from sqlalchemy import Select, false, select, true

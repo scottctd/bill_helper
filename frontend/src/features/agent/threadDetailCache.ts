@@ -7,10 +7,12 @@
  */
 import type { QueryClient } from "@tanstack/react-query";
 
+import { listOrEmpty } from "../../lib/collections";
 import { queryKeys } from "../../lib/queryKeys";
 import type {
   AgentRun,
   AgentRunStep,
+  AgentRunWithLiveUsage,
   AgentStreamEvent,
   AgentStreamRunUsage,
   AgentThreadDetail,
@@ -91,7 +93,7 @@ function buildCachedStepFromCommit(
 function patchRunInDetail(
   current: AgentThreadDetail,
   runId: string,
-  patchRun: (run: AgentRun) => AgentRun
+  patchRun: (run: AgentRunWithLiveUsage) => AgentRunWithLiveUsage
 ): AgentThreadDetail {
   let mutated = false;
   const runs = current.runs.map((run) => {
@@ -126,7 +128,7 @@ export function patchAgentThreadCachedRunUsage(
       if (run.id !== runId) {
         return run;
       }
-      let next: AgentRun = run;
+      let next: AgentRunWithLiveUsage = run;
       for (const key of RUN_USAGE_PATCH_FIELDS) {
         const value = runUsage[key];
         if (value != null) {
@@ -134,7 +136,7 @@ export function patchAgentThreadCachedRunUsage(
             next = { ...run };
             mutated = true;
           }
-          (next as AgentRun)[key] = value;
+          next[key] = value;
         }
       }
       return next;
@@ -168,7 +170,7 @@ export function patchAgentThreadCacheFromStreamEvent(
       const step = buildCachedStepFromCommit(event, reasoningText);
       return patchRunInDetail(current, event.run_id, (run) => ({
         ...run,
-        steps: mergeRunSteps(run.steps, [step])
+        steps: mergeRunSteps(listOrEmpty(run.steps), [step])
       }));
     }
 
@@ -176,7 +178,7 @@ export function patchAgentThreadCacheFromStreamEvent(
       const toolCall = buildCachedToolCallFromStarted(event);
       return patchRunInDetail(current, event.run_id, (run) => ({
         ...run,
-        tool_calls: mergeRunToolCalls(run.tool_calls, [toolCall])
+        tool_calls: mergeRunToolCalls(listOrEmpty(run.tool_calls), [toolCall])
       }));
     }
 
@@ -184,7 +186,7 @@ export function patchAgentThreadCacheFromStreamEvent(
       const status = mapHarnessToolStatus(event.status);
       const now = new Date().toISOString();
       return patchRunInDetail(current, event.run_id, (run) => {
-        const existing = run.tool_calls.find((toolCall) => toolCall.id === event.tool_call_id);
+        const existing = listOrEmpty(run.tool_calls).find((toolCall) => toolCall.id === event.tool_call_id);
         const patch: AgentToolCall = existing
           ? {
               ...existing,
@@ -208,7 +210,7 @@ export function patchAgentThreadCacheFromStreamEvent(
             };
         return {
           ...run,
-          tool_calls: mergeRunToolCalls(run.tool_calls, [patch])
+          tool_calls: mergeRunToolCalls(listOrEmpty(run.tool_calls), [patch])
         };
       });
     }

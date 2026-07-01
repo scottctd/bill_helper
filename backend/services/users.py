@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `users`.
-# - Inputs: callers that import `backend/services/users.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `users`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `users`.
+# - Inputs: Callers import `backend/services/users` and invoke `normalize_user_name`, `find_user_by_name`, `load_user_by_name`, `create_user_with_unique_name`.
+# - Outputs: Exports `normalize_user_name`, `find_user_by_name`, `load_user_by_name`, `create_user_with_unique_name`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

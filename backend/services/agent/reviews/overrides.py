@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `overrides`.
-# - Inputs: callers that import `backend/services/agent/reviews/overrides.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `overrides`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Review workflow helpers for agent `overrides` operations.
+# - Inputs: Callers import `backend/services/agent/reviews/overrides` and invoke `summarize_payload_override_diff`, `validate_payload_override_supported`, `normalized_payload_override`.
+# - Outputs: Exports `summarize_payload_override_diff`, `validate_payload_override_supported`, `normalized_payload_override`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from typing import Any

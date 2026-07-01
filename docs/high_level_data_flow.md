@@ -133,15 +133,14 @@ Note: entry-level status has been removed; review state lives in `agent_change_i
   - `backend/services/agent/production_runtime.py`
   - `backend/services/agent/production_repository.py`
   - `backend/services/agent/model_gateway.py`
-  - `backend/services/agent/thread_context.py`
+  - `backend/services/agent/prompt_assembly/thread_context.py`
   - `backend/services/agent/runtime.py`
-  - `backend/services/agent/tool_runtime.py`
+  - `backend/services/agent/tool_runtime_support/`
   - `backend/services/agent/read_tools/`
   - `backend/services/agent/proposals/`
   - `backend/services/agent/terminal.py`
   - `backend/services/agent/tool_args/`
   - `backend/services/agent/proposal_patching.py`
-  - `backend/services/agent/tools.py` (thin facade)
   - `backend/services/agent/reviews/`
   - `backend/services/agent/apply/`
 - Models/contracts:

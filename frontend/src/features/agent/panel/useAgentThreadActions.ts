@@ -20,8 +20,10 @@ import {
   rejectAgentChangeItem
 } from "../../../lib/api";
 import { invalidateAgentThreadData, invalidateEntryReadModels } from "../../../lib/queryInvalidation";
+import { nullishToNull } from "../../../lib/collections";
 import { queryKeys } from "../../../lib/queryKeys";
 import type { AgentBatchChangeItemReviewResponse, AgentChangeItem, AgentThreadDetail, AgentThreadSummary } from "../../../lib/types";
+import { getApiErrorMessage } from "../../../lib/api/core";
 
 interface UseAgentThreadActionsArgs {
   selectedThreadId: string;
@@ -135,7 +137,7 @@ export function useAgentThreadActions({
   const renameThreadMutation = useMutation({
     mutationFn: renameAgentThread,
     onSuccess: (thread) => {
-      applyThreadTitleToCaches(thread.id, thread.title, thread.updated_at);
+      applyThreadTitleToCaches(thread.id, nullishToNull(thread.title), thread.updated_at);
       clearOptimisticThreadTitle(thread.id);
       setActionError(null);
     }
@@ -223,7 +225,7 @@ export function useAgentThreadActions({
     try {
       await renameThreadMutation.mutateAsync({ threadId, title });
     } catch (error) {
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
       throw error;
     }
   }
@@ -240,7 +242,7 @@ export function useAgentThreadActions({
       });
     } catch (error) {
       invalidateAgentThreadData(queryClient, selectedThreadId || undefined);
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
       throw error;
     }
   }
@@ -256,7 +258,7 @@ export function useAgentThreadActions({
         payload_override: payload.payloadOverride
       });
     } catch (error) {
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
       throw error;
     }
   }
@@ -272,7 +274,7 @@ export function useAgentThreadActions({
         payload_override: payload.payloadOverride
       });
     } catch (error) {
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
       throw error;
     }
   }
@@ -283,7 +285,7 @@ export function useAgentThreadActions({
       summary: {
         succeeded: response.summary.succeeded,
         failed: response.summary.failed,
-        failedItemIds: response.summary.failed_item_ids
+        failedItemIds: response.summary.failed_item_ids ?? []
       }
     };
   }
@@ -304,7 +306,7 @@ export function useAgentThreadActions({
       return mapBatchReviewResponse(response);
     } catch (error) {
       invalidateReviewReadModels();
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
       throw error;
     }
   }
@@ -325,7 +327,7 @@ export function useAgentThreadActions({
       return mapBatchReviewResponse(response);
     } catch (error) {
       invalidateAgentThreadData(queryClient, selectedThreadId || undefined);
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
       throw error;
     }
   }

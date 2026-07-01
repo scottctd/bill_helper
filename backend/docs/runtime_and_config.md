@@ -64,14 +64,15 @@ Optional Langfuse LLM observability (read by LiteLLM’s `langfuse_otel` callbac
 Runtime override behavior:
 
 - `runtime_settings` stores optional per-field overrides managed by `GET/PATCH /api/v1/settings`, including ordered `user_memory` and `available_agent_models`
-- effective runtime settings resolve as `override -> env default` where applicable
+- effective runtime settings resolve as `override -> env default` where applicable in `backend/services/runtime_settings.py`
+- agent-aware read projection (`vision_capable_agent_models`, `agent_api_key_configured`) lives in `backend/services/agent/runtime_settings_view.py` and `runtime_settings_validation.py`
 - `user_memory` is DB-backed only, normalized as an ordered `list[str]`, and injected into every agent system prompt as a markdown unordered list when set
 - `available_agent_models` is DB-backed only, normalized as an ordered `list[str]`, and always resolved to include the effective `agent_model`
-- `vision_capable_agent_models` is a derived read-only list returned by `GET /api/v1/settings` so clients can tell which enabled models can receive image/PDF attachments
+- `vision_capable_agent_models` is derived from the effective `available_agent_models` list using the same vision-capability helper the agent runtime uses for attachment handling
 - `agent_max_pdf_pages` defaults to `10`, is persisted as an override, and rejects oversized PDFs before page rendering
 - `entry_tagging_model` is DB-backed only, may be blank, and must stay inside the effective `available_agent_models` list; blank disables inline entry tag suggestion
 - identity is request-principal-based at API boundaries and is not persisted in runtime settings
-- protected HTTP routes require explicit `X-Bill-Helper-Principal`; the frontend owns that header through the local principal session
+- protected HTTP routes require `Authorization: Bearer <token>` backed by the `sessions` table; the web app uses the same bearer-session flow
 - `agent_base_url` overrides allow only `http` and `https` and block localhost domains and non-public IP literals
 Behavior notes:
 

@@ -31,7 +31,6 @@ from backend.services.agent.work_sessions import (
     create_work_session,
     update_work_session,
 )
-from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
 
 
@@ -56,15 +55,12 @@ def create_session(
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentSessionRead:
     payload = payload or AgentSessionCreate()
-    try:
-        thread = create_work_session(
-            db,
-            principal=principal,
-            title=payload.title,
-            summary=payload.summary,
-        )
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    thread = create_work_session(
+        db,
+        principal=principal,
+        title=payload.title,
+        summary=payload.summary,
+    )
     db.commit()
     db.refresh(thread)
     return work_session_to_read(db, thread=thread, principal=principal)
@@ -87,18 +83,15 @@ def update_session(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentSessionRead:
-    try:
-        thread = update_work_session(
-            db,
-            principal=principal,
-            session_id=session_id,
-            title=payload.title,
-            title_is_set="title" in payload.model_fields_set,
-            summary=payload.summary,
-            summary_is_set="summary" in payload.model_fields_set,
-        )
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    thread = update_work_session(
+        db,
+        principal=principal,
+        session_id=session_id,
+        title=payload.title,
+        title_is_set="title" in payload.model_fields_set,
+        summary=payload.summary,
+        summary_is_set="summary" in payload.model_fields_set,
+    )
     db.commit()
     db.refresh(thread)
     return work_session_to_read(db, thread=thread, principal=principal)
@@ -126,18 +119,15 @@ def create_session_text_source(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentSessionSourceRead:
-    try:
-        source = attach_text_source_to_work_session(
-            db,
-            principal=principal,
-            session_id=session_id,
-            text=payload.text,
-            filename=payload.filename,
-            display_name=payload.display_name,
-            note=payload.note,
-        )
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    source = attach_text_source_to_work_session(
+        db,
+        principal=principal,
+        session_id=session_id,
+        text=payload.text,
+        filename=payload.filename,
+        display_name=payload.display_name,
+        note=payload.note,
+    )
     db.commit()
     db.refresh(source)
     return session_source_to_read(source)
@@ -158,22 +148,20 @@ async def create_session_file_source(
     file_bytes = await file.read()
     settings = resolve_runtime_settings(db)
     if len(file_bytes) > settings.agent_max_image_size_bytes:
+        # Transport: multipart payload size guard before service intake.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Source too large. Max bytes allowed is {settings.agent_max_image_size_bytes}.",
         )
-    try:
-        source = attach_file_source_to_work_session(
-            db,
-            principal=principal,
-            session_id=session_id,
-            file_bytes=file_bytes,
-            original_filename=file.filename,
-            mime_type=file.content_type,
-            note=note,
-        )
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    source = attach_file_source_to_work_session(
+        db,
+        principal=principal,
+        session_id=session_id,
+        file_bytes=file_bytes,
+        original_filename=file.filename,
+        mime_type=file.content_type,
+        note=note,
+    )
     db.commit()
     db.refresh(source)
     return session_source_to_read(source)

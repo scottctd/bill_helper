@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `usage`.
-# - Inputs: callers that import `backend/services/agent/model_client_support/usage.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `usage`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Model client support utilities for `usage`.
+# - Inputs: Callers import `backend/services/agent/model_client_support/usage` and invoke `read_attr`, `read_int`, `coerce_text`, `coerce_index`.
+# - Outputs: Exports `read_attr`, `read_int`, `coerce_text`, `coerce_index`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

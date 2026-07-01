@@ -11,14 +11,8 @@ import type { Account, Reconciliation, Snapshot } from "../../lib/types";
 import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
 import { MarkdownBlockEditor } from "../../components/MarkdownBlockEditor";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../../components/ui/dialog";
+import { DialogFooter } from "../../components/ui/dialog";
+import { ModalShell } from "../../components/ui/modal-shell";
 import { FormField } from "../../components/ui/form-field";
 import { Input } from "../../components/ui/input";
 import { NativeSelect } from "../../components/ui/native-select";
@@ -113,7 +107,7 @@ export function AccountDialogs(props: AccountDialogsProps) {
 
   return (
     <>
-      <Dialog
+      <ModalShell
         open={createDialogOpen}
         onOpenChange={(open) => {
           onCreateDialogOpenChange(open);
@@ -121,12 +115,10 @@ export function AccountDialogs(props: AccountDialogsProps) {
             onResetCreateMutationError();
           }
         }}
+        size="lg"
+        title="Create Account"
+        description="New accounts are active by default and immediately available for snapshot tracking."
       >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create Account</DialogTitle>
-            <DialogDescription>New accounts are active by default and immediately available for snapshot tracking.</DialogDescription>
-          </DialogHeader>
           <form className="grid gap-4" onSubmit={onCreateAccount}>
             <div className="form-grid">
               <FormField label="Name">
@@ -167,10 +159,9 @@ export function AccountDialogs(props: AccountDialogsProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
-      <Dialog
+      <ModalShell
         open={editDialogOpen}
         onOpenChange={(open) => {
           onEditDialogOpenChange(open);
@@ -178,13 +169,23 @@ export function AccountDialogs(props: AccountDialogsProps) {
             onResetUpdateMutationError();
           }
         }}
+        size="xl"
+        contentClassName="account-edit-dialog"
+        headerClassName="shrink-0"
+        title={editingAccount ? editingAccount.name : "Edit Account"}
+        description="Account details, reconciliation, and snapshots in one workspace."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => onEditDialogOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button form="account-edit-form" type="submit" disabled={isUpdating || !editingAccount}>
+              {isUpdating ? "Saving..." : "Save changes"}
+            </Button>
+          </>
+        }
+        footerClassName="account-edit-footer"
       >
-        <DialogContent className="account-edit-dialog max-w-6xl">
-          <DialogHeader className="shrink-0">
-            <DialogTitle>{editingAccount ? editingAccount.name : "Edit Account"}</DialogTitle>
-            <DialogDescription>Account details, reconciliation, and snapshots in one workspace.</DialogDescription>
-          </DialogHeader>
-
           <div className="account-edit-body scroll-surface">
             <form id="account-edit-form" className="account-edit-details-card" onSubmit={onUpdateAccount}>
               <div className="account-edit-details-grid">
@@ -255,19 +256,7 @@ export function AccountDialogs(props: AccountDialogsProps) {
 
             {updateErrorMessage ? <p className="error">{updateErrorMessage}</p> : null}
           </div>
-
-          <div className="account-edit-footer">
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onEditDialogOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button form="account-edit-form" type="submit" disabled={isUpdating || !editingAccount}>
-                {isUpdating ? "Saving..." : "Save changes"}
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
     </>
   );
 }

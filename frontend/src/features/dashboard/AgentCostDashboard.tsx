@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Badge } from "../../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { getAgentDashboard } from "../../lib/api";
+import { listOrEmpty } from "../../lib/collections";
 import { formatUsd } from "../../lib/format";
 import { queryKeys } from "../../lib/queryKeys";
 import type { AgentDashboardRangeKey, AgentRunStatus } from "../../lib/types";
@@ -40,6 +41,7 @@ import {
   dashboardPieColor
 } from "./helpers";
 import { VerticalBarValueLabels } from "./BarChartValueLabels";
+import { getApiErrorMessage } from "../../lib/api/core";
 
 const RANGE_OPTIONS: Array<{ key: AgentDashboardRangeKey; label: string }> = [
   { key: "7d", label: "7D" },
@@ -111,19 +113,25 @@ export function AgentCostDashboard() {
   }
 
   if (query.isError || !query.data) {
-    return <p>Failed to load agent analytics: {(query.error as Error).message}</p>;
+    return <p>Failed to load agent analytics: {getApiErrorMessage(query.error)}</p>;
   }
 
   const data = query.data;
+  const modelBreakdown = listOrEmpty(data.model_breakdown);
+  const availableModels = listOrEmpty(data.available_models);
+  const costSeries = listOrEmpty(data.cost_series);
+  const originBreakdown = listOrEmpty(data.origin_breakdown);
+  const tokenDistribution = listOrEmpty(data.token_distribution);
+  const topRuns = listOrEmpty(data.top_runs);
   const hasFilters = selectedModels.length > 0 || selectedSurfaces.length > 0;
   const chartModels =
-    data.model_breakdown.length > 0 ? data.model_breakdown.map((row) => row.model_name) : data.available_models;
-  const costSeriesData = data.cost_series.map((point) => ({
+    modelBreakdown.length > 0 ? modelBreakdown.map((row) => row.model_name) : availableModels;
+  const costSeriesData = costSeries.map((point) => ({
     bucket_label: point.bucket_label,
     total_cost_usd: point.total_cost_usd,
     ...point.costs_by_model
   }));
-  const surfaceChartData = data.origin_breakdown.map((point) => ({
+  const surfaceChartData = originBreakdown.map((point) => ({
     surface: point.origin === "app" ? "App" : point.origin === "telegram" ? "Telegram" : point.origin,
     total_cost_usd: point.total_cost_usd,
     ...point.costs_by_model
@@ -156,15 +164,15 @@ export function AgentCostDashboard() {
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium">Model filter</p>
-              {data.available_models.length > 0 ? (
-                <p className="text-xs text-muted-foreground">{data.available_models.length} model(s) in range</p>
+              {availableModels.length > 0 ? (
+                <p className="text-xs text-muted-foreground">{availableModels.length} model(s) in range</p>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              {data.available_models.length === 0 ? (
+              {availableModels.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No runs in this range yet.</p>
               ) : (
-                data.available_models.map((modelName) => (
+                availableModels.map((modelName) => (
                   <Button
                     key={modelName}
                     type="button"
@@ -224,7 +232,7 @@ export function AgentCostDashboard() {
         <StatBlock label="Avg Cost / Run" value={formatUsd(data.metrics.avg_cost_per_run_usd)} detail={formatTokenCount(Math.round(data.metrics.avg_tokens_per_run)) + " avg tokens"} />
         <StatBlock label="Avg Tokens / Run" value={formatTokenCount(Math.round(data.metrics.avg_tokens_per_run))} detail={data.metrics.total_run_count > 0 ? `${data.metrics.total_run_count} run sample` : "No runs"} />
         <StatBlock label="Cache Hit Rate" value={formatPercent(data.metrics.cache_hit_rate)} detail="cache read / input tokens" />
-        <StatBlock label="Most Used Model" value={data.metrics.most_used_model ?? "-"} detail={`${data.model_breakdown.length} active model rows`} />
+        <StatBlock label="Most Used Model" value={data.metrics.most_used_model ?? "-"} detail={`${modelBreakdown.length} active model rows`} />
         <StatBlock
           label="Failure Rate"
           value={formatPercent(data.metrics.failure_rate)}
@@ -285,7 +293,7 @@ export function AgentCostDashboard() {
                   {({ width, height }) => (
                     <PieChart width={width} height={height}>
                       <Pie
-                        data={data.token_distribution}
+                        data={tokenDistribution}
                         dataKey="token_count"
                         nameKey="label"
                         innerRadius={54}
@@ -293,12 +301,12 @@ export function AgentCostDashboard() {
                         paddingAngle={4}
                         {...DASHBOARD_PIE_ANIMATION_PROPS}
                       >
-                        {data.token_distribution.map((slice, index) => (
+                        {tokenDistribution.map((slice, index) => (
                           <Cell key={slice.label} fill={dashboardPieColor(index)} />
                         ))}
                       </Pie>
                       <Tooltip formatter={(value, _name, item) => [`${formatTokenCount(Number(value ?? 0))} tokens`, item.payload.label]} />
-                      <Legend formatter={(value, _entry, index) => `${value} (${formatPercent(data.token_distribution[index]?.share ?? 0)})`} />
+                      <Legend formatter={(value, _entry, index) => `${value} (${formatPercent(tokenDistribution[index]?.share ?? 0)})`} />
                     </PieChart>
                   )}
                 </DashboardChartContainer>
@@ -356,7 +364,7 @@ export function AgentCostDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.model_breakdown.map((row) => (
+                      {modelBreakdown.map((row) => (
                         <TableRow key={row.model_name}>
                           <TableCell className="max-w-[220px]">
                             <div className="space-y-1">
@@ -400,7 +408,7 @@ export function AgentCostDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.top_runs.map((run) => (
+                    {topRuns.map((run) => (
                       <TableRow key={run.run_id}>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                           {new Date(run.created_at).toLocaleString()}

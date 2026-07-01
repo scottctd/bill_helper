@@ -5,7 +5,6 @@
 # - Side effects: persists canonical transcript and attachment links.
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import shutil
@@ -14,7 +13,6 @@ from typing import Callable
 from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from starlette import status
 
 from backend.database import open_session
 from backend.enums_agent import AgentApprovalPolicy, AgentRunStatus, AgentTranscriptRole
@@ -29,7 +27,7 @@ from backend.services.agent import runtime as agent_runtime
 from backend.services.agent.harness.contracts import HarnessApprovalPolicy, HarnessPrincipal
 from backend.services.agent.model_gateway_support.conversion import canonical_transcript_to_provider
 from backend.services.agent.production_runtime import initialize_harness_run
-from backend.services.agent.thread_context import (
+from backend.services.agent.prompt_assembly import (
     build_new_turn_owned_messages,
     build_new_turn_transcript,
     next_turn_index,
@@ -40,12 +38,6 @@ from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.services.user_files import resolve_user_file_path
 from backend.validation.runtime_settings import normalize_text_or_none
-
-
-@dataclass(slots=True)
-class AgentExecutionPolicyError(Exception):
-    detail: str
-    status_code: int
 
 
 def utc_now() -> datetime:
@@ -117,30 +109,24 @@ async def create_user_message_and_start_run(
     if selected_model_name.casefold() not in {
         available_model.casefold() for available_model in settings.available_agent_models
     }:
-        raise AgentExecutionPolicyError(
-            detail="Selected model is not enabled in runtime settings.",
-            status_code=status.HTTP_400_BAD_REQUEST,
+        raise PolicyViolation.bad_request(
+            "Selected model is not enabled in runtime settings.",
         )
     agent_runtime.ensure_agent_available(db, model_name=selected_model_name)
 
     thread = db.get(AgentThread, thread_id)
     if thread is None:
-        raise AgentExecutionPolicyError(
-            detail="Thread not found",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
+        raise PolicyViolation.not_found("Thread not found")
 
     clean_content = _normalize_optional_text(content)
     requested_attachment_ids = list(attachment_ids or [])
     if not clean_content and not files and not requested_attachment_ids:
-        raise AgentExecutionPolicyError(
-            detail="Message must include text or at least one attachment.",
-            status_code=status.HTTP_400_BAD_REQUEST,
+        raise PolicyViolation.bad_request(
+            "Message must include text or at least one attachment.",
         )
     if len(files) + len(requested_attachment_ids) > settings.agent_max_images_per_message:
-        raise AgentExecutionPolicyError(
-            detail=f"Too many attachments. Max allowed is {settings.agent_max_images_per_message}.",
-            status_code=status.HTTP_400_BAD_REQUEST,
+        raise PolicyViolation.bad_request(
+            f"Too many attachments. Max allowed is {settings.agent_max_images_per_message}.",
         )
     has_attachments = bool(files or requested_attachment_ids)
     if has_attachments and transcript_attachments_require_vision(
@@ -149,9 +135,8 @@ async def create_user_message_and_start_run(
         attachment_ids=requested_attachment_ids,
         owner_user_id=thread.owner_user_id,
     ) and not model_supports_vision(selected_model_name):
-        raise AgentExecutionPolicyError(
-            detail="Image and PDF attachments require a vision-capable model.",
-            status_code=status.HTTP_400_BAD_REQUEST,
+        raise PolicyViolation.bad_request(
+            "Image and PDF attachments require a vision-capable model.",
         )
 
     turn_index = next_turn_index(db, thread_id=thread.id)
@@ -199,11 +184,8 @@ async def create_user_message_and_start_run(
                         settings=settings,
                         use_ocr=attachments_use_ocr,
                     )
-                except PolicyViolation as exc:
-                    raise AgentExecutionPolicyError(
-                        detail=exc.detail,
-                        status_code=exc.status_code,
-                    ) from exc
+                except PolicyViolation:
+                    raise
                 bundle_dirs_to_cleanup.append(resolve_user_file_path(user_file).parent)
                 db.add(
                     AgentTranscriptAttachment(
@@ -231,12 +213,9 @@ async def create_user_message_and_start_run(
                         user_file=user_file,
                         note=None,
                     )
-            except PolicyViolation as exc:
-                raise AgentExecutionPolicyError(
-                    detail=exc.detail,
-                    status_code=exc.status_code,
-                ) from exc
-    except AgentExecutionPolicyError:
+            except PolicyViolation:
+                raise
+    except PolicyViolation:
         for bundle_dir in bundle_dirs_to_cleanup:
             shutil.rmtree(bundle_dir, ignore_errors=True)
         db.rollback()

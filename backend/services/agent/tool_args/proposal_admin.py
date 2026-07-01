@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `proposal_admin`.
-# - Inputs: callers that import `backend/services/agent/tool_args/proposal_admin.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `proposal_admin`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Pydantic argument models for agent tools touching `proposal_admin`.
+# - Inputs: Callers import `backend/services/agent/tool_args/proposal_admin` and invoke `ToolArgsModel`, `ProposeUpdateGroupMembershipArgs`.
+# - Outputs: Exports `ToolArgsModel`, `ProposeUpdateGroupMembershipArgs`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from typing import Literal

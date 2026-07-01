@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `principal_scope`.
-# - Inputs: callers that import `backend/services/agent/principal_scope.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `principal_scope`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `principal_scope`.
+# - Inputs: Callers import `backend/services/agent/principal_scope` and invoke `load_thread_owner_user`, `load_thread_principal`, `load_run_owner_user`, `load_run_principal`.
+# - Outputs: Exports `load_thread_owner_user`, `load_thread_principal`, `load_run_owner_user`, `load_run_principal`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from sqlalchemy import select

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../lib/api";
 import { renderWithQueryClient } from "../../test/renderWithQueryClient";
+import { listOrEmpty } from "../../lib/collections";
 import { buildChangeItem, buildRun, buildToolCall } from "../../test/factories/agent";
 import { AgentPanel } from "./AgentPanel";
 
@@ -40,7 +41,8 @@ function buildThreadSummary(overrides: Partial<Awaited<ReturnType<typeof api.lis
     updated_at: overrides.updated_at ?? "2026-03-06T10:05:00Z",
     last_message_preview: overrides.last_message_preview ?? "Latest update",
     pending_change_count: overrides.pending_change_count ?? 1,
-    has_running_run: overrides.has_running_run ?? false
+    has_running_run: overrides.has_running_run ?? false,
+    initiated_by_external_agent: overrides.initiated_by_external_agent ?? false
   };
 }
 
@@ -58,7 +60,8 @@ function buildThreadDetail(
       id: overrides.id ?? "thread-1",
       title: overrides.title ?? "Review thread",
       created_at: overrides.created_at ?? "2026-03-06T10:00:00Z",
-      updated_at: overrides.updated_at ?? "2026-03-06T10:05:00Z"
+      updated_at: overrides.updated_at ?? "2026-03-06T10:05:00Z",
+      initiated_by_external_agent: false
     },
     turns: [],
     runs,
@@ -137,20 +140,21 @@ describe("AgentPanel", () => {
       id: "thread-created",
       title: null,
       created_at: "2026-03-06T10:00:00Z",
-      updated_at: "2026-03-06T10:00:00Z"
+      updated_at: "2026-03-06T10:00:00Z",
+      initiated_by_external_agent: false
     });
     vi.mocked(api.listCurrencies).mockResolvedValue([
       { code: "USD", name: "US Dollar", entry_count: 1, is_placeholder: false }
     ]);
     vi.mocked(api.listEntities).mockResolvedValue([
-      { id: "entity-1", name: "Main Checking", category: "account", is_account: true }
+      { id: "entity-1", name: "Main Checking", category: "account", is_account: true, net_amount_mixed_currencies: false }
     ]);
     vi.mocked(api.listTags).mockResolvedValue([
-      { id: 1, name: "food", color: "#7fb069", type: "daily" }
+      { id: 1, name: "food", color: "#7fb069", type: "daily", entry_count: 0 }
     ]);
     vi.mocked(api.getRuntimeSettings).mockResolvedValue(buildRuntimeSettings());
     vi.mocked(api.getAgentToolCall).mockResolvedValue(
-      buildRun({}).tool_calls[0] ?? {
+      listOrEmpty(buildRun({}).tool_calls)[0] ?? {
         id: "tool-call-1",
         run_id: "run-1",
         step_id: "step-1",
@@ -181,7 +185,8 @@ describe("AgentPanel", () => {
       id: "thread-1",
       title: "Review thread",
       created_at: "2026-03-06T10:00:00Z",
-      updated_at: "2026-03-06T10:05:00Z"
+      updated_at: "2026-03-06T10:05:00Z",
+      initiated_by_external_agent: false
     });
     vi.mocked(api.uploadAgentDraftAttachment).mockImplementation(async ({ file }) => ({
       id: uploadedAttachmentIdForFileName(file.name),

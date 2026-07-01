@@ -11,6 +11,7 @@ import { buildProposalFields } from "./proposalFields";
 import { buildProposalOutcome } from "./proposalOutcome";
 import { buildProposalSummary } from "./proposalSummary";
 import { changeTypeLabel, isPendingReviewStatus, type ThreadReviewItem } from "../agent/review/model";
+import { nullishToNull } from "../../lib/collections";
 import { buildReviewCardMetadata } from "./cardMetadata";
 import { extractEntryTocFields } from "./entryTocFields";
 import { buildTocLeafMeta, buildTocLeafTitle } from "./tocDisplay";
@@ -51,9 +52,9 @@ export function mapThreadReviewItemToReviewItemView(
     }),
     outcome: buildProposalOutcome({
       status: item.status,
-      reviewNote: item.review_note,
-      appliedResourceType: item.applied_resource_type,
-      appliedResourceId: item.applied_resource_id,
+      reviewNote: nullishToNull(item.review_note),
+      appliedResourceType: nullishToNull(item.applied_resource_type),
+      appliedResourceId: nullishToNull(item.applied_resource_id),
       reviewActions: item.review_actions
     }),
     fields,

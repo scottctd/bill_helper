@@ -2,7 +2,7 @@
 # - Purpose: SQLAlchemy RunRepository for harness canonical state persistence.
 # - Inputs: RunRequest, PreparedStep, tool results, RunResult; SQLAlchemy Session.
 # - Outputs: RunState load/create/transition with durable resumable steps.
-# - Side effects: database writes to agent_runs, transcript, steps, tool_calls, events.
+# - Side effects: database writes to agent_runs, transcript, steps, tool_calls, events only.
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -50,6 +50,7 @@ from backend.services.agent.harness.contracts import (
 from backend.services.agent.harness.errors import HarnessPersistenceError
 from backend.services.agent.harness.transcript import validate_initial_transcript
 from backend.services.agent.harness.tools import ToolExecutionResult
+from backend.services.agent.production_events import enrich_harness_event_for_publication
 from backend.services.agent.tool_runtime_support.catalog import TOOLS
 from backend.services.agent.tool_runtime_support.definitions import AgentToolDefinition
 
@@ -381,20 +382,6 @@ class SqlAlchemyRunRepository:
             run_row.error_code = run_result.terminal_error.code
             run_row.error_detail = run_result.terminal_error.detail
         self._db.commit()
-        if run_row.status.value == "completed":
-            from backend.services.agent.reviews.auto_approve_run import (
-                maybe_auto_approve_after_completed_run,
-            )
-
-            maybe_auto_approve_after_completed_run(
-                self._db,
-                run_id=run_row.id,
-                thread_id=run_row.thread_id or "",
-                approval_policy=run_row.approval_policy,
-            )
-        from backend.services.import_workflow.scheduler import notify_agent_run_terminal
-
-        notify_agent_run_terminal(run_result.run_id)
         return True
 
     def request_stop(self, run_id: str) -> None:
@@ -409,7 +396,7 @@ class SqlAlchemyRunRepository:
         run_id: str,
         *,
         detail: str = "run interrupted by user",
-    ) -> None:
+    ) -> bool:
         run_row = self._db.scalar(
             select(AgentRun)
             .where(AgentRun.id == run_id)
@@ -418,7 +405,7 @@ class SqlAlchemyRunRepository:
         if run_row is None:
             raise HarnessPersistenceError(f"run not found: {run_id}")
         if run_row.status != AgentRunStatus.RUNNING:
-            return
+            return False
 
         run_row.stop_requested = True
         run_row.status = AgentRunStatus.INTERRUPTED
@@ -436,25 +423,7 @@ class SqlAlchemyRunRepository:
                 self._db.add(tool_call)
 
         self._db.commit()
-
-        from backend.services.agent.harness.contracts import RunFinishedEvent
-        from backend.services.agent.production_events import harness_event_to_sse_payload
-        from backend.services.agent.stream_hub import publish_run_stream_event
-
-        payload = harness_event_to_sse_payload(
-            RunFinishedEvent(
-                run_id=run_id,
-                status=HarnessRunStatus.INTERRUPTED,
-                final_assistant_content=None,
-                terminal_error=HarnessTerminalError(code="interrupted", detail=detail),
-            )
-        )
-        if payload is not None:
-            publish_run_stream_event(run_id, payload)
-
-        from backend.services.import_workflow.scheduler import notify_agent_run_terminal
-
-        notify_agent_run_terminal(run_id)
+        return True
 
     def ensure_run_finished_event(self, run_result: RunResult) -> None:
         existing = self._db.scalar(
@@ -662,11 +631,12 @@ class DbEventSink:
             orm_type = AgentRunEventType(event_type)
         except ValueError:
             return
+        enriched = enrich_harness_event_for_publication(event)
         row = AgentRunEvent(
             run_id=self._run_id,
             sequence_index=self._next_sequence(),
             event_type=orm_type,
-            payload_json=event.model_dump(),
+            payload_json=enriched.model_dump(exclude={"arguments_json", "output_json"}),
         )
         self._db.add(row)
         self._db.commit()

@@ -7,12 +7,13 @@
  */
 
 import type { AgentRun } from "../../lib/types";
+import { listOrEmpty } from "../../lib/collections";
 import type { ImportJobStatus, ImportJobSummary, ImportTaskStatus } from "../../lib/types";
 import { isPendingReviewStatus } from "../agent/review/model";
 
 export function countPendingProposalsInRuns(runs: AgentRun[] | undefined): number {
   return (runs ?? []).reduce(
-    (total, run) => total + run.change_items.filter((item) => isPendingReviewStatus(item.status)).length,
+    (total, run) => total + listOrEmpty(run.change_items).filter((item) => isPendingReviewStatus(item.status)).length,
     0
   );
 }

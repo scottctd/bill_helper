@@ -99,12 +99,12 @@ function parseNonNegativeNumber(rawValue: string, fieldName: string): number {
 
 export function buildSettingsFormState(data: RuntimeSettings): SettingsFormState {
   return {
-    user_memory: formatLines(data.user_memory),
+    user_memory: formatLines(data.user_memory ?? null),
     default_currency_code: data.default_currency_code,
     dashboard_currency_code: data.dashboard_currency_code,
     agent_model: data.agent_model,
     entry_tagging_model: data.entry_tagging_model ?? "",
-    available_agent_models: formatLines(data.available_agent_models),
+    available_agent_models: formatLines(data.available_agent_models ?? null),
     agent_model_display_names: { ...data.agent_model_display_names },
     agent_max_steps: String(data.agent_max_steps),
     agent_bulk_max_concurrent_threads: String(data.agent_bulk_max_concurrent_threads),

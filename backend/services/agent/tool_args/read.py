@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `read`.
-# - Inputs: callers that import `backend/services/agent/tool_args/read.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `read`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Pydantic argument models for agent tools touching `read`.
+# - Inputs: Callers import `backend/services/agent/tool_args/read` and invoke `ToolArgsModel`, `ListEntriesArgs`, `ListTagsArgs`, `ListEntitiesArgs`.
+# - Outputs: Exports `ToolArgsModel`, `ListEntriesArgs`, `ListTagsArgs`, `ListEntitiesArgs`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from datetime import date as DateValue

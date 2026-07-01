@@ -13,6 +13,7 @@ import { invalidateRuntimeSettingsReadModels } from "../../lib/queryInvalidation
 import { queryKeys } from "../../lib/queryKeys";
 import { buildSettingsFormState, buildSettingsUpdatePayload, RESET_RUNTIME_SETTINGS_PAYLOAD } from "./formState";
 import type { SettingsFormPatch, SettingsFormState, SettingsTab } from "./types";
+import { getApiErrorMessage } from "../../lib/api/core";
 
 export function useSettingsPageModel() {
   const queryClient = useQueryClient();
@@ -38,7 +39,7 @@ export function useSettingsPageModel() {
       setFormError(null);
     },
     onError: (error) => {
-      setFormError((error as Error).message);
+      setFormError(getApiErrorMessage(error));
     },
   });
 
@@ -83,7 +84,7 @@ export function useSettingsPageModel() {
     try {
       updateMutation.mutate(buildSettingsUpdatePayload(formState));
     } catch (error) {
-      setFormError((error as Error).message);
+      setFormError(getApiErrorMessage(error));
     }
   }
 

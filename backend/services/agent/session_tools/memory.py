@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `memory`.
-# - Inputs: callers that import `backend/services/agent/session_tools/memory.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `memory`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `memory`.
+# - Inputs: Callers import `backend/services/agent/session_tools/memory` and invoke `add_user_memory`.
+# - Outputs: Exports `add_user_memory`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from backend.services.agent.tool_args.memory import AddUserMemoryArgs

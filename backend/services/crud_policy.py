@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `crud_policy`.
-# - Inputs: callers that import `backend/services/crud_policy.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `crud_policy`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: shared domain error type and CRUD validation helpers.
+# - Inputs: validation context, existing row ids, and ValueError messages to classify.
+# - Outputs: PolicyViolation instances and normalized/asserted field values.
+# - Side effects: none; callers map PolicyViolation through the global FastAPI handler.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -37,6 +37,10 @@ class PolicyViolation(Exception):
     @classmethod
     def not_found(cls, detail: str) -> PolicyViolation:
         return cls(detail=detail, status_code=status.HTTP_404_NOT_FOUND)
+
+    @classmethod
+    def service_unavailable(cls, detail: str) -> PolicyViolation:
+        return cls(detail=detail, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     @classmethod
     def unprocessable_content(cls, detail: str) -> PolicyViolation:

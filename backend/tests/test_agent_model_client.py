@@ -6,7 +6,11 @@ from types import SimpleNamespace
 import litellm
 import pytest
 
-from backend.services.agent.model_client import AgentModelError, LiteLLMModelClient, validate_litellm_environment
+from backend.services.agent.model_client_support.client import (
+    AgentModelError,
+    LiteLLMModelClient,
+)
+from backend.services.agent.model_client_support.environment import validate_litellm_environment
 from backend.services.agent.model_client_support.messages import (
     normalize_assistant_message_for_completion,
     sanitize_messages_for_completion,
@@ -47,7 +51,7 @@ def test_complete_stream_retries_before_first_text_delta(monkeypatch):
             raise next_response
         return next_response
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(client.complete_stream([{"role": "user", "content": "hi"}]))
 
     assert calls["count"] == 2
@@ -78,7 +82,7 @@ def test_complete_stream_retries_transient_ssl_bad_record_mac_when_max_attempts_
             ]
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(client.complete_stream([{"role": "user", "content": "hi"}]))
 
     assert calls["count"] == 2
@@ -105,7 +109,7 @@ def test_complete_stream_emits_reasoning_delta_events(monkeypatch):
             ]
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(client.complete_stream([{"role": "user", "content": "hi"}]))
 
     assert [event["type"] for event in events] == [
@@ -168,7 +172,7 @@ def test_complete_maps_reasoning_to_reasoning_content_for_outbound_messages(monk
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete(
         [
             {"role": "user", "content": "hi"},
@@ -256,7 +260,7 @@ def test_complete_stream_merges_cumulative_tool_call_deltas_without_corrupting_a
             ]
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(client.complete_stream([{"role": "user", "content": "hi"}]))
 
     assert [event["type"] for event in events] == ["done"]
@@ -292,7 +296,7 @@ def test_complete_retries_before_failing(monkeypatch):
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete([{"role": "user", "content": "hi"}])
 
     assert calls["count"] == 2
@@ -335,7 +339,7 @@ def test_complete_omits_tool_fields_when_explicit_tools_override_is_empty(monkey
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete([{"role": "user", "content": "hi"}], tools=[])
 
     assert response["content"] == "Hello"
@@ -376,7 +380,7 @@ def test_complete_passes_response_format_when_provided(monkeypatch):
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete(
         [{"role": "user", "content": "hi"}],
         response_format=response_format,
@@ -411,7 +415,7 @@ def test_complete_retries_transient_ssl_bad_record_mac_when_max_attempts_is_one(
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete([{"role": "user", "content": "hi"}])
 
     assert calls["count"] == 2
@@ -472,7 +476,7 @@ def test_complete_retries_without_forced_tool_choice_after_provider_rejection(mo
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete(
         [{"role": "user", "content": "hi"}],
         tool_choice={"type": "function", "function": {"name": "rename_thread"}},
@@ -544,7 +548,7 @@ def test_complete_stream_retries_without_forced_tool_choice_after_provider_rejec
             ]
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(
         client.complete_stream(
             [{"role": "user", "content": "hi"}],
@@ -615,7 +619,7 @@ def test_complete_retries_without_tool_choice_after_litellm_unsupported_params_e
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete(
         [{"role": "user", "content": "hi"}],
         tool_choice={"type": "function", "function": {"name": "rename_thread"}},
@@ -675,7 +679,7 @@ def test_complete_retries_without_auto_tool_choice_after_litellm_unsupported_par
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete([{"role": "user", "content": "hi"}])
 
     assert len(captured_requests) == 2
@@ -742,7 +746,7 @@ def test_complete_stream_retries_without_tool_choice_after_litellm_unsupported_p
             ]
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(
         client.complete_stream(
             [{"role": "user", "content": "hi"}],
@@ -761,7 +765,7 @@ def test_complete_injects_prompt_cache_control_points_when_supported(monkeypatch
     client = _build_model_client()
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.litellm.utils.supports_prompt_caching",
+        "backend.services.agent.model_client_support.client.litellm.utils.supports_prompt_caching",
         lambda _model: True,
     )
 
@@ -779,7 +783,7 @@ def test_complete_injects_prompt_cache_control_points_when_supported(monkeypatch
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete(
         [
             {"role": "system", "content": "You are helpful."},
@@ -799,7 +803,7 @@ def test_complete_injects_boundary_before_latest_assistant_tool_batch(monkeypatc
     client = _build_model_client()
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.litellm.utils.supports_prompt_caching",
+        "backend.services.agent.model_client_support.client.litellm.utils.supports_prompt_caching",
         lambda _model: True,
     )
 
@@ -817,7 +821,7 @@ def test_complete_injects_boundary_before_latest_assistant_tool_batch(monkeypatc
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete(
         [
             {"role": "system", "content": "You are helpful."},
@@ -850,7 +854,7 @@ def test_complete_injects_boundary_at_prev_tool_result_in_continued_loop(monkeyp
     client = _build_model_client()
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.litellm.utils.supports_prompt_caching",
+        "backend.services.agent.model_client_support.client.litellm.utils.supports_prompt_caching",
         lambda _model: True,
     )
 
@@ -865,7 +869,7 @@ def test_complete_injects_boundary_at_prev_tool_result_in_continued_loop(monkeyp
             usage={"input_tokens": 5, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete(
         [
             {"role": "system", "content": "You are helpful."},
@@ -904,7 +908,7 @@ def test_complete_preserves_multimodal_tool_message_content(monkeypatch):
             usage={"input_tokens": 4, "output_tokens": 1},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete(
         [
             {"role": "system", "content": "You are helpful."},
@@ -934,7 +938,7 @@ def test_complete_injects_second_to_last_user_for_multi_turn(monkeypatch):
     client = _build_model_client()
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.litellm.utils.supports_prompt_caching",
+        "backend.services.agent.model_client_support.client.litellm.utils.supports_prompt_caching",
         lambda _model: True,
     )
 
@@ -949,7 +953,7 @@ def test_complete_injects_second_to_last_user_for_multi_turn(monkeypatch):
             usage={"input_tokens": 5, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete(
         [
             {"role": "system", "content": "You are helpful."},
@@ -973,7 +977,7 @@ def test_complete_tool_loop_with_multiple_tool_results(monkeypatch):
     client = _build_model_client()
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.litellm.utils.supports_prompt_caching",
+        "backend.services.agent.model_client_support.client.litellm.utils.supports_prompt_caching",
         lambda _model: True,
     )
 
@@ -988,7 +992,7 @@ def test_complete_tool_loop_with_multiple_tool_results(monkeypatch):
             usage={"input_tokens": 5, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete(
         [
             {"role": "system", "content": "You are helpful."},
@@ -1015,7 +1019,7 @@ def test_complete_does_not_inject_prompt_cache_control_for_short_message_lists(m
     client = _build_model_client()
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.litellm.utils.supports_prompt_caching",
+        "backend.services.agent.model_client_support.client.litellm.utils.supports_prompt_caching",
         lambda _model: True,
     )
 
@@ -1033,7 +1037,7 @@ def test_complete_does_not_inject_prompt_cache_control_for_short_message_lists(m
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     client.complete([{"role": "user", "content": "hello"}])
 
     assert "cache_control_injection_points" not in captured_request
@@ -1060,7 +1064,7 @@ def test_complete_normalizes_top_level_prompt_cache_usage_fields(monkeypatch):
             },
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete([{"role": "user", "content": "hello"}])
 
     assert response["usage"]["input_tokens"] == 120
@@ -1087,7 +1091,7 @@ def test_complete_omits_observability_fields(monkeypatch):
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     response = client.complete([{"role": "user", "content": "hello"}])
 
     assert "metadata" not in captured_request
@@ -1124,7 +1128,7 @@ def test_complete_stream_retries_after_partial_text_delta_without_duplicate_outp
             raise next_response
         return next_response
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(client.complete_stream([{"role": "user", "content": "hi"}]))
 
     assert calls["count"] == 2
@@ -1157,7 +1161,7 @@ def test_complete_stream_fails_when_retry_output_diverges_after_emitted_text(mon
             raise next_response
         return next_response
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     stream = client.complete_stream([{"role": "user", "content": "hi"}])
 
     first_event = next(stream)
@@ -1195,7 +1199,7 @@ def test_complete_stream_replay_prefix_is_suppressed_across_retries(monkeypatch)
             raise next_response
         return next_response
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     events = list(client.complete_stream([{"role": "user", "content": "hi"}]))
 
     assert calls["count"] == 2

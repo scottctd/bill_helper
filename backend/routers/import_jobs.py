@@ -2,17 +2,15 @@
 # - Purpose: translate HTTP requests for import workflow routes.
 # - Inputs: authenticated principal and validated import schemas.
 # - Outputs: import job/task/preflight/proposal responses.
-# - Side effects: delegates orchestration to import workflow services.
+# - Side effects: delegates orchestration to import workflow services; domain errors propagate as PolicyViolation.
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
 from backend.auth.contracts import RequestPrincipal
 from backend.auth.dependencies import get_current_principal
 from backend.database import get_db
-from backend.models_import import ImportJob
 from backend.schemas_import import (
     ImportJobAggregatedProposalRead,
     ImportJobBatchActionBody,
@@ -23,8 +21,12 @@ from backend.schemas_import import (
     ImportPreflightRequest,
     ImportPreflightResponse,
 )
-from backend.services.crud_policy import PolicyViolation
-from backend.services.import_workflow.jobs import cancel_import_job, create_import_job, retry_failed_import_tasks
+from backend.services.import_workflow.jobs import (
+    cancel_import_job,
+    create_import_job,
+    list_import_jobs_for_principal,
+    retry_failed_import_tasks,
+)
 from backend.services.import_workflow.preflight import run_import_preflight
 from backend.services.import_workflow.proposals import (
     aggregate_job_proposals,
@@ -46,14 +48,11 @@ def preflight_import_sources(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> ImportPreflightResponse:
-    try:
-        return run_import_preflight(
-            db,
-            owner_user_id=principal.user_id,
-            source_attachment_ids=payload.source_attachment_ids,
-        )
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return run_import_preflight(
+        db,
+        owner_user_id=principal.user_id,
+        source_attachment_ids=payload.source_attachment_ids,
+    )
 
 
 @router.post("/jobs", response_model=ImportJobDetailRead, status_code=status.HTTP_201_CREATED)
@@ -62,19 +61,16 @@ def create_job(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> ImportJobDetailRead:
-    try:
-        job = create_import_job(
-            db,
-            owner_user_id=principal.user_id,
-            title=payload.title,
-            model_name=payload.model_name,
-            concurrency=payload.concurrency,
-            approval_policy=payload.approval_policy,
-            instructions=payload.instructions,
-            source_attachment_ids=payload.source_attachment_ids,
-        )
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    job = create_import_job(
+        db,
+        owner_user_id=principal.user_id,
+        title=payload.title,
+        model_name=payload.model_name,
+        concurrency=payload.concurrency,
+        approval_policy=payload.approval_policy,
+        instructions=payload.instructions,
+        source_attachment_ids=payload.source_attachment_ids,
+    )
     start_import_job(job.id)
     job = load_job_for_owner(db, job_id=job.id, owner_user_id=principal.user_id)
     return job_detail_to_schema(db, job)
@@ -85,14 +81,7 @@ def list_jobs(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> list[ImportJobSummaryRead]:
-    jobs = list(
-        db.scalars(
-            select(ImportJob)
-            .where(ImportJob.owner_user_id == principal.user_id)
-            .options(selectinload(ImportJob.tasks))
-            .order_by(ImportJob.created_at.desc())
-        )
-    )
+    jobs = list_import_jobs_for_principal(db, principal=principal)
     return [job_summary_to_schema(db, job) for job in jobs]
 
 
@@ -102,10 +91,7 @@ def get_job(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> ImportJobDetailRead:
-    try:
-        job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
     return job_detail_to_schema(db, job)
 
 
@@ -115,13 +101,8 @@ def cancel_job(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> ImportJobDetailRead:
-    try:
-        job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
-        job = cancel_import_job(db, job=job)
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
+    job = cancel_import_job(db, job=job)
     cancel_import_job_scheduler(job_id)
     job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
     return job_detail_to_schema(db, job)
@@ -133,13 +114,8 @@ def retry_failed_tasks(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> ImportJobDetailRead:
-    try:
-        job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
-        job = retry_failed_import_tasks(db, job=job)
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
+    job = retry_failed_import_tasks(db, job=job)
     start_import_job(job_id)
     job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
     return job_detail_to_schema(db, job)
@@ -151,10 +127,7 @@ def list_job_proposals(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> list[ImportJobAggregatedProposalRead]:
-    try:
-        job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
     return aggregate_job_proposals(db, job=job)
 
 
@@ -165,10 +138,7 @@ def batch_approve_proposals(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> ImportJobBatchApplyResponse:
-    try:
-        job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
     return batch_approve_job_proposals(
         db,
         job=job,
@@ -184,10 +154,7 @@ def batch_reject_proposals(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> ImportJobBatchApplyResponse:
-    try:
-        job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    job = load_job_for_owner(db, job_id=job_id, owner_user_id=principal.user_id)
     return batch_reject_job_proposals(
         db,
         job=job,

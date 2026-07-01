@@ -21,6 +21,7 @@ export type {
   GroupRuleCondition,
   GroupRuleField,
   GroupRuleGroup,
+  GroupRuleInput,
   GroupRuleNode,
   GroupSummary
 } from "./types/groups";

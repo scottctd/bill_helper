@@ -3,7 +3,7 @@
  * - Purpose: provide the `queryInvalidation` frontend module.
  * - Inputs: callers that import `frontend/src/lib/queryInvalidation.ts` and pass module-defined arguments or framework events.
  * - Outputs: typed helpers, contracts, or exports from `queryInvalidation`.
- * - Side effects: module-local frontend behavior only.
+ * - Side effects: TanStack Query cache invalidation via centralized helpers.
  */
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -89,6 +89,39 @@ export function invalidateUserReadModels(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.properties.users });
   queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.entries.all });
+}
+
+export function invalidateAdminReadModels(
+  queryClient: QueryClient,
+  scope: "users" | "sessions" | "usersAndSessions" = "users"
+): void {
+  if (scope === "users" || scope === "usersAndSessions") {
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.users });
+  }
+  if (scope === "sessions" || scope === "usersAndSessions") {
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.sessions });
+  }
+}
+
+export function invalidateImportReadModels(
+  queryClient: QueryClient,
+  options?: {
+    jobId?: string;
+    threadIds?: string[];
+    invalidateEntries?: boolean;
+  }
+): void {
+  queryClient.invalidateQueries({ queryKey: queryKeys.import.jobs });
+  if (options?.jobId) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.import.job(options.jobId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.import.proposals(options.jobId) });
+  }
+  for (const threadId of options?.threadIds ?? []) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.agent.thread(threadId) });
+  }
+  if (options?.invalidateEntries) {
+    invalidateEntryReadModels(queryClient);
+  }
 }
 
 export function invalidateTaxonomyReadModels(queryClient: QueryClient, taxonomyKey?: string): void {

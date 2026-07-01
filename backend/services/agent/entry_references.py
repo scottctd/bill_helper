@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `entry_references`.
-# - Inputs: callers that import `backend/services/agent/entry_references.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `entry_references`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `entry_references`.
+# - Inputs: Callers import `backend/services/agent/entry_references` and invoke `EntryPublicRecord`, `EntryIdAmbiguityDetails`, `entry_public_id`, `entry_to_public_record`.
+# - Outputs: Exports `EntryPublicRecord`, `EntryIdAmbiguityDetails`, `entry_public_id`, `entry_to_public_record`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from typing import TypedDict

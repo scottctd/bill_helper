@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `passwords`.
-# - Inputs: callers that import `backend/services/passwords.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `passwords`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `passwords`.
+# - Inputs: Callers import `backend/services/passwords` and invoke `PasswordVerificationResult`, `hash_password`, `password_reset_required_hash`, `is_password_reset_required_hash`.
+# - Outputs: Exports `PasswordVerificationResult`, `hash_password`, `password_reset_required_hash`, `is_password_reset_required_hash`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -6,10 +6,10 @@ import { TagMultiSelect, compactTagMultiSelectLabel } from "./TagMultiSelect";
 import type { Tag } from "../lib/types";
 
 const options: Tag[] = [
-  { id: 1, name: "coffee", color: null },
-  { id: 2, name: "cafe", color: null },
-  { id: 3, name: "caffeine", color: null },
-  { id: 4, name: "tea", color: null }
+  { id: 1, name: "coffee", color: null, entry_count: 0 },
+  { id: 2, name: "cafe", color: null, entry_count: 0 },
+  { id: 3, name: "caffeine", color: null, entry_count: 0 },
+  { id: 4, name: "tea", color: null, entry_count: 0 }
 ];
 
 function optionLabels() {

@@ -21,6 +21,10 @@ Supporting modules include:
 - `frontend/src/features/agent/panel/useAgentComposerRuntime.ts`
 - `frontend/src/features/agent/panel/useAgentComposerStreamState.ts`
 - `frontend/src/features/agent/panel/useAgentComposerActions.ts`
+- `frontend/src/features/agent/panel/agentStreamSession.ts`
+- `frontend/src/features/agent/panel/streamReducer.ts`
+- `frontend/src/features/agent/panel/runAgentStreamEffects.ts`
+- `frontend/src/features/agent/panel/agentTimelineModel.ts`
 - `frontend/src/features/agent/panel/helpers.ts`
 - `frontend/src/features/agent/AgentRunBlock.tsx`
 - `frontend/src/features/agent/AgentRunActivity.tsx`
@@ -76,7 +80,12 @@ Supporting modules include:
 - user-message attachments render as compact file rows above the message text and open in a browser-native tab instead of embedding inline previews inside the bubble
 - composer pending attachments, user attachment rows, and assistant inline attachment grids each cap height with internal vertical scroll when the list is long (`scroll-surface` plus classes in `frontend/src/styles/agent.css`) so the composer and bubbles do not grow unbounded and the scrollbar matches the app’s styled scrollbars; those strips share a bordered, muted background “tray” with tighter gaps and padding than the main bubble chrome
 - assistant-message inline attachment cards stay bounded: images preserve their aspect ratio up to a larger capped size and open in a browser-native tab when clicked, while PDFs use a small scrollable browser preview plus filename label and an explicit `Open` action
-- `useAgentComposerStreamState.ts` owns stream-event accumulation, tool-call hydration, rename-thread reconciliation, and the optimistic run timeline cache
+- `useAgentComposerStreamState.ts` subscribes to the module stream store via `useSyncExternalStore`, applies pure reducer transitions from `streamReducer.ts`, and executes returned cache/hydration effects through `runAgentStreamEffects.ts`
+- `agentStreamSession.ts` is the single same-tab stream store (`subscribe` / `getSnapshot` / revision counter); React no longer mirrors stream buffers in local `useState`
+- unknown SSE event types log a dev `console.warn` via `warnUnknownStreamEvent.ts`; `KNOWN_AGENT_STREAM_EVENT_TYPES` in `lib/types/agent.ts` is parity-tested against backend `AgentRunEventType` plus `model_delta` and legacy `reasoning_delta` / `text_delta` aliases
+- live replay attaches optional `run_usage` on durable SSE payloads while a run is still `running`; the reducer emits `patch_run_usage` effects that call `patchAgentThreadCachedRunUsage` so `AgentThreadUsageBar` updates without refetch
+- `AgentTimeline` receives one grouped `model: AgentTimelineModel` prop (thread data, nested `stream`, nested `scroll`) from `useAgentPanelController.ts`
+- `useAgentComposerActions.ts` receives grouped `composerIO`, `threadCacheOps`, and `runControl` objects from `useAgentComposerRuntime.ts`
 
 ## Thread Review Surface
 
@@ -123,6 +132,6 @@ Supporting modules include:
 ## Usage And Activity
 
 - cumulative usage bar shows `Context`, `Total input`, `Output`, `Cache read`, `Cache hit rate`, and total cost
-- `Context` comes from backend persisted run snapshots; during live SSE, `run_usage` on each `run_event` patches the cached thread detail so the bar updates after each emitted event (including tool lifecycle), not only on refetch
+- `Context` comes from backend persisted run snapshots; during live SSE, optional `run_usage` on replayed durable events patches the cached thread detail via `patchAgentThreadCachedRunUsage` so the bar updates after each emitted event (including tool lifecycle), not only on refetch
 - live activity is driven by `run_event`; usage totals remain authoritative on the run rows backing `GET /agent/threads/{id}`
 - run summary cards count pending change types across entries, accounts, groups, tags, and entities

@@ -21,7 +21,20 @@ INCLUDE_ROOTS = (
 )
 SOURCE_EXTENSIONS = {".py", ".ts", ".tsx"}
 MAX_LOC = 800
+MAX_TEST_LOC = 800
 CALLING_SPEC_TOKEN = "CALLING SPEC:"
+BOILERPLATE_SPEC_PATTERN = "implement focused service logic for"
+# Temporary allowlist for oversized test modules; shrink-only.
+TEST_FILE_LOC_ALLOWLIST = frozenset(
+    {
+        "backend/tests/test_agent.py",
+        "backend/tests/test_agent_model_client.py",
+        "backend/tests/test_cli_support.py",
+        "backend/tests/test_entries.py",
+        "backend/tests/test_finance.py",
+        "backend/tests/test_migrations_core.py",
+    }
+)
 SKIP_PARTS = {
     "__pycache__",
     ".git",
@@ -33,7 +46,8 @@ SKIP_PARTS = {
     "coverage",
     "ios",
 }
-SKIP_FILE_MARKERS = (".test.", ".spec.")
+# Generated OpenAPI TS (e.g. api-types.gen.ts) is machine output: no calling spec and unbounded LOC.
+SKIP_FILE_MARKERS = (".test.", ".spec.", ".gen.")
 PYTHON_EXTRA_FORBID_TOKEN = 'extra="forbid"'
 PYTHON_EXTRA_FORBID_TOKEN_SINGLE = "extra='forbid'"
 
@@ -44,7 +58,13 @@ class Violation:
     message: str
 
 
-def _iter_target_files() -> list[Path]:
+def _is_test_file(path: Path) -> bool:
+    if "tests" in path.parts or "test" in path.parts or path.name.startswith("test_"):
+        return True
+    return any(marker in path.name for marker in (".test.", ".spec."))
+
+
+def _iter_target_files(*, include_tests: bool = False) -> list[Path]:
     files: list[Path] = []
     for root in INCLUDE_ROOTS:
         if not root.exists():
@@ -54,7 +74,10 @@ def _iter_target_files() -> list[Path]:
                 continue
             if any(part in SKIP_PARTS for part in path.parts):
                 continue
-            if "tests" in path.parts or "test" in path.parts or path.name.startswith("test_"):
+            is_test = _is_test_file(path)
+            if is_test and not include_tests:
+                continue
+            if not is_test and include_tests:
                 continue
             if any(marker in path.name for marker in SKIP_FILE_MARKERS):
                 continue
@@ -66,11 +89,20 @@ def _read_lines(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines()
 
 
-def _check_calling_spec(path: Path, lines: list[str]) -> Violation | None:
+def _check_calling_spec(path: Path, lines: list[str]) -> list[Violation]:
+    violations: list[Violation] = []
     head = "\n".join(lines[:12])
-    if CALLING_SPEC_TOKEN in head:
-        return None
-    return Violation(path, "missing top-of-file calling spec block")
+    if CALLING_SPEC_TOKEN not in head:
+        violations.append(Violation(path, "missing top-of-file calling spec block"))
+        return violations
+    if BOILERPLATE_SPEC_PATTERN in head:
+        violations.append(
+            Violation(
+                path,
+                "calling spec uses boilerplate Purpose text; rewrite with module-specific details",
+            )
+        )
+    return violations
 
 
 def _check_line_count(path: Path, lines: list[str]) -> Violation | None:
@@ -149,19 +181,36 @@ def _check_python_extra_forbid(path: Path, text: str) -> Violation | None:
     return Violation(path, 'BaseModel module missing `extra="forbid"` contract')
 
 
+def _check_test_file_line_count(path: Path, lines: list[str]) -> Violation | None:
+    relative = path.relative_to(ROOT).as_posix()
+    if relative in TEST_FILE_LOC_ALLOWLIST:
+        return None
+    if len(lines) <= MAX_TEST_LOC:
+        return None
+    return Violation(path, f"test file exceeds {MAX_TEST_LOC} LOC ({len(lines)})")
+
+
 def main() -> int:
     violations: list[Violation] = []
-    for path in _iter_target_files():
+    production_files = _iter_target_files()
+    for path in production_files:
         text = path.read_text(encoding="utf-8")
         lines = text.splitlines()
-        for check in (_check_line_count(path, lines), _check_calling_spec(path, lines)):
-            if check is not None:
-                violations.append(check)
+        line_violation = _check_line_count(path, lines)
+        if line_violation is not None:
+            violations.append(line_violation)
+        violations.extend(_check_calling_spec(path, lines))
         if path.suffix == ".py":
             violations.extend(_check_python_broad_excepts(path, text))
             forbid_violation = _check_python_extra_forbid(path, text)
             if forbid_violation is not None:
                 violations.append(forbid_violation)
+
+    for path in _iter_target_files(include_tests=True):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        test_line_violation = _check_test_file_line_count(path, lines)
+        if test_line_violation is not None:
+            violations.append(test_line_violation)
 
     if violations:
         print("LLM design check FAILED:")
@@ -170,7 +219,8 @@ def main() -> int:
         return 1
 
     print("LLM design check passed.")
-    print(f"- Checked {len(_iter_target_files())} non-iOS production modules")
+    print(f"- Checked {len(production_files)} non-iOS production modules")
+    print(f"- Checked {len(_iter_target_files(include_tests=True))} test modules for LOC cap")
     return 0
 
 

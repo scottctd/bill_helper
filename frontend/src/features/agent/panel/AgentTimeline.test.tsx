@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentTurn } from "../../../lib/types";
 import { buildRun, buildStep, buildToolCall, buildTurn } from "../../../test/factories/agent";
-import { AgentTimeline, type AgentTimelineProps } from "./AgentTimeline";
+import { AgentTimeline } from "./AgentTimeline";
+import type { AgentTimelineModel, AgentTimelineStreamModel } from "./agentTimelineModel";
 import type { PendingAssistantMessage } from "./types";
 
 const { markdownRenderSpy, requestBlobSpy } = vi.hoisted(() => ({
@@ -44,39 +45,71 @@ function buildPendingAssistantMessage(
   };
 }
 
-function renderTimeline(overrides: Partial<AgentTimelineProps> = {}) {
-  const props: AgentTimelineProps = {
+type TimelineModelOverrides = Partial<AgentTimelineModel> & Partial<AgentTimelineStreamModel>;
+
+function buildTimelineModel(overrides: TimelineModelOverrides = {}): AgentTimelineModel {
+  const streamFieldKeys = [
+    "activeStreamRunId",
+    "activeStreamReasoningText",
+    "activeStreamText",
+    "streamedReasoningTextByRunId",
+    "streamedTextByRunId",
+    "optimisticStepsByRunId",
+    "optimisticToolCallsByRunId",
+    "liveActivityLedgerByRunId",
+    "activeOptimisticSteps",
+    "activeOptimisticToolCalls",
+    "hydratingToolCallIds"
+  ] as const;
+  const streamFromFlat: Partial<AgentTimelineModel["stream"]> = {};
+  for (const key of streamFieldKeys) {
+    if (key in overrides) {
+      streamFromFlat[key] = overrides[key as keyof typeof streamFromFlat] as never;
+    }
+  }
+  const stream = { ...(overrides.stream ?? {}), ...streamFromFlat };
+  const scroll = overrides.scroll ?? {};
+  const { stream: _stream, scroll: _scroll, ...rest } = overrides;
+  return {
     selectedThreadId: "thread-1",
     isLoading: false,
     errorMessage: null,
     initiatedByExternalAgent: false,
     turns: [],
-    timelineScrollRef: createRef<HTMLDivElement>(),
     runsById: new Map(),
     pendingAssistantRuns: [],
     pendingUserMessage: null,
     pendingAssistantMessage: null,
     shouldShowOptimisticAssistantBubble: false,
     pendingRunAttachedToOptimisticMessage: null,
-    activeStreamRunId: null,
-    activeStreamReasoningText: "",
-    activeStreamText: "",
-    streamedReasoningTextByRunId: {},
-    streamedTextByRunId: {},
-    optimisticStepsByRunId: {},
-    optimisticToolCallsByRunId: {},
-    liveActivityLedgerByRunId: {},
-    activeOptimisticSteps: [],
-    activeOptimisticToolCalls: [],
-    detachFromBottom: () => undefined,
+    stream: {
+      activeStreamRunId: null,
+      activeStreamReasoningText: "",
+      activeStreamText: "",
+      streamedReasoningTextByRunId: {},
+      streamedTextByRunId: {},
+      optimisticStepsByRunId: {},
+      optimisticToolCallsByRunId: {},
+      liveActivityLedgerByRunId: {},
+      activeOptimisticSteps: [],
+      activeOptimisticToolCalls: [],
+      hydratingToolCallIds: new Set<string>(),
+      ...stream
+    },
+    scroll: {
+      timelineScrollRef: createRef<HTMLDivElement>(),
+      detachFromBottom: () => undefined,
+      isAtBottom: true,
+      scrollToBottom: () => undefined,
+      ...scroll
+    },
     onHydrateToolCall: () => undefined,
-    hydratingToolCallIds: new Set<string>(),
-    isAtBottom: true,
-    scrollToBottom: () => undefined,
-    ...overrides
+    ...rest
   };
+}
 
-  return render(<AgentTimeline {...props} />);
+function renderTimeline(overrides: TimelineModelOverrides = {}) {
+  return render(<AgentTimeline model={buildTimelineModel(overrides)} />);
 }
 
 function expectArticleClasses(
@@ -117,39 +150,14 @@ describe("AgentTimeline", () => {
       }
     });
     const run = buildRun({ id: "run-1", status: "completed" });
-    const stableProps: AgentTimelineProps = {
-      selectedThreadId: "thread-1",
-      isLoading: false,
-      errorMessage: null,
-      initiatedByExternalAgent: false,
+    const stableModel = buildTimelineModel({
       turns: [turn],
-      timelineScrollRef: createRef<HTMLDivElement>(),
-      runsById: new Map([[run.id, run]]),
-      pendingAssistantRuns: [],
-      pendingUserMessage: null,
-      pendingAssistantMessage: null,
-      shouldShowOptimisticAssistantBubble: false,
-      pendingRunAttachedToOptimisticMessage: null,
-      activeStreamRunId: null,
-      activeStreamReasoningText: "",
-      activeStreamText: "",
-      streamedReasoningTextByRunId: {},
-      streamedTextByRunId: {},
-      optimisticStepsByRunId: {},
-      optimisticToolCallsByRunId: {},
-      liveActivityLedgerByRunId: {},
-      activeOptimisticSteps: [],
-      activeOptimisticToolCalls: [],
-      detachFromBottom: () => undefined,
-      onHydrateToolCall: () => undefined,
-      hydratingToolCallIds: new Set<string>(),
-      isAtBottom: true,
-      scrollToBottom: () => undefined
-    };
+      runsById: new Map([[run.id, run]])
+    });
 
     function Harness() {
       const [draft, setDraft] = useState("");
-      const timelinePropsRef = useRef(stableProps);
+      const timelineModelRef = useRef(stableModel);
 
       return (
         <>
@@ -157,7 +165,7 @@ describe("AgentTimeline", () => {
             Draft
             <input value={draft} onChange={(event) => setDraft(event.target.value)} />
           </label>
-          <AgentTimeline {...timelinePropsRef.current} />
+          <AgentTimeline model={timelineModelRef.current} />
         </>
       );
     }
@@ -317,7 +325,10 @@ describe("AgentTimeline", () => {
                 id: "attachment-pdf-1",
                 display_name: "statement.pdf",
                 mime_type: "application/pdf",
-                attachment_url: "/api/v1/agent/attachments/attachment-pdf-1"
+                attachment_url: "/api/v1/agent/attachments/attachment-pdf-1",
+                created_at: "2026-02-15T10:00:00Z",
+                file_path: "uploads/statement.pdf",
+                transcript_message_id: "user-message-1"
               }
             ]
           }

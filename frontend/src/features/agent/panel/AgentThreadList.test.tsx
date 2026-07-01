@@ -13,7 +13,8 @@ const THREADS: AgentThreadSummary[] = [
     updated_at: "2026-02-20T10:01:00Z",
     last_message_preview: null,
     pending_change_count: 0,
-    has_running_run: false
+    has_running_run: false,
+    initiated_by_external_agent: false
   },
   {
     id: "thread-2",
@@ -22,7 +23,8 @@ const THREADS: AgentThreadSummary[] = [
     updated_at: "2026-02-20T11:01:00Z",
     last_message_preview: null,
     pending_change_count: 0,
-    has_running_run: false
+    has_running_run: false,
+    initiated_by_external_agent: false
   }
 ];
 

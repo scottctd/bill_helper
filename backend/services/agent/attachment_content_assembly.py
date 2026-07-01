@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.models_agent import AgentTranscriptAttachment
+from backend.services.agent.error_policy import recoverable_result
 from backend.services.agent.agent_attachment_bundle import (
     is_docling_bundle_primary_stored_path,
     pdf_pages_as_png_bytes,
@@ -85,6 +86,9 @@ def _assemble_docling_bundle_parts(
     *,
     attachment_name: str,
 ) -> list[dict[str, Any]]:
+    # Data-compatibility read path: pre-2026 Docling-era bundles on disk store OCR
+    # output as parsed.md instead of page-*.png renders. This branch can be removed
+    # only after a data migration rewrites those historical bundles.
     primary = Path(attachment.file_path)
     bundle_dir = primary.parent
     parsed_path = bundle_dir / "parsed.md"
@@ -160,7 +164,14 @@ def _assemble_pdf_visual_parts(
     else:
         try:
             png_chunks = pdf_pages_as_png_bytes(primary)
-        except Exception:
+        except Exception as exc:
+            recoverable_result(
+                scope="attachment_content_assembly.pdf_rasterize",
+                fallback=[],
+                error=exc,
+                context={"attachment_name": attachment_name, "primary": str(primary)},
+                log=logger,
+            )
             logger.exception(
                 "pdf_vision_assembly.rasterize_failed attachment_name=%s primary=%s",
                 attachment_name,

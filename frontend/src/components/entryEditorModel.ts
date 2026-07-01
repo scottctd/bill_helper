@@ -14,6 +14,7 @@ import type {
   EntryLifecycle
 } from "../lib/types";
 import { formatEntryLifecycle } from "../lib/catalogs";
+import { listOrEmpty } from "../lib/collections";
 import { entryLifecycleColor } from "../lib/entryClassificationColors";
 
 export interface EntryEditorFormState {
@@ -106,11 +107,11 @@ export function buildEditForm(entry: Entry): EntryEditorFormState {
     currency_code: entry.currency_code,
     from_entity_value: entry.from_entity ?? "",
     to_entity_value: entry.to_entity ?? "",
-    from_entity_selected_id: entry.from_entity_id,
-    to_entity_selected_id: entry.to_entity_id,
+    from_entity_selected_id: entry.from_entity_id ?? null,
+    to_entity_selected_id: entry.to_entity_id ?? null,
     owner_user_id: entry.owner_user_id,
-    manual_group_ids: entry.groups.filter((group) => group.source === "manual").map((group) => group.id),
-    tags: entry.tags.map((tag) => tag.name),
+    manual_group_ids: listOrEmpty(entry.groups).filter((group) => group.source === "manual").map((group) => group.id),
+    tags: listOrEmpty(entry.tags).map((tag) => tag.name),
     category: categoryPathLeaf(entry.category) ?? "",
     lifecycle: entry.lifecycle ?? "",
     markdown_body: entry.markdown_body ?? ""

@@ -1,0 +1,76 @@
+/**
+ * CALLING SPEC:
+ * - Purpose: Properties hub layout, taxonomy tables, and entity name cells
+ * - Inputs: imported by `frontend/src/styles.css` for the Properties route sections.
+ * - Outputs: `@layer components` rules scoped to properties and catalog tables.
+ * - Side effects: none; stylesheet only.
+ */
+
+@layer components {
+  .entry-categories-table {
+    @apply table-fixed;
+  }
+  .entry-category-row {
+    @apply cursor-pointer;
+  }
+  .entry-category-name-column {
+    width: 27%;
+  }
+  .entry-category-description-column {
+    width: 42%;
+  }
+  .entry-category-lifecycle-column {
+    width: 15%;
+  }
+  .entry-category-usage-column {
+    width: 8%;
+  }
+  .entry-category-actions-column {
+    width: 8%;
+  }
+  .entry-category-name {
+    @apply inline-flex min-w-0 items-center gap-2;
+  }
+  .entry-category-child-name {
+    @apply pl-5;
+  }
+  .entry-category-swatch {
+    @apply size-2.5 shrink-0 rounded-sm;
+  }
+  .entry-category-meta {
+    @apply ml-2 text-xs text-muted-foreground;
+  }
+  .entry-category-description {
+    @apply block whitespace-normal break-words text-xs leading-5 text-muted-foreground;
+  }
+  .tag-color-cell {
+    @apply inline-flex items-center gap-2;
+  }
+  .tag-color-dot {
+    @apply h-4 w-4 rounded-full border border-border;
+  }
+  .entities-name {
+    @apply block truncate font-medium text-foreground;
+  }
+  .properties-layout {
+    @apply grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)];
+  }
+  .properties-nav {
+    @apply flex flex-wrap gap-3 lg:sticky lg:top-6 lg:grid lg:auto-rows-max lg:gap-4;
+  }
+  .properties-nav-group {
+    @apply min-w-[180px] rounded-md border border-border bg-secondary/55 p-3;
+  }
+  .properties-nav-label {
+    @apply mb-2 text-label-12 text-muted-foreground;
+  }
+  .properties-nav-list {
+    @apply grid gap-1.5;
+  }
+  .properties-nav-button {
+    @apply w-full justify-start;
+  }
+  .properties-panel {
+    @apply min-w-0;
+  }
+}

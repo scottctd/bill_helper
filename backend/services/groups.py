@@ -1,14 +1,12 @@
 # CALLING SPEC:
 # - Purpose: implement group CRUD, membership mutations, and read-model summaries.
-# - Inputs: callers that import `backend/services/groups.py` with commands and principal scope.
-# - Outputs: group service functions and load options.
+# - Inputs: commands, principal scope, and optional `GroupMembershipContext` snapshots.
+# - Outputs: group service functions, load options, and list/summary read builders.
 # - Side effects: database persistence and validation.
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
-
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from backend.auth.contracts import RequestPrincipal
@@ -19,28 +17,11 @@ from backend.schemas_group_rules import GroupRule
 from backend.schemas_finance import GroupMemberRead, GroupRead, GroupSummaryRead
 from backend.services.crud_policy import PolicyViolation
 from backend.services.group_membership import (
-    effective_entry_ids_for_group,
-    manual_member_entry_ids,
+    GroupMembershipContext,
     sorted_group_members,
 )
-from backend.services.group_rule_context import build_entry_rule_context
 from backend.services.group_rules import summarize_group_rule
 from backend.services.tags import normalize_tag_color
-from backend.services.taxonomy import get_entry_category_path_map
-
-
-@dataclass(frozen=True, slots=True)
-class GroupDefinition:
-    id: str
-    owner_user_id: str
-    name: str
-    description: str | None
-    color: str | None
-    source: GroupSource
-    rule: GroupRule | None
-    position: int
-    created_at: datetime
-    updated_at: datetime
 
 
 def group_load_options():
@@ -58,15 +39,51 @@ def load_group(db: Session, group_id: str) -> Group | None:
     )
 
 
-def list_group_definitions(db: Session, *, principal: RequestPrincipal) -> list[GroupDefinition]:
-    rows = list(
+def list_groups_for_principal(db: Session, *, principal: RequestPrincipal) -> list[Group]:
+    from backend.services.access_scope import group_owner_filter
+
+    return list(
         db.scalars(
             select(Group)
-            .where(Group.owner_user_id == principal.user_id)
+            .where(group_owner_filter(principal))
+            .options(*group_load_options())
             .order_by(Group.position.asc(), Group.created_at.asc())
         )
     )
-    return [_build_definition(row) for row in rows]
+
+
+def list_group_summaries_for_principal(
+    db: Session,
+    *,
+    principal: RequestPrincipal,
+) -> list[GroupSummaryRead]:
+    groups = list_groups_for_principal(db, principal=principal)
+    contexts_by_owner: dict[str, GroupMembershipContext] = {}
+    summaries: list[GroupSummaryRead] = []
+    for group in groups:
+        owner_id = group.owner_user_id
+        if owner_id not in contexts_by_owner:
+            contexts_by_owner[owner_id] = GroupMembershipContext.load_for_owner(
+                db,
+                owner_user_id=owner_id,
+            )
+        summaries.append(
+            build_group_summary(
+                db,
+                group,
+                membership=contexts_by_owner[owner_id],
+            )
+        )
+    return sorted(
+        summaries,
+        key=lambda summary: (
+            summary.last_occurred_at is None,
+            summary.last_occurred_at or summary.name,
+            summary.name.lower(),
+            summary.id,
+        ),
+        reverse=True,
+    )
 
 
 def normalize_group_name(name: str) -> str:
@@ -173,7 +190,11 @@ def add_group_member(
         position=_next_member_position(group),
     )
     db.add(member)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise PolicyViolation.conflict("Group membership already exists.") from exc
     loaded = db.get(GroupMember, member.id)
     if loaded is None:  # pragma: no cover
         raise RuntimeError("Failed to load created membership.")
@@ -249,24 +270,11 @@ def build_group_summary(
     db: Session,
     group: Group,
     *,
-    account_entity_ids: set[str] | None = None,
+    membership: GroupMembershipContext | None = None,
 ) -> GroupSummaryRead:
-    entries = _scoped_entries_for_group(db, group)
-    category_paths = get_entry_category_path_map(db, entry_ids=[entry.id for entry in entries])
-    contexts = {
-        entry.id: build_entry_rule_context(
-            entry,
-            category_path=category_paths.get(entry.id),
-            account_entity_ids=account_entity_ids or set(),
-        )
-        for entry in entries
-    }
-    effective_ids = effective_entry_ids_for_group(
-        group,
-        entries=entries,
-        contexts=contexts,
-    )
-    effective_entries = [entry for entry in entries if entry.id in effective_ids]
+    ctx = membership or GroupMembershipContext.load_for_owner(db, owner_user_id=group.owner_user_id)
+    effective_ids = ctx.effective_entry_ids_for_group(group)
+    effective_entries = [entry for entry in ctx.entries_list if entry.id in effective_ids]
     first_occurred_at = min((entry.occurred_at for entry in effective_entries), default=None)
     last_occurred_at = max((entry.occurred_at for entry in effective_entries), default=None)
     return GroupSummaryRead(
@@ -289,10 +297,11 @@ def build_group_read(
     db: Session,
     group: Group,
     *,
-    account_entity_ids: set[str] | None = None,
+    membership: GroupMembershipContext | None = None,
 ) -> GroupRead:
-    summary = build_group_summary(db, group, account_entity_ids=account_entity_ids)
-    members = _build_member_reads(db, group, account_entity_ids=account_entity_ids or set())
+    ctx = membership or GroupMembershipContext.load_for_owner(db, owner_user_id=group.owner_user_id)
+    summary = build_group_summary(db, group, membership=ctx)
+    members = _build_member_reads(group, membership=ctx)
     return GroupRead(
         **summary.model_dump(),
         members=members,
@@ -300,13 +309,16 @@ def build_group_read(
     )
 
 
-def build_group_read_from_row(
-    db: Session,
-    group: Group,
-    *,
-    account_entity_ids: set[str] | None = None,
-) -> GroupRead:
-    return build_group_read(db, group, account_entity_ids=account_entity_ids)
+def list_account_entity_ids_for_owner(db: Session, *, owner_user_id: str) -> set[str]:
+    from backend.models_finance import Account
+
+    return {
+        entity_id
+        for entity_id in db.scalars(
+            select(Account.id).where(Account.owner_user_id == owner_user_id)
+        ).all()
+        if entity_id
+    }
 
 
 def list_account_entity_ids_for_principal(db: Session, *, principal: RequestPrincipal) -> set[str]:
@@ -320,44 +332,12 @@ def list_account_entity_ids_for_principal(db: Session, *, principal: RequestPrin
     }
 
 
-def entry_matches_group(
-    db: Session,
-    *,
-    entry: Entry,
-    group: Group,
-    principal: RequestPrincipal,
-) -> bool:
-    account_entity_ids = list_account_entity_ids_for_principal(db, principal=principal)
-    entries = _scoped_entries_for_group(db, group)
-    category_paths = get_entry_category_path_map(db, entry_ids=[candidate.id for candidate in entries])
-    contexts = {
-        candidate.id: build_entry_rule_context(
-            candidate,
-            category_path=category_paths.get(candidate.id),
-            account_entity_ids=account_entity_ids,
-        )
-        for candidate in entries
-    }
-    return entry.id in effective_entry_ids_for_group(group, entries=entries, contexts=contexts)
-
-
 def _build_member_reads(
-    db: Session,
     group: Group,
     *,
-    account_entity_ids: set[str],
+    membership: GroupMembershipContext,
 ) -> list[GroupMemberRead]:
-    entries = _scoped_entries_for_group(db, group)
-    category_paths = get_entry_category_path_map(db, entry_ids=[entry.id for entry in entries])
-    contexts = {
-        entry.id: build_entry_rule_context(
-            entry,
-            category_path=category_paths.get(entry.id),
-            account_entity_ids=account_entity_ids,
-        )
-        for entry in entries
-    }
-    effective_ids = effective_entry_ids_for_group(group, entries=entries, contexts=contexts)
+    effective_ids = membership.effective_entry_ids_for_group(group)
     reads: list[GroupMemberRead] = []
     for member in sorted_group_members(group):
         if member.entry_id not in effective_ids:
@@ -380,17 +360,22 @@ def _build_member_reads(
     return reads
 
 
-def _scoped_entries_for_group(db: Session, group: Group) -> list[Entry]:
-    return list(
-        db.scalars(
-            select(Entry)
-            .where(
-                Entry.owner_user_id == group.owner_user_id,
-                Entry.is_deleted.is_(False),
-            )
-            .options(selectinload(Entry.tags))
-        )
+def get_group_read_for_principal(
+    db: Session,
+    *,
+    group_id: str,
+    principal: RequestPrincipal,
+) -> GroupRead:
+    from backend.services.access_scope import get_group_for_principal_or_404
+
+    group = get_group_for_principal_or_404(
+        db,
+        group_id=group_id,
+        principal=principal,
+        stmt=select(Group).options(*group_load_options()),
     )
+    membership = GroupMembershipContext.load_for_owner(db, owner_user_id=group.owner_user_id)
+    return build_group_read(db, group, membership=membership)
 
 
 def _next_member_position(group: Group) -> int:
@@ -417,18 +402,3 @@ def _rule_summary(group: Group) -> str | None:
     if rule is None:
         return None
     return summarize_group_rule(rule)
-
-
-def _build_definition(row: Group) -> GroupDefinition:
-    return GroupDefinition(
-        id=row.id,
-        owner_user_id=row.owner_user_id,
-        name=row.name,
-        description=row.description,
-        color=row.color,
-        source=row.source,
-        rule=_group_rule(row),
-        position=row.position,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `handlers`.
-# - Inputs: callers that import `backend/services/agent/proposals/group_memberships/handlers.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `handlers`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `handlers`.
+# - Inputs: Callers import `backend/services/agent/proposals/group_memberships/handlers` and invoke `pending_group_membership_conflict`, `build_add_group_membership_payload`, `build_remove_group_membership_payload`, `propose_update_group_membership`.
+# - Outputs: Exports `pending_group_membership_conflict`, `build_add_group_membership_payload`, `build_remove_group_membership_payload`, `propose_update_group_membership`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

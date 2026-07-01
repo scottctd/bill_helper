@@ -15,6 +15,7 @@ import { queryKeys } from "../../lib/queryKeys";
 import type { AgentThreadDetail, AgentThreadSummary } from "../../lib/types";
 import { pendingRuns, runById } from "../agent/activity";
 import { useAgentComposerRuntime } from "../agent/panel/useAgentComposerRuntime";
+import { getApiErrorMessage } from "../../lib/api/core";
 
 export function useImportTaskTimeline(threadId: string, enabled: boolean) {
   const queryClient = useQueryClient();
@@ -46,7 +47,7 @@ export function useImportTaskTimeline(threadId: string, enabled: boolean) {
       setActionError(null);
     },
     onError: (error) => {
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
     }
   });
 

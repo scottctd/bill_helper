@@ -24,6 +24,7 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { formatMinor, formatMinorCompact } from "../../lib/format";
+import { listOrEmpty } from "../../lib/collections";
 import {
   entryCategoryColor,
   entryLifecycleColor,
@@ -56,7 +57,7 @@ type OverviewCardState = {
   titlePrefix: string;
   currencyCode: string;
   yearlyQueriesLoading: boolean;
-  yearlyQueryError?: Error;
+  yearlyQueryError?: string | null;
 };
 
 type DashboardCategoryPartitionCardProps = OverviewCardState & {
@@ -76,7 +77,7 @@ type DashboardSpendingByDestinationCardProps = {
   items: Array<{ label: string; total_minor: number; share: number }>;
   currencyCode: string;
   yearlyQueriesLoading: boolean;
-  yearlyQueryError?: Error;
+  yearlyQueryError?: string | null;
 };
 
 type DashboardProjectionChartProps = {
@@ -102,7 +103,7 @@ export function DashboardCategoryPartitionCard({
   const [selectedName, setSelectedName] = useState<string>(sortedCategories[0]?.name ?? "");
   const selectedCategory = sortedCategories.find((cat) => cat.name === selectedName) ?? sortedCategories[0] ?? null;
   const selectedChildren = selectedCategory
-    ? [...selectedCategory.children]
+    ? [...listOrEmpty(selectedCategory.children)]
         .sort((a, b) => b.total_minor - a.total_minor)
         .slice(0, MAX_CHILDREN_PER_CATEGORY)
     : [];
@@ -119,7 +120,7 @@ export function DashboardCategoryPartitionCard({
         {yearlyQueriesLoading ? (
           <p className="muted text-sm">Loading category breakdown...</p>
         ) : yearlyQueryError ? (
-          <p className="error">Failed to load category breakdown: {yearlyQueryError.message}</p>
+          <p className="error">Failed to load category breakdown: {yearlyQueryError}</p>
         ) : sortedCategories.length === 0 ? (
           <p className="muted text-sm">No expense categories configured.</p>
         ) : (
@@ -200,10 +201,10 @@ export function DashboardCategoryPartitionCard({
                           <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{formatBreakdownShare(child.share)}</span>
                         </div>
                       ))
-                    ) : selectedCategory.to_breakdown.length > 0 ? (
+                    ) : listOrEmpty(selectedCategory.to_breakdown).length > 0 ? (
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Destinations for {formatEntryCategoryLabel(selectedCategory.name)}:</p>
-                        {selectedCategory.to_breakdown.slice(0, DESTINATION_BREAKDOWN_LIMIT).map((dest, destIndex) => (
+                        {listOrEmpty(selectedCategory.to_breakdown).slice(0, DESTINATION_BREAKDOWN_LIMIT).map((dest, destIndex) => (
                           <div key={destIndex} className="flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-copy-14 hover:bg-muted/10">
                             <span className="min-w-0 flex-1 truncate">{dest.label}</span>
                             <span className="shrink-0 tabular-nums text-muted-foreground">{formatMinor(dest.total_minor, currencyCode)}</span>
@@ -409,7 +410,7 @@ export function DashboardSpendingByDestinationCard({
         {yearlyQueriesLoading ? (
           <p className="muted text-sm">Loading destination breakdown...</p>
         ) : yearlyQueryError ? (
-          <p className="error">Failed to load destination breakdown: {yearlyQueryError.message}</p>
+          <p className="error">Failed to load destination breakdown: {yearlyQueryError}</p>
         ) : displayItems.length === 0 ? (
           <p className="muted">No destination breakdown yet.</p>
         ) : (
@@ -561,10 +562,11 @@ function buildProjectionRows(
 }> {
   const totalSpentMinor = projection.spent_to_date_minor;
   const totalProjectedMinor = projection.projected_total_minor ?? totalSpentMinor;
+  const projectedCategoryTotals = projection.projected_category_totals ?? {};
   const maxProjectedMinor = Math.max(
     totalProjectedMinor,
     ...categories.map((cat) => Math.max(
-      projection.projected_category_totals[cat.name] ?? cat.total_minor,
+      projectedCategoryTotals[cat.name] ?? cat.total_minor,
       cat.total_minor
     ))
   );
@@ -587,7 +589,7 @@ function buildProjectionRows(
 
   const categoryRows = categories
     .map((cat) => {
-      const projectedTotalMinor = projection.projected_category_totals[cat.name] ?? cat.total_minor;
+      const projectedTotalMinor = projectedCategoryTotals[cat.name] ?? cat.total_minor;
       return {
         key: cat.name,
         name: formatEntryCategoryLabel(cat.name),

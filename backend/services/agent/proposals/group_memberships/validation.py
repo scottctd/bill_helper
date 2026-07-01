@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `validation`.
-# - Inputs: callers that import `backend/services/agent/proposals/group_memberships/validation.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `validation`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `validation`.
+# - Inputs: Callers import `backend/services/agent/proposals/group_memberships/validation` and invoke `validate_group_member_add_rules`, `validate_group_member_remove_rules`.
+# - Outputs: Exports `validate_group_member_add_rules`, `validate_group_member_remove_rules`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

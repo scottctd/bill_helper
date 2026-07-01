@@ -20,12 +20,9 @@ from backend.enums_import import ImportJobStatus, ImportTaskStatus
 from backend.models_agent import AgentRun
 from backend.models_import import ImportJob, ImportTask
 from backend.models_shared import utc_now
-from backend.services.agent.execution import (
-    AgentExecutionPolicyError,
-    create_user_message_and_start_run,
-    run_agent_in_background,
-)
+from backend.services.agent.execution import create_user_message_and_start_run, run_agent_in_background
 from backend.services.agent.runtime import interrupt_agent_run
+from backend.services.crud_policy import PolicyViolation
 
 _logger = logging.getLogger(__name__)
 
@@ -177,7 +174,7 @@ def _start_task_run(db: Session, *, job: ImportJob, task: ImportTask) -> None:
                 principal_user_id=job.owner_user_id,
             )
         )
-    except AgentExecutionPolicyError as exc:
+    except PolicyViolation as exc:
         task.status = ImportTaskStatus.FAILED
         task.error_text = exc.detail
         task.completed_at = utc_now()

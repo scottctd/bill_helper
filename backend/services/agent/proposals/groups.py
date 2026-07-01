@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `groups`.
-# - Inputs: callers that import `backend/services/agent/proposals/groups.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `groups`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `groups`.
+# - Inputs: Callers import `backend/services/agent/proposals/groups` and invoke `resolve_group_proposal_reference_or_error`, `group_preview_from_existing`, `group_preview_from_proposal`, `match_existing_group_or_error`.
+# - Outputs: Exports `resolve_group_proposal_reference_or_error`, `group_preview_from_existing`, `group_preview_from_proposal`, `match_existing_group_or_error`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

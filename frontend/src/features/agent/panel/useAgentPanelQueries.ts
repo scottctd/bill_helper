@@ -9,6 +9,7 @@ import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getAgentThread, getRuntimeSettings, listAgentThreads } from "../../../lib/api";
+import { listOrEmpty } from "../../../lib/collections";
 import { queryKeys } from "../../../lib/queryKeys";
 import type { AgentThreadDetail, AgentThreadSummary } from "../../../lib/types";
 import {
@@ -98,13 +99,13 @@ export function useAgentPanelQueries({
   const runsById = useMemo(() => runById(threadQuery.data), [threadQuery.data]);
   const pendingAssistantRuns = useMemo(() => pendingRuns(threadQuery.data), [threadQuery.data]);
   const reviewProposalCount = useMemo(
-    () => (threadQuery.data?.runs ?? []).reduce((total, run) => total + run.change_items.length, 0),
+    () => (threadQuery.data?.runs ?? []).reduce((total, run) => total + listOrEmpty(run.change_items).length, 0),
     [threadQuery.data?.runs]
   );
   const pendingReviewCount = useMemo(
     () =>
       (threadQuery.data?.runs ?? []).reduce(
-        (total, run) => total + run.change_items.filter((item) => item.status === "PENDING_REVIEW").length,
+        (total, run) => total + listOrEmpty(run.change_items).filter((item) => item.status === "PENDING_REVIEW").length,
         0
       ),
     [threadQuery.data?.runs]

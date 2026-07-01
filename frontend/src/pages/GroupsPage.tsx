@@ -5,367 +5,56 @@
  * - Outputs: React components and UI helpers exported by `GroupsPage`.
  * - Side effects: React rendering and user event wiring.
  */
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-import { EntryEditorModal, type EntryEditorSubmitPayload } from "../components/EntryEditorModal";
+import { EntryEditorModal } from "../components/EntryEditorModal";
 import { GroupDetailModal } from "../components/GroupDetailModal";
 import { GroupEditorModal } from "../components/GroupEditorModal";
 import { GroupMemberEditorModal } from "../components/GroupMemberEditorModal";
 import { WorkspaceSection } from "../components/layout/WorkspaceSection";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { buildDefaultRule } from "../features/groupRules/groupRuleUtils";
+import { GroupsBrowserTable } from "../features/groups/GroupsBrowserTable";
 import { GroupsTableToolbar } from "../features/groups/GroupsTableToolbar";
-import { useAuth } from "../features/auth";
-import { ENTRY_CATEGORY_TAXONOMY_KEY, includesFilter } from "../lib/catalogs";
-import { stringOptionsAsTags, matchesSelectedValues } from "../lib/workspaceFilters";
-import {
-  addGroupMember,
-  createGroup,
-  deleteGroup,
-  deleteGroupMember,
-    getEntry,
-  getGroup,
-    getRuntimeSettings,
-    listCurrencies,
-    listEntities,
-  listEntries,
-  listGroups,
-    listTags,
-    listTaxonomyTerms,
-    listUsers,
-    updateEntry,
-  updateGroup
-} from "../lib/api";
-import { invalidateEntryReadModels, invalidateGroupReadModels } from "../lib/queryInvalidation";
-import { queryKeys } from "../lib/queryKeys";
-import type { GroupMemberCreatePayload, GroupSummary } from "../lib/types";
-import { cn } from "../lib/utils";
-
-const ENTRY_PICKER_FILTERS = {
-  limit: 200,
-  offset: 0
-} as const;
-
-function groupRangeLabel(summary: GroupSummary): string {
-  if (!summary.first_occurred_at || !summary.last_occurred_at) {
-    return "No entries yet";
-  }
-  if (summary.first_occurred_at === summary.last_occurred_at) {
-    return summary.first_occurred_at;
-  }
-  return `${summary.first_occurred_at} to ${summary.last_occurred_at}`;
-}
-
-function rowKeyDownHandler(event: React.KeyboardEvent<HTMLTableRowElement>, onOpen: () => void) {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    onOpen();
-  }
-}
+import { useGroupsPageModel } from "../features/groups/useGroupsPageModel";
+import { getApiErrorMessage } from "../lib/api/core";
 
 export function GroupsPage() {
-  const auth = useAuth();
-  const queryClient = useQueryClient();
-  const [groupSearch, setGroupSearch] = useState("");
-  const [selectedGroupSources, setSelectedGroupSources] = useState<string[]>([]);
-  const deferredGroupSearch = useDeferredValue(groupSearch);
-  const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
-  const [isRenameGroupOpen, setIsRenameGroupOpen] = useState(false);
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [editingEntryId, setEditingEntryId] = useState("");
+  const model = useGroupsPageModel();
+  const { groupsQuery, groupDetailQuery, editingEntryQuery, currenciesQuery, runtimeSettingsQuery, entitiesQuery, tagsQuery, categoryTermsQuery } =
+    model.queries;
+  const {
+    createGroupMutation,
+    renameGroupMutation,
+    deleteGroupMutation,
+    addGroupMemberMutation,
+    deleteGroupMemberMutation,
+    updateEntryMutation
+  } = model.mutations;
 
-  const groupsQuery = useQuery({
-    queryKey: queryKeys.groups.list,
-    queryFn: listGroups
-  });
-
-  const entryPickerQuery = useQuery({
-    queryKey: queryKeys.entries.list(ENTRY_PICKER_FILTERS),
-    queryFn: () => listEntries(ENTRY_PICKER_FILTERS)
-  });
-
-  const groupDetailQuery = useQuery({
-    queryKey: queryKeys.groups.detail(selectedGroupId),
-    queryFn: () => getGroup(selectedGroupId),
-    enabled: isDetailOpen && Boolean(selectedGroupId)
-  });
-
-  const currenciesQuery = useQuery({
-    queryKey: queryKeys.properties.currencies,
-    queryFn: listCurrencies,
-    enabled: Boolean(editingEntryId)
-  });
-
-  const runtimeSettingsQuery = useQuery({
-    queryKey: queryKeys.settings.runtime,
-    queryFn: getRuntimeSettings,
-    enabled: Boolean(editingEntryId)
-  });
-
-  const entitiesQuery = useQuery({
-    queryKey: queryKeys.properties.entities,
-    queryFn: listEntities,
-    enabled: Boolean(editingEntryId)
-  });
-
-  const usersQuery = useQuery({
-    queryKey: queryKeys.properties.users,
-    queryFn: listUsers,
-    enabled: Boolean(editingEntryId)
-  });
-
-  const tagsQuery = useQuery({
-    queryKey: queryKeys.properties.tags,
-    queryFn: listTags,
-    enabled: Boolean(editingEntryId)
-  });
-  const categoryTermsQuery = useQuery({
-    queryKey: queryKeys.properties.taxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY),
-    queryFn: () => listTaxonomyTerms(ENTRY_CATEGORY_TAXONOMY_KEY),
-    enabled: Boolean(editingEntryId)
-  });
-
-  const editingEntryQuery = useQuery({
-    queryKey: queryKeys.entries.detail(editingEntryId),
-    queryFn: () => getEntry(editingEntryId),
-    enabled: Boolean(editingEntryId)
-  });
-
-  useEffect(() => {
-    if (!selectedGroupId) {
-      return;
-    }
-    const selectionStillExists = (groupsQuery.data ?? []).some((group) => group.id === selectedGroupId);
-    if (!selectionStillExists) {
-      setSelectedGroupId("");
-      setIsDetailOpen(false);
-      setIsRenameGroupOpen(false);
-      setIsAddMemberOpen(false);
-    }
-  }, [groupsQuery.data, selectedGroupId]);
-
-  const createGroupMutation = useMutation({
-    mutationFn: (payload: { name: string; source: GroupSummary["source"] }) =>
-      createGroup({
-        name: payload.name,
-        source: payload.source,
-        ...(payload.source === "rule" ? { rule: buildDefaultRule() } : {})
-      }),
-    onSuccess: (group) => {
-      queryClient.setQueryData<GroupSummary[]>(queryKeys.groups.list, (current) => {
-        const existing = current ?? [];
-        return [group, ...existing.filter((candidate) => candidate.id !== group.id)];
-      });
-      invalidateGroupReadModels(queryClient);
-      setSelectedGroupId(group.id);
-      setIsCreateGroupOpen(false);
-      setIsDetailOpen(true);
-    }
-  });
-
-  const renameGroupMutation = useMutation({
-    mutationFn: (payload: { name: string }) => updateGroup(selectedGroupId, payload),
-    onSuccess: (group) => {
-      queryClient.setQueryData<GroupSummary[]>(queryKeys.groups.list, (current) => {
-        return (current ?? []).map((candidate) => (candidate.id === group.id ? group : candidate));
-      });
-      invalidateGroupReadModels(queryClient, undefined, selectedGroupId);
-      setIsRenameGroupOpen(false);
-    }
-  });
-
-  const deleteGroupMutation = useMutation({
-    mutationFn: (groupId: string) => deleteGroup(groupId),
-    onSuccess: (_result, groupId) => {
-      queryClient.setQueryData<GroupSummary[]>(queryKeys.groups.list, (current) => {
-        return (current ?? []).filter((candidate) => candidate.id !== groupId);
-      });
-      invalidateGroupReadModels(queryClient);
-      setSelectedGroupId("");
-      setIsDetailOpen(false);
-      setIsRenameGroupOpen(false);
-      setIsAddMemberOpen(false);
-    }
-  });
-
-  const addGroupMemberMutation = useMutation({
-    mutationFn: (payload: GroupMemberCreatePayload) => addGroupMember(selectedGroupId, payload),
-    onSuccess: () => {
-      invalidateGroupReadModels(queryClient, undefined, selectedGroupId);
-      setIsAddMemberOpen(false);
-    }
-  });
-
-  const deleteGroupMemberMutation = useMutation({
-    mutationFn: (membershipId: string) => deleteGroupMember(selectedGroupId, membershipId),
-    onSuccess: () => {
-      invalidateGroupReadModels(queryClient, undefined, selectedGroupId);
-    }
-  });
-
-  const updateEntryMutation = useMutation({
-    mutationFn: ({ entryId, payload }: { entryId: string; payload: EntryEditorSubmitPayload }) => updateEntry(entryId, payload),
-    onSuccess: (_result, variables) => {
-      invalidateEntryReadModels(queryClient, variables.entryId);
-      setEditingEntryId("");
-    }
-  });
-
-  const groupSourceFilterOptions = useMemo(
-    () =>
-      stringOptionsAsTags(
-        Array.from(new Set((groupsQuery.data ?? []).map((group) => group.source))).sort((left, right) =>
-          left.localeCompare(right)
-        )
-      ),
-    [groupsQuery.data]
-  );
-
-  const filteredGroups = useMemo(() => {
-    return (groupsQuery.data ?? []).filter((group) => {
-      if (!includesFilter(group.name, deferredGroupSearch) && !includesFilter(group.id, deferredGroupSearch)) {
-        return false;
-      }
-      return matchesSelectedValues(group.source, selectedGroupSources);
-    });
-  }, [deferredGroupSearch, groupsQuery.data, selectedGroupSources]);
-
-  const selectedGroupSummary = useMemo(
-    () => groupsQuery.data?.find((group) => group.id === selectedGroupId) ?? null,
-    [groupsQuery.data, selectedGroupId]
-  );
-
-  const currentUserId = auth.session?.user.id ?? usersQuery.data?.find((user) => user.is_current_user)?.id ?? "";
-
-  const memberEntryIds = useMemo(() => {
-    return new Set((groupDetailQuery.data?.members ?? []).map((member) => member.entry_id));
-  }, [groupDetailQuery.data]);
-
-  const entryOptions = useMemo(() => {
-    return (entryPickerQuery.data?.items ?? [])
-      .filter((entry) => !memberEntryIds.has(entry.id))
-      .map((entry) => ({
-        id: entry.id,
-        label: `${entry.occurred_at} · ${entry.name}`
-      }))
-      .sort((left, right) => left.label.localeCompare(right.label));
-  }, [entryPickerQuery.data, memberEntryIds]);
-
-  const groupsError = groupsQuery.isError ? (groupsQuery.error as Error).message : null;
-  const selectedGroupError = groupDetailQuery.isError ? (groupDetailQuery.error as Error).message : null;
-  const createGroupError = createGroupMutation.isError ? (createGroupMutation.error as Error).message : null;
-  const renameGroupError = renameGroupMutation.isError ? (renameGroupMutation.error as Error).message : null;
-  const addMemberError = addGroupMemberMutation.isError ? (addGroupMemberMutation.error as Error).message : null;
-  const deleteGroupError = deleteGroupMutation.isError ? (deleteGroupMutation.error as Error).message : null;
-  const deleteMemberError = deleteGroupMemberMutation.isError ? (deleteGroupMemberMutation.error as Error).message : null;
-  const entryEditorLoadError = editingEntryQuery.isError ? (editingEntryQuery.error as Error).message : null;
-  const entryEditorSaveError = updateEntryMutation.isError ? (updateEntryMutation.error as Error).message : null;
-
-  function openGroupDetail(groupId: string) {
-    setSelectedGroupId(groupId);
-    setIsRenameGroupOpen(false);
-    setIsAddMemberOpen(false);
-    setIsDetailOpen(true);
-  }
-
-  function handleEntryEditorSubmit(payload: EntryEditorSubmitPayload) {
-    if (!editingEntryId) {
-      return;
-    }
-    updateEntryMutation.mutate({ entryId: editingEntryId, payload });
-  }
+  const selectedGroupError = groupDetailQuery.isError ? getApiErrorMessage(groupDetailQuery.error) : null;
+  const createGroupError = createGroupMutation.isError ? getApiErrorMessage(createGroupMutation.error) : null;
+  const renameGroupError = renameGroupMutation.isError ? getApiErrorMessage(renameGroupMutation.error) : null;
+  const addMemberError = addGroupMemberMutation.isError ? getApiErrorMessage(addGroupMemberMutation.error) : null;
+  const deleteGroupError = deleteGroupMutation.isError ? getApiErrorMessage(deleteGroupMutation.error) : null;
+  const deleteMemberError = deleteGroupMemberMutation.isError ? getApiErrorMessage(deleteGroupMemberMutation.error) : null;
+  const entryEditorLoadError = editingEntryQuery.isError ? getApiErrorMessage(editingEntryQuery.error) : null;
+  const entryEditorSaveError = updateEntryMutation.isError ? getApiErrorMessage(updateEntryMutation.error) : null;
 
   return (
     <div className="page">
       <WorkspaceSection className="groups-browser-card" contentClassName="workspace-table-body">
         <GroupsTableToolbar
-          search={groupSearch}
-          groupSourceOptions={groupSourceFilterOptions}
-          selectedGroupSources={selectedGroupSources}
-          onSearchChange={setGroupSearch}
-          onGroupSourcesChange={setSelectedGroupSources}
-          onAddGroup={() => setIsCreateGroupOpen(true)}
+          search={model.groupSearch}
+          groupSourceOptions={model.groupSourceFilterOptions}
+          selectedGroupSources={model.selectedGroupSources}
+          onSearchChange={model.setGroupSearch}
+          onGroupSourcesChange={model.setSelectedGroupSources}
+          onAddGroup={() => model.setIsCreateGroupOpen(true)}
         />
 
-        <div className="table-shell">
-        {groupsQuery.isLoading ? <p>Loading groups...</p> : null}
-        {groupsError ? <p className="error">{groupsError}</p> : null}
-
-        {!groupsQuery.isLoading && !groupsError && filteredGroups.length === 0 ? (
-          <div className="groups-empty-state">
-            <p className="groups-empty-title">No groups found</p>
-            <p className="muted">Try another filter or create a new group.</p>
-          </div>
-        ) : null}
-
-        {!groupsQuery.isLoading && !groupsError && filteredGroups.length > 0 ? (
-          <div className="groups-browser-table-shell">
-            <Table className="groups-browser-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="groups-browser-group-column">Group</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Members</TableHead>
-                  <TableHead>Rule</TableHead>
-                  <TableHead>Date range</TableHead>
-                  <TableHead className="groups-browser-action-column">
-                    <span className="sr-only">Open detail</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredGroups.map((group) => {
-                  const isActive = isDetailOpen && group.id === selectedGroupId;
-                  return (
-                    <TableRow
-                      key={group.id}
-                      className={cn("groups-browser-row", isActive && "is-active")}
-                      tabIndex={0}
-                      onDoubleClick={() => openGroupDetail(group.id)}
-                      onKeyDown={(event) => rowKeyDownHandler(event, () => openGroupDetail(group.id))}
-                    >
-                      <TableCell className="groups-browser-group-column">
-                        <div className="groups-browser-group-cell">
-                          <p className="groups-browser-group-name">{group.name}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{group.source}</Badge>
-                      </TableCell>
-                      <TableCell>{group.member_count}</TableCell>
-                      <TableCell>{group.rule_summary ?? "-"}</TableCell>
-                      <TableCell>{groupRangeLabel(group)}</TableCell>
-                      <TableCell className="groups-browser-action-column">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={isActive ? "secondary" : "ghost"}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openGroupDetail(group.id);
-                          }}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        ) : null}
-        </div>
+        <GroupsBrowserTable model={model} />
       </WorkspaceSection>
 
       <GroupDetailModal
-        isOpen={isDetailOpen}
-        groupSummary={selectedGroupSummary}
+        isOpen={model.isDetailOpen}
+        groupSummary={model.selectedGroupSummary}
         groupDetail={groupDetailQuery.data ?? null}
         isLoading={groupDetailQuery.isLoading}
         loadError={selectedGroupError}
@@ -373,53 +62,53 @@ export function GroupsPage() {
         deleteMemberError={deleteMemberError}
         isDeletingGroup={deleteGroupMutation.isPending}
         isDeletingMember={deleteGroupMemberMutation.isPending}
-        onClose={() => setIsDetailOpen(false)}
-        onRename={() => setIsRenameGroupOpen(true)}
+        onClose={() => model.setIsDetailOpen(false)}
+        onRename={() => model.setIsRenameGroupOpen(true)}
         onDelete={() => {
-          if (selectedGroupSummary) {
-            deleteGroupMutation.mutate(selectedGroupSummary.id);
+          if (model.selectedGroupSummary) {
+            deleteGroupMutation.mutate(model.selectedGroupSummary.id);
           }
         }}
-        onAddMember={() => setIsAddMemberOpen(true)}
-        onOpenEntry={(entryId) => setEditingEntryId(entryId)}
+        onAddMember={() => model.setIsAddMemberOpen(true)}
+        onOpenEntry={(entryId) => model.setEditingEntryId(entryId)}
         onRemoveMember={(membershipId) => deleteGroupMemberMutation.mutate(membershipId)}
       />
 
       <GroupEditorModal
-        isOpen={isCreateGroupOpen}
+        isOpen={model.isCreateGroupOpen}
         mode="create"
         isSaving={createGroupMutation.isPending}
         saveError={createGroupError}
-        onClose={() => setIsCreateGroupOpen(false)}
+        onClose={() => model.setIsCreateGroupOpen(false)}
         onSubmit={(payload) => createGroupMutation.mutate(payload)}
       />
 
       <GroupEditorModal
-        isOpen={isRenameGroupOpen}
+        isOpen={model.isRenameGroupOpen}
         mode="rename"
-        initialName={selectedGroupSummary?.name ?? ""}
-        initialGroupSource={selectedGroupSummary?.source ?? "manual"}
+        initialName={model.selectedGroupSummary?.name ?? ""}
+        initialGroupSource={model.selectedGroupSummary?.source ?? "manual"}
         isSaving={renameGroupMutation.isPending}
         saveError={renameGroupError}
-        onClose={() => setIsRenameGroupOpen(false)}
+        onClose={() => model.setIsRenameGroupOpen(false)}
         onSubmit={(payload) => renameGroupMutation.mutate({ name: payload.name })}
       />
 
-      {selectedGroupSummary ? (
+      {model.selectedGroupSummary ? (
         <GroupMemberEditorModal
-          isOpen={isAddMemberOpen}
-          groupName={selectedGroupSummary.name}
-          groupSource={selectedGroupSummary.source}
-          entryOptions={entryOptions}
+          isOpen={model.isAddMemberOpen}
+          groupName={model.selectedGroupSummary.name}
+          groupSource={model.selectedGroupSummary.source}
+          entryOptions={model.entryOptions}
           isSaving={addGroupMemberMutation.isPending}
           saveError={addMemberError}
-          onClose={() => setIsAddMemberOpen(false)}
+          onClose={() => model.setIsAddMemberOpen(false)}
           onSubmit={(payload) => addGroupMemberMutation.mutate(payload)}
         />
       ) : null}
 
       <EntryEditorModal
-        isOpen={Boolean(editingEntryId)}
+        isOpen={Boolean(model.editingEntryId)}
         mode="edit"
         entry={editingEntryQuery.data ?? null}
         currencies={currenciesQuery.data ?? []}
@@ -427,14 +116,14 @@ export function GroupsPage() {
         groups={groupsQuery.data ?? []}
         tags={tagsQuery.data ?? []}
         categoryTerms={categoryTermsQuery.data ?? []}
-        currentUserId={currentUserId}
+        currentUserId={model.currentUserId}
         defaultCurrencyCode={(runtimeSettingsQuery.data?.default_currency_code ?? "CAD").toUpperCase()}
         entryTaggingModel={runtimeSettingsQuery.data?.entry_tagging_model}
         isSaving={updateEntryMutation.isPending}
         loadError={entryEditorLoadError}
         saveError={entryEditorSaveError}
-        onClose={() => setEditingEntryId("")}
-        onSubmit={handleEntryEditorSubmit}
+        onClose={() => model.setEditingEntryId("")}
+        onSubmit={model.actions.handleEntryEditorSubmit}
       />
     </div>
   );

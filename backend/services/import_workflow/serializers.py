@@ -18,6 +18,7 @@ from backend.schemas_import import (
     ImportTaskRunSummaryRead,
 )
 from backend.services.agent.pricing import calculate_usage_costs
+from backend.services.crud_policy import PolicyViolation
 
 
 def _latest_run_for_thread(db: Session, *, thread_id: str) -> AgentRun | None:
@@ -132,5 +133,5 @@ def load_job_for_owner(
         .options(selectinload(ImportJob.tasks))
     )
     if job is None:
-        raise LookupError("Import job not found.")
+        raise PolicyViolation.not_found("Import job not found.")
     return job

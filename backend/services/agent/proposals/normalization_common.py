@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `normalization_common`.
-# - Inputs: callers that import `backend/services/agent/proposals/normalization_common.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `normalization_common`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `normalization_common`.
+# - Inputs: Callers import `backend/services/agent/proposals/normalization_common` and invoke `parse_typed_change_payload`, `raise_normalization_error`.
+# - Outputs: Exports `parse_typed_change_payload`, `raise_normalization_error`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any, TypeVar

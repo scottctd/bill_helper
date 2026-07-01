@@ -7,6 +7,7 @@ import { EntriesPage } from "./EntriesPage";
 import { formatMinorCompact } from "../lib/format";
 import { fallbackTagColor } from "../lib/tagColors";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
+import { listOrEmpty } from "../lib/collections";
 import type { Entry, RuntimeSettings, TaxonomyTerm } from "../lib/types";
 import {
   createEntry,
@@ -59,6 +60,7 @@ const runtimeSettingsFixture: RuntimeSettings = {
   agent_max_pdf_pages: 10,
   agent_base_url: null,
   agent_api_key_configured: false,
+  vision_capable_agent_models: [],
   overrides: {
     user_memory: null,
     default_currency_code: null,
@@ -157,11 +159,11 @@ function mockEntriesPageData(entry: Entry) {
   });
   vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 1, is_placeholder: false }]);
   vi.mocked(listEntities).mockResolvedValue([
-    { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1 }
+    { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1, net_amount_mixed_currencies: false }
   ]);
   vi.mocked(listGroups).mockResolvedValue([]);
   vi.mocked(listUsers).mockResolvedValue([{ id: "user-1", name: "Alice", is_admin: false, is_current_user: true }]);
-  vi.mocked(listTags).mockResolvedValue(entry.tags.map((tag) => ({ ...tag })));
+  vi.mocked(listTags).mockResolvedValue(listOrEmpty(entry.tags).map((tag) => ({ ...tag, entry_count: 0 })));
   vi.mocked(listTaxonomyTerms).mockResolvedValue(categoryTermsFixture);
   vi.mocked(getRuntimeSettings).mockResolvedValue(runtimeSettingsFixture);
   vi.mocked(createEntry).mockResolvedValue(entry);
@@ -202,7 +204,7 @@ describe("EntriesPage", () => {
     const entryWithFallbackTag: Entry = {
       ...entryFixture,
       tags: [
-        entryFixture.tags[0],
+        listOrEmpty(entryFixture.tags)[0]!,
         { id: 2, name: "travel", color: null, type: null }
       ]
     };
@@ -400,11 +402,11 @@ describe("EntriesPage", () => {
     });
     vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 2, is_placeholder: false }]);
     vi.mocked(listEntities).mockResolvedValue([
-      { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 2, account_count: 0, entry_count: 2 }
+      { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 2, account_count: 0, entry_count: 2, net_amount_mixed_currencies: false }
     ]);
     vi.mocked(listGroups).mockResolvedValue([]);
     vi.mocked(listUsers).mockResolvedValue([{ id: "user-1", name: "Alice", is_admin: false, is_current_user: true }]);
-    vi.mocked(listTags).mockResolvedValue(entryFixture.tags.map((tag) => ({ ...tag })));
+    vi.mocked(listTags).mockResolvedValue(listOrEmpty(entryFixture.tags).map((tag) => ({ ...tag, entry_count: 0 })));
     vi.mocked(getRuntimeSettings).mockResolvedValue(runtimeSettingsFixture);
     vi.mocked(createEntry).mockResolvedValue(entryFixture);
     vi.mocked(updateEntry).mockResolvedValue(entryFixture);

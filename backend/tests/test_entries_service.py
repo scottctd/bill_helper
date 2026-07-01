@@ -11,12 +11,14 @@ from backend.enums_finance import EntryKind, GroupSource
 from backend.models_finance import Account, Entity, Group, GroupMember, User
 from backend.services.crud_policy import PolicyViolation
 from backend.services.accounts import create_account_root
-from backend.services.entries import (
+from backend.contracts_entries import (
     EntityRef,
-    UserRefPatch,
-    UserRef,
     EntryCreateCommand,
     EntryUpdateCommand,
+    UserRef,
+    UserRefPatch,
+)
+from backend.services.entries import (
     create_entry_from_command,
     update_entry_from_command,
 )

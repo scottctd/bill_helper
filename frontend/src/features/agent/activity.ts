@@ -9,12 +9,14 @@ import type {
   AgentChangeItem,
   AgentRun,
   AgentRunStep,
+  AgentRunWithLiveUsage,
   AgentThreadDetail,
   AgentToolCallStatus,
   AgentTurn
 } from "../../lib/types";
+import { listOrEmpty } from "../../lib/collections";
 
-export type RunToolCall = AgentRun["tool_calls"][number];
+export type RunToolCall = NonNullable<AgentRun["tool_calls"]>[number];
 
 interface RunActivityReasoningStep {
   type: "reasoning_step";
@@ -76,7 +78,7 @@ function sortedSteps(steps: AgentRunStep[]): AgentRunStep[] {
   return [...steps].sort((left, right) => left.step_index - right.step_index);
 }
 
-export function sortRunsByCreatedAt(runs: AgentRun[]): AgentRun[] {
+export function sortRunsByCreatedAt<T extends AgentRun>(runs: T[]): T[] {
   return [...runs].sort((left, right) => byTimestamp(left.created_at, right.created_at));
 }
 
@@ -173,8 +175,8 @@ export function buildThreadUsageTotals(detail: AgentThreadDetail | undefined): {
   };
 }
 
-/** Mirrors backend `current_context_tokens_for_thread` when runs already carry `context_tokens`. */
-export function recomputeThreadCurrentContextTokens(runs: AgentRun[]): number | null {
+/** Mirrors backend `current_context_tokens_for_thread` when cached runs carry live SSE usage. */
+export function recomputeThreadCurrentContextTokens(runs: AgentRunWithLiveUsage[]): number | null {
   const sorted = sortRunsByCreatedAt(runs);
   for (let index = sorted.length - 1; index >= 0; index -= 1) {
     const run = sorted[index];
@@ -329,7 +331,7 @@ export function buildLiveRunActivityItems(
   const merged: RunActivityItem[] = [];
   sortRunsByCreatedAt(runs).forEach((run) => {
     const { steps: optSteps, toolCalls: optToolCalls } = getOptimistic(run.id);
-    const mergedToolCalls = mergeRunToolCalls(run.tool_calls, optToolCalls);
+    const mergedToolCalls = mergeRunToolCalls(listOrEmpty(run.tool_calls), optToolCalls);
     const ledger = liveLedgerByRunId[run.id] ?? [];
     if (ledger.length > 0) {
       const reconciledLedger = reconcileLiveActivityLedgerToolCalls(ledger, mergedToolCalls);
@@ -341,7 +343,7 @@ export function buildLiveRunActivityItems(
       });
       return;
     }
-    const mergedSteps = mergeRunSteps(run.steps, optSteps);
+    const mergedSteps = mergeRunSteps(listOrEmpty(run.steps), optSteps);
     const mergedRunItems = buildRunTimelineFromProjections(mergedSteps, mergedToolCalls);
     mergedRunItems.sort((left, right) => byTimestamp(left.createdAt, right.createdAt));
     mergedRunItems.forEach((item) => {
@@ -491,8 +493,8 @@ export function mergeRunActivityItems(
   const merged: RunActivityItem[] = [];
   sortRunsByCreatedAt(runs).forEach((run) => {
     const { steps: optSteps, toolCalls: optToolCalls } = getOptimistic(run.id);
-    const mergedSteps = mergeRunSteps(run.steps, optSteps);
-    const mergedToolCalls = mergeRunToolCalls(run.tool_calls, optToolCalls);
+    const mergedSteps = mergeRunSteps(listOrEmpty(run.steps), optSteps);
+    const mergedToolCalls = mergeRunToolCalls(listOrEmpty(run.tool_calls), optToolCalls);
     const items = buildRunTimelineFromProjections(mergedSteps, mergedToolCalls);
     items.forEach((item) => {
       merged.push({

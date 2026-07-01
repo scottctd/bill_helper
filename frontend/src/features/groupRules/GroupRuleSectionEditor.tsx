@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { NativeSelect } from "../../components/ui/native-select";
 import type { GroupRuleCondition, GroupRuleGroup, GroupRuleNode, Tag } from "../../lib/types";
+import { listOrEmpty } from "../../lib/collections";
 import { cn } from "../../lib/utils";
 import { GroupRuleConditionRow } from "./GroupRuleConditionRow";
 import {
@@ -44,17 +45,17 @@ function GuidedRuleEditor({
   preferredTagName?: string;
   onChange: (next: GroupRuleGroup) => void;
 }) {
-  const conditions = group.children as GroupRuleCondition[];
+  const conditions = listOrEmpty(group.children) as GroupRuleCondition[];
 
   function updateCondition(index: number, nextCondition: GroupRuleCondition) {
     onChange({
       ...group,
-      children: group.children.map((child, childIndex) => (childIndex === index ? nextCondition : child))
+      children: listOrEmpty(group.children).map((child, childIndex) => (childIndex === index ? nextCondition : child))
     });
   }
 
   function removeCondition(index: number) {
-    const nextChildren = group.children.filter((_, childIndex) => childIndex !== index);
+    const nextChildren = listOrEmpty(group.children).filter((_, childIndex) => childIndex !== index);
     onChange({
       ...group,
       children: nextChildren.length > 0 ? nextChildren : [createDefaultCondition("entry_kind", preferredTagName)]
@@ -86,7 +87,7 @@ function GuidedRuleEditor({
           onClick={() =>
             onChange({
               ...group,
-              children: [...group.children, createDefaultCondition("entry_kind", preferredTagName)]
+              children: [...listOrEmpty(group.children), createDefaultCondition("entry_kind", preferredTagName)]
             })
           }
         >
@@ -169,12 +170,12 @@ function AdvancedRuleGroupEditor({
   function updateChild(index: number, nextNode: GroupRuleNode) {
     onChange({
       ...group,
-      children: group.children.map((child, childIndex) => (childIndex === index ? nextNode : child))
+      children: listOrEmpty(group.children).map((child, childIndex) => (childIndex === index ? nextNode : child))
     });
   }
 
   function removeChild(index: number) {
-    const nextChildren = group.children.filter((_, childIndex) => childIndex !== index);
+    const nextChildren = listOrEmpty(group.children).filter((_, childIndex) => childIndex !== index);
     onChange({
       ...group,
       children: nextChildren.length > 0 ? nextChildren : [createDefaultCondition("entry_kind", preferredTagName)]
@@ -212,7 +213,7 @@ function AdvancedRuleGroupEditor({
             onClick={() =>
               onChange({
                 ...group,
-                children: [...group.children, createDefaultCondition("entry_kind", preferredTagName)]
+                children: [...listOrEmpty(group.children), createDefaultCondition("entry_kind", preferredTagName)]
               })
             }
           >
@@ -225,7 +226,7 @@ function AdvancedRuleGroupEditor({
             onClick={() =>
               onChange({
                 ...group,
-                children: [...group.children, createEmptyGroup("entry_kind", preferredTagName)]
+                children: [...listOrEmpty(group.children), createEmptyGroup("entry_kind", preferredTagName)]
               })
             }
           >
@@ -240,7 +241,7 @@ function AdvancedRuleGroupEditor({
       </div>
 
       <div className="grid gap-3">
-        {group.children.map((child, index) => (
+        {listOrEmpty(group.children).map((child, index) => (
           <AdvancedRuleNodeEditor
             key={`advanced-${child.type}-${index}`}
             node={child}

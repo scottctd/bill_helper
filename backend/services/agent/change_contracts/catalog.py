@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `catalog`.
-# - Inputs: callers that import `backend/services/agent/change_contracts/catalog.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `catalog`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Validated change payload contracts for `catalog` proposals.
+# - Inputs: Callers import `backend/services/agent/change_contracts/catalog` and invoke `ChangePayloadModel`, `CreateTagPayload`, `UpdateTagPatchPayload`, `UpdateTagPayload`.
+# - Outputs: Exports `ChangePayloadModel`, `CreateTagPayload`, `UpdateTagPatchPayload`, `UpdateTagPayload`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from datetime import date as DateValue

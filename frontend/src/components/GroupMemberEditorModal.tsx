@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { GroupMemberCreatePayload, GroupMemberOverride, GroupSource } from "../lib/types";
 import { SingleSelect } from "./SingleSelect";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { ModalShell } from "./ui/modal-shell";
 import { NativeSelect } from "./ui/native-select";
 
 interface MemberOption {
@@ -74,58 +74,56 @@ export function GroupMemberEditorModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{groupSource === "manual" ? "Add Group Member" : "Pin or Exclude Entry"}</DialogTitle>
-          <DialogDescription>
-            {groupSource === "manual"
-              ? `Add an entry to ${groupName}.`
-              : `Override rule membership for ${groupName}.`}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="stack-sm">
-          <label className="field min-w-0">
-            <span>Entry</span>
-            <SingleSelect
-              value={selectedEntryId}
-              options={selectOptions}
-              placeholder="Select entry..."
-              searchable
-              searchPlaceholder="Search entries..."
-              emptyLabel="No entries available."
-              onChange={setSelectedEntryId}
-            />
-          </label>
-
-          {groupSource === "rule" ? (
-            <label className="field min-w-0">
-              <span>Override</span>
-              <NativeSelect
-                value={override}
-                onChange={(event) => setOverride(event.target.value as GroupMemberOverride | "")}
-              >
-                <option value="">Default (rule match)</option>
-                <option value="include">Pin (include)</option>
-                <option value="exclude">Exclude</option>
-              </NativeSelect>
-            </label>
-          ) : null}
-
-          {formError ? <p className="error">{formError}</p> : null}
-          {saveError ? <p className="error">{saveError}</p> : null}
-        </div>
-
-        <DialogFooter>
+    <ModalShell
+      open={isOpen}
+      onOpenChange={(open) => (open ? undefined : onClose())}
+      size="sm"
+      title={groupSource === "manual" ? "Add Group Member" : "Pin or Exclude Entry"}
+      description={
+        groupSource === "manual" ? `Add an entry to ${groupName}.` : `Override rule membership for ${groupName}.`
+      }
+      footer={
+        <>
           <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
           <Button type="button" onClick={submit} disabled={isSaving}>
             {isSaving ? "Saving..." : groupSource === "manual" ? "Add member" : "Save override"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <div className="stack-sm">
+        <label className="field min-w-0">
+          <span>Entry</span>
+          <SingleSelect
+            value={selectedEntryId}
+            options={selectOptions}
+            placeholder="Select entry..."
+            searchable
+            searchPlaceholder="Search entries..."
+            emptyLabel="No entries available."
+            onChange={setSelectedEntryId}
+          />
+        </label>
+
+        {groupSource === "rule" ? (
+          <label className="field min-w-0">
+            <span>Override</span>
+            <NativeSelect
+              value={override}
+              onChange={(event) => setOverride(event.target.value as GroupMemberOverride | "")}
+            >
+              <option value="">Default (rule match)</option>
+              <option value="include">Pin (include)</option>
+              <option value="exclude">Exclude</option>
+            </NativeSelect>
+          </label>
+        ) : null}
+
+        {formError ? <p className="error">{formError}</p> : null}
+        {saveError ? <p className="error">{saveError}</p> : null}
+      </div>
+    </ModalShell>
   );
 }

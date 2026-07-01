@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `common`.
-# - Inputs: callers that import `backend/services/agent/proposals/common.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `common`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `common`.
+# - Inputs: Callers import `backend/services/agent/proposals/common` and invoke `proposal_short_id`, `proposal_result`, `create_change_item`, `pending_proposals_for_thread`.
+# - Outputs: Exports `proposal_short_id`, `proposal_result`, `create_change_item`, `pending_proposals_for_thread`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from typing import Any

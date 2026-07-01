@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -46,12 +47,14 @@ from backend.services.finance_reconciliation import (
     build_reconciliation,
     list_dashboard_reconciliation_accounts,
 )
+from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.services.taxonomy import get_entry_category_path_map
 
 DASHBOARD_DEFAULT_CURRENCY_CODE = "CAD"
 DASHBOARD_DESTINATION_BREAKDOWN_LIMIT = 20
 CASH_WITHDRAWAL_TAG = "cash_withdrawal"
+_DASHBOARD_MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
 DashboardFilter = ColumnElement[bool]
 
 
@@ -80,6 +83,17 @@ def month_window(month: str) -> tuple[date, date]:
     else:
         end = date(year, month_num + 1, 1)
     return start, end
+
+
+def parse_dashboard_month(month: str) -> str:
+    candidate = month.strip()
+    if not _DASHBOARD_MONTH_PATTERN.fullmatch(candidate):
+        raise PolicyViolation.unprocessable_content("month must be in YYYY-MM format")
+    try:
+        month_window(candidate)
+    except ValueError as exc:
+        raise PolicyViolation.unprocessable_content("month must be in YYYY-MM format") from exc
+    return candidate
 
 
 def build_dashboard_read(
@@ -444,4 +458,5 @@ __all__ = [
     "build_dashboard_timeline_read",
     "list_dashboard_expense_months",
     "month_window",
+    "parse_dashboard_month",
 ]

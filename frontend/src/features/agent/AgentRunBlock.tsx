@@ -8,6 +8,7 @@
 import { useMemo } from "react";
 
 import type { AgentRun, AgentRunStep, AgentToolCall } from "../../lib/types";
+import { listOrEmpty } from "../../lib/collections";
 import { cn } from "../../lib/utils";
 import {
   buildRunTimelineFromProjections,
@@ -46,10 +47,11 @@ export function AgentRunBlock({
 }: AgentRunBlockProps) {
   const showActivity = mode !== "summary";
   const showSummary = mode !== "activity";
-  const hasSummaryChanges = showSummary && run.change_items.length > 0;
-  const pendingCount = run.change_items.filter((item) => item.status === "PENDING_REVIEW").length;
-  const failedCount = run.change_items.filter((item) => item.status === "APPLY_FAILED").length;
-  const typeSummary = summarizeRunChangeTypes(run.change_items);
+  const changeItems = listOrEmpty(run.change_items);
+  const hasSummaryChanges = showSummary && changeItems.length > 0;
+  const pendingCount = changeItems.filter((item) => item.status === "PENDING_REVIEW").length;
+  const failedCount = changeItems.filter((item) => item.status === "APPLY_FAILED").length;
+  const typeSummary = summarizeRunChangeTypes(changeItems);
 
   const optimisticStepsByRunId = useMemo(
     () => ({ [run.id]: optimisticSteps }),
@@ -60,9 +62,9 @@ export function AgentRunBlock({
     [run.id, optimisticToolCalls]
   );
 
-  const mergedSteps = useMemo(() => mergeRunSteps(run.steps, optimisticSteps), [run.steps, optimisticSteps]);
+  const mergedSteps = useMemo(() => mergeRunSteps(listOrEmpty(run.steps), optimisticSteps), [run.steps, optimisticSteps]);
   const mergedToolCalls = useMemo(
-    () => mergeRunToolCalls(run.tool_calls, optimisticToolCalls),
+    () => mergeRunToolCalls(listOrEmpty(run.tool_calls), optimisticToolCalls),
     [run.tool_calls, optimisticToolCalls]
   );
   const activityTimeline = useMemo(

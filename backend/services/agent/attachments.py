@@ -12,11 +12,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette import status
 
+from backend.services.agent.error_policy import report_recoverable_error
 from backend.config import get_settings
 from backend.models_agent import AgentTranscriptAttachment
 from backend.models_files import UserFile
 from backend.services.agent.agent_attachment_bundle import (
-    ingest_agent_attachment_without_docling,
+    ingest_agent_attachment,
     pdf_page_count_from_bytes,
 )
 from backend.services.agent.attachment_mime_types import (
@@ -77,6 +78,11 @@ async def ingest_draft_attachment_upload(
         try:
             page_count = pdf_page_count_from_bytes(file_bytes)
         except Exception as exc:
+            report_recoverable_error(
+                scope="attachments.validate_pdf_page_count",
+                error=exc,
+                context={"filename": upload.filename},
+            )
             raise PolicyViolation(
                 detail="Attachment could not be read as a PDF.",
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -90,7 +96,7 @@ async def ingest_draft_attachment_upload(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
     try:
-        return ingest_agent_attachment_without_docling(
+        return ingest_agent_attachment(
             db,
             owner_user_id=owner_user_id,
             file_bytes=file_bytes,

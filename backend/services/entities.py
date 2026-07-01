@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `entities`.
-# - Inputs: callers that import `backend/services/entities.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `entities`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: entity normalization, account-backed guards, usage queries, and read builders.
+# - Inputs: entity rows, principal scope, and service-owned write commands.
+# - Outputs: entity CRUD helpers, usage rows, and `EntityRead` payloads.
+# - Side effects: database persistence, validation, and read queries.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from backend.auth.contracts import RequestPrincipal
 from backend.enums_finance import EntryKind
 from backend.models_finance import Account, Entity, Entry
+from backend.schemas_finance import EntityRead
 from backend.services.access_scope import entity_owner_filter, owner_user_filter
 from backend.services.crud_policy import (
     PolicyViolation,
@@ -42,6 +43,40 @@ class EntityUsageRow:
     net_amount_minor: int | None
     net_amount_currency_code: str | None
     net_amount_mixed_currencies: bool
+
+
+def build_entity_read(
+    entity: Entity,
+    *,
+    category: str | None = None,
+    usage: EntityUsageRow | None = None,
+) -> EntityRead:
+    usage_row = usage
+    return EntityRead(
+        id=entity.id,
+        name=entity.name,
+        category=category if category is not None else entity.category,
+        is_account=usage_row.is_account if usage_row is not None else False,
+        from_count=usage_row.from_count if usage_row is not None else None,
+        to_count=usage_row.to_count if usage_row is not None else None,
+        account_count=usage_row.account_count if usage_row is not None else None,
+        entry_count=usage_row.entry_count if usage_row is not None else None,
+        net_amount_minor=usage_row.net_amount_minor if usage_row is not None else None,
+        net_amount_currency_code=usage_row.net_amount_currency_code if usage_row is not None else None,
+        net_amount_mixed_currencies=usage_row.net_amount_mixed_currencies if usage_row is not None else False,
+    )
+
+
+def list_entity_reads(db: Session, *, principal: RequestPrincipal) -> list[EntityRead]:
+    rows = list_entities_with_usage(db, principal=principal)
+    return [
+        build_entity_read(
+            row.entity,
+            category=read_entity_category(db, row.entity),
+            usage=row,
+        )
+        for row in rows
+    ]
 
 
 def _entry_signed_amount_expression():

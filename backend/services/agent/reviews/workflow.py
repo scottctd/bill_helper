@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `workflow`.
-# - Inputs: callers that import `backend/services/agent/reviews/workflow.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `workflow`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Review workflow helpers for agent `workflow` operations.
+# - Inputs: Callers import `backend/services/agent/reviews/workflow` and invoke `approve_change_item`, `reject_change_item`, `reopen_change_item`.
+# - Outputs: Exports `approve_change_item`, `reject_change_item`, `reopen_change_item`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from sqlalchemy.orm import Session

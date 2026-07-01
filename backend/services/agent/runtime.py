@@ -1,8 +1,8 @@
 # CALLING SPEC:
 # - Purpose: public agent runtime facade over harness-first production runtime.
-# - Inputs: DB session, thread/run ids, model configuration.
-# - Outputs: run lifecycle helpers; model call seams for tests.
-# - Side effects: harness execution through production_runtime.
+# - Inputs: DB session, thread/run ids, model configuration, LLM message lists.
+# - Outputs: run lifecycle helpers; model call seams for tests and entry-tag suggestions.
+# - Side effects: harness execution through production_runtime; LiteLLM network calls via call_model*.
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -11,26 +11,19 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from backend.config import DEFAULT_AGENT_MODEL
-from backend.enums_agent import AgentApprovalPolicy
 from backend.models_agent import AgentRun, AgentThread
 from backend.services.agent.context_tokens import count_context_tokens
-from backend.services.agent.harness.contracts import HarnessPrincipal
-from backend.services.agent.model_client import (
-    LiteLLMModelClient,
-    validate_litellm_environment,
-)
+from backend.services.agent.model_client_support.client import LiteLLMModelClient
+from backend.services.agent.model_client_support.environment import validate_litellm_environment
 from backend.services.agent.production_runtime import (
     execute_harness_run,
     interrupt_harness_run,
     resume_harness_run,
 )
-from backend.services.agent.tool_runtime import build_openai_tool_schemas
+from backend.services.agent.tool_runtime_support.catalog import build_openai_tool_schemas
+from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.validation.runtime_settings import normalize_text_or_none
-
-
-class AgentRuntimeUnavailable(RuntimeError):
-    pass
 
 
 def ensure_agent_available(db: Session, *, model_name: str | None = None) -> None:
@@ -44,7 +37,7 @@ def ensure_agent_available(db: Session, *, model_name: str | None = None) -> Non
     if has_credentials:
         return
     missing_text = f" Missing keys: {', '.join(missing_keys)}." if missing_keys else ""
-    raise AgentRuntimeUnavailable(
+    raise PolicyViolation.service_unavailable(
         "Agent runtime is not configured. "
         f"Model target: {request_model}.{missing_text} "
         "Provide provider credentials via environment variables or configure custom base_url and api_key in settings."
@@ -133,32 +126,13 @@ def start_agent_run(
 def run_existing_agent_run(db: Session, run_id: str) -> AgentRun | None:
     try:
         resume_harness_run(db, run_id, streaming=False)
-    except LookupError:
+    except PolicyViolation:
         return None
     return db.get(AgentRun, run_id)
 
 
-def run_existing_agent_run_stream(db: Session, run_id: str) -> Iterator[dict[str, Any]]:
-    from backend.services.agent.production_events import harness_event_to_sse_payload
-    from backend.services.agent.stream_hub import publish_run_stream_event
-
-    run_row = db.get(AgentRun, run_id)
-    if run_row is None:
-        return
-    if run_row.status.value != "running":
-        for event_row in sorted(run_row.events, key=lambda row: row.sequence_index):
-            payload = {
-                "type": event_row.event_type.value,
-                **(event_row.payload_json or {}),
-            }
-            yield payload
-        return
-
-    resume_harness_run(db, run_id, streaming=True)
-    yield from ()
-
-
 def interrupt_agent_run(
     db: Session, run_id: str, *, reason: str = "Run interrupted by user."
-) -> AgentRun | None:
+) -> AgentRun:
+    del reason
     return interrupt_harness_run(db, run_id)

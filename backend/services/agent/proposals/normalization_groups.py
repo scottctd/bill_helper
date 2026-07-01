@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `normalization_groups`.
-# - Inputs: callers that import `backend/services/agent/proposals/normalization_groups.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `normalization_groups`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `normalization_groups`.
+# - Inputs: Callers import `backend/services/agent/proposals/normalization_groups` and invoke `normalize_create_group_payload`, `normalize_update_group_payload`, `normalize_delete_group_payload`, `normalize_create_group_member_payload`.
+# - Outputs: Exports `normalize_create_group_payload`, `normalize_update_group_payload`, `normalize_delete_group_payload`, `normalize_create_group_member_payload`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

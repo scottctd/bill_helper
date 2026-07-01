@@ -6,6 +6,7 @@
  * - Side effects: module-local frontend behavior only.
  */
 import type { AgentChangeItem, AgentChangeStatus, AgentChangeType, AgentRun } from "../../../lib/types";
+import { listOrEmpty } from "../../../lib/collections";
 
 export interface ThreadReviewItem {
   item: AgentChangeItem;
@@ -203,7 +204,7 @@ export function buildThreadReviewItems(runs: AgentRun[]): ThreadReviewItem[] {
   const orderedRuns = [...runs].sort((left, right) => compareIsoDateStrings(left.created_at, right.created_at));
 
   return orderedRuns.flatMap((run) =>
-    run.change_items.map((item) => ({
+    listOrEmpty(run.change_items).map((item) => ({
       item,
       runId: run.id,
       runCreatedAt: run.created_at

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from backend.enums_agent import AgentChangeType
 from backend.models_agent import AgentChangeItem
 from backend.services.agent.benchmark_interface import _predictions_from_change_items
-from backend.services.agent.proposal_http import _proposal_summary
+from backend.services.agent.change_registry import proposal_summary_for_payload
 from backend.services.agent.proposals.entries import entry_preview_from_proposal
 from backend.services.entries import normalize_entry_category_reference
 
@@ -81,7 +81,7 @@ def test_proposal_summary_includes_create_entry_category_and_lifecycle() -> None
         },
     )
 
-    summary = _proposal_summary(item)
+    summary = proposal_summary_for_payload(item.change_type, item.payload_json)
 
     assert "category=food_drink/groceries" in summary
     assert "lifecycle=day_to_day" in summary

@@ -2,33 +2,13 @@
  * CALLING SPEC:
  * - Purpose: define authentication and admin-session contracts for the frontend.
  * - Inputs: frontend modules that manage login state and admin impersonation flows.
- * - Outputs: auth and admin session interfaces.
+ * - Outputs: auth and admin session type aliases from generated OpenAPI types.
  * - Side effects: type declarations only.
  */
 
-export interface AuthUser {
-  id: string;
-  name: string;
-  is_admin: boolean;
-}
+import type { ApiSchemas } from "./schemas";
 
-export interface AuthSession {
-  user: AuthUser;
-  session_id: string | null;
-  is_admin_impersonation: boolean;
-}
-
-export interface AuthLoginResponse extends AuthSession {
-  token: string;
-}
-
-export interface AdminSession {
-  id: string;
-  user_id: string;
-  user_name: string;
-  is_admin: boolean;
-  is_admin_impersonation: boolean;
-  created_at: string;
-  expires_at: string | null;
-  is_current: boolean;
-}
+export type AuthUser = ApiSchemas["AuthUserRead"];
+export type AuthSession = ApiSchemas["AuthSessionRead"];
+export type AuthLoginResponse = ApiSchemas["AuthLoginResponse"];
+export type AdminSession = ApiSchemas["AdminSessionRead"];

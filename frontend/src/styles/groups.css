@@ -1,0 +1,249 @@
+/**
+ * CALLING SPEC:
+ * - Purpose: Groups browser, detail modal, and rule-flow visualization styling
+ * - Inputs: imported by `frontend/src/styles.css` for the Groups route and group editor surfaces.
+ * - Outputs: `@layer components` rules scoped to groups UI.
+ * - Side effects: none; stylesheet only.
+ */
+
+@layer components {
+  .groups-empty-state {
+    @apply grid gap-2 rounded-md border border-dashed border-border bg-secondary/45 px-4 py-5;
+  }
+  .groups-empty-title {
+    @apply text-heading-16 text-foreground;
+  }
+  .groups-browser-card {
+    @apply overflow-visible border-border/90;
+  }
+  .groups-browser-table-shell {
+    @apply overflow-x-auto rounded-md border border-border;
+  }
+  .groups-browser-table {
+    @apply min-w-[900px] table-fixed;
+  }
+  .groups-browser-row {
+    @apply cursor-pointer transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
+  }
+  .groups-browser-row.is-active,
+  .groups-browser-row.is-active:hover {
+    @apply bg-accent/75;
+  }
+  .groups-browser-group-column {
+    width: 19rem;
+  }
+  .groups-browser-action-column {
+    width: 7.5rem;
+  }
+  .groups-browser-group-cell {
+    @apply grid gap-1;
+  }
+  .groups-browser-group-name {
+    @apply line-clamp-2 font-medium text-foreground;
+  }
+  .groups-summary-id {
+    @apply text-label-12 text-muted-foreground;
+  }
+  .groups-detail-modal {
+    @apply flex h-[min(92vh,56rem)] w-[min(96vw,56rem)] max-w-none flex-col overflow-hidden bg-card p-0;
+  }
+  .groups-detail-modal-shell {
+    @apply flex min-h-0 flex-1 flex-col;
+  }
+  .groups-detail-modal-header {
+    @apply sticky top-0 z-10 shrink-0 gap-4 border-b border-border/75 bg-card px-6 py-5;
+  }
+  .groups-detail-modal-header-main {
+    @apply grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:justify-between;
+  }
+  .groups-detail-modal-header-copy {
+    @apply grid min-w-0 gap-2;
+  }
+  .groups-detail-modal-title-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .groups-detail-modal-description {
+    @apply text-copy-14 text-muted-foreground;
+  }
+  .groups-detail-meta-chips {
+    @apply flex flex-wrap gap-2;
+  }
+  .groups-detail-meta-chip {
+    @apply inline-flex items-center rounded-full border border-border/80 bg-secondary/45 px-2.5 py-1 text-label-12 text-muted-foreground;
+  }
+  .groups-detail-meta-chip-rule {
+    @apply max-w-full truncate text-foreground/80;
+  }
+  .groups-detail-modal-actions {
+    @apply grid gap-2 sm:justify-items-end;
+  }
+  .groups-detail-modal-actions-primary,
+  .groups-detail-modal-actions-secondary {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .groups-detail-modal-body {
+    @apply min-h-0 flex-1 overflow-y-auto px-6 py-5;
+  }
+  .groups-detail-meta {
+    @apply m-0 text-copy-14 text-muted-foreground;
+  }
+  .groups-detail-stats-block {
+    @apply grid gap-2;
+  }
+  .groups-detail-stats-heading {
+    @apply text-label-12 font-medium uppercase tracking-wide text-muted-foreground;
+  }
+  .groups-detail-stats-grid {
+    @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-4;
+  }
+  .groups-detail-stats-grid .stat-block {
+    @apply rounded-md border border-border/80 bg-secondary/35 px-3 py-2.5;
+  }
+  .groups-detail-panel {
+    @apply grid gap-3;
+  }
+  .groups-detail-panel-header {
+    @apply flex flex-wrap items-baseline justify-between gap-2;
+  }
+  .groups-detail-panel-header h3 {
+    @apply text-heading-16 tracking-tight text-foreground;
+  }
+  .groups-detail-panel-count {
+    @apply m-0 text-copy-14 text-muted-foreground;
+  }
+  .groups-detail-panel-body {
+    @apply grid gap-3;
+  }
+  .groups-detail-members-empty {
+    @apply rounded-md border border-dashed border-border/80 bg-secondary/20 px-4 py-8;
+  }
+  .groups-detail-members-table-shell {
+    @apply overflow-x-auto rounded-md border border-border;
+  }
+  .groups-detail-date-column {
+    width: 7.5rem;
+    white-space: nowrap;
+  }
+  .groups-detail-amount-column {
+    width: 9rem;
+  }
+  .groups-detail-member-date {
+    @apply text-copy-14 tabular-nums text-foreground;
+  }
+  .groups-detail-member-entry {
+    @apply grid gap-0.5;
+  }
+  .groups-detail-member-name {
+    @apply font-medium text-foreground;
+  }
+  .groups-detail-member-kind {
+    @apply text-label-12 text-muted-foreground;
+  }
+  .groups-detail-member-row {
+    @apply cursor-pointer transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
+  }
+  .groups-detail-member-row:hover {
+    @apply bg-accent/45;
+  }
+  .groups-detail-section {
+    @apply grid gap-3 rounded-md border border-border/80 bg-secondary/15 px-4 py-4;
+  }
+  .groups-detail-section-header {
+    @apply gap-2 lg:flex lg:flex-row lg:items-start lg:justify-between;
+  }
+  .groups-detail-section-header h3 {
+    @apply text-heading-16 tracking-tight text-foreground;
+  }
+  .groups-detail-section-header p {
+    @apply mt-1 text-copy-14 text-muted-foreground;
+  }
+  .groups-detail-section-body {
+    @apply grid gap-3;
+  }
+  .groups-detail-section-body .group-flow-container {
+    height: 520px;
+  }
+  .group-flow-container {
+    @apply h-[460px] w-full overflow-hidden rounded-md border border-border bg-card;
+  }
+  .group-flow-canvas {
+    @apply h-full w-full bg-card;
+  }
+  .group-flow-canvas .react-flow__edge-path {
+    stroke: rgb(var(--muted-foreground));
+    stroke-width: 1.7px;
+  }
+  .group-flow-canvas .react-flow__controls {
+    border-color: rgb(var(--border));
+    background: rgb(var(--card));
+    box-shadow: none;
+  }
+  .group-flow-canvas .react-flow__controls button {
+    background: rgb(var(--card));
+    border-bottom-color: rgb(var(--border) / 0.8);
+    color: rgb(var(--foreground));
+  }
+  .group-flow-canvas .react-flow__controls button:hover {
+    background: rgb(var(--accent));
+  }
+  .group-flow-canvas .react-flow__attribution {
+    @apply hidden;
+  }
+  .group-flow-canvas .react-flow__background {
+    color: rgb(var(--muted-foreground) / 0.2);
+  }
+  .group-flow-canvas .react-flow__minimap {
+    border: 1px solid rgb(var(--border));
+    border-radius: 12px;
+    background: rgb(var(--card));
+  }
+  .group-flow-node {
+    min-width: 188px;
+    border-radius: 12px;
+    border: 1px solid rgb(var(--border));
+    background: rgb(var(--card));
+    color: rgb(var(--foreground));
+    box-shadow: 0 1px 2px rgb(var(--foreground) / 0.03);
+  }
+  .group-flow-node-income {
+    border-color: rgb(var(--success) / 0.45);
+    box-shadow: inset 0 0 0 1px rgb(var(--success) / 0.14);
+  }
+  .group-flow-node-expense {
+    border-color: rgb(var(--destructive) / 0.45);
+    box-shadow: inset 0 0 0 1px rgb(var(--destructive) / 0.14);
+  }
+  .group-flow-node-transfer {
+    border-color: rgb(var(--muted-foreground) / 0.35);
+    box-shadow: inset 0 0 0 1px rgb(var(--muted-foreground) / 0.12);
+  }
+  .group-flow-node-group {
+    background:
+      linear-gradient(135deg, rgb(var(--accent) / 0.6), transparent 72%),
+      rgb(var(--card));
+  }
+  .group-flow-node-group-bundle {
+    border-color: rgb(var(--primary) / 0.35);
+    box-shadow: inset 0 0 0 1px rgb(var(--primary) / 0.12);
+  }
+  .group-flow-node-group-split {
+    border-color: rgb(var(--warning) / 0.4);
+    box-shadow: inset 0 0 0 1px rgb(var(--warning) / 0.14);
+  }
+  .group-flow-node-group-recurring {
+    border-color: rgb(var(--ring) / 0.4);
+    box-shadow: inset 0 0 0 1px rgb(var(--ring) / 0.14);
+  }
+  .group-flow-node-content {
+    @apply grid gap-1 px-3 py-2;
+  }
+  .group-flow-node-name {
+    @apply truncate text-heading-16;
+  }
+  .group-flow-node-meta {
+    @apply text-label-12 text-muted-foreground;
+  }
+  .group-flow-edge {
+    stroke: rgb(var(--muted-foreground));
+  }
+}

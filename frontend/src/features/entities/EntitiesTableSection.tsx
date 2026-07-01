@@ -11,14 +11,8 @@ import { DeleteConfirmDialog } from "../../components/DeleteConfirmDialog";
 import { DeleteIconButton } from "../../components/DeleteIconButton";
 import { CreatableSingleSelect } from "../../components/CreatableSingleSelect";
 import { Button } from "../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../../components/ui/dialog";
+import { DialogFooter } from "../../components/ui/dialog";
+import { ModalShell } from "../../components/ui/modal-shell";
 import { FormField } from "../../components/ui/form-field";
 import { Input } from "../../components/ui/input";
 import { formatMinor } from "../../lib/format";
@@ -150,19 +144,17 @@ export function EntitiesTableSection(props: EntitiesTableSectionProps) {
         )
       ) : null}
 
-      <Dialog
+      <ModalShell
         open={createPanelOpen}
         onOpenChange={(open) => {
           if (!open) {
             onCloseCreatePanel();
           }
         }}
+        size="md"
+        title="Create Entity"
+        description="Add a named counterparty and optional category."
       >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Create Entity</DialogTitle>
-            <DialogDescription>Add a named counterparty and optional category.</DialogDescription>
-          </DialogHeader>
           <form className="grid gap-4" onSubmit={onCreateEntitySubmit}>
             <FormField label="Name">
               <Input placeholder="e.g. Landlord" value={newEntityName} onChange={(event) => onNewEntityNameChange(event.target.value)} />
@@ -186,22 +178,19 @@ export function EntitiesTableSection(props: EntitiesTableSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
-      <Dialog
+      <ModalShell
         open={Boolean(editingEntityId)}
         onOpenChange={(open) => {
           if (!open) {
             onCancelEditEntity();
           }
         }}
+        size="md"
+        title="Edit Entity"
+        description="Update entity naming and category metadata."
       >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Edit Entity</DialogTitle>
-            <DialogDescription>Update entity naming and category metadata.</DialogDescription>
-          </DialogHeader>
           <form
             className="grid gap-4"
             onSubmit={(event) => {
@@ -238,8 +227,7 @@ export function EntitiesTableSection(props: EntitiesTableSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
       <DeleteConfirmDialog
         open={Boolean(deletingEntity)}

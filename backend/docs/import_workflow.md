@@ -12,7 +12,12 @@ Backend-orchestrated multi-agent import jobs replace the removed Agent composer 
 | Jobs | `backend/services/import_workflow/jobs.py` | Create, cancel, retry |
 | Preflight | `backend/services/import_workflow/preflight.py` | sha256 re-import detection |
 | Scheduler | `backend/services/import_workflow/scheduler.py` | In-process worker pool, run completion hook |
-| Serializers | `backend/services/import_workflow/serializers.py` | ORM → API schemas, aggregate cost |
+| Serializers | `backend/services/import_workflow/serializers.py` | ORM → API schemas, aggregate cost, owner-scoped job load |
+
+## Errors
+
+- `load_job_for_owner` raises `PolicyViolation.not_found` when the job id is missing or owned by
+  another principal; the import router does not catch it locally.
 | Proposals | `backend/services/import_workflow/proposals.py`, `dedup.py` | Aggregate + fault-isolated batch apply |
 
 ## Lifecycle
@@ -21,7 +26,7 @@ Backend-orchestrated multi-agent import jobs replace the removed Agent composer 
 2. `POST /import/jobs` persists one `ImportTask` per attachment, each with its own `AgentThread`.
 3. `start_import_job(job_id)` spawns a daemon coordinator thread.
 4. The scheduler dispatches up to `job.concurrency` tasks via `create_user_message_and_start_run` + `run_agent_in_background`.
-5. `notify_agent_run_terminal(run_id)` in `backend/services/agent/runtime_support/lifecycle.py` updates task/job counters and wakes the coordinator.
+5. When an agent run reaches a terminal status, `TerminalObservingRunRepository.finish()` (normal harness paths) or `interrupt_harness_run` / stream-worker failure handlers invoke `notify_production_run_terminal_observers` in `backend/services/agent/run_observers.py`; the `ImportSchedulerObserver` calls `notify_agent_run_terminal(run_id)` to update task/job counters and wake the coordinator.
 6. Proposals are reviewed at job scope through aggregated list + batch approve/reject.
 
 ## Concurrency default

@@ -185,7 +185,12 @@ cd frontend && npm run test:e2e
 
 # Design and docs consistency checks
 uv run python scripts/check_llm_design.py
+uv run python scripts/check_api_types_sync.py
 uv run python scripts/check_docs_sync.py
+
+# Regenerate frontend API types after backend schema changes
+uv run python scripts/dump_openapi.py
+cd frontend && npm run gen:api
 ```
 
 ---

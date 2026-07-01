@@ -1,27 +1,21 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `normalization`.
-# - Inputs: callers that import `backend/services/agent/proposals/normalization.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `normalization`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `normalization`.
+# - Inputs: Callers import `backend/services/agent/proposals/normalization` and invoke `normalize_payload_for_change_type`.
+# - Outputs: Exports `normalize_payload_for_change_type`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
 
 from backend.enums_agent import AgentChangeType
-from backend.services.agent.proposals.normalization_catalog import CATALOG_PAYLOAD_NORMALIZERS
-from backend.services.agent.proposals.normalization_entries import ENTRY_PAYLOAD_NORMALIZERS
-from backend.services.agent.proposals.normalization_groups import GROUP_PAYLOAD_NORMALIZERS
+from backend.services.agent.change_registry import payload_normalizers
 from backend.services.agent.tool_types import ToolContext
 
 
 ProposalPayloadNormalizer = Callable[[ToolContext, dict[str, Any]], dict[str, Any]]
 
-PAYLOAD_NORMALIZERS: dict[AgentChangeType, ProposalPayloadNormalizer] = {
-    **CATALOG_PAYLOAD_NORMALIZERS,
-    **ENTRY_PAYLOAD_NORMALIZERS,
-    **GROUP_PAYLOAD_NORMALIZERS,
-}
+PAYLOAD_NORMALIZERS: dict[AgentChangeType, ProposalPayloadNormalizer] = payload_normalizers()
 
 
 def normalize_payload_for_change_type(

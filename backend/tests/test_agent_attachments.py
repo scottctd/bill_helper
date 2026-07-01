@@ -4,8 +4,7 @@ from datetime import UTC, datetime
 
 from backend.services.agent.agent_attachment_bundle import (
     build_agent_upload_stored_relative_path,
-    bundle_directory_segment_for_relocate,
-    bundle_upload_date_str_for_created_at,
+    bundle_directory_segment_for_upload,
     is_docling_bundle_primary_stored_path,
 )
 
@@ -40,19 +39,14 @@ def test_build_agent_upload_stored_relative_path_deduplicates_with_suffix(tmp_pa
     assert rel.endswith("/My Stmt (1)/raw.pdf")
 
 
-def test_bundle_directory_segment_for_relocate_preserves_visible_stem() -> None:
+def test_bundle_directory_segment_for_upload_preserves_visible_stem() -> None:
     assert (
-        bundle_directory_segment_for_relocate(
+        bundle_directory_segment_for_upload(
             original_filename="My Stmt.pdf",
             mime_type="application/pdf",
         )
         == "My Stmt"
     )
-
-
-def test_bundle_upload_date_str_for_created_at_respects_timezone() -> None:
-    ts = datetime(2025, 11, 5, 7, 0, 0, tzinfo=UTC)
-    assert bundle_upload_date_str_for_created_at(ts, timezone_name="America/Toronto") == "2025-11-05"
 
 
 def test_is_docling_bundle_primary_stored_path_detects_bundles() -> None:

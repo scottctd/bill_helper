@@ -1,35 +1,28 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `entry_tag_suggestions`.
-# - Inputs: callers that import `backend/services/entry_tag_suggestions.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `entry_tag_suggestions`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: suggest tags for a draft entry via a one-shot LLM call.
+# - Inputs: principal, DB session, EntryTagSuggestionRequest with entry fields and similar-entry context.
+# - Outputs: EntryTagSuggestionResponse with ranked tag names.
+# - Side effects: LiteLLM completion through runtime.call_model when agent credentials are configured; raises PolicyViolation on validation or runtime failures.
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from starlette import status
 
 from backend.auth.contracts import RequestPrincipal
 from backend.enums_finance import EntryLifecycle
 from backend.models_finance import Tag
 from backend.schemas_finance import EntryTagSuggestionRequest, EntryTagSuggestionResponse
-from backend.services.agent.model_client import AgentModelError
-from backend.services.agent.runtime import AgentRuntimeUnavailable, call_model, ensure_agent_available
+from backend.services.agent.model_client_support.client import AgentModelError
+from backend.services.crud_policy import PolicyViolation
+from backend.services.agent.runtime import call_model, ensure_agent_available
 from backend.services.entry_similarity import list_similar_tagged_entries
 from backend.services.entry_tag_suggestion_prompt import build_entry_tag_suggestion_messages
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.services.taxonomy import entry_category_catalog, normalize_term_name
 from backend.validation.finance_names import normalize_tag_name
-
-
-@dataclass(slots=True)
-class EntryTagSuggestionError(Exception):
-    detail: str
-    status_code: int
 
 
 class _ModelTagSuggestionPayload(BaseModel):
@@ -112,9 +105,8 @@ def _parse_model_suggestion(
         decoded = json.loads(content)
         payload = _ModelTagSuggestionPayload.model_validate(decoded)
     except (json.JSONDecodeError, ValidationError) as exc:
-        raise EntryTagSuggestionError(
-            detail="AI tag suggestion returned malformed JSON.",
-            status_code=status.HTTP_400_BAD_REQUEST,
+        raise PolicyViolation.bad_request(
+            "AI tag suggestion returned malformed JSON.",
         ) from exc
 
     normalized_suggested_tags: list[str] = []
@@ -125,9 +117,8 @@ def _parse_model_suggestion(
             continue
         canonical_tag = tag_name_by_normalized_name.get(normalized_tag)
         if canonical_tag is None:
-            raise EntryTagSuggestionError(
-                detail="AI tag suggestion returned a tag outside the existing catalog.",
-                status_code=status.HTTP_400_BAD_REQUEST,
+            raise PolicyViolation.bad_request(
+                "AI tag suggestion returned a tag outside the existing catalog.",
             )
         seen.add(normalized_tag)
         normalized_suggested_tags.append(canonical_tag)
@@ -138,9 +129,8 @@ def _parse_model_suggestion(
             normalize_term_name(payload.suggested_category)
         )
         if canonical_category is None:
-            raise EntryTagSuggestionError(
-                detail="AI tag suggestion returned a category outside the existing catalog.",
-                status_code=status.HTTP_400_BAD_REQUEST,
+            raise PolicyViolation.bad_request(
+                "AI tag suggestion returned a category outside the existing catalog.",
             )
         suggested_category = canonical_category
 
@@ -149,9 +139,8 @@ def _parse_model_suggestion(
         try:
             suggested_lifecycle = EntryLifecycle(payload.suggested_lifecycle)
         except ValueError as exc:
-            raise EntryTagSuggestionError(
-                detail="AI tag suggestion returned an invalid lifecycle.",
-                status_code=status.HTTP_400_BAD_REQUEST,
+            raise PolicyViolation.bad_request(
+                "AI tag suggestion returned an invalid lifecycle.",
             ) from exc
 
     return normalized_suggested_tags, suggested_category, suggested_lifecycle
@@ -169,15 +158,11 @@ def suggest_entry_tags(
     try:
         settings = resolve_runtime_settings(db)
     except ValueError as exc:
-        raise EntryTagSuggestionError(
-            detail=str(exc),
-            status_code=status.HTTP_400_BAD_REQUEST,
-        ) from exc
+        raise PolicyViolation.bad_request(str(exc)) from exc
 
     if not settings.entry_tagging_model:
-        raise EntryTagSuggestionError(
-            detail="AI tag suggestion is disabled until you set Default tagging model in Settings.",
-            status_code=status.HTTP_400_BAD_REQUEST,
+        raise PolicyViolation.bad_request(
+            "AI tag suggestion is disabled until you set Default tagging model in Settings.",
         )
 
     tag_catalog, tag_name_by_normalized_name = _normalized_catalog(db)
@@ -210,16 +195,10 @@ def suggest_entry_tags(
             tools=[],
             response_format=response_format,
         )
-    except AgentRuntimeUnavailable as exc:
-        raise EntryTagSuggestionError(
-            detail=str(exc),
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        ) from exc
+    except PolicyViolation:
+        raise
     except AgentModelError as exc:
-        raise EntryTagSuggestionError(
-            detail=str(exc),
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        ) from exc
+        raise PolicyViolation.service_unavailable(str(exc)) from exc
 
     suggested_tags, suggested_category, suggested_lifecycle = _parse_model_suggestion(
         response.get("content", ""),

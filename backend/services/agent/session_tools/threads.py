@@ -1,24 +1,22 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `threads`.
-# - Inputs: callers that import `backend/services/agent/session_tools/threads.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `threads`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `threads`.
+# - Inputs: Callers import `backend/services/agent/session_tools/threads` and invoke `rename_thread`.
+# - Outputs: Exports `rename_thread`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
-from backend.services.agent.threads import (
-    AgentThreadNotFoundError,
-    rename_thread_for_run,
-)
+from backend.services.agent.threads import rename_thread_for_run
 from backend.services.agent.tool_args.threads import RenameThreadArgs
 from backend.services.agent.tool_results import error_result
 from backend.services.agent.tool_types import ToolContext, ToolExecutionResult, ToolExecutionStatus
+from backend.services.crud_policy import PolicyViolation
 from backend.validation.agent_threads import AgentThreadTitleError
 
 
 def rename_thread(context: ToolContext, args: RenameThreadArgs) -> ToolExecutionResult:
     try:
         result = rename_thread_for_run(context.db, run_id=context.run_id, title=args.title)
-    except (AgentThreadNotFoundError, AgentThreadTitleError) as exc:
+    except (PolicyViolation, AgentThreadTitleError) as exc:
         return error_result(str(exc))
 
     output_json = {

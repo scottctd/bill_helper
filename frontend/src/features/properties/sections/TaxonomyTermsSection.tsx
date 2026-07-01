@@ -10,14 +10,8 @@ import { Plus } from "lucide-react";
 
 import type { TaxonomyTerm } from "../../../lib/types";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../../../components/ui/dialog";
+import { DialogFooter } from "../../../components/ui/dialog";
+import { ModalShell } from "../../../components/ui/modal-shell";
 import { FormField } from "../../../components/ui/form-field";
 import { Input } from "../../../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
@@ -139,19 +133,17 @@ export function TaxonomyTermsSection(props: TaxonomyTermsSectionProps) {
         )
       ) : null}
 
-      <Dialog
+      <ModalShell
         open={createPanelOpen}
         onOpenChange={(open) => {
           if (!open) {
             onCloseCreatePanel();
           }
         }}
+        size="sm"
+        title="Create Term"
+        description="Add a taxonomy term to this taxonomy set."
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create Term</DialogTitle>
-            <DialogDescription>Add a taxonomy term to this taxonomy set.</DialogDescription>
-          </DialogHeader>
           <form className="grid gap-4" onSubmit={onCreateTermSubmit}>
             <FormField label="Name">
               <Input placeholder="e.g. food" value={newTermName} onChange={(event) => onNewTermNameChange(event.target.value)} />
@@ -173,22 +165,19 @@ export function TaxonomyTermsSection(props: TaxonomyTermsSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
-      <Dialog
+      <ModalShell
         open={Boolean(editingTermId)}
         onOpenChange={(open) => {
           if (!open) {
             onCancelEditTerm();
           }
         }}
+        size="sm"
+        title="Rename Term"
+        description="Update the taxonomy term label used in selectors."
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Rename Term</DialogTitle>
-            <DialogDescription>Update the taxonomy term label used in selectors.</DialogDescription>
-          </DialogHeader>
           <form
             className="grid gap-4"
             onSubmit={(event) => {
@@ -223,8 +212,7 @@ export function TaxonomyTermsSection(props: TaxonomyTermsSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
     </div>
   );
 }

@@ -42,10 +42,11 @@ export function buildCategoryOptions(terms: TaxonomyTerm[] | undefined): Categor
   const parents = list.filter((term) => term.parent_term_id === null);
   const childrenByParentId = new Map<string, TaxonomyTerm[]>();
   for (const term of list) {
-    if (term.parent_term_id === null) continue;
-    const siblings = childrenByParentId.get(term.parent_term_id) ?? [];
+    const parentId = term.parent_term_id;
+    if (parentId == null) continue;
+    const siblings = childrenByParentId.get(parentId) ?? [];
     siblings.push(term);
-    childrenByParentId.set(term.parent_term_id, siblings);
+    childrenByParentId.set(parentId, siblings);
   }
 
   const asLifecycle = (value: string | null | undefined): EntryLifecycle | null =>

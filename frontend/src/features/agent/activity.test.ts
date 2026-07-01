@@ -18,7 +18,7 @@ import {
   totalRunMetric
 } from "./activity";
 import { buildChangeItem, buildRun, buildStep, buildToolCall, buildTurn } from "../../test/factories/agent";
-import type { AgentThreadDetail } from "../../lib/types";
+import type { AgentRunWithLiveUsage, AgentThreadDetail } from "../../lib/types";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -307,7 +307,8 @@ describe("activity helpers", () => {
         id: "thread-1",
         title: "Thread",
         created_at: "2026-02-15T10:00:00Z",
-        updated_at: "2026-02-15T10:05:00Z"
+        updated_at: "2026-02-15T10:05:00Z",
+        initiated_by_external_agent: false
       },
       turns: [
         buildTurn({
@@ -354,7 +355,8 @@ describe("activity helpers", () => {
           id: "thread-1",
           title: "Thread",
           created_at: "2026-02-15T10:00:00Z",
-          updated_at: "2026-02-15T10:05:00Z"
+          updated_at: "2026-02-15T10:05:00Z",
+          initiated_by_external_agent: false
         },
         turns: [],
         runs,
@@ -390,19 +392,23 @@ describe("activity helpers", () => {
   });
 
   it("recomputes current context from newest running run with tokens", () => {
-    const runs = [
-      buildRun({
+    const runs: AgentRunWithLiveUsage[] = [
+      {
+        ...buildRun({
         id: "old",
         created_at: "2026-02-15T10:01:00Z",
-        status: "completed",
-        context_tokens: 100
+        status: "completed"
       }),
-      buildRun({
+        context_tokens: 100
+      },
+      {
+        ...buildRun({
         id: "running",
         created_at: "2026-02-15T10:02:00Z",
-        status: "running",
+        status: "running"
+      }),
         context_tokens: 999
-      })
+      }
     ];
     expect(recomputeThreadCurrentContextTokens(runs)).toBe(999);
   });

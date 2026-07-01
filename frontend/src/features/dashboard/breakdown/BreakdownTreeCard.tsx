@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui
 import { formatMinor } from "../../../lib/format";
 import { entryCategoryColor, formatEntryCategoryLabel } from "../../../lib/entryClassificationColors";
 import type { DashboardCategoryChildSummary, DashboardCategorySummary, DashboardToBreakdownItem } from "../../../lib/types";
+import { listOrEmpty } from "../../../lib/collections";
 import { cn } from "../../../lib/utils";
 import { CHART_COLORS } from "../helpers";
 import {
@@ -154,6 +155,7 @@ export function BreakdownTreeCard({ categories, currencyCode, expenseTotalMinor,
     level: number
   ) {
     return dests.map((destItem) => {
+      const destEntries = listOrEmpty(destItem.entries);
       const destKey = `${parentKey}:${destItem.label}`;
       const destExpanded = expandedDests.has(destKey);
 
@@ -167,7 +169,7 @@ export function BreakdownTreeCard({ categories, currencyCode, expenseTotalMinor,
             )}
             onClick={() => toggleDest(destKey)}
           >
-            {destItem.entries.length > 0 ? (
+            {destEntries.length > 0 ? (
               destExpanded ? (
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
               ) : (
@@ -183,7 +185,7 @@ export function BreakdownTreeCard({ categories, currencyCode, expenseTotalMinor,
             </span>
           </button>
 
-          {destExpanded && destItem.entries.length > 0 ? (
+          {destExpanded && destEntries.length > 0 ? (
             <div className="mb-2 ml-8 mr-1 overflow-hidden rounded-md border border-border/60" role="group">
               <table className="w-full text-sm">
                 <thead className="bg-muted/30 text-xs text-muted-foreground">
@@ -194,7 +196,7 @@ export function BreakdownTreeCard({ categories, currencyCode, expenseTotalMinor,
                   </tr>
                 </thead>
                 <tbody>
-                  {destItem.entries.map((entry) => (
+                  {destEntries.map((entry) => (
                     <tr key={entry.id} className="border-t border-border/50">
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         {formatBreakdownEntryDate(entry.occurred_at)}
@@ -225,10 +227,10 @@ export function BreakdownTreeCard({ categories, currencyCode, expenseTotalMinor,
   ) {
     if (children.length === 0) {
       // Uncategorized or categories with no children: show to_breakdown directly
-      if (category.to_breakdown.length > 0) {
+      if (listOrEmpty(category.to_breakdown).length > 0) {
         return (
           <div className="space-y-1 px-2 py-2" role="group">
-            {renderDestinations(category.to_breakdown, category.name, 3)}
+            {renderDestinations(listOrEmpty(category.to_breakdown), category.name, 3)}
           </div>
         );
       }
@@ -249,7 +251,7 @@ export function BreakdownTreeCard({ categories, currencyCode, expenseTotalMinor,
                 )}
                 onClick={() => toggleChild(child.path)}
               >
-                {child.to_breakdown.length > 0 ? (
+                {listOrEmpty(child.to_breakdown).length > 0 ? (
                   childExpanded ? (
                     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   ) : (
@@ -268,9 +270,9 @@ export function BreakdownTreeCard({ categories, currencyCode, expenseTotalMinor,
                 </span>
               </button>
 
-              {childExpanded && child.to_breakdown.length > 0 ? (
+              {childExpanded && listOrEmpty(child.to_breakdown).length > 0 ? (
                 <div className="space-y-1 pb-2 pl-6 pr-2" role="group">
-                  {renderDestinations(child.to_breakdown, child.path, 3)}
+                  {renderDestinations(listOrEmpty(child.to_breakdown), child.path, 3)}
                 </div>
               ) : null}
             </div>

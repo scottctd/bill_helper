@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -19,9 +19,8 @@ from backend.models_files import UserFile
 from backend.services.agent.attachment_mime_types import (
     is_supported_agent_attachment_mime,
     is_text_agent_attachment_mime,
-    is_visual_agent_attachment_mime,
 )
-from backend.services.agent.docling_convert import convert_upload_bundle_source
+from backend.services.agent.error_policy import report_recoverable_error
 from backend.services.crud_policy import PolicyViolation
 from backend.services.user_files import (
     SOURCE_TYPE_AGENT_ATTACHMENT,
@@ -72,17 +71,6 @@ def bundle_directory_segment_for_upload(
     return stem
 
 
-def bundle_directory_segment_for_relocate(
-    *,
-    original_filename: str | None,
-    mime_type: str,
-) -> str:
-    return bundle_directory_segment_for_upload(
-        original_filename=original_filename,
-        mime_type=mime_type,
-    )
-
-
 def raw_primary_filename(*, original_filename: str | None, mime_type: str) -> str:
     suffix = suffix_for_mime_type(mime_type=mime_type, original_filename=original_filename)
     return f"raw{suffix}"
@@ -119,6 +107,11 @@ def build_agent_upload_stored_relative_path(
     try:
         tz = ZoneInfo(timezone_name)
     except Exception as exc:
+        report_recoverable_error(
+            scope="agent_attachment_bundle.build_upload_path",
+            error=exc,
+            context={"timezone_name": timezone_name},
+        )
         raise PolicyViolation.bad_request("Invalid timezone configuration.") from exc
     date_str = datetime.now(tz).strftime("%Y-%m-%d")
     if not _BUNDLE_DATE_RE.match(date_str):
@@ -161,6 +154,8 @@ def _bundle_has_docling_output(
     *,
     data_dir: Path | None = None,
 ) -> bool:
+    # Pre-2026 Docling-era bundles carry parsed.md instead of page-*.png renders.
+    # Those bundles are still valid dedupe targets for re-uploads of the same bytes.
     primary_path = resolve_user_file_path(user_file, data_dir=data_dir)
     return primary_path.parent.joinpath("parsed.md").is_file()
 
@@ -212,83 +207,15 @@ def duplicate_agent_attachment_from_existing_bundle(
             mime_type=existing_user_file.mime_type,
             data_dir=data_dir,
         )
-    except Exception:
+    except Exception as exc:
+        report_recoverable_error(
+            scope="agent_attachment_bundle.duplicate_bundle",
+            error=exc,
+            context={"owner_user_id": owner_user_id, "relative_path": rel},
+        )
         if copied_primary is not None:
             shutil.rmtree(copied_primary.parent, ignore_errors=True)
         raise
-
-
-def ingest_agent_attachment_with_docling(
-    db: Session,
-    *,
-    owner_user_id: str,
-    file_bytes: bytes,
-    mime_type: str,
-    original_filename: str | None,
-    timezone_name: str,
-    data_dir: Path | None = None,
-) -> UserFile:
-    """Persist upload under a new readable bundle directory, run Docling, and register the primary."""
-    mime = (mime_type or "").lower()
-    is_pdf = mime == "application/pdf"
-    is_image = mime.startswith("image/")
-    is_text = is_text_agent_attachment_mime(mime)
-    if not is_supported_agent_attachment_mime(mime):
-        raise PolicyViolation.bad_request("Only PDF, image, and plain-text attachments are supported.")
-
-    content_hash = _hash_bytes(file_bytes)
-    existing = find_user_file_by_sha256(
-        db,
-        user_id=owner_user_id,
-        sha256=content_hash,
-        storage_area=STORAGE_AREA_UPLOAD,
-    )
-    if (
-        existing is not None
-        and existing.source_type == SOURCE_TYPE_AGENT_ATTACHMENT
-        and existing.mime_type == mime
-        and _bundle_has_docling_output(existing, data_dir=data_dir)
-    ):
-        return duplicate_agent_attachment_from_existing_bundle(
-            db,
-            existing_user_file=existing,
-            owner_user_id=owner_user_id,
-            original_filename=original_filename,
-            timezone_name=timezone_name,
-            data_dir=data_dir,
-        )
-
-    rel = build_agent_upload_stored_relative_path(
-        owner_user_id=owner_user_id,
-        original_filename=original_filename,
-        mime_type=mime,
-        timezone_name=timezone_name,
-        data_dir=data_dir,
-    )
-    primary_path = write_canonical_bytes_at_relative_path(
-        owner_user_id=owner_user_id,
-        storage_area=STORAGE_AREA_UPLOAD,
-        stored_relative_path=rel,
-        file_bytes=file_bytes,
-        data_dir=data_dir,
-    )
-    try:
-        convert_upload_bundle_source(primary_path, is_pdf=is_pdf)
-    except Exception:
-        shutil.rmtree(primary_path.parent, ignore_errors=True)
-        raise
-
-    return create_user_file_for_existing_canonical_path(
-        db,
-        owner_user_id=owner_user_id,
-        storage_area=STORAGE_AREA_UPLOAD,
-        source_type=SOURCE_TYPE_AGENT_ATTACHMENT,
-        stored_relative_path=rel,
-        original_filename=original_filename,
-        display_name=None,
-        mime_type=mime_type,
-        data_dir=data_dir,
-    )
 
 
 def pdf_pages_as_png_bytes(primary_path: Path) -> list[bytes]:
@@ -322,7 +249,7 @@ def _render_pdf_pages_without_ocr(primary_path: Path) -> None:
         (parent / f"page-{index}.png").write_bytes(png_bytes)
 
 
-def ingest_agent_attachment_without_docling(
+def ingest_agent_attachment(
     db: Session,
     *,
     owner_user_id: str,
@@ -379,9 +306,14 @@ def ingest_agent_attachment_without_docling(
     try:
         if is_pdf:
             _render_pdf_pages_without_ocr(primary_path)
-    except Exception:
+    except Exception as exc:
+        report_recoverable_error(
+            scope="agent_attachment_bundle.ingest_pdf_render",
+            error=exc,
+            context={"owner_user_id": owner_user_id, "relative_path": rel},
+        )
         shutil.rmtree(primary_path.parent, ignore_errors=True)
-        raise RuntimeError("Document conversion failed.")
+        raise RuntimeError("Document conversion failed.") from exc
 
     return create_user_file_for_existing_canonical_path(
         db,
@@ -408,17 +340,4 @@ def is_docling_bundle_primary_stored_path(stored_relative_path: str) -> bool:
     if parts[0] != UPLOADS_DIRNAME:
         return False
     return bool(_BUNDLE_DATE_RE.match(parts[1]))
-
-
-def bundle_upload_date_str_for_created_at(created_at: datetime, *, timezone_name: str) -> str:
-    """Calendar date for ``uploads/YYYY-MM-DD/`` from stored ``created_at`` in the given IANA zone."""
-    try:
-        tz = ZoneInfo(timezone_name)
-    except Exception as exc:
-        raise PolicyViolation.bad_request("Invalid timezone configuration.") from exc
-    aware = created_at if created_at.tzinfo is not None else created_at.replace(tzinfo=UTC)
-    date_str = aware.astimezone(tz).strftime("%Y-%m-%d")
-    if not _BUNDLE_DATE_RE.match(date_str):
-        raise PolicyViolation.bad_request("Invalid derived bundle date segment.")
-    return date_str
 

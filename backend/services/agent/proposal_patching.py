@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `proposal_patching`.
-# - Inputs: callers that import `backend/services/agent/proposal_patching.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `proposal_patching`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `proposal_patching`.
+# - Inputs: Callers import `backend/services/agent/proposal_patching` and invoke `apply_patch_map_to_payload`.
+# - Outputs: Exports `apply_patch_map_to_payload`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from copy import deepcopy

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `user_files`.
-# - Inputs: callers that import `backend/services/user_files.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `user_files`.
-# - Side effects: filesystem writes, file copies/moves, and DB row creation for canonical user uploads.
+# - Purpose: Domain service logic for `user_files`.
+# - Inputs: Callers import `backend/services/user_files` and invoke `user_files_root`, `user_file_owner_root`, `user_upload_root`, `ensure_user_file_roots`.
+# - Outputs: Exports `user_files_root`, `user_file_owner_root`, `user_upload_root`, `ensure_user_file_roots`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 import hashlib

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `environment`.
-# - Inputs: callers that import `backend/services/agent/model_client_support/environment.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `environment`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Model client support utilities for `environment`.
+# - Inputs: Callers import `backend/services/agent/model_client_support/environment` and invoke `normalize_secret`, `normalize_host`, `provider_name_for_model`, `supports_prompt_caching`.
+# - Outputs: Exports `normalize_secret`, `normalize_host`, `provider_name_for_model`, `supports_prompt_caching`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 import os

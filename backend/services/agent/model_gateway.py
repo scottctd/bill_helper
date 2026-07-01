@@ -19,7 +19,7 @@ from backend.services.agent.harness.contracts import (
 )
 from backend.services.agent.harness.errors import HarnessProviderError
 from backend.services.agent.harness.events import EventSink, NullEventSink
-from backend.services.agent.model_client import AgentModelError, LiteLLMModelClient
+from backend.services.agent.model_client_support.client import AgentModelError, LiteLLMModelClient
 from backend.services.agent.model_gateway_support.conversion import (
     canonical_transcript_to_provider,
     provider_response_to_decision,
@@ -27,12 +27,12 @@ from backend.services.agent.model_gateway_support.conversion import (
 from backend.services.agent.model_gateway_support.transcript_hydration import (
     hydrate_transcript_user_attachments,
 )
-from backend.services.agent.tool_runtime import build_openai_tool_schemas
-from backend.services.agent.tools_for_model_request import tools_for_agent_model_request
+from backend.services.agent.tools_for_model_request import (
+    _RENAME_THREAD_TOOL_NAME,
+    expose_tools_for_model_request,
+)
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.validation.runtime_settings import normalize_text_or_none
-
-_RENAME_THREAD_TOOL_NAME = "rename_thread"
 
 
 class LiteLLMModelGateway:
@@ -62,22 +62,6 @@ class LiteLLMModelGateway:
             base_url=settings.agent_base_url,
             api_key=settings.agent_api_key,
         )
-
-    def _model_request_kwargs(
-        self,
-        *,
-        thread: AgentThread | None,
-        tools: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        if thread is None or thread.title is not None:
-            return {"tools": tools}
-        return {
-            "tools": build_openai_tool_schemas(tool_names=[_RENAME_THREAD_TOOL_NAME]),
-            "tool_choice": {
-                "type": "function",
-                "function": {"name": _RENAME_THREAD_TOOL_NAME},
-            },
-        }
 
     def _normalize_decision_for_thread(
         self,
@@ -122,16 +106,15 @@ class LiteLLMModelGateway:
 
     def complete(self, request: ModelRequest) -> ModelDecision:
         thread = self._resolve_thread(request)
-        tools = tools_for_agent_model_request(thread_title=thread.title if thread else None)
-        client = self._build_client(request.model_params.model_name, tools=tools)
+        exposure = expose_tools_for_model_request(thread_title=thread.title if thread else None)
+        client = self._build_client(request.model_params.model_name, tools=exposure.tools)
         provider_messages = self._provider_messages(request)
-        request_kwargs = self._model_request_kwargs(thread=thread, tools=tools)
         started = time.monotonic()
         try:
             response = client.complete(
                 provider_messages,
                 litellm_metadata=dict(request.trace_metadata),
-                **request_kwargs,
+                **exposure.request_kwargs,
             )
         except AgentModelError as exc:
             raise HarnessProviderError(str(exc)) from exc
@@ -148,17 +131,16 @@ class StreamingLiteLLMModelGateway(LiteLLMModelGateway):
     def complete(self, request: ModelRequest) -> ModelDecision:
         step_index = int(request.trace_metadata.get("step_index") or self._step_index)
         thread = self._resolve_thread(request)
-        tools = tools_for_agent_model_request(thread_title=thread.title if thread else None)
-        client = self._build_client(request.model_params.model_name, tools=tools)
+        exposure = expose_tools_for_model_request(thread_title=thread.title if thread else None)
+        client = self._build_client(request.model_params.model_name, tools=exposure.tools)
         provider_messages = self._provider_messages(request)
-        request_kwargs = self._model_request_kwargs(thread=thread, tools=tools)
         started = time.monotonic()
         final_message: dict[str, Any] | None = None
         try:
             for chunk in client.complete_stream(
                 provider_messages,
                 litellm_metadata=dict(request.trace_metadata),
-                **request_kwargs,
+                **exposure.request_kwargs,
             ):
                 chunk_type = chunk.get("type")
                 if chunk_type == "reasoning_delta":

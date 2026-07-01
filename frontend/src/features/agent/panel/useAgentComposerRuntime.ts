@@ -200,29 +200,35 @@ export function useAgentComposerRuntime({
     threadDetail
   });
   const actions = useAgentComposerActions({
-    activeRunId,
-    activeStreamRunId,
-    addOptimisticRunningThreadId,
-    approvalPolicy,
-    clearOptimisticThreadTitle,
-    draftAttachments,
-    draftMessage,
-    ensureThreadId,
-    handleAgentStreamEvent,
-    interruptRun,
-    removeOptimisticRunningThreadId,
-    resetOptimisticRunState,
-    selectedComposerModel,
-    selectedThreadId,
-    resolveDraftAttachmentsForSend,
-    setActionError,
-    setDraftAttachments,
-    setDraftMessage,
-    setPendingAssistantMessage,
-    setPendingUserMessage,
-    setThreadStreamHealthy,
-    snapToBottom,
-    threadDetail
+    composerIO: {
+      approvalPolicy,
+      draftAttachments,
+      draftMessage,
+      ensureThreadId,
+      handleAgentStreamEvent,
+      resolveDraftAttachmentsForSend,
+      selectedComposerModel,
+      setActionError,
+      setDraftAttachments,
+      setDraftMessage,
+      setPendingAssistantMessage,
+      setPendingUserMessage,
+      snapToBottom
+    },
+    threadCacheOps: {
+      addOptimisticRunningThreadId,
+      clearOptimisticThreadTitle,
+      removeOptimisticRunningThreadId,
+      setThreadStreamHealthy
+    },
+    runControl: {
+      activeRunId,
+      activeStreamRunId,
+      interruptRun,
+      resetOptimisticRunState,
+      selectedThreadId,
+      threadDetail
+    }
   });
   const isSendingMessage = selectedThreadId ? actions.sendingThreadIds.includes(selectedThreadId) : false;
   const isRunInFlight = isSendingMessage || hasActiveRun;

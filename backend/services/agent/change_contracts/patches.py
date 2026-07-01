@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `patches`.
-# - Inputs: callers that import `backend/services/agent/change_contracts/patches.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `patches`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Validated change payload contracts for `patches` proposals.
+# - Inputs: Callers import `backend/services/agent/change_contracts/patches` and invoke `validate_patch_map_paths`.
+# - Outputs: Exports `validate_patch_map_paths`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from typing import Any

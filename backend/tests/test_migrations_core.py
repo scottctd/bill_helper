@@ -6,14 +6,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import bindparam, create_engine, inspect, text
 from sqlalchemy.orm import Session
 
-from backend.enums_agent import AgentRunStatus, AgentTranscriptRole
 from backend.enums_finance import GroupSource
-from backend.models_agent import AgentRun
 from backend.models_finance import Group
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1526,19 +1525,34 @@ def test_migration_0044_drops_agent_change_item_rationale_text(tmp_path):
     assert "rationale_text" not in {column["name"] for column in inspector.get_columns("agent_change_items")}
 
 
-def test_migration_0045_ports_legacy_agent_transcripts(tmp_path):
-    database_url = _sqlite_url(tmp_path, "migration_0045_port.sqlite")
+def test_migration_0045_replays_harness_schema_over_empty_legacy_tables(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0045_replay.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0044_remove_agent_change_item_rationale_text")
+
+    command.upgrade(cfg, "0045_agent_harness_first_schema")
+
+    engine = create_engine(database_url, future=True)
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    assert "agent_messages" not in table_names
+    assert {
+        "agent_threads",
+        "agent_runs",
+        "agent_transcript_messages",
+        "agent_steps",
+        "agent_tool_calls",
+        "agent_run_events",
+    }.issubset(table_names)
+
+
+def test_migration_0045_refuses_populated_legacy_tables_after_backfill_removal(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0045_refuse.sqlite")
     cfg = _build_alembic_config(database_url)
     command.upgrade(cfg, "0044_remove_agent_change_item_rationale_text")
 
     now = datetime.now(timezone.utc)
     user_id = str(uuid4())
-    thread_id = str(uuid4())
-    user_message_id = str(uuid4())
-    assistant_message_id = str(uuid4())
-    run_id = str(uuid4())
-    tool_call_id = str(uuid4())
-
     engine = create_engine(database_url, future=True)
     with engine.begin() as connection:
         connection.execute(
@@ -1565,7 +1579,7 @@ def test_migration_0045_ports_legacy_agent_transcripts(tmp_path):
                 """
             ),
             {
-                "id": thread_id,
+                "id": str(uuid4()),
                 "owner_user_id": user_id,
                 "title": "Port me",
                 "summary": None,
@@ -1573,193 +1587,6 @@ def test_migration_0045_ports_legacy_agent_transcripts(tmp_path):
                 "updated_at": now,
             },
         )
-        connection.execute(
-            text(
-                """
-                INSERT INTO agent_messages (id, thread_id, role, content_markdown, created_at)
-                VALUES (:id, :thread_id, :role, :content_markdown, :created_at)
-                """
-            ),
-            {
-                "id": user_message_id,
-                "thread_id": thread_id,
-                "role": "USER",
-                "content_markdown": "What did I spend last month?",
-                "created_at": now,
-            },
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO agent_messages (id, thread_id, role, content_markdown, created_at)
-                VALUES (:id, :thread_id, :role, :content_markdown, :created_at)
-                """
-            ),
-            {
-                "id": assistant_message_id,
-                "thread_id": thread_id,
-                "role": "ASSISTANT",
-                "content_markdown": "You spent $42 on groceries.",
-                "created_at": now,
-            },
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO agent_runs (
-                    id, thread_id, user_message_id, assistant_message_id, status, model_name,
-                    approval_policy, surface, created_at, completed_at
-                ) VALUES (
-                    :id, :thread_id, :user_message_id, :assistant_message_id, :status, :model_name,
-                    :approval_policy, :surface, :created_at, :completed_at
-                )
-                """
-            ),
-            {
-                "id": run_id,
-                "thread_id": thread_id,
-                "user_message_id": user_message_id,
-                "assistant_message_id": assistant_message_id,
-                "status": "COMPLETED",
-                "model_name": "openai/gpt-4.1-mini",
-                "approval_policy": "default",
-                "surface": "app",
-                "created_at": now,
-                "completed_at": now,
-            },
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO agent_tool_calls (
-                    id, run_id, tool_name, input_json, output_json, output_text, status, created_at
-                ) VALUES (
-                    :id, :run_id, :tool_name, :input_json, :output_json, :output_text, :status, :created_at
-                )
-                """
-            ),
-            {
-                "id": tool_call_id,
-                "run_id": run_id,
-                "tool_name": "run_bh",
-                "input_json": json.dumps({"query": "spend last month"}),
-                "output_json": json.dumps({"status": "ok"}),
-                "output_text": "total=42",
-                "status": "OK",
-                "created_at": now,
-            },
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO agent_run_events (
-                    id, run_id, sequence_index, event_type, source, message, tool_call_id, created_at
-                ) VALUES (
-                    :id, :run_id, :sequence_index, :event_type, :source, :message, :tool_call_id, :created_at
-                )
-                """
-            ),
-            {
-                "id": str(uuid4()),
-                "run_id": run_id,
-                "sequence_index": 1,
-                "event_type": "REASONING_UPDATE",
-                "source": "MODEL_REASONING",
-                "message": "Checking spend.",
-                "tool_call_id": None,
-                "created_at": now,
-            },
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO agent_run_events (
-                    id, run_id, sequence_index, event_type, source, message, tool_call_id, created_at
-                ) VALUES (
-                    :id, :run_id, :sequence_index, :event_type, :source, :message, :tool_call_id, :created_at
-                )
-                """
-            ),
-            {
-                "id": str(uuid4()),
-                "run_id": run_id,
-                "sequence_index": 2,
-                "event_type": "TOOL_CALL_QUEUED",
-                "source": "TOOL_CALL",
-                "message": None,
-                "tool_call_id": tool_call_id,
-                "created_at": now,
-            },
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO agent_run_events (
-                    id, run_id, sequence_index, event_type, source, message, tool_call_id, created_at
-                ) VALUES (
-                    :id, :run_id, :sequence_index, :event_type, :source, :message, :tool_call_id, :created_at
-                )
-                """
-            ),
-            {
-                "id": str(uuid4()),
-                "run_id": run_id,
-                "sequence_index": 3,
-                "event_type": "TOOL_CALL_COMPLETED",
-                "source": "TOOL_CALL",
-                "message": None,
-                "tool_call_id": tool_call_id,
-                "created_at": now,
-            },
-        )
 
-    command.upgrade(cfg, "head")
-
-    with engine.begin() as connection:
-        thread_title = connection.execute(
-            text("SELECT title FROM agent_threads WHERE id = :id"),
-            {"id": thread_id},
-        ).scalar_one()
-        assert thread_title == "Port me"
-        assert "agent_messages" not in inspect(connection).get_table_names()
-        transcript_roles = connection.execute(
-            text(
-                """
-                SELECT role FROM agent_transcript_messages
-                WHERE run_id = :run_id
-                ORDER BY sequence_index ASC
-                """
-            ),
-            {"run_id": run_id},
-        ).scalars()
-        assert list(transcript_roles) == ["USER", "ASSISTANT", "TOOL", "ASSISTANT"]
-        turn_index = connection.execute(
-            text("SELECT turn_index FROM agent_runs WHERE id = :id"),
-            {"id": run_id},
-        ).scalar_one()
-        assert turn_index == 0
-        principal_user_id, metadata_json = connection.execute(
-            text(
-                "SELECT principal_user_id, metadata_json FROM agent_runs WHERE id = :id"
-            ),
-            {"id": run_id},
-        ).one()
-        assert principal_user_id == user_id
-        assert json.loads(metadata_json) == {}
-        assert connection.execute(text("SELECT COUNT(*) FROM agent_steps")).scalar_one() == 1
-        assert connection.execute(text("SELECT COUNT(*) FROM agent_tool_calls")).scalar_one() == 1
-        assert connection.execute(text("SELECT COUNT(*) FROM agent_run_events")).scalar_one() == 3
-
-    with Session(engine) as session:
-        migrated_run = session.get(AgentRun, run_id)
-        assert migrated_run is not None
-        assert migrated_run.status is AgentRunStatus.COMPLETED
-        assert [message.role for message in migrated_run.transcript_messages] == [
-            AgentTranscriptRole.USER,
-            AgentTranscriptRole.ASSISTANT,
-            AgentTranscriptRole.TOOL,
-            AgentTranscriptRole.ASSISTANT,
-        ]
-        assert len(migrated_run.steps) == 1
-        assert len(migrated_run.tool_calls) == 1
-        assert len(migrated_run.events) == 3
+    with pytest.raises(Exception, match="legacy agent conversation rows exist"):
+        command.upgrade(cfg, "0045_agent_harness_first_schema")

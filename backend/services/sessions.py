@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `sessions`.
-# - Inputs: callers that import `backend/services/sessions.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `sessions`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `sessions`.
+# - Inputs: Callers import `backend/services/sessions` and invoke `utc_now`, `hash_session_token`, `create_session`, `is_session_expired`.
+# - Outputs: Exports `utc_now`, `hash_session_token`, `create_session`, `is_session_expired`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from datetime import datetime, timezone

@@ -5,15 +5,24 @@
 - `backend/services/agent/harness/`
   - product-native harness package: `AgentHarness` coordinator, contracts, transcript helpers, step executor, and `EventSink` / `RunRepository` protocols
 - `backend/services/agent/production_runtime.py`
-  - compose production harness with SQLAlchemy repository, LiteLLM model gateway, production tools, stop signal, and SSE fan-out
+  - composition root: wires SQLAlchemy repository, LiteLLM gateway, production tools, stop signal, SSE fan-out, and `RunObserver` post-terminal hooks (`run_observers.py`)
 - `backend/services/agent/production_repository.py`
-  - SQLAlchemy `RunRepository` that persists canonical transcript rows, steps, tool calls, and harness events
+  - SQLAlchemy `RunRepository` persistence only (transcript, steps, tool calls, harness events; no auto-approve, import notify, or SSE)
+- `backend/services/agent/run_observers.py`
+  - production `RunObserver` registrations: YOLO auto-approve, import scheduler wake, and optional interrupt/worker-failure `run_finished` SSE publication
 - `backend/services/agent/production_events.py`
-  - map harness events to client SSE payloads
+  - map harness events to client SSE payloads; enriches tool lifecycle events with `display_label` / `display_detail` via `build_tool_call_display`
 - `backend/services/agent/model_gateway.py`
   - LiteLLM completion adapters; streaming gateway emits `ModelDeltaEvent` into the harness event sink
-- `backend/services/agent/thread_context.py`
-  - build per-turn `initial_transcript` from the thread's first hosted system row plus prior user/assistant/tool transcript rows
+- `backend/services/agent/prompt_assembly/`
+  - per-turn model context pipeline: system prompt (Jinja + user/account context + memory + `bh` cheat sheet), prior transcript rows, review prefixes, attachment parts, and current user content; entry point is the package `__init__` (`build_new_turn_transcript`, `build_new_turn_owned_messages`)
+  - `prompts.py`: hosted and external-agent Jinja rendering; templates remain in the parent `agent/` directory (`system_prompt.j2`, `external_agent_prompt.j2`, `prompt_includes/`)
+  - `thread_context.py`: orchestrates owned messages and prior-thread transcript assembly
+  - `message_history_content.py`: attachment-backed user-content shaping plus entity-category prompt context
+  - `message_history_prefixes.py`: review-result prefix assembly for the current turn
+  - `user_context.py`: current-user and account-context normalization
+- `backend/cli_reference/`
+  - shared `bh` command specs, compact output schemas, and cheat-sheet renderers importable by CLI output formatters and agent prompts (extracted from the former `backend/cli/reference.py`)
 - `backend/services/agent/api_projection.py`
   - derive API `turns` and thread-detail read models from transcript rows plus per-run `steps` / `events` / `tool_calls`
 - `backend/services/agent/execution.py`
@@ -21,9 +30,11 @@
 - `backend/services/agent/runtime.py`
   - public facade over harness execution plus stable execution seams (`call_model`, `call_model_stream`, `calculate_context_tokens`)
 - `backend/services/agent/stream_hub.py`
-  - in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers
-- `backend/services/agent/legacy_transcript_backfill.py`, `legacy_structured_backfill.py`, and `legacy_transcript_backfill_apply.py`
-  - one-time destructive migration planner, lossless validation, and canonical port of legacy conversations, attachments, steps, tool calls, events, proposals, and reviews
+  - in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers; receives the harness executor via `register_run_executor()` from `production_runtime.py` at import time (breaks the former lazy import cycle)
+- `backend/services/agent/stream_sequences.py`
+  - hub sequence numbers, ephemeral buffer bookkeeping, subscriber fan-out drop policy, and reconnect dedupe helpers used by `stream_hub.py`
+- `backend/services/agent/retry_policy.py`
+  - shared tenacity retry configuration for model completions (`model_client_support/client.py`) and tool execution (`tool_runtime_support/execution.py`)
 - `backend/services/agent/protocol_helpers.py`
   - canonical tool-call decoding and usage-shape normalization helpers
 - `backend/services/agent/error_policy.py`
@@ -31,27 +42,13 @@
 - `backend/services/agent/context_tokens.py`
   - best-effort prompt-size estimation through LiteLLM `token_counter`
 - `backend/services/agent/tools_for_model_request.py`
-  - resolves the tool schema list that matches each live `LiteLLMModelClient` request (full catalog vs rename-only for untitled threads) so context-size token counts stay aligned with `model_client_support/client.py`
-- `backend/services/agent/prompts.py`
-  - hosted and external-agent prompt composition; shared proposal/domain policy lives in `backend/services/agent/prompt_includes/`
-- `backend/services/agent/system_prompt.j2`
-  - hosted prompt shell with tool discipline, response-surface guidance, and per-user context injection
-- `backend/services/agent/external_agent_prompt.j2`
-  - external-agent instruction shell rendered by `bh instruction`
-- `backend/services/agent/message_history_content.py`
-  - attachment-backed user-content shaping plus entity-category prompt context
-- `backend/services/agent/message_history_prefixes.py`
-  - review-result prefix assembly for the current turn
-- `backend/services/agent/model_client.py`
-  - thin public seam re-exporting the LiteLLM client contract
+  - single gate (`expose_tools_for_model_request`) for the tool schema list and `tool_choice` directive that both the live gateway and context-size token counter use (full catalog vs rename-only for untitled threads)
 - `backend/services/agent/model_client_support/`
   - grouped model-client internals: `client.py` for the retrying LiteLLM adapter, `environment.py` for provider/env validation and prompt-cache support, `streaming.py` for streamed delta reconciliation, and `usage.py` for usage-shape normalization
 - `backend/services/agent/langfuse_litellm.py`
   - optional [Langfuse](https://langfuse.com) observability via LiteLLM's `langfuse_otel` callback when `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are set (see [LiteLLM SDK integration](https://langfuse.com/integrations/frameworks/litellm-sdk)); run loop passes `trace_id` (run id), `session_id` (thread id), `trace_user_id` (owner; LiteLLM maps this to Langfuse user id), `generation_name`, and `tags` on each completion; **LiteLLM defaults OTLP to US cloud** — set `LANGFUSE_OTEL_HOST=https://cloud.langfuse.com` for EU; in [Langfuse v4](https://langfuse.com/changelog/2026-03-10-simplify-for-scale) look under **Observations** and filter by `trace_id` / run id
-- `backend/services/agent/tool_runtime.py`
-  - thin public seam for tool contracts plus runtime execution entrypoints
 - `backend/services/agent/tool_runtime_support/`
-  - grouped tool-runtime internals: `definitions.py` for tool metadata, `schema.py` for OpenAI schema inlining, `catalog_session.py`, `catalog_terminal.py`, and `catalog_image.py` for the live runtime tool registry, `catalog.py` for merged runtime lookup, and `execution.py` for retry/error policy
+  - grouped tool-runtime internals: `definitions.py` for tool metadata, `schema.py` for OpenAI schema inlining, `catalog_session.py` and `catalog_terminal.py` for the live runtime tool registry, `catalog.py` for merged runtime lookup, and `execution.py` for retry/error policy
 - `backend/services/agent/pricing.py`
   - LiteLLM-backed pricing helper
 - `backend/services/agent_dashboard.py`
@@ -71,11 +68,11 @@
 - `backend/services/agent/group_references.py`
   - shared group-id alias lookup plus compact public group summary/detail formatting for group reads and group proposals
 - `backend/services/agent/proposal_metadata.py`
-  - canonical mapping from `change_type` to proposal domain/action/`bh` command labels for proposal history formatting, CLI responses, and review summaries
+  - canonical mapping from `change_type` to proposal domain/action/`bh` command labels for proposal history formatting, CLI responses, and review summaries; values are derived from `change_registry.py`
+- `backend/services/agent/change_registry.py`
+  - one `ChangeTypeSpec` row per `AgentChangeType` bundling payload models, normalizers, apply/propose handlers, metadata labels, review-order rank, summaries, and benchmark prediction hooks; `CHANGE_PAYLOAD_MODELS`, `PAYLOAD_NORMALIZERS`, `APPLY_CHANGE_HANDLERS`, review ordering, and proposal metadata all derive from this registry
 - `backend/services/agent/threads.py`
   - thread-title normalization plus rename persistence helpers shared by the router and tool handler
-- `backend/services/agent/tools.py`
-  - thin composition facade for runtime interfaces
 - `backend/services/agent/change_contracts/`
   - proposal/apply payload contracts split by catalog, entry, and group domains, with shared normalization and patch helpers
 - `backend/services/agent/execution.py`
@@ -88,22 +85,18 @@
   - public attachment-content seam for message-history callers and tests (vision detection plus assembly exports)
 - `backend/services/agent/attachment_text_normalize.py`
   - small text normalizer shared by tests and future extractors
-- `backend/services/agent/docling_convert.py`
-  - archived Docling standard pipeline (EasyOCR) plus readable `parsed.md`/image rewrite for historical bundle directories
 - `backend/services/agent/agent_attachment_bundle.py`
   - dated `uploads/YYYY-MM-DD/<bundle>/raw.<ext>` paths, readable bundle naming, PDF page count/rasterization helpers, bundle path predicates
 - `backend/services/agent/attachment_content_assembly.py`
-  - attachment display-name plus vision content assembly helpers for initial model turns
+  - attachment display-name plus vision content assembly helpers for initial model turns; keeps a data-compatibility read path for pre-2026 Docling-era bundles that store `parsed.md` on disk
 - `backend/services/agent/work_sessions.py`
   - external-agent session/source persistence plus synthetic CLI run ownership for proposal creation without a hosted run id
-- `backend/services/agent/user_context.py`
-  - current-user and account-context normalization
 - `backend/services/agent/benchmark_interface.py`
   - benchmark-facing `run_benchmark_case` contract
 - `backend/services/agent/reviews/`
   - review-workflow package: `common.py` for change-item record helpers, `dependencies.py` for approval blockers, `overrides.py` for payload-override normalization, `ordering.py` for dependency-friendly review ordering, `workflow.py` for approve/reject/reopen state transitions, `batch_workflow.py` for shared multi-pass batch approve/reject orchestration, and `auto_approve_run.py` for YOLO post-run auto-approval via the batch orchestrator
 - `backend/services/agent/apply/`
-  - apply-family package: `common.py` for lookup and applied-reference helpers, `catalog.py` for tag/entity/account mutations, `entries.py` for entry mutations, `groups.py` for group and membership mutations, and `dispatch.py` for change-type routing
+  - apply-family package: `common.py` for lookup and applied-reference helpers, `catalog.py` for tag/entity/account mutations, `entries.py` for entry proposal apply (converts agent payloads to service commands and delegates to `create_entry_from_command` / `update_entry_from_command`), `groups.py` for group and membership mutations, and `dispatch.py` for change-type routing
 - `backend/services/agent/serializers.py`
   - timeline-ready serializer helpers, including compatibility filtering for legacy unsupported change-item rows, tool-call display summaries, and surface-aware terminal reply shaping
 
@@ -221,11 +214,12 @@ Endpoints:
 - resume executes persisted queued tools but never automatically repeats a tool left in the ambiguous `running` state after interruption
 - when Langfuse credentials are present, each LLM step is reported through OpenTelemetry to Langfuse; without `LANGFUSE_OTEL_HOST`, LiteLLM targets **US** cloud — EU tenants must set the host explicitly (see `runtime_and_config.md`); install-time dependencies are `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp-proto-http` alongside LiteLLM
 - runs support both background execution and SSE execution through `production_runtime.py` and `stream_hub.py`
-- `stream_hub.py` owns the in-process single-worker stream hub: one execution thread per `run_id`, subscriber fan-out, ephemeral `model_delta` replay, and `GET /runs/{run_id}/stream` reconnect after client disconnect or page refresh (single backend process only)
+- **Single-process constraint:** `stream_hub.py` keeps per-run subscriber queues, worker threads, and ephemeral buffers in module-level memory (`_executions`, `_registry_lock`). Run the backend with **one uvicorn worker** when using SSE streaming or background stream workers; multiple workers would split hub state across processes and break reconnect replay and fan-out. The composition root registers `execute_harness_run` on the hub via `register_run_executor()` during `production_runtime` import.
+- `stream_hub.py` owns the in-process single-worker stream hub: one execution thread per `run_id`, subscriber fan-out, ephemeral `model_delta` replay via `stream_sequences.py`, and `GET /runs/{run_id}/stream` reconnect after client disconnect or page refresh
 - draft attachment uploads prepare vision content eagerly before send so the frontend can show upload progress, then page-preparation progress, while the user is still composing
 - repeated draft uploads of the same bytes for the same owner reuse an existing canonical file row by SHA-256 while still creating a fresh draft attachment row so removal semantics stay independent
 - each run persists a `surface` hint so later execution and polling can distinguish Telegram-originated runs from default app runs
-- streamed runs emit ephemeral `model_delta` events (`delta_type=reasoning|content`) plus durable harness events such as `tool_started`, `tool_finished`, `step_committed`, and `run_finished`; tool lifecycle events include backend-computed `display_label` / `display_detail` fields when available
+- streamed runs emit ephemeral `model_delta` events (`delta_type=reasoning|content`) plus durable harness events such as `tool_started`, `tool_finished`, `step_committed`, and `run_finished`; tool lifecycle events carry raw tool references from the harness and receive backend-computed `display_label` / `display_detail` fields in `production_events.py` (SSE mapping) and `DbEventSink` (persistence) before clients or replay see them
 - committed assistant rows store `reasoning_text`; reload reconstructs per-step reasoning/content from transcript rows and `steps[]` instead of legacy timeline message rows
 - live replay of persisted harness events may include `run_usage` while the run is still `running`; historical replay omits `run_usage` so past events do not carry the finished run's final totals
 - tool-call payloads now include backend-computed `display_label` / `display_detail` fields so clients can render high-signal summaries without duplicating formatter logic
@@ -255,8 +249,8 @@ Endpoints:
 - apply-time group-member resolution canonicalizes existing short `group_id` and `entry_id` aliases to full ids before scoped lookup and membership matching, so approval semantics match proposal-time alias handling
 - review apply uses the approving reviewer principal for principal-scoped entry lookup and for owner attribution on newly created entry/account/group resources; mutable runtime settings remain only as a non-request fallback
 - group proposal creation still re-runs normalization and conflict checks so duplicate or conflicting group/member proposals are rejected inside one thread
-- `backend/services/agent/apply/` owns the actual domain mutation after approval, including group create/rename/delete and group membership add/remove
-- `backend/services/agent/message_history_prefixes.py` prepends compact review outcome lines before the next user feedback message and includes `review_override=...` when reviewer edits changed the applied payload
+- `backend/services/agent/apply/` owns post-approval orchestration for agent proposals; entry create/update apply paths delegate to the same service functions as `POST/PATCH /entries`
+- `backend/services/agent/prompt_assembly/message_history_prefixes.py` prepends compact review outcome lines before the next user feedback message and includes `review_override=...` when reviewer edits changed the applied payload
 - group-member proposal previews now carry enough entry fields, including `markdown_notes`, for the frontend to render a locked full-entry snapshot during review
 
 ## Related Docs

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `principals`.
-# - Inputs: callers that import `backend/services/principals.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `principals`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `principals`.
+# - Inputs: Callers import `backend/services/principals` and invoke `build_request_principal`.
+# - Outputs: Exports `build_request_principal`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from backend.models_finance import User, UserSession

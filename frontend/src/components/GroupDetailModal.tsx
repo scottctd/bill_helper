@@ -12,9 +12,10 @@ import { DeleteIconButton } from "./DeleteIconButton";
 import { StatBlock } from "./layout/StatBlock";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
+import { DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
+import { ModalShell } from "./ui/modal-shell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { formatMinor, formatMinorCompact } from "../lib/format";
+import { formatMinor, formatMinorCompact, groupRangeLabel, kindLabel, kindSymbol } from "../lib/format";
 import { GroupRuleEditorSection } from "../features/groups/GroupRuleEditorSection";
 import type { GroupMemberRead, GroupRead, GroupSummary } from "../lib/types";
 
@@ -34,28 +35,6 @@ interface GroupDetailModalProps {
   onAddMember: () => void;
   onOpenEntry: (entryId: string) => void;
   onRemoveMember: (membershipId: string) => void;
-}
-
-function groupRangeLabel(summary: GroupSummary): string {
-  if (!summary.first_occurred_at || !summary.last_occurred_at) {
-    return "No entries yet";
-  }
-  if (summary.first_occurred_at === summary.last_occurred_at) {
-    return summary.first_occurred_at;
-  }
-  return `${summary.first_occurred_at} to ${summary.last_occurred_at}`;
-}
-
-function kindLabel(kind: GroupMemberRead["kind"]): string {
-  if (kind === "INCOME") return "Income";
-  if (kind === "TRANSFER") return "Transfer";
-  return "Expense";
-}
-
-function kindSymbol(kind: GroupMemberRead["kind"]): string {
-  if (kind === "INCOME") return "+";
-  if (kind === "TRANSFER") return "~";
-  return "-";
 }
 
 function kindToneClass(kind: GroupMemberRead["kind"]): string {
@@ -210,9 +189,12 @@ export function GroupDetailModal({
   const memberCount = groupSummary?.member_count ?? members.length;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent className="groups-detail-modal">
-        <div className="groups-detail-modal-shell">
+    <ModalShell
+      open={isOpen}
+      onOpenChange={(open) => (open ? undefined : onClose())}
+      contentClassName="groups-detail-modal"
+    >
+      <div className="groups-detail-modal-shell">
           <DialogHeader className="groups-detail-modal-header">
             <div className="groups-detail-modal-header-main">
               <div className="groups-detail-modal-header-copy">
@@ -385,7 +367,6 @@ export function GroupDetailModal({
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+    </ModalShell>
   );
 }

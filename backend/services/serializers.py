@@ -1,14 +1,13 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `serializers`.
-# - Inputs: callers that import `backend/services/serializers.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `serializers`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: map finance ORM rows to HTTP read DTOs for entries and shared ref shapes.
+# - Inputs: entry rows plus optional category paths, group refs, or a membership snapshot.
+# - Outputs: `EntryRead`, `EntryDetailRead`, `TagSummaryRead`, and `GroupRefRead` payloads.
+# - Side effects: none.
 from __future__ import annotations
 
 from backend.models_finance import Entry, Group, Tag
 from backend.schemas_finance import EntryDetailRead, EntryRead, GroupRefRead, TagSummaryRead
-from backend.services.group_membership import groups_for_entry
-from backend.services.group_rule_context import build_entry_rule_context
+from backend.services.group_membership import GroupMembershipContext
 
 
 def tag_to_summary(tag: Tag) -> TagSummaryRead:
@@ -27,33 +26,9 @@ def group_to_ref(group: Group) -> GroupRefRead:
 def build_entry_groups(
     entry: Entry,
     *,
-    groups: list[Group],
-    category_path: str | None,
-    account_entity_ids: set[str],
-    all_entries: list[Entry],
-    category_paths: dict[str, str],
+    membership: GroupMembershipContext,
 ) -> list[GroupRefRead]:
-    contexts = {
-        candidate.id: build_entry_rule_context(
-            candidate,
-            category_path=category_paths.get(candidate.id),
-            account_entity_ids=account_entity_ids,
-        )
-        for candidate in all_entries
-    }
-    context = build_entry_rule_context(
-        entry,
-        category_path=category_path,
-        account_entity_ids=account_entity_ids,
-    )
-    matched = groups_for_entry(
-        entry,
-        groups,
-        context=context,
-        all_entries=all_entries,
-        contexts=contexts,
-    )
-    return [group_to_ref(group) for group in matched]
+    return [group_to_ref(group) for group in membership.groups_for_entry(entry)]
 
 
 def entry_to_schema(

@@ -45,17 +45,16 @@ from backend.schemas_agent import (
 from backend.services.access_scope import agent_thread_owner_filter, load_agent_thread_for_principal
 from backend.services.agent.api_projection import build_thread_detail_projection, last_turn_preview_from_thread
 from backend.services.agent.execution import (
-    AgentExecutionPolicyError,
     create_user_message_and_start_run,
     current_context_tokens_for_thread,
     run_agent_in_background,
 )
 from backend.services.agent.external_session import thread_initiated_by_external_agent
-from backend.services.agent.runtime import AgentRuntimeUnavailable
 from backend.services.agent.sse import format_sse_event
 from backend.services.agent.stream_hub import iter_run_stream_hub_events, start_run_stream_execution
 from backend.services.agent.serializers import run_to_schema, thread_summary_to_schema, thread_to_schema
-from backend.services.agent.threads import AgentThreadNotFoundError, rename_thread_by_id
+from backend.services.agent.threads import rename_thread_by_id
+from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
 
 AgentSurface = Literal["app", "telegram"]
@@ -72,6 +71,7 @@ def _normalize_approval_policy_form(value: str | None) -> AgentApprovalPolicy:
         return AgentApprovalPolicy.DEFAULT
     if raw == AgentApprovalPolicy.YOLO.value:
         return AgentApprovalPolicy.YOLO
+    # Transport: multipart form validation before service intake.
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="approval_policy must be 'default' or 'yolo'.",
@@ -95,24 +95,19 @@ async def create_user_message_run_or_503(
     approval_policy: AgentApprovalPolicy,
     principal: RequestPrincipal,
 ) -> AgentRun:
-    try:
-        return await create_user_message_and_start_run(
-            thread_id=thread_id,
-            content=content,
-            files=files,
-            attachment_ids=attachment_ids,
-            attachments_use_ocr=attachments_use_ocr,
-            db=db,
-            model_name=model_name,
-            surface=surface,
-            approval_policy=approval_policy,
-            principal_user_id=principal.user_id,
-            principal_user_name=principal.user_name,
-        )
-    except AgentRuntimeUnavailable as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    except AgentExecutionPolicyError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return await create_user_message_and_start_run(
+        thread_id=thread_id,
+        content=content,
+        files=files,
+        attachment_ids=attachment_ids,
+        attachments_use_ocr=attachments_use_ocr,
+        db=db,
+        model_name=model_name,
+        surface=surface,
+        approval_policy=approval_policy,
+        principal_user_id=principal.user_id,
+        principal_user_name=principal.user_name,
+    )
 
 
 def _thread_summary_rows(db: Session, *, principal: RequestPrincipal) -> list[AgentThreadSummaryRead]:
@@ -201,9 +196,8 @@ def delete_thread(
     )
 
     if any(run.status == AgentRunStatus.RUNNING for run in thread.runs):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete a thread while an agent run is still running.",
+        raise PolicyViolation.conflict(
+            "Cannot delete a thread while an agent run is still running.",
         )
 
     db.delete(thread)
@@ -218,10 +212,7 @@ def update_thread(
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> AgentThreadRead:
     load_agent_thread_for_principal(db, thread_id=thread_id, principal=principal)
-    try:
-        result = rename_thread_by_id(db, thread_id=thread_id, title=payload.title)
-    except AgentThreadNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    result = rename_thread_by_id(db, thread_id=thread_id, title=payload.title)
     return thread_to_schema(
         result.thread,
         initiated_by_external_agent=thread_initiated_by_external_agent(db, thread_id=result.thread.id),

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `groups`.
-# - Inputs: callers that import `backend/services/agent/change_contracts/groups.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `groups`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Validated change payload contracts for `groups` proposals.
+# - Inputs: Callers import `backend/services/agent/change_contracts/groups` and invoke `ChangePayloadModel`, `normalize_group_member_payload`, `GroupReferencePayload`, `GroupMemberEntryTargetPayload`.
+# - Outputs: Exports `ChangePayloadModel`, `normalize_group_member_payload`, `GroupReferencePayload`, `GroupMemberEntryTargetPayload`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from typing import Any, Literal

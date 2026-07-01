@@ -26,42 +26,6 @@ _MINI_PNG = (
 )
 
 
-def _stub_convert_upload_bundle_source(source_path: Path, *, is_pdf: bool) -> Path:
-    bundle_dir = source_path.parent
-    name_lower = bundle_dir.name.lower()
-    if not is_pdf:
-        (bundle_dir / "parsed.md").write_text(
-            "# Docling (test stub)\n\nImage upload converted.\n",
-            encoding="utf-8",
-        )
-        return bundle_dir / "parsed.md"
-    lines = ["# Docling (test stub)", "", f"file: {source_path.name}", ""]
-    if "statement" in name_lower:
-        lines.append("Invoice total CAD 123.45")
-        lines.append("Page one invoice line item")
-        (bundle_dir / "statement-fig.png").write_bytes(_MINI_PNG)
-        lines.append("")
-        lines.append("![](statement-fig.png)")
-    if "invoice" in name_lower:
-        lines.extend(["Page one invoice line item", "Page two invoice line item"])
-        for fname in ("p1.png", "p2.png"):
-            (bundle_dir / fname).write_bytes(_MINI_PNG)
-            lines.append(f"![]({fname})")
-    if "scan" in name_lower:
-        lines.append("OCR recovered statement total CAD 123.45")
-    md = bundle_dir / "parsed.md"
-    md.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return md
-
-
-@pytest.fixture(autouse=True)
-def _stub_agent_docling_convert(monkeypatch):
-    monkeypatch.setattr(
-        "backend.services.agent.agent_attachment_bundle.convert_upload_bundle_source",
-        _stub_convert_upload_bundle_source,
-    )
-
-
 def _patch_terminal_success(monkeypatch, *, stdout: str = "schema: name|type\ngroceries|expense") -> None:
     from backend.services.agent.harness.tools import ToolExecutionContext, ToolExecutionResult
     from backend.services.agent.production_tools import ProductionToolExecutor
@@ -545,22 +509,9 @@ def test_draft_attachment_upload_rerenders_when_hash_match_bundle_lacks_page_ima
         assert resolve_user_file_path(second_user_file).parent.joinpath("page-1.png").is_file()
 
 
-def test_draft_attachment_upload_without_ocr_for_pdf_skips_docling_markdown_and_keeps_page_images(client, monkeypatch):
+def test_draft_attachment_upload_without_ocr_for_pdf_skips_docling_markdown_and_keeps_page_images(client):
     from backend.models_files import UserFile
     from backend.services.user_files import resolve_user_file_path
-
-    convert_calls: list[Path] = []
-
-    def stub_convert(source_path: Path, *, is_pdf: bool) -> Path:
-        convert_calls.append(source_path)
-        bundle_dir = source_path.parent
-        (bundle_dir / "parsed.md").write_text("# should not exist\n", encoding="utf-8")
-        return bundle_dir / "parsed.md"
-
-    monkeypatch.setattr(
-        "backend.services.agent.agent_attachment_bundle.convert_upload_bundle_source",
-        stub_convert,
-    )
 
     pdf_bytes = build_pdf_bytes(["Invoice total CAD 123.45"])
     response = client.post(
@@ -570,8 +521,6 @@ def test_draft_attachment_upload_without_ocr_for_pdf_skips_docling_markdown_and_
     )
     response.raise_for_status()
     attachment = response.json()
-
-    assert convert_calls == []
 
     with open_session() as db:
         user_file = db.get(UserFile, attachment["id"])
@@ -592,19 +541,9 @@ def test_draft_attachment_upload_rejects_pdf_over_page_limit(client):
     assert response.json()["detail"] == "PDF has 11 pages. Max pages allowed is 10."
 
 
-def test_draft_attachment_upload_ignores_ocr_flag_after_raw_duplicate(client, monkeypatch):
-    convert_calls: list[Path] = []
-
-    def stub_convert(source_path: Path, *, is_pdf: bool) -> Path:
-        convert_calls.append(source_path)
-        bundle_dir = source_path.parent
-        (bundle_dir / "parsed.md").write_text("# regenerated with ocr\n", encoding="utf-8")
-        return bundle_dir / "parsed.md"
-
-    monkeypatch.setattr(
-        "backend.services.agent.agent_attachment_bundle.convert_upload_bundle_source",
-        stub_convert,
-    )
+def test_draft_attachment_upload_ignores_ocr_flag_after_raw_duplicate(client):
+    from backend.models_files import UserFile
+    from backend.services.user_files import resolve_user_file_path
 
     pdf_bytes = build_pdf_bytes(["Invoice total CAD 123.45"])
     first_response = client.post(
@@ -621,7 +560,12 @@ def test_draft_attachment_upload_ignores_ocr_flag_after_raw_duplicate(client, mo
     )
     second_response.raise_for_status()
 
-    assert convert_calls == []
+    with open_session() as db:
+        second_user_file = db.get(UserFile, second_response.json()["id"])
+        assert second_user_file is not None
+        bundle_dir = resolve_user_file_path(second_user_file).parent
+        assert not bundle_dir.joinpath("parsed.md").exists()
+        assert bundle_dir.joinpath("page-1.png").is_file()
 
 
 def test_delete_draft_attachment_removes_unbound_upload_bundle(client):
@@ -1059,7 +1003,7 @@ def test_attachment_parts_stay_before_user_prompt_for_mixed_uploads(client, monk
 def test_system_prompt_includes_current_date_tag():
     from datetime import date
 
-    from backend.services.agent.prompts import SystemPromptContext, system_prompt
+    from backend.services.agent.prompt_assembly.prompts import SystemPromptContext, system_prompt
 
     prompt = system_prompt(SystemPromptContext(current_date=date(2026, 2, 10)))
     assert "## Current User Context" in prompt
@@ -1071,7 +1015,7 @@ def test_system_prompt_renders_jinja_template_without_leaking_placeholders():
     from datetime import date
     from importlib.resources import files
 
-    from backend.services.agent.prompts import (
+    from backend.services.agent.prompt_assembly.prompts import (
         SYSTEM_PROMPT_TEMPLATE_NAME,
         SystemPromptContext,
         system_prompt,
@@ -1100,7 +1044,7 @@ def test_system_prompt_renders_jinja_template_without_leaking_placeholders():
 
 
 def test_system_prompt_adds_telegram_surface_guidance():
-    from backend.services.agent.prompts import SystemPromptContext, system_prompt
+    from backend.services.agent.prompt_assembly.prompts import SystemPromptContext, system_prompt
 
     prompt = system_prompt(SystemPromptContext(response_surface="telegram"))
 
@@ -1110,7 +1054,7 @@ def test_system_prompt_adds_telegram_surface_guidance():
 
 
 def test_system_prompt_includes_user_memory_when_present():
-    from backend.services.agent.prompts import SystemPromptContext, system_prompt
+    from backend.services.agent.prompt_assembly.prompts import SystemPromptContext, system_prompt
 
     prompt = system_prompt(
         SystemPromptContext(
@@ -1127,7 +1071,7 @@ def test_system_prompt_includes_user_memory_when_present():
 def test_system_prompt_uses_requested_current_timezone_for_date_label():
     from datetime import date
 
-    from backend.services.agent.prompts import SystemPromptContext, system_prompt
+    from backend.services.agent.prompt_assembly.prompts import SystemPromptContext, system_prompt
 
     prompt = system_prompt(
         SystemPromptContext(
@@ -1142,7 +1086,7 @@ def test_system_prompt_uses_requested_current_timezone_for_date_label():
 def test_system_prompt_falls_back_to_toronto_for_invalid_timezone():
     from datetime import date
 
-    from backend.services.agent.prompts import SystemPromptContext, system_prompt
+    from backend.services.agent.prompt_assembly.prompts import SystemPromptContext, system_prompt
 
     prompt = system_prompt(
         SystemPromptContext(
@@ -1335,7 +1279,7 @@ def test_settings_user_memory_is_injected_into_system_prompt(client, monkeypatch
 
 
 def test_tool_catalog_exposes_only_terminal_and_retained_session_tools():
-    from backend.services.agent.tools import build_openai_tool_schemas
+    from backend.services.agent.tool_runtime_support.catalog import build_openai_tool_schemas
 
     names = [tool["function"]["name"] for tool in build_openai_tool_schemas()]
     assert "search_entries" not in names
@@ -1498,11 +1442,11 @@ def test_untitled_thread_restricts_model_request_to_rename_thread(client, monkey
         yield {"type": "done", "message": message}
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.LiteLLMModelClient.complete",
+        "backend.services.agent.model_client_support.client.LiteLLMModelClient.complete",
         fake_complete,
     )
     monkeypatch.setattr(
-        "backend.services.agent.model_client.LiteLLMModelClient.complete_stream",
+        "backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream",
         fake_complete_stream,
     )
 
@@ -1554,11 +1498,11 @@ def test_openrouter_qwen_untitled_thread_still_requests_explicit_tool_choice(cli
         yield {"type": "done", "message": message}
 
     monkeypatch.setattr(
-        "backend.services.agent.model_client.LiteLLMModelClient.complete",
+        "backend.services.agent.model_client_support.client.LiteLLMModelClient.complete",
         fake_complete,
     )
     monkeypatch.setattr(
-        "backend.services.agent.model_client.LiteLLMModelClient.complete_stream",
+        "backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream",
         fake_complete_stream,
     )
 
@@ -1596,8 +1540,8 @@ def test_thread_title_stays_untitled_without_rename_tool(client, monkeypatch):
 
 
 def test_system_prompt_embeds_hosted_bh_cheat_sheet_only():
-    from backend.cli.reference import render_hosted_agent_bh_cheat_sheet
-    from backend.services.agent.prompts import system_prompt
+    from backend.cli_reference import render_hosted_agent_bh_cheat_sheet
+    from backend.services.agent.prompt_assembly.prompts import system_prompt
 
     prompt = system_prompt()
 
@@ -1618,7 +1562,7 @@ def test_system_prompt_render_matches_golden_fixture():
     from datetime import date
     from pathlib import Path
 
-    from backend.services.agent.prompts import SystemPromptContext, system_prompt
+    from backend.services.agent.prompt_assembly.prompts import SystemPromptContext, system_prompt
 
     fixture_path = Path(__file__).parent / "fixtures" / "hosted_system_prompt_golden.txt"
     prompt = system_prompt(
@@ -1636,8 +1580,8 @@ def test_system_prompt_render_matches_golden_fixture():
 
 
 def test_external_agent_prompt_includes_shared_policy_and_full_bh_reference():
-    from backend.cli.reference import render_bh_cheat_sheet
-    from backend.services.agent.prompts import external_agent_prompt
+    from backend.cli_reference import render_bh_cheat_sheet
+    from backend.services.agent.prompt_assembly.prompts import external_agent_prompt
 
     prompt = external_agent_prompt()
 
@@ -1654,7 +1598,7 @@ def test_external_agent_prompt_includes_shared_policy_and_full_bh_reference():
 
 
 def test_agent_feature_doc_embeds_generated_runtime_tool_and_bh_sections():
-    from backend.cli.reference import render_hosted_agent_bh_cheat_sheet
+    from backend.cli_reference import render_hosted_agent_bh_cheat_sheet
     from backend.services.agent.tool_reference import render_runtime_tool_contract_markdown
 
     doc_path = Path("docs/features/agent_billing_assistant.md")
@@ -1979,7 +1923,7 @@ def test_stream_message_allows_explicit_model_selection(client, monkeypatch):
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
-    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     settings_response = client.patch(
         "/api/v1/settings",
@@ -2024,7 +1968,7 @@ def test_stream_message_endpoint_persists_telegram_surface(client, monkeypatch):
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
-    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     events = collect_sse_events(client, thread["id"], "say hello", surface="telegram")
@@ -2092,7 +2036,7 @@ def test_stream_rename_thread_tool_updates_title_before_final_assistant_turn(cli
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
-    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     thread_id = thread["id"]
@@ -2131,7 +2075,7 @@ def test_stream_message_endpoint_emits_reasoning_delta_events(client, monkeypatc
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
-    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     events = collect_sse_events(client, thread["id"], "say hello")
@@ -2196,7 +2140,7 @@ def test_stream_message_endpoint_converts_assistant_tool_step_text_into_reasonin
             yield event
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
-    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     events = collect_sse_events(client, thread["id"], "process this import")
@@ -2278,7 +2222,7 @@ def test_run_stream_reconnect_resumes_live_events(client, monkeypatch):
         }
 
     monkeypatch.setattr(runtime, "call_model_stream", stream_model)
-    monkeypatch.setattr("backend.services.agent.model_client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.LiteLLMModelClient.complete_stream", lambda self, messages, **kwargs: stream_model(messages, None))
 
     thread = create_thread(client)
     run = send_message(client, thread["id"], "say hello", wait_for_completion=False)
@@ -2782,7 +2726,7 @@ def test_run_handles_unknown_tool_calls_as_error(client, monkeypatch):
 
 
 def test_runtime_tool_registry_only_contains_current_tools():
-    from backend.services.agent.tool_runtime import TOOLS
+    from backend.services.agent.tool_runtime_support.catalog import TOOLS
 
     assert set(TOOLS) == {
         "add_user_memory",

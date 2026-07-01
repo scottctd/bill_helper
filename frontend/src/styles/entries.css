@@ -1,0 +1,151 @@
+/**
+ * CALLING SPEC:
+ * - Purpose: Entries page table, filters, and amount/tag cell styling
+ * - Inputs: imported by `frontend/src/styles.css` for the Entries route and entry list surfaces.
+ * - Outputs: `@layer components` rules scoped to entries list UI.
+ * - Side effects: none; stylesheet only.
+ */
+
+@layer components {
+  .entries-filter-toolbar {
+    @apply flex-col items-stretch gap-2.5 border-b border-border/75 px-5 py-3;
+  }
+  .entries-filter-toolbar-grid {
+    @apply grid w-full gap-3;
+  }
+  .entries-filter-toolbar-row {
+    @apply grid w-full items-end gap-3;
+  }
+  .entries-filter-toolbar-row-scope {
+    grid-template-columns:
+      minmax(8rem, 9rem)
+      minmax(8rem, 9rem)
+      minmax(9rem, 11rem)
+      minmax(9rem, 11rem)
+      minmax(10rem, 12rem);
+  }
+  .entries-filter-toolbar-row-refine {
+    @apply flex items-end gap-3;
+  }
+  .entries-filter-toolbar-refine-filters {
+    @apply grid min-w-0 flex-1 items-end gap-3;
+    grid-template-columns:
+      minmax(7.5rem, 8.5rem)
+      minmax(0, 1.25fr)
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+  }
+  .entries-filter-toolbar-action {
+    @apply flex shrink-0 items-end justify-end;
+  }
+  .entries-filter-date-field,
+  .entries-filter-kind-field,
+  .entries-filter-category-field,
+  .entries-filter-entity-field,
+  .entries-filter-tags-field,
+  .entries-filter-currencies-field {
+    @apply min-w-0;
+  }
+  .entries-filter-source-field {
+    @apply min-w-0;
+  }
+  .entries-filter-date-error {
+    @apply m-0 px-0;
+  }
+  .entries-filter-toolbar-status {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+  .entries-filter-status-label {
+    @apply m-0;
+  }
+  .entries-table thead th {
+    @apply h-10 py-2.5;
+  }
+  .entries-table tbody td {
+    @apply py-3;
+  }
+  .entries-table-row {
+    @apply cursor-pointer;
+  }
+  .entries-date-column {
+    @apply w-28 whitespace-nowrap;
+  }
+  .entries-name-column {
+    @apply min-w-0;
+    width: 24%;
+  }
+  .entries-amount-column {
+    @apply w-40 whitespace-nowrap;
+  }
+  .entries-category-column {
+    @apply min-w-0;
+    width: 18%;
+  }
+  .entries-lifecycle-column {
+    @apply w-28 whitespace-nowrap;
+  }
+  .entries-tags-column {
+    @apply min-w-0;
+    width: 18%;
+  }
+  .entries-actions-column {
+    @apply w-10 min-w-10 whitespace-nowrap px-2 text-right;
+  }
+  .entries-name-cell {
+    @apply min-w-0;
+  }
+  .entries-name-stack {
+    @apply grid min-w-0 gap-1;
+  }
+  .entries-name-title {
+    @apply block truncate font-medium;
+  }
+  .entries-name-flow {
+    @apply block truncate text-label-12 leading-5 text-muted-foreground;
+  }
+  .entries-amount-cell {
+    @apply inline-flex items-baseline gap-1.5 whitespace-nowrap;
+  }
+  .entries-amount-marker {
+    @apply shrink-0 text-copy-16 font-bold leading-none;
+  }
+  .entries-amount-marker-income {
+    color: rgb(var(--success));
+  }
+  .entries-amount-marker-expense {
+    color: rgb(var(--warning));
+  }
+  .entries-amount-marker-transfer {
+    color: rgb(var(--muted-foreground));
+  }
+  .entries-amount-value {
+    @apply font-medium;
+  }
+  .entries-amount-currency {
+    @apply text-label-12 text-muted-foreground;
+  }
+  .entries-tag-list {
+    @apply flex w-full max-w-full flex-wrap items-center gap-1.5 overflow-hidden;
+  }
+  .entries-color-pill {
+    @apply inline-flex max-w-full items-center gap-1.5 rounded-sm border bg-secondary px-2 py-1 text-label-12 text-foreground;
+  }
+  .entries-color-pill-dot {
+    @apply h-2.5 w-2.5 shrink-0 rounded-full border border-black/10;
+  }
+  .entries-color-pill-label {
+    @apply min-w-0 truncate;
+  }
+  .entries-tag-empty {
+    @apply text-label-12 text-muted-foreground;
+  }
+  .entries-load-more-shell {
+    @apply flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border bg-secondary/35 px-4 py-3;
+  }
+  .entries-load-more-status {
+    @apply m-0 text-copy-14 text-muted-foreground;
+  }
+  .entries-load-more-sentinel {
+    @apply h-px w-full;
+  }
+}

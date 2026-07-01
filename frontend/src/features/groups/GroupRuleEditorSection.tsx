@@ -21,6 +21,7 @@ import { listTags, updateGroup } from "../../lib/api";
 import { invalidateGroupReadModels } from "../../lib/queryInvalidation";
 import { queryKeys } from "../../lib/queryKeys";
 import type { GroupRead } from "../../lib/types";
+import { getApiErrorMessage } from "../../lib/api/core";
 
 interface GroupRuleEditorSectionProps {
   group: GroupRead;
@@ -79,8 +80,8 @@ export function GroupRuleEditorSection({ group }: GroupRuleEditorSectionProps) {
           submitLabel="Save rule group"
           submitPendingLabel="Saving..."
           onSubmit={handleSubmit}
-          mutationError={updateMutation.isError ? (updateMutation.error as Error).message : null}
-          tagLoadError={tagsQuery.isError ? (tagsQuery.error as Error).message : null}
+          mutationError={updateMutation.isError ? getApiErrorMessage(updateMutation.error) : null}
+          tagLoadError={tagsQuery.isError ? getApiErrorMessage(tagsQuery.error) : null}
           onChange={handleChange}
         />
       </div>

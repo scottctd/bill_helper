@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `dependencies`.
-# - Inputs: callers that import `backend/services/agent/reviews/dependencies.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `dependencies`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Review workflow helpers for agent `dependencies` operations.
+# - Inputs: Callers import `backend/services/agent/reviews/dependencies` and invoke `validate_entry_dependencies_ready_for_approval`, `validate_group_dependencies_ready_for_approval`.
+# - Outputs: Exports `validate_entry_dependencies_ready_for_approval`, `validate_group_dependencies_ready_for_approval`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from typing import Any

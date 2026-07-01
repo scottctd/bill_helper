@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-from backend.services.agent.prompts import SystemPromptContext, system_prompt
+from backend.services.agent.prompt_assembly.prompts import SystemPromptContext, system_prompt
 
 # Placeholders for git-tracked snapshot output. Never embed DB-derived user context.
 SNAPSHOT_OMITTED = "<omitted>"
@@ -110,8 +110,8 @@ def _build_snapshot_markdown(inputs: RenderInputs) -> str:
         "`uv run python scripts/render_agent_system_prompt_snapshot.py`. "
         "Canonical prompt sources: `backend/services/agent/system_prompt.j2`, "
         "`backend/services/agent/prompt_includes/`, and "
-        "`backend/services/agent/prompts.py`; the embedded `bh` cheat sheet comes from "
-        "`backend/cli/reference.py`.\n\n"
+        "`backend/services/agent/prompt_assembly/prompts.py`; the embedded `bh` cheat sheet comes from "
+        "`backend/cli_reference/`.\n\n"
         f"This doc snapshots the fully rendered agent system prompt for the "
         f"`{inputs.response_surface}` response surface on `{inputs.current_date.isoformat()}`.\n\n"
         "It is a rendered snapshot, not the canonical source of truth for prompt text.\n\n"

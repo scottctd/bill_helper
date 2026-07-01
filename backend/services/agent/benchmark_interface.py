@@ -14,14 +14,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.enums_agent import AgentApprovalPolicy, AgentChangeType, AgentRunStatus, AgentTranscriptRole
+from backend.enums_agent import AgentApprovalPolicy, AgentRunStatus, AgentTranscriptRole
 from backend.models_agent import AgentChangeItem, AgentRun, AgentThread, AgentTranscriptMessage
 from backend.models_finance import User
 from backend.services.agent.attachments import create_transcript_attachment
 from backend.services.agent.execution import _latest_user_transcript_message
 from backend.services.agent.harness.contracts import HarnessApprovalPolicy, HarnessPrincipal
 from backend.services.agent.production_runtime import execute_harness_run, initialize_harness_run
-from backend.services.agent.thread_context import build_new_turn_transcript
+from backend.services.agent.prompt_assembly import build_new_turn_transcript
+from backend.services.agent.change_registry import change_type_spec
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.services.user_files import SOURCE_TYPE_AGENT_ATTACHMENT, STORAGE_AREA_UPLOAD, import_user_file_from_path
 
@@ -65,36 +66,12 @@ class BenchmarkCaseExecution:
 def _predictions_from_change_items(change_items: list[AgentChangeItem]) -> BenchmarkPredictionSet:
     predictions = BenchmarkPredictionSet()
     for item in change_items:
-        arguments = item.payload_json
-        if item.change_type == AgentChangeType.CREATE_TAG:
-            predictions.tags.append(
-                {
-                    "name": arguments.get("name"),
-                    "type": arguments.get("type"),
-                }
-            )
-        elif item.change_type == AgentChangeType.CREATE_ENTITY:
-            predictions.entities.append(
-                {
-                    "name": arguments.get("name"),
-                    "category": arguments.get("category"),
-                }
-            )
-        elif item.change_type == AgentChangeType.CREATE_ENTRY:
-            entry_prediction = {
-                "kind": arguments.get("kind"),
-                "date": arguments.get("date"),
-                "name": arguments.get("name"),
-                "amount_minor": arguments.get("amount_minor"),
-                "currency_code": arguments.get("currency_code"),
-                "from_entity": arguments.get("from_entity"),
-                "to_entity": arguments.get("to_entity"),
-                "tags": arguments.get("tags", []),
-                "category": arguments.get("category"),
-                "lifecycle": arguments.get("lifecycle"),
-            }
-            entry_prediction[BENCHMARK_ENTRY_NOTES_KEY] = arguments.get("markdown_notes")
-            predictions.entries.append(entry_prediction)
+        spec = change_type_spec(item.change_type)
+        if spec.benchmark_prediction is None or spec.benchmark_bucket is None:
+            continue
+        prediction = spec.benchmark_prediction(item.payload_json)
+        bucket = getattr(predictions, spec.benchmark_bucket)
+        bucket.append(prediction)
     return predictions
 
 

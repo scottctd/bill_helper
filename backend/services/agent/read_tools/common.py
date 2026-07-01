@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `common`.
-# - Inputs: callers that import `backend/services/agent/read_tools/common.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `common`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Read-only agent tool handlers for `common` data.
+# - Inputs: Callers import `backend/services/agent/read_tools/common` and invoke `string_match_rank`, `tool_principal_scope`, `effective_entity_category`, `format_entry_record`.
+# - Outputs: Exports `string_match_rank`, `tool_principal_scope`, `effective_entity_category`, `format_entry_record`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any
@@ -14,7 +14,7 @@ from backend.models_finance import Account, Entity, Entry
 from backend.services.agent.group_references import GroupMemberPublicRecord
 from backend.services.agent.payload_normalization import normalize_loose_text
 from backend.services.agent.principal_scope import load_run_principal
-from backend.services.agent.user_context import normalize_account_markdown_for_context
+from backend.services.agent.prompt_assembly.user_context import normalize_account_markdown_for_context
 from backend.services.agent.tool_types import ToolContext
 
 

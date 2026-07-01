@@ -61,11 +61,11 @@ function renderModal(overrides: Partial<ComponentProps<typeof EntryEditorModal>>
       mode="edit"
       entry={entryFixture}
       currencies={[{ code: "CAD", name: "Canadian Dollar", entry_count: 1, is_placeholder: false }]}
-      entities={[{ id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1 }]}
+      entities={[{ id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1, net_amount_mixed_currencies: false }]}
       groups={[]}
       tags={[
-        { id: 1, name: "coffee", color: "#5f6caf", description: "Coffee purchases" },
-        { id: 2, name: "grocery", color: "#7c9a4d", description: "Groceries" }
+        { id: 1, name: "coffee", color: "#5f6caf", description: "Coffee purchases", entry_count: 0 },
+        { id: 2, name: "grocery", color: "#7c9a4d", description: "Groceries", entry_count: 0 }
       ]}
       categoryTerms={[]}
       currentUserId="user-1"
@@ -281,7 +281,7 @@ describe("EntryEditorModal", () => {
         to_entity_missing: true
       },
       entities: [
-        { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1 },
+        { id: "entity-2", name: "Cafe", category: "Food", is_account: false, from_count: 0, to_count: 1, account_count: 0, entry_count: 1, net_amount_mixed_currencies: false },
         {
           id: "entity-3",
           name: "Saving Account",
@@ -290,7 +290,8 @@ describe("EntryEditorModal", () => {
           from_count: 0,
           to_count: 1,
           account_count: 1,
-          entry_count: 1
+          entry_count: 1,
+          net_amount_mixed_currencies: false
         }
       ],
       onClose,

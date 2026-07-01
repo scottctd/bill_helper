@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `groups`.
-# - Inputs: callers that import `backend/services/agent/read_tools/groups.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `groups`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Read-only agent tool handlers for `groups` data.
+# - Inputs: Callers import `backend/services/agent/read_tools/groups` and invoke `list_groups`.
+# - Outputs: Exports `list_groups`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

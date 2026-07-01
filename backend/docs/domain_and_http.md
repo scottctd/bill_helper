@@ -6,6 +6,7 @@
 - `backend/models_agent.py`: agent threads/sessions, session sources, messages, attachments, runs, tool calls, change items, and review actions
 - `backend/models_settings.py`: runtime settings overrides
 - `backend/contracts_groups.py`: shared group write contracts
+- `backend/contracts_entries.py`: shared entry mutation commands and typed entity/user refs
 - `backend/contracts_users.py`: shared user and password contracts
 
 Important ownership rules:
@@ -48,8 +49,10 @@ Important read models:
 ## Core Services
 
 - `backend/services/accounts.py`
-- `backend/services/entries.py`
+- `backend/services/entries.py`: `create_entry_from_command`, `update_entry_from_command`, and HTTP adapters `entry_create_command_from_http` / `entry_update_command_from_http`; command models live in `backend/contracts_entries.py`; agent proposal payloads convert via `to_create_command` / `to_update_command` on their contract models
+- `backend/services/entries_read.py`: entry list/detail queries, filter assembly, and `EntryRead` / `EntryDetailRead` builders; uses one `GroupMembershipContext` snapshot per request
 - `backend/services/entities.py`
+- `backend/services/currencies.py`: currency catalog reads from entry usage counts
 - `backend/services/tags.py`
 - `backend/services/taxonomy.py`: taxonomy definitions, two-level entry-category terms, lifecycle defaults, assignments, and guarded term deletion
 - `backend/services/groups.py`
@@ -58,13 +61,43 @@ Important read models:
 - `backend/services/users.py`
 - `backend/services/access_scope.py`
 - `backend/services/runtime_settings.py`
+- `backend/services/agent/runtime_settings_view.py`: agent-aware settings read projection (`build_runtime_settings_view`)
+- `backend/services/agent/runtime_settings_validation.py`: derived vision-capable model lists and LiteLLM credential checks
 - `backend/services/agent/work_sessions.py`
 
 Shared policy helpers:
 
-- `crud_policy.py`: validation/conflict helpers and `PolicyViolation`
+- `crud_policy.py`: validation/conflict helpers and `PolicyViolation` (the only service-to-HTTP error channel for domain failures)
 - `access_scope.py`: canonical owner/admin query filters and scoped loaders
 - `finance_contracts.py`: service-owned account/entity/tag write commands
+
+## Error contract
+
+Services raise `PolicyViolation` from `backend/services/crud_policy.py` for domain validation,
+conflict, not-found, and unprocessable-input failures. The global handler in `backend/main.py`
+maps every `PolicyViolation` to `{"detail": "<message>"}` with the exception's HTTP status.
+
+Constructor helpers:
+
+- `bad_request` (400)
+- `conflict` (409)
+- `forbidden` (403)
+- `not_found` (404)
+- `unprocessable_content` (422)
+- `service_unavailable` (503)
+
+Routers do not catch domain errors or re-wrap them as `HTTPException`. Examples migrated in
+Phase 3:
+
+- import job ownership lookups (`load_job_for_owner`) raise `PolicyViolation.not_found`
+- entry tag suggestions raise `PolicyViolation` instead of a parallel error type
+- manual group membership races translate `IntegrityError` to `PolicyViolation.conflict` in
+  `backend/services/groups.py`
+- dashboard month parsing uses `parse_dashboard_month` / `normalize_dashboard_batch_months`
+
+`HTTPException` remains only for transport-only router concerns (missing bearer session id on
+logout, admin session revocation when the row is already gone, agent upload/streaming routes).
+Read routes never call `db.commit()`.
 
 Auth- and user-management services:
 
@@ -97,6 +130,7 @@ Protected routers:
 Router behavior:
 
 - routers own HTTP translation only
+- read models and list queries are built in services (`list_*_for_principal`, `build_*_read`); routers do not issue `select()` or assemble DTO field-by-field
 - most protected routers depend on `get_current_principal`
 - finance, catalog, and agent lookups are owner-scoped through `access_scope.py`
 - non-admin principals are restricted to their own owned resources

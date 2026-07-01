@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `shared`.
-# - Inputs: callers that import `backend/services/agent/tool_args/shared.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `shared`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Pydantic argument models for agent tools touching `shared`.
+# - Inputs: Callers import `backend/services/agent/tool_args/shared` and invoke `ToolArgsModel`, `EmptyArgs`.
+# - Outputs: Exports `ToolArgsModel`, `EmptyArgs`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict

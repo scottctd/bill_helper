@@ -16,6 +16,8 @@ import { Textarea } from "../../components/ui/textarea";
 import { useAgentDraftAttachments } from "../agent/panel/useAgentDraftAttachments";
 import { resolveAgentModelOptionLabel } from "../agent/panel/helpers";
 import { createImportJob, getRuntimeSettings, preflightImportSources } from "../../lib/api";
+import { getApiErrorMessage } from "../../lib/api/core";
+import { invalidateImportReadModels } from "../../lib/queryInvalidation";
 import { queryKeys } from "../../lib/queryKeys";
 import type { ImportPreflightFile, ImportPreflightSuggestedAction, ImportPriorImport } from "../../lib/types";
 import { cn } from "../../lib/utils";
@@ -113,7 +115,7 @@ export function ImportCreatePanel({ onJobCreated, onOpenPriorImport }: ImportCre
         setDecisions(next);
       } catch (error) {
         if (!cancelled) {
-          setActionError((error as Error).message);
+          setActionError(getApiErrorMessage(error));
         }
       }
     }
@@ -137,12 +139,12 @@ export function ImportCreatePanel({ onJobCreated, onOpenPriorImport }: ImportCre
   const createMutation = useMutation({
     mutationFn: createImportJob,
     onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.import.jobs });
+      invalidateImportReadModels(queryClient);
       attachments.setDraftAttachments([]);
       setDecisions({});
       onJobCreated(job.id);
     },
-    onError: (error: Error) => setActionError(error.message)
+    onError: (error) => setActionError(getApiErrorMessage(error))
   });
 
   function setActionForAll(action: ImportPreflightSuggestedAction) {
@@ -192,7 +194,8 @@ export function ImportCreatePanel({ onJobCreated, onOpenPriorImport }: ImportCre
       instructions,
       source_attachment_ids: importIds,
       model_name: resolvedModel || undefined,
-      concurrency: selectedConcurrency ?? runtimeQuery.data?.agent_bulk_max_concurrent_threads ?? 4
+      concurrency: selectedConcurrency ?? runtimeQuery.data?.agent_bulk_max_concurrent_threads ?? 4,
+      approval_policy: "default"
     });
   }
 

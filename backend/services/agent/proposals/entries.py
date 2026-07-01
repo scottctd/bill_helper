@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `entries`.
-# - Inputs: callers that import `backend/services/agent/proposals/entries.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `entries`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `entries`.
+# - Inputs: Callers import `backend/services/agent/proposals/entries` and invoke `match_single_entry_reference_or_error`, `normalized_entry_reference_payload`, `match_existing_entry_or_error`, `resolve_entry_proposal_reference_or_error`.
+# - Outputs: Exports `match_single_entry_reference_or_error`, `normalized_entry_reference_payload`, `match_existing_entry_or_error`, `resolve_entry_proposal_reference_or_error`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

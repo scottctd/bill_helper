@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `protocol_helpers`.
-# - Inputs: callers that import `backend/services/agent/protocol_helpers.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `protocol_helpers`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `protocol_helpers`.
+# - Inputs: Callers import `backend/services/agent/protocol_helpers` and invoke `ParsedToolArguments`, `DecodedToolCall`, `parse_tool_arguments`, `decode_tool_call`.
+# - Outputs: Exports `ParsedToolArguments`, `DecodedToolCall`, `parse_tool_arguments`, `decode_tool_call`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from dataclasses import dataclass

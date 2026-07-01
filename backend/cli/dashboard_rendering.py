@@ -399,7 +399,7 @@ def _render_finance_dashboard_sections_compact(payload: dict[str, Any]) -> list[
                     [
                         item.get("date"),
                         item.get("expense_total_minor"),
-                        json.dumps(item.get("filter_group_totals") or {}, sort_keys=True, separators=(",", ":")),
+                        json.dumps(item.get("category_totals") or {}, sort_keys=True, separators=(",", ":")),
                     ]
                     for item in daily_spending
                     if isinstance(item, dict)

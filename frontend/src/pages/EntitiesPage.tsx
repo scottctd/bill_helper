@@ -9,13 +9,14 @@ import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { EntitiesTableSection } from "../features/entities/EntitiesTableSection";
 import { EntitiesTableToolbar } from "../features/entities/EntitiesTableToolbar";
 import { useEntitiesPageModel } from "../features/entities/useEntitiesPageModel";
+import { getApiErrorMessage } from "../lib/api/core";
 
 export function EntitiesPage() {
   const model = useEntitiesPageModel();
-  const entitiesError = model.queries.entitiesQuery.isError ? (model.queries.entitiesQuery.error as Error).message : null;
-  const createError = model.mutations.createEntityMutation.isError ? (model.mutations.createEntityMutation.error as Error).message : null;
-  const updateError = model.mutations.updateEntityMutation.isError ? (model.mutations.updateEntityMutation.error as Error).message : null;
-  const deleteError = model.mutations.deleteEntityMutation.isError ? (model.mutations.deleteEntityMutation.error as Error).message : null;
+  const entitiesError = model.queries.entitiesQuery.isError ? getApiErrorMessage(model.queries.entitiesQuery.error) : null;
+  const createError = model.mutations.createEntityMutation.isError ? getApiErrorMessage(model.mutations.createEntityMutation.error) : null;
+  const updateError = model.mutations.updateEntityMutation.isError ? getApiErrorMessage(model.mutations.updateEntityMutation.error) : null;
+  const deleteError = model.mutations.deleteEntityMutation.isError ? getApiErrorMessage(model.mutations.deleteEntityMutation.error) : null;
 
   return (
     <div className="page">

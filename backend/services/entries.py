@@ -1,17 +1,28 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `entries`.
-# - Inputs: callers that import `backend/services/entries.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `entries`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: canonical entry mutation commands and create/update/delete service functions.
+# - Inputs: `EntryCreateCommand` / `EntryUpdateCommand` from `contracts_entries.py`, HTTP
+#   schemas (via `entry_*_command_from_http`), agent proposal payloads, or direct callers;
+#   plus `Session`, `RequestPrincipal`, and entry id for updates.
+# - Outputs: persisted `Entry` rows and HTTP command adapters for flat request fields.
+# - Side effects: inserts/updates/deletes entry rows, tags, taxonomy assignments, and
+#   manual group memberships; may create implicit tags and entities.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from backend.auth.contracts import RequestPrincipal
+from backend.contracts_entries import (
+    EntityRef,
+    EntityRefPatch,
+    EntryCreateCommand,
+    EntryUpdateCommand,
+    UserRef,
+    UserRefPatch,
+)
 from backend.enums_finance import EntryKind, EntryLifecycle
 from backend.models_finance import Entity, Entry, GroupMember, Tag
 from backend.services.access_scope import (
@@ -33,6 +44,9 @@ from backend.services.taxonomy_constants import ENTRY_CATEGORY_SUBJECT_TYPE, ENT
 from backend.services.users import find_user_by_name, normalize_user_name
 from backend.validation.finance_names import normalize_entity_name, normalize_tag_name
 
+if TYPE_CHECKING:
+    from backend.schemas_finance import EntryCreate, EntryUpdate
+
 
 def normalize_entry_category_reference(category: str) -> str:
     """Accept a leaf name or path such as food_drink/groceries and return the normalized term name."""
@@ -44,80 +58,112 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class EntityRef(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    entity_id: str | None = None
-    name: str | None = None
-
-    @model_validator(mode="after")
-    def validate_reference_present(self) -> EntityRef:
-        if self.entity_id is None and self.name is None:
-            raise ValueError("entity ref requires entity_id or name")
-        return self
+def entity_ref_from_flat(
+    *,
+    entity_id: str | None,
+    entity_name: str | None,
+) -> EntityRef | None:
+    if entity_id is None and entity_name is None:
+        return None
+    return EntityRef(entity_id=entity_id, name=entity_name)
 
 
-class EntityRefPatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    entity_id: str | None = None
-    name: str | None = None
-
-
-class UserRef(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    user_id: str | None = None
-    name: str | None = None
-
-    @model_validator(mode="after")
-    def validate_reference_present(self) -> UserRef:
-        if self.user_id is None and self.name is None:
-            raise ValueError("user ref requires user_id or name")
-        return self
+def entity_ref_patch_from_flat(
+    *,
+    entity_id: str | None,
+    entity_name: str | None,
+    fields_set: set[str],
+    id_field: str,
+    name_field: str,
+) -> EntityRefPatch | None:
+    if id_field not in fields_set and name_field not in fields_set:
+        return None
+    return EntityRefPatch(entity_id=entity_id, name=entity_name)
 
 
-class UserRefPatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    user_id: str | None = None
-    name: str | None = None
-
-
-class EntryCreateCommand(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    kind: EntryKind
-    occurred_at: date
-    name: str
-    amount_minor: int
-    currency_code: str
-    from_ref: EntityRef | None = None
-    to_ref: EntityRef | None = None
-    owner_ref: UserRef | None = None
-    markdown_body: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    group_ids: list[str] = Field(default_factory=list)
-    category: str | None = None
-    lifecycle: EntryLifecycle | None = None
+def user_ref_from_flat(*, user_id: str | None, user_name: str | None) -> UserRef | None:
+    if user_id is None and user_name is None:
+        return None
+    return UserRef(user_id=user_id, name=user_name)
 
 
-class EntryUpdateCommand(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+def user_ref_patch_from_flat(
+    *,
+    user_id: str | None,
+    user_name: str | None,
+    fields_set: set[str],
+) -> UserRefPatch | None:
+    if "owner_user_id" not in fields_set and "owner" not in fields_set:
+        return None
+    return UserRefPatch(user_id=user_id, name=user_name)
 
-    kind: EntryKind | None = None
-    occurred_at: date | None = None
-    name: str | None = None
-    amount_minor: int | None = None
-    currency_code: str | None = None
-    from_ref: EntityRefPatch | None = None
-    to_ref: EntityRefPatch | None = None
-    owner_ref: UserRefPatch | None = None
-    markdown_body: str | None = None
-    tags: list[str] | None = None
-    group_ids: list[str] | None = None
-    category: str | None = None
-    lifecycle: EntryLifecycle | None = None
+
+def entry_create_command_from_http(payload: EntryCreate) -> EntryCreateCommand:
+    return EntryCreateCommand(
+        kind=payload.kind,
+        occurred_at=payload.occurred_at,
+        name=payload.name,
+        amount_minor=payload.amount_minor,
+        currency_code=payload.currency_code,
+        from_ref=entity_ref_from_flat(
+            entity_id=payload.from_entity_id,
+            entity_name=payload.from_entity,
+        ),
+        to_ref=entity_ref_from_flat(
+            entity_id=payload.to_entity_id,
+            entity_name=payload.to_entity,
+        ),
+        owner_ref=user_ref_from_flat(
+            user_id=payload.owner_user_id,
+            user_name=payload.owner,
+        ),
+        markdown_body=payload.markdown_body,
+        tags=payload.tags,
+        group_ids=payload.group_ids,
+        category=payload.category,
+        lifecycle=payload.lifecycle,
+    )
+
+
+def entry_update_command_from_http(payload: EntryUpdate) -> EntryUpdateCommand:
+    fields_set = set(payload.model_fields_set)
+    command_payload = payload.model_dump(
+        exclude_unset=True,
+        exclude={
+            "from_entity_id",
+            "from_entity",
+            "to_entity_id",
+            "to_entity",
+            "owner_user_id",
+            "owner",
+        },
+    )
+    from_ref = entity_ref_patch_from_flat(
+        entity_id=payload.from_entity_id,
+        entity_name=payload.from_entity,
+        fields_set=fields_set,
+        id_field="from_entity_id",
+        name_field="from_entity",
+    )
+    if from_ref is not None:
+        command_payload["from_ref"] = from_ref
+    to_ref = entity_ref_patch_from_flat(
+        entity_id=payload.to_entity_id,
+        entity_name=payload.to_entity,
+        fields_set=fields_set,
+        id_field="to_entity_id",
+        name_field="to_entity",
+    )
+    if to_ref is not None:
+        command_payload["to_ref"] = to_ref
+    owner_ref = user_ref_patch_from_flat(
+        user_id=payload.owner_user_id,
+        user_name=payload.owner,
+        fields_set=fields_set,
+    )
+    if owner_ref is not None:
+        command_payload["owner_ref"] = owner_ref
+    return EntryUpdateCommand.model_validate(command_payload)
 
 
 def signed_amount_minor(kind: EntryKind, amount_minor: int) -> int:
@@ -463,12 +509,17 @@ def update_entry_from_command(
     if tags is not None:
         set_entry_tags(db, entry, tags)
     if category_being_updated:
+        normalized_category = (
+            normalize_entry_category_reference(category_value)
+            if category_value is not None
+            else None
+        )
         assign_single_term_by_name(
             db,
             taxonomy_key=ENTRY_CATEGORY_TAXONOMY_KEY,
             subject_type=ENTRY_CATEGORY_SUBJECT_TYPE,
             subject_id=entry.id,
-            term_name=category_value,
+            term_name=normalized_category,
             owner_user_id=resolved_owner_user_id,
         )
 

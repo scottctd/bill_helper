@@ -6,14 +6,7 @@
  * - Side effects: React rendering and user event wiring.
  */
 import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "./ui/dialog";
+import { ModalShell } from "./ui/modal-shell";
 
 interface DeleteConfirmDialogProps {
   open: boolean;
@@ -43,34 +36,36 @@ export function DeleteConfirmDialog(props: DeleteConfirmDialogProps) {
   } = props;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3 text-sm text-foreground">
-          {warnings.length > 0 ? (
-            <div className="grid gap-1.5">
-              {warnings.map((warning) => (
-                <p key={warning} className="muted">
-                  {warning}
-                </p>
-              ))}
-            </div>
-          ) : null}
-          {blockMessage ? <p className="error">{blockMessage}</p> : null}
-          {errorMessage ? <p className="error">{errorMessage}</p> : null}
-        </div>
-        <DialogFooter>
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      size="md"
+      title={title}
+      description={description}
+      footer={
+        <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
           <Button type="button" variant="destructive" onClick={onConfirm} disabled={isPending || Boolean(blockMessage)}>
             {isPending ? "Deleting..." : confirmLabel}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <div className="grid gap-3 text-sm text-foreground">
+        {warnings.length > 0 ? (
+          <div className="grid gap-1.5">
+            {warnings.map((warning) => (
+              <p key={warning} className="muted">
+                {warning}
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {blockMessage ? <p className="error">{blockMessage}</p> : null}
+        {errorMessage ? <p className="error">{errorMessage}</p> : null}
+      </div>
+    </ModalShell>
   );
 }

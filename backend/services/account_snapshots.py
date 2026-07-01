@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `account_snapshots`.
-# - Inputs: callers that import `backend/services/account_snapshots.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `account_snapshots`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `account_snapshots`.
+# - Inputs: Callers import `backend/services/account_snapshots` and invoke `create_account_snapshot`, `list_account_snapshots`, `get_account_snapshot`, `delete_account_snapshot`.
+# - Outputs: Exports `create_account_snapshot`, `list_account_snapshots`, `get_account_snapshot`, `delete_account_snapshot`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from datetime import date

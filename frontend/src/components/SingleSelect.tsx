@@ -5,13 +5,16 @@
  * - Outputs: React components and UI helpers exported by `SingleSelect`.
  * - Side effects: React rendering and user event wiring.
  */
-import { KeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
-import { useFloatingMenuPosition } from "../hooks/useFloatingMenuPosition";
-import { useFloatingMenuPortal } from "./FloatingMenuPortal";
-import { SelectMenuSurface } from "./SelectMenuSurface";
+import { FloatingSelectMenu } from "./ui/floating-select/FloatingSelectMenu";
+import {
+  onFloatingSelectActionKeyDown,
+  onFloatingSelectEscapeKeyDown,
+  onFloatingSelectPointerDown
+} from "./ui/floating-select/floatingSelectActions";
+import { useFloatingSelectMenu } from "./ui/floating-select/useFloatingSelectMenu";
 
 export interface SingleSelectOption {
   value: string;
@@ -44,16 +47,13 @@ export function SingleSelect({
   emptyLabel = "No matching options.",
   minMenuWidth
 }: SingleSelectProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const controlRef = useRef<HTMLButtonElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const portalNode = useFloatingMenuPortal();
-  const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const { menuRef, menuStyle } = useFloatingMenuPosition({
+  const { rootRef, menuRef, menuStyle, portalNode, isOpen, setIsOpen, toggleMenu, closeMenu } = useFloatingSelectMenu({
     anchorRef: controlRef,
-    open: isOpen,
-    minWidth: minMenuWidth
+    disabled,
+    minMenuWidth
   });
   const selectedOption = useMemo(() => options.find((option) => option.value === value) ?? null, [options, value]);
   const filteredOptions = useMemo(() => {
@@ -68,21 +68,6 @@ export function SingleSelect({
   }, [options, query, searchable]);
 
   useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current) {
-        return;
-      }
-      if (rootRef.current.contains(event.target as Node) || menuRef.current?.contains(event.target as Node)) {
-        return;
-      }
-      setIsOpen(false);
-    };
-
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [menuRef]);
-
-  useEffect(() => {
     if (!isOpen) {
       setQuery("");
       return;
@@ -92,13 +77,6 @@ export function SingleSelect({
     }
   }, [isOpen, searchable]);
 
-  function toggleMenu() {
-    if (disabled) {
-      return;
-    }
-    setIsOpen((open) => !open);
-  }
-
   function selectOption(optionValue: string) {
     if (disabled || optionValue === value) {
       setIsOpen(false);
@@ -106,15 +84,6 @@ export function SingleSelect({
     }
     onChange(optionValue);
     setIsOpen(false);
-  }
-
-  function onOptionPointerDown(event: ReactPointerEvent<HTMLButtonElement>, action: () => void) {
-    if (disabled || event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    action();
   }
 
   function onControlKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -128,10 +97,7 @@ export function SingleSelect({
       return;
     }
 
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setIsOpen(false);
-    }
+    onFloatingSelectEscapeKeyDown(event, closeMenu);
   }
 
   function onOptionKeyDown(event: KeyboardEvent<HTMLButtonElement>, optionValue: string) {
@@ -143,16 +109,12 @@ export function SingleSelect({
       selectOption(optionValue);
       return;
     }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setIsOpen(false);
-    }
+    onFloatingSelectEscapeKeyDown(event, closeMenu);
   }
 
   function onSearchInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    onFloatingSelectEscapeKeyDown(event, closeMenu);
     if (event.key === "Escape") {
-      event.preventDefault();
-      setIsOpen(false);
       return;
     }
 
@@ -185,48 +147,47 @@ export function SingleSelect({
         )}
         <ChevronDown className="single-select-caret" />
       </button>
-      {isOpen && typeof document !== "undefined"
-        ? createPortal(
-            <SelectMenuSurface
-              className="single-select-menu"
-              role="listbox"
-              aria-label="Select option"
-              menuRef={menuRef}
-              menuStyle={menuStyle}
-              search={searchable ? (
-                <input
-                  ref={searchInputRef}
-                  className="select-menu-search-input"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={onSearchInputKeyDown}
-                  placeholder={searchPlaceholder}
-                  aria-label={searchPlaceholder}
-                />
-              ) : undefined}
+      <FloatingSelectMenu
+        open={isOpen}
+        portalNode={portalNode}
+        menuRef={menuRef}
+        menuStyle={menuStyle}
+        className="single-select-menu"
+        role="listbox"
+        ariaLabel="Select option"
+        search={
+          searchable ? (
+            <input
+              ref={searchInputRef}
+              className="select-menu-search-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchInputKeyDown}
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
+            />
+          ) : undefined
+        }
+      >
+        {filteredOptions.length === 0 ? <p className="tag-multiselect-empty">{emptyLabel}</p> : null}
+        {filteredOptions.map((option) => {
+          const isSelected = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={`single-select-option ${isSelected ? "is-selected" : ""}`}
+              role="option"
+              aria-selected={isSelected}
+              onPointerDown={(event) => onFloatingSelectPointerDown(event, disabled, () => selectOption(option.value))}
+              onKeyDown={(event) => onOptionKeyDown(event, option.value)}
             >
-              {filteredOptions.length === 0 ? <p className="tag-multiselect-empty">{emptyLabel}</p> : null}
-              {filteredOptions.map((option) => {
-                const isSelected = option.value === value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`single-select-option ${isSelected ? "is-selected" : ""}`}
-                    role="option"
-                    aria-selected={isSelected}
-                    onPointerDown={(event) => onOptionPointerDown(event, () => selectOption(option.value))}
-                    onKeyDown={(event) => onOptionKeyDown(event, option.value)}
-                  >
-                    <SelectOptionLabel option={option} display="menu" />
-                    <Check className={`single-select-check ${isSelected ? "is-visible" : ""}`} />
-                  </button>
-                );
-              })}
-            </SelectMenuSurface>,
-            portalNode ?? document.body
-          )
-        : null}
+              <SelectOptionLabel option={option} display="menu" />
+              <Check className={`single-select-check ${isSelected ? "is-visible" : ""}`} />
+            </button>
+          );
+        })}
+      </FloatingSelectMenu>
     </div>
   );
 }

@@ -11,20 +11,21 @@ import { AccountsTableSection } from "../features/accounts/AccountsTableSection"
 import { AccountsTableToolbar } from "../features/accounts/AccountsTableToolbar";
 import { useAccountsPageModel } from "../features/accounts/useAccountsPageModel";
 import { DeleteConfirmDialog } from "../components/DeleteConfirmDialog";
+import { getApiErrorMessage } from "../lib/api/core";
 
 export function AccountsPage() {
   const model = useAccountsPageModel();
 
   const createAccountError =
-    model.mutations.createAccountMutation.isError ? (model.mutations.createAccountMutation.error as Error).message : null;
+    model.mutations.createAccountMutation.isError ? getApiErrorMessage(model.mutations.createAccountMutation.error) : null;
   const updateAccountError =
-    model.mutations.updateAccountMutation.isError ? (model.mutations.updateAccountMutation.error as Error).message : null;
+    model.mutations.updateAccountMutation.isError ? getApiErrorMessage(model.mutations.updateAccountMutation.error) : null;
   const createSnapshotError =
-    model.mutations.createSnapshotMutation.isError ? (model.mutations.createSnapshotMutation.error as Error).message : null;
-  const accountTableError = model.queries.accountsQuery.isError ? (model.queries.accountsQuery.error as Error).message : null;
+    model.mutations.createSnapshotMutation.isError ? getApiErrorMessage(model.mutations.createSnapshotMutation.error) : null;
+  const accountTableError = model.queries.accountsQuery.isError ? getApiErrorMessage(model.queries.accountsQuery.error) : null;
   const reconciliationError =
-    model.queries.reconciliationQuery.isError ? (model.queries.reconciliationQuery.error as Error).message : null;
-  const snapshotsError = model.queries.snapshotsQuery.isError ? (model.queries.snapshotsQuery.error as Error).message : null;
+    model.queries.reconciliationQuery.isError ? getApiErrorMessage(model.queries.reconciliationQuery.error) : null;
+  const snapshotsError = model.queries.snapshotsQuery.isError ? getApiErrorMessage(model.queries.snapshotsQuery.error) : null;
 
   return (
     <div className="page">
@@ -97,7 +98,7 @@ export function AccountsPage() {
         description="This removes the account root. Snapshots are deleted, and existing entries stay in the ledger with a missing-entity marker where preserved labels remain."
         confirmLabel="Delete account"
         isPending={model.mutations.deleteAccountMutation.isPending}
-        errorMessage={model.mutations.deleteAccountMutation.isError ? (model.mutations.deleteAccountMutation.error as Error).message : null}
+        errorMessage={model.mutations.deleteAccountMutation.isError ? getApiErrorMessage(model.mutations.deleteAccountMutation.error) : null}
         warnings={[
           "Ledger entries are preserved; their account link is cleared.",
           "If the account name appears in from/to fields, the visible label stays but is marked as missing.",
@@ -114,7 +115,7 @@ export function AccountsPage() {
         confirmLabel="Delete snapshot"
         isPending={model.mutations.deleteSnapshotMutation.isPending}
         errorMessage={
-          model.mutations.deleteSnapshotMutation.isError ? (model.mutations.deleteSnapshotMutation.error as Error).message : null
+          model.mutations.deleteSnapshotMutation.isError ? getApiErrorMessage(model.mutations.deleteSnapshotMutation.error) : null
         }
         warnings={model.deleteSnapshotImpactWarnings}
         onConfirm={model.actions.confirmDeleteSnapshot}

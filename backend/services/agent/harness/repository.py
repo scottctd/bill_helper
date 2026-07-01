@@ -50,6 +50,8 @@ class RunRepository(Protocol):
 
     def finish(self, run_result: RunResult) -> bool: ...
 
+    def ensure_run_finished_event(self, run_result: RunResult) -> None: ...
+
     def request_stop(self, run_id: str) -> None: ...
 
 
@@ -205,6 +207,9 @@ class InMemoryRunRepository:
         state.accumulated_usage = run_result.accumulated_usage
         self._runs[run_result.run_id] = state
         return True
+
+    def ensure_run_finished_event(self, run_result: RunResult) -> None:
+        return None
 
     def request_stop(self, run_id: str) -> None:
         state = self._runs.get(run_id)

@@ -321,9 +321,20 @@ Run these after behavior, schema, API, tooling, or UI changes:
 uv run python -m py_compile backend
 OPENROUTER_API_KEY=test uv run pytest backend/tests -q
 uv run python scripts/check_llm_design.py
-cd frontend && npm run test && npm run test:e2e && npm run build
+uv run python scripts/check_cli_parity.py
+uv run python scripts/check_sse_parity.py
+uv run python scripts/check_frontend_discipline.py
+uv run python scripts/check_api_types_sync.py
+cd frontend && npx tsc --noEmit && npm test && npm run test:e2e && npm run build
 cd ..
 uv run python scripts/check_docs_sync.py
+```
+
+After backend schema or route annotation changes, refresh generated frontend contracts before the gates above:
+
+```bash
+uv run python scripts/dump_openapi.py
+cd frontend && npm run gen:api
 ```
 
 ## Migration Workflow
@@ -355,22 +366,24 @@ Backend agent modules:
 - `backend/services/agent/production_repository.py`
 - `backend/services/agent/production_events.py`
 - `backend/services/agent/model_gateway.py`
-- `backend/services/agent/thread_context.py`
+- `backend/services/agent/prompt_assembly/`
+- `backend/services/agent/run_observers.py`
+- `backend/services/agent/change_registry.py`
+- `backend/services/agent/stream_sequences.py`
+- `backend/services/agent/tools_for_model_request.py`
 - `backend/services/agent/api_projection.py`
 - `backend/services/agent/execution.py`
 - `backend/services/agent/runtime.py`
 - `backend/services/agent/stream_hub.py`
 - `backend/services/agent/attachment_content.py`
-- `backend/services/agent/user_context.py`
+- `backend/services/agent/prompt_assembly/user_context.py`
 - `backend/services/agent/protocol_helpers.py`
 - `backend/services/agent/tool_args/`
 - `backend/services/agent/proposals/`
 - `backend/services/agent/read_tools/`
 - `backend/services/agent/terminal.py`
 - `backend/services/agent/proposal_patching.py`
-- `backend/services/agent/tool_runtime.py`
 - `backend/services/agent/tool_runtime_support/`
-- `backend/services/agent/tools.py` (thin facade)
 - `backend/services/agent/reviews/`
 - `backend/services/agent/serializers.py`
 

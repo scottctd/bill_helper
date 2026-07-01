@@ -9,8 +9,8 @@ import { useEffect, useState } from "react";
 
 import type { GroupSource } from "../lib/types";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
+import { ModalShell } from "./ui/modal-shell";
 import { NativeSelect } from "./ui/native-select";
 
 const GROUP_SOURCE_OPTIONS: GroupSource[] = ["manual", "rule"];
@@ -60,51 +60,51 @@ export function GroupEditorModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Create Group" : "Rename Group"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Create a group now and add members or rules afterwards."
-              : "Rename this group without changing its source."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="stack-sm">
-          <label className="field min-w-0">
-            <span>Name</span>
-            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Monthly bills" />
-          </label>
-
-          <label className="field min-w-0">
-            <span>Source</span>
-            <NativeSelect
-              value={groupSource}
-              onChange={(event) => setGroupSource(event.target.value as GroupSource)}
-              disabled={mode === "rename"}
-            >
-              {GROUP_SOURCE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-
-          {formError ? <p className="error">{formError}</p> : null}
-          {saveError ? <p className="error">{saveError}</p> : null}
-        </div>
-
-        <DialogFooter>
+    <ModalShell
+      open={isOpen}
+      onOpenChange={(open) => (open ? undefined : onClose())}
+      size="sm"
+      title={mode === "create" ? "Create Group" : "Rename Group"}
+      description={
+        mode === "create"
+          ? "Create a group now and add members or rules afterwards."
+          : "Rename this group without changing its source."
+      }
+      footer={
+        <>
           <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
           <Button type="button" onClick={submit} disabled={isSaving}>
             {isSaving ? "Saving..." : mode === "create" ? "Create group" : "Rename group"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <div className="stack-sm">
+        <label className="field min-w-0">
+          <span>Name</span>
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Monthly bills" />
+        </label>
+
+        <label className="field min-w-0">
+          <span>Source</span>
+          <NativeSelect
+            value={groupSource}
+            onChange={(event) => setGroupSource(event.target.value as GroupSource)}
+            disabled={mode === "rename"}
+          >
+            {GROUP_SOURCE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+
+        {formError ? <p className="error">{formError}</p> : null}
+        {saveError ? <p className="error">{saveError}</p> : null}
+      </div>
+    </ModalShell>
   );
 }

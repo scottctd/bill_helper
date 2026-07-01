@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `catalog`.
-# - Inputs: callers that import `backend/services/agent/tool_runtime_support/catalog.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `catalog`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `catalog`.
+# - Inputs: Callers import `backend/services/agent/tool_runtime_support/catalog` and invoke `build_openai_tool_schemas`.
+# - Outputs: Exports `build_openai_tool_schemas`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from collections.abc import Collection

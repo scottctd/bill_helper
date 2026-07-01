@@ -306,6 +306,7 @@ class ToolStartedEvent(BaseModel):
     step_index: int
     tool_call_id: str
     tool_name: str
+    arguments_json: dict[str, Any] | None = None
     display_label: str | None = None
     display_detail: str | None = None
 
@@ -319,6 +320,8 @@ class ToolFinishedEvent(BaseModel):
     tool_call_id: str
     tool_name: str
     status: str
+    arguments_json: dict[str, Any] | None = None
+    output_json: dict[str, Any] | None = None
     display_label: str | None = None
     display_detail: str | None = None
 

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `threads`.
-# - Inputs: callers that import `backend/services/agent/tool_args/threads.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `threads`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Pydantic argument models for agent tools touching `threads`.
+# - Inputs: Callers import `backend/services/agent/tool_args/threads` and invoke `ToolArgsModel`, `RenameThreadArgs`.
+# - Outputs: Exports `ToolArgsModel`, `RenameThreadArgs`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator

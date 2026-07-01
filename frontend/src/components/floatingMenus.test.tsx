@@ -16,7 +16,7 @@ describe("floating select menus", () => {
   it("renders tag multiselect menus outside the workspace card", async () => {
     const shell = renderInsideWorkspace(
       <TagMultiSelect
-        options={[{ id: 1, name: "coffee", color: "#5f6caf" }]}
+        options={[{ id: 1, name: "coffee", color: "#5f6caf", entry_count: 0 }]}
         value={[]}
         onChange={() => undefined}
         ariaLabel="Tag filter"
@@ -94,7 +94,7 @@ describe("floating select menus", () => {
   it("uses the same scrolling menu surface for compact tag selection", async () => {
     renderInsideWorkspace(
       <TagMultiSelect
-        options={[{ id: 1, name: "coffee", color: "#5f6caf" }]}
+        options={[{ id: 1, name: "coffee", color: "#5f6caf", entry_count: 0 }]}
         value={[]}
         onChange={() => undefined}
         ariaLabel="Tags"

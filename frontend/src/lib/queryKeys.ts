@@ -19,9 +19,6 @@ export type EntryListFiltersKey = {
 };
 
 export const queryKeys = {
-  auth: {
-    session: ["auth", "session"] as const
-  },
   groups: {
     all: ["groups"] as const,
     list: ["groups", "list"] as const,

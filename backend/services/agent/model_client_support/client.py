@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `client`.
-# - Inputs: callers that import `backend/services/agent/model_client_support/client.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `client`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Model client support utilities for `client`.
+# - Inputs: Callers import `backend/services/agent/model_client_support/client` and invoke `AgentModelError`, `LiteLLMModelClient`.
+# - Outputs: Exports `AgentModelError`, `LiteLLMModelClient`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -17,12 +17,6 @@ from litellm import (
     Timeout,
     UnsupportedParamsError,
 )
-from tenacity import (
-    Retrying,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from backend.config import DEFAULT_AGENT_MODEL, ensure_env_file_variables_loaded
 from backend.services.agent.langfuse_litellm import (
@@ -30,6 +24,7 @@ from backend.services.agent.langfuse_litellm import (
     force_flush_langfuse_otel_best_effort,
     langfuse_credentials_configured,
 )
+from backend.services.agent.retry_policy import build_model_client_retrying
 from .environment import normalize_host, normalize_secret, supports_prompt_caching
 from .messages import sanitize_messages_for_completion
 from .streaming import (
@@ -294,15 +289,12 @@ class LiteLLMModelClient:
         response_format: Any = None,
         litellm_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        retrying = Retrying(
-            stop=stop_after_attempt(self._retry_max_attempts),
-            wait=wait_exponential(
-                multiplier=self._retry_initial_wait_seconds,
-                max=self._retry_max_wait_seconds,
-                exp_base=self._retry_backoff_multiplier,
-            ),
-            retry=retry_if_exception_type(AgentModelError),
-            reraise=True,
+        retrying = build_model_client_retrying(
+            max_attempts=self._retry_max_attempts,
+            initial_wait_seconds=self._retry_initial_wait_seconds,
+            max_wait_seconds=self._retry_max_wait_seconds,
+            backoff_multiplier=self._retry_backoff_multiplier,
+            retry_exception_type=AgentModelError,
         )
         response = None
         for attempt in retrying:
@@ -371,15 +363,12 @@ class LiteLLMModelClient:
         usage_totals = empty_usage_totals()
         final_tool_calls_by_index: dict[int, dict[str, Any]] = {}
 
-        retrying = Retrying(
-            stop=stop_after_attempt(self._retry_max_attempts),
-            wait=wait_exponential(
-                multiplier=self._retry_initial_wait_seconds,
-                max=self._retry_max_wait_seconds,
-                exp_base=self._retry_backoff_multiplier,
-            ),
-            retry=retry_if_exception_type(AgentModelError),
-            reraise=True,
+        retrying = build_model_client_retrying(
+            max_attempts=self._retry_max_attempts,
+            initial_wait_seconds=self._retry_initial_wait_seconds,
+            max_wait_seconds=self._retry_max_wait_seconds,
+            backoff_multiplier=self._retry_backoff_multiplier,
+            retry_exception_type=AgentModelError,
         )
 
         for attempt in retrying:

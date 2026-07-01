@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -117,7 +117,5 @@ def interrupt_run(
 ) -> AgentRunRead:
     load_agent_run_for_principal(db, run_id=run_id, principal=principal)
     run = interrupt_agent_run(db, run_id)
-    if run is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     db.refresh(run)
     return run_to_schema(run)

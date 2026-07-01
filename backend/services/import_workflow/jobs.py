@@ -7,9 +7,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
-from backend.enums_agent import AgentApprovalPolicy
+from backend.auth.contracts import RequestPrincipal
 from backend.enums_import import ImportJobStatus, ImportTaskStatus
 from backend.models_agent import AgentThread
 from backend.models_files import UserFile
@@ -17,6 +18,7 @@ from backend.models_import import ImportJob, ImportTask
 from backend.models_shared import utc_now
 from backend.services.agent.attachments import load_draft_attachment_user_file
 from backend.services.crud_policy import PolicyViolation
+from backend.services.access_scope import owner_user_filter
 from backend.services.runtime_settings import resolve_runtime_settings
 from backend.validation.runtime_settings import normalize_text_or_none
 
@@ -32,6 +34,17 @@ def derive_job_title_from_labels(labels: list[str]) -> str:
     if len(labels) == 1:
         return f"Import {labels[0]}"
     return f"Import {labels[0]} +{len(labels) - 1}"
+
+
+def list_import_jobs_for_principal(db: Session, *, principal: RequestPrincipal) -> list[ImportJob]:
+    return list(
+        db.scalars(
+            select(ImportJob)
+            .where(owner_user_filter(ImportJob.owner_user_id, principal))
+            .options(selectinload(ImportJob.tasks))
+            .order_by(ImportJob.created_at.desc())
+        )
+    )
 
 
 def _resolve_model_name(db: Session, model_name: str | None) -> str:

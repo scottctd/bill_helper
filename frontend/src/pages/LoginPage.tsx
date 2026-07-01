@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { FormField } from "../components/ui/form-field";
 import { Input } from "../components/ui/input";
 import { useAuth } from "../features/auth";
+import { getApiErrorMessage } from "../lib/api/core";
 
 export function LoginPage() {
   const auth = useAuth();
@@ -40,7 +41,7 @@ export function LoginPage() {
       await auth.login({ username, password });
       navigate(redirectTo, { replace: true });
     } catch (submissionError) {
-      setError((submissionError as Error).message);
+      setError(getApiErrorMessage(submissionError));
     } finally {
       setIsSubmitting(false);
     }

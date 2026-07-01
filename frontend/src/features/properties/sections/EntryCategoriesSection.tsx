@@ -9,14 +9,8 @@ import type { FormEvent } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../../../components/ui/dialog";
+import { DialogFooter } from "../../../components/ui/dialog";
+import { ModalShell } from "../../../components/ui/modal-shell";
 import { FormField } from "../../../components/ui/form-field";
 import { Input } from "../../../components/ui/input";
 import { NativeSelect } from "../../../components/ui/native-select";
@@ -280,17 +274,15 @@ export function EntryCategoriesSection(props: EntryCategoriesSectionProps) {
         )
       ) : null}
 
-      <Dialog
+      <ModalShell
         open={props.createPanelOpen}
         onOpenChange={(open) => {
           if (!open) props.onCloseCreatePanel();
         }}
+        size="sm"
+        title="Create Entry Category"
+        description="Create a top-level category or place a sub-category under an existing parent."
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create Entry Category</DialogTitle>
-            <DialogDescription>Create a top-level category or place a sub-category under an existing parent.</DialogDescription>
-          </DialogHeader>
           <form className="grid gap-4" onSubmit={props.onCreateTermSubmit}>
             <FormField label="Name">
               <Input
@@ -335,20 +327,17 @@ export function EntryCategoriesSection(props: EntryCategoriesSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
-      <Dialog
+      <ModalShell
         open={Boolean(editingTerm)}
         onOpenChange={(open) => {
           if (!open) props.onCancelEditTerm();
         }}
+        size="sm"
+        title="Edit Entry Category"
+        description="Rename this category and update its lifecycle default when it is selectable."
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Entry Category</DialogTitle>
-            <DialogDescription>Rename this category and update its lifecycle default when it is selectable.</DialogDescription>
-          </DialogHeader>
           <form
             className="grid gap-4"
             onSubmit={(event) => {
@@ -388,33 +377,29 @@ export function EntryCategoriesSection(props: EntryCategoriesSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
-      <Dialog
+      <ModalShell
         open={Boolean(props.deletingTerm)}
         onOpenChange={(open) => {
           if (!open) props.onCancelDeleteTerm();
         }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Delete {props.deletingTerm?.name}?</DialogTitle>
-            <DialogDescription>
-              Entries using this category will become uncategorized. Parent categories must have no children.
-            </DialogDescription>
-          </DialogHeader>
-          {props.deleteErrorMessage ? <p className="error">{props.deleteErrorMessage}</p> : null}
-          <DialogFooter>
+        size="sm"
+        title={`Delete ${props.deletingTerm?.name}?`}
+        description="Entries using this category will become uncategorized. Parent categories must have no children."
+        footer={
+          <>
             <Button type="button" variant="outline" onClick={props.onCancelDeleteTerm}>
               Cancel
             </Button>
             <Button type="button" variant="destructive" disabled={props.isDeleting} onClick={props.onConfirmDeleteTerm}>
               {props.isDeleting ? "Deleting..." : "Delete category"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+          {props.deleteErrorMessage ? <p className="error">{props.deleteErrorMessage}</p> : null}
+      </ModalShell>
     </div>
   );
 }

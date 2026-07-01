@@ -63,7 +63,7 @@ Current command groups:
 
 `bh login` creates a password-backed bearer session and saves the CLI API base URL plus token in the per-user CLI config. Environment variables still override saved config, so hosted internal runs can keep injecting short-lived credentials.
 
-`bh instruction` renders `backend/services/agent/external_agent_prompt.j2` through `external_agent_prompt()` in `backend/services/agent/prompts.py`. It shares proposal/domain/error-recovery sections with the hosted prompt via `backend/services/agent/prompt_includes/`, and adds the external-agent CLI reference from `backend/cli/reference.py`.
+`bh instruction` renders `backend/services/agent/external_agent_prompt.j2` through `external_agent_prompt()` in `backend/services/agent/prompt_assembly/prompts.py`. It shares proposal/domain/error-recovery sections with the hosted prompt via `backend/services/agent/prompt_includes/`, and adds the external-agent CLI reference from `backend/cli_reference/`.
 
 ## Installing `bh`
 
@@ -173,7 +173,7 @@ When this surface changes, useful checks include:
 - [backend/cli/session_commands.py](../../backend/cli/session_commands.py)
 - [backend/services/agent/terminal.py](../../backend/services/agent/terminal.py)
 - [backend/services/agent/external_agent_prompt.j2](../../backend/services/agent/external_agent_prompt.j2)
-- [backend/services/agent/prompts.py](../../backend/services/agent/prompts.py)
+- [backend/services/agent/prompt_assembly/prompts.py](../../backend/services/agent/prompt_assembly/prompts.py)
 - [backend/services/agent/tool_runtime_support/catalog.py](../../backend/services/agent/tool_runtime_support/catalog.py)
 - [backend/services/agent/tool_runtime_support/catalog_terminal.py](../../backend/services/agent/tool_runtime_support/catalog_terminal.py)
 - [backend/routers/agent_sessions.py](../../backend/routers/agent_sessions.py)

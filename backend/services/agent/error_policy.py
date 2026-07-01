@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `error_policy`.
-# - Inputs: callers that import `backend/services/agent/error_policy.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `error_policy`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: recoverable fallback logging with scope/context metadata for agent subsystems.
+# - Inputs: scope label, fallback value, caught exception, optional context dict and logger.
+# - Outputs: RecoverableResult (value + optional RecoverableError metadata).
+# - Side effects: debug-level log line with scope, error type, message, and context.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -55,3 +55,22 @@ def recoverable_result(
             context=metadata,
         ),
     )
+
+
+def report_recoverable_error(
+    *,
+    scope: str,
+    error: Exception,
+    context: dict[str, Any] | None = None,
+    log: logging.Logger | None = None,
+) -> RecoverableError:
+    """Log scope/context for a recoverable or re-raised error without changing control flow."""
+    result = recoverable_result(
+        scope=scope,
+        fallback=None,
+        error=error,
+        context=context,
+        log=log,
+    )
+    assert result.error is not None
+    return result.error

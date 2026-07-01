@@ -14,6 +14,7 @@ Use the docs in layers:
 ## Stable Reference Docs
 
 - `architecture.md`: system topology, boundaries, and major design choices.
+- `architecture_design.md`: normative backend/frontend design baseline (post-2026-07-01 refactor), layer ownership rules, change recipes, and anti-patterns for all future development.
 - `repository_structure.md`: filesystem map and ownership boundaries.
 - `backend_index.md`: backend index linking to focused backend docs under `../backend/docs/`.
 - `../backend/docs/README.md`: backend topic map.

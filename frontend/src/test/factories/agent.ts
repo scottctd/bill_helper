@@ -1,5 +1,18 @@
 import type { AgentChangeItem, AgentRun, AgentRunStep, AgentToolCall, AgentTurn } from "../../lib/types";
 
+export function buildRunEvent(
+  overrides: Partial<NonNullable<AgentRun["events"]>[number]> = {}
+): NonNullable<AgentRun["events"]>[number] {
+  return {
+    id: overrides.id ?? "event-1",
+    run_id: overrides.run_id ?? "run-1",
+    event_type: overrides.event_type ?? "run_started",
+    created_at: overrides.created_at ?? "2026-02-15T10:00:00Z",
+    payload_json: overrides.payload_json ?? {},
+    sequence_index: overrides.sequence_index ?? 0
+  };
+}
+
 export function buildStep(overrides: Partial<AgentRunStep> = {}): AgentRunStep {
   return {
     id: overrides.id ?? "step-1",
@@ -87,7 +100,6 @@ export function buildRun(overrides: Partial<AgentRun> = {}): AgentRun {
     approval_policy: overrides.approval_policy ?? "default",
     final_assistant_reply:
       overrides.final_assistant_reply !== undefined ? overrides.final_assistant_reply : "Done.",
-    context_tokens: overrides.context_tokens !== undefined ? overrides.context_tokens : 10,
     input_tokens: overrides.input_tokens !== undefined ? overrides.input_tokens : 10,
     output_tokens: overrides.output_tokens !== undefined ? overrides.output_tokens : 20,
     cache_read_tokens: overrides.cache_read_tokens !== undefined ? overrides.cache_read_tokens : 0,
@@ -97,8 +109,7 @@ export function buildRun(overrides: Partial<AgentRun> = {}): AgentRun {
     total_cost_usd: overrides.total_cost_usd !== undefined ? overrides.total_cost_usd : 0.003,
     error_code: overrides.error_code !== undefined ? overrides.error_code : null,
     error_detail: overrides.error_detail !== undefined ? overrides.error_detail : null,
-    last_event_sequence_index:
-      overrides.last_event_sequence_index !== undefined ? overrides.last_event_sequence_index : 0,
+    events: overrides.events ?? [],
     created_at: overrides.created_at ?? "2026-02-15T10:00:00Z",
     completed_at: overrides.completed_at !== undefined ? overrides.completed_at : "2026-02-15T10:00:01Z",
     steps: overrides.steps ?? [],

@@ -9,9 +9,9 @@ import { createExistingEditorSession, updateSessionFormState } from "./groupRule
 import type { GroupRead, Tag } from "../../lib/types";
 
 const tags: Tag[] = [
-  { id: 1, name: "grocery", color: "#33aa66" },
-  { id: 2, name: "coffee", color: "#aa6633" },
-  { id: 3, name: "housing", color: "#4466cc" }
+  { id: 1, name: "grocery", color: "#33aa66", entry_count: 0 },
+  { id: 2, name: "coffee", color: "#aa6633", entry_count: 0 },
+  { id: 3, name: "housing", color: "#4466cc", entry_count: 0 }
 ];
 
 function createRuleGroup(rule: GroupRead["rule"]): GroupRead {

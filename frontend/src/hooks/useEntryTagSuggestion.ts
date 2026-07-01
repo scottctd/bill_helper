@@ -10,6 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotifications } from "../components/ui/notification-center";
 import { suggestEntryTags } from "../lib/api";
 import type { EntryTagSuggestionRequest, EntryTagSuggestionResponse } from "../lib/types";
+import { listOrEmpty } from "../lib/collections";
+import { getApiErrorMessage } from "../lib/api/core";
 
 interface UseEntryTagSuggestionArgs {
   entryTaggingModel: string | null | undefined;
@@ -26,7 +28,7 @@ function hasMeaningfulTaggingContext(draft: EntryTagSuggestionRequest): boolean 
       draft.to_entity_id ||
       draft.to_entity?.trim() ||
       draft.markdown_body?.trim() ||
-      draft.current_tags.some((tag) => tag.trim())
+      listOrEmpty(draft.current_tags).some((tag) => tag.trim())
   );
 }
 
@@ -93,7 +95,7 @@ export function useEntryTagSuggestion({
       }
       notify({
         title: "AI tag suggestion failed.",
-        description: (error as Error).message,
+        description: getApiErrorMessage(error),
         tone: "error",
         durationMs: 5600,
       });

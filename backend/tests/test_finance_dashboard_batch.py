@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.services.crud_policy import PolicyViolation
 from backend.services.finance_dashboard_batch import normalize_dashboard_batch_months
 
 
@@ -13,10 +14,10 @@ def test_normalize_dashboard_batch_months_deduplicates_and_sorts() -> None:
 
 
 def test_normalize_dashboard_batch_months_rejects_invalid_month() -> None:
-    with pytest.raises(ValueError, match="YYYY-MM"):
+    with pytest.raises(PolicyViolation, match="YYYY-MM"):
         normalize_dashboard_batch_months(["2026-13"])
 
 
 def test_normalize_dashboard_batch_months_rejects_empty_list() -> None:
-    with pytest.raises(ValueError, match="at least one"):
+    with pytest.raises(PolicyViolation, match="at least one"):
         normalize_dashboard_batch_months([])

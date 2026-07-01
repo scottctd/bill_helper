@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { agentStreamSession } from "./agentStreamSession";
 import { findRunningRunForThread, resolveLiveRunIdForThread, resolveReconnectSequenceIndex } from "./liveRun";
-import { buildRun } from "../../../test/factories/agent";
+import { buildRun, buildRunEvent } from "../../../test/factories/agent";
 
 describe("liveRun helpers", () => {
   it("prefers mapped stream run id for a thread", () => {
@@ -39,7 +39,7 @@ describe("liveRun helpers", () => {
     const run = buildRun({
       id: "run-3",
       status: "running",
-      last_event_sequence_index: 4
+      events: [buildRunEvent({ run_id: "run-3", sequence_index: 4 })]
     });
     const session = {
       ...agentStreamSession,

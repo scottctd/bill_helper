@@ -19,17 +19,29 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def _assert_no_running_runs(connection) -> None:
+def _assert_legacy_agent_tables_empty(connection) -> None:
+    """The one-time transcript backfill code was deleted after the production migration ran.
+
+    Fresh databases replay this migration with empty legacy tables, which is fine.
+    Populated legacy tables can only be ported by a repo revision that still contains
+    backend/services/agent/legacy_transcript_backfill.py.
+    """
     inspector = sa.inspect(connection)
-    if "agent_runs" not in inspector.get_table_names():
-        return
-    running = connection.execute(
-        sa.text("SELECT COUNT(*) FROM agent_runs WHERE UPPER(status) = 'RUNNING'")
-    ).scalar_one()
-    if running and int(running) > 0:
+    existing = set(inspector.get_table_names())
+    populated: dict[str, int] = {}
+    for table in ("agent_threads", "agent_messages", "agent_runs"):
+        if table not in existing:
+            continue
+        count = int(connection.execute(sa.text(f"SELECT COUNT(*) FROM {table}")).scalar_one())
+        if count:
+            populated[table] = count
+    if populated:
         raise RuntimeError(
-            "Cannot migrate: agent runs are still RUNNING. "
-            "Wait for or interrupt active runs before upgrading."
+            "Cannot migrate: legacy agent conversation rows exist "
+            f"({populated}), but the one-time transcript backfill module was removed "
+            "after the production migration completed. Check out a repository revision "
+            "that still contains backend/services/agent/legacy_transcript_backfill.py "
+            "to port populated legacy tables."
         )
 
 
@@ -285,23 +297,10 @@ def _create_harness_tables() -> None:
 
 
 def upgrade() -> None:
-    from backend.services.agent.legacy_transcript_backfill import (
-        export_legacy_agent_snapshot,
-        plan_harness_backfill,
-    )
-    from backend.services.agent.legacy_transcript_backfill_apply import (
-        apply_harness_backfill,
-        validate_harness_backfill,
-    )
-
     connection = op.get_bind()
-    _assert_no_running_runs(connection)
-    legacy_snapshot = export_legacy_agent_snapshot(connection)
-    backfill_plan = plan_harness_backfill(legacy_snapshot)
-    validate_harness_backfill(legacy_snapshot, backfill_plan)
+    _assert_legacy_agent_tables_empty(connection)
     _drop_legacy_agent_tables()
     _create_harness_tables()
-    apply_harness_backfill(connection, backfill_plan)
 
 
 def downgrade() -> None:

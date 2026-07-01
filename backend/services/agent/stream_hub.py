@@ -1,10 +1,12 @@
 # CALLING SPEC:
 # - Purpose: single-worker agent run streaming with subscriber fan-out and reconnect replay.
-# - Inputs: run ids, DB session factory, and after_sequence cursors from stream routes.
+# - Inputs: run ids, DB session factory, after_sequence cursors, and a registered run executor.
 # - Outputs: hub publish/subscribe helpers and `iter_run_stream_hub_events`.
 # - Side effects: in-process threads, queues, and ephemeral model_delta buffers per run id.
+# - Constraint: in-memory hub state requires a single uvicorn worker process (see agent_subsystem.md).
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 from collections.abc import Callable, Iterator
@@ -16,24 +18,38 @@ from sqlalchemy.orm import Session, selectinload
 
 from backend.enums_agent import AgentRunStatus
 from backend.models_agent import AgentRun
-from backend.services.agent.production_runtime import execute_harness_run
+from backend.services.agent.error_policy import report_recoverable_error
+from backend.services.agent.run_observers import fail_run_terminally
 from backend.services.agent.serializers import run_event_row_to_sse_payload
+from backend.services.agent.stream_sequences import (
+    HUB_SEQUENCE_KEY,
+    StreamSequenceState,
+    fanout_to_subscribers,
+    is_terminal_sse_payload,
+    prepare_publish,
+    public_stream_payload,
+    should_skip_live_event,
+)
+
+logger = logging.getLogger(__name__)
+
+RunExecutor = Callable[[Session, str], Any]
 
 _SENTINEL = object()
-_EPHEMERAL_TYPES = frozenset({"model_delta"})
-_DURABLE_SSE_TYPES = frozenset(
-    {
-        "model_decision_committed",
-        "tool_started",
-        "tool_finished",
-        "run_finished",
-        "run_started",
-        "model_request_started",
-        "step_committed",
-    }
-)
 _SUBSCRIBER_POLL_SECONDS = 30.0
-_HUB_SEQUENCE_KEY = "_hub_sequence"
+
+_registered_run_executor: RunExecutor | None = None
+
+
+def register_run_executor(executor: RunExecutor) -> None:
+    global _registered_run_executor
+    _registered_run_executor = executor
+
+
+def _require_run_executor() -> RunExecutor:
+    if _registered_run_executor is None:
+        raise RuntimeError("stream hub run executor is not registered")
+    return _registered_run_executor
 
 
 @dataclass
@@ -41,8 +57,7 @@ class _ActiveRunExecution:
     run_id: str
     lock: threading.Lock = field(default_factory=threading.Lock)
     subscribers: list[queue.Queue[Any]] = field(default_factory=list)
-    ephemeral_events: list[dict[str, Any]] = field(default_factory=list)
-    next_hub_sequence: int = 0
+    sequence_state: StreamSequenceState = field(default_factory=StreamSequenceState)
     worker_started: bool = False
     worker_thread: threading.Thread | None = None
 
@@ -62,17 +77,9 @@ def _get_or_create_execution(run_id: str) -> _ActiveRunExecution:
 
 def publish_run_stream_event(run_id: str, payload: dict[str, Any]) -> None:
     execution = _get_or_create_execution(run_id)
-    event_copy = dict(payload)
     with execution.lock:
-        execution.next_hub_sequence += 1
-        event_copy[_HUB_SEQUENCE_KEY] = execution.next_hub_sequence
-        event_type = str(event_copy.get("type") or "")
-        if event_type in _DURABLE_SSE_TYPES:
-            execution.ephemeral_events.clear()
-        elif event_type in _EPHEMERAL_TYPES:
-            execution.ephemeral_events.append(event_copy)
-        for subscriber in list(execution.subscribers):
-            subscriber.put(event_copy, block=False)
+        event_copy = prepare_publish(execution.sequence_state, payload)
+        fanout_to_subscribers(execution.subscribers, event_copy)
 
 
 def close_run_stream_execution(run_id: str) -> None:
@@ -93,22 +100,24 @@ def reset_run_stream_hub_for_tests() -> None:
 
 
 def _stream_worker(run_id: str, session_factory: Callable[[], Session]) -> None:
-    import logging
-
-    logger = logging.getLogger(__name__)
     db = session_factory()
     try:
-        execute_harness_run(db, run_id, streaming=True)
-    except Exception:
+        _require_run_executor()(db, run_id, streaming=True)
+    except Exception as exc:
+        report_recoverable_error(
+            scope="stream_hub.worker",
+            error=exc,
+            context={"run_id": run_id},
+            log=logger,
+        )
         logger.exception("agent stream worker failed run_id=%s", run_id)
         db.rollback()
-        run_row = db.get(AgentRun, run_id)
-        if run_row is not None and run_row.status == AgentRunStatus.RUNNING:
-            run_row.status = AgentRunStatus.FAILED
-            run_row.error_code = "worker_error"
-            run_row.error_detail = "background harness execution failed"
-            db.add(run_row)
-            db.commit()
+        fail_run_terminally(
+            db,
+            run_id,
+            code="worker_error",
+            detail="background harness execution failed",
+        )
     finally:
         db.close()
         close_run_stream_execution(run_id)
@@ -181,22 +190,6 @@ def _is_run_terminal(db: Session, run_id: str) -> bool:
     return run.status != AgentRunStatus.RUNNING
 
 
-def _is_terminal_sse_payload(payload: dict[str, Any]) -> bool:
-    if str(payload.get("type") or "") != "run_finished":
-        return False
-    status = str(payload.get("status") or "")
-    return status in {
-        AgentRunStatus.COMPLETED.value,
-        AgentRunStatus.FAILED.value,
-        AgentRunStatus.INTERRUPTED.value,
-        AgentRunStatus.MAX_STEPS.value,
-    }
-
-
-def _public_stream_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in payload.items() if key != _HUB_SEQUENCE_KEY}
-
-
 def iter_run_stream_hub_events(
     db: Session,
     run_id: str,
@@ -219,12 +212,12 @@ def iter_run_stream_hub_events(
             return
 
         with execution.lock:
-            ephemeral = [dict(item) for item in execution.ephemeral_events]
+            ephemeral = [dict(item) for item in execution.sequence_state.ephemeral_events]
         for event in ephemeral:
-            hub_sequence = event.get(_HUB_SEQUENCE_KEY)
+            hub_sequence = event.get(HUB_SEQUENCE_KEY)
             if isinstance(hub_sequence, int):
                 seen_hub_sequences.add(hub_sequence)
-            yield _public_stream_payload(event)
+            yield public_stream_payload(event)
 
         start_run_stream_execution(run_id, session_factory=session_factory)
 
@@ -237,19 +230,16 @@ def iter_run_stream_hub_events(
                 continue
             if item is _SENTINEL:
                 return
-            hub_sequence = item.get(_HUB_SEQUENCE_KEY)
-            if isinstance(hub_sequence, int):
-                if hub_sequence in seen_hub_sequences:
-                    continue
-                seen_hub_sequences.add(hub_sequence)
-            durable_sequence = item.get("sequence_index")
-            if isinstance(durable_sequence, int):
-                if durable_sequence <= last_durable_sequence:
-                    continue
-                last_durable_sequence = durable_sequence
-            public_item = _public_stream_payload(item)
+            skip, last_durable_sequence = should_skip_live_event(
+                item,
+                seen_hub_sequences=seen_hub_sequences,
+                last_durable_sequence=last_durable_sequence,
+            )
+            if skip:
+                continue
+            public_item = public_stream_payload(item)
             yield public_item
-            if _is_terminal_sse_payload(public_item):
+            if is_terminal_sse_payload(public_item):
                 return
     finally:
         _unregister_subscriber(execution, subscriber)

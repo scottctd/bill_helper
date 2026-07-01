@@ -1,16 +1,17 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `execution`.
-# - Inputs: callers that import `backend/services/agent/tool_runtime_support/execution.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `execution`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: execute one registered tool handler with shared retry policy and structured errors.
+# - Inputs: tool name, arguments dict, ToolContext with DB session for settings resolution.
+# - Outputs: ToolExecutionResult success or error payloads.
+# - Side effects: invokes tool handlers; may retry transient failures per retry_policy settings.
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 from pydantic import ValidationError
-from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_exponential
 
+from backend.services.agent.error_policy import report_recoverable_error
+from backend.services.agent.retry_policy import build_tool_execution_retrying
 from backend.services.agent.tool_results import error_result
 from backend.services.agent.tool_runtime_support.catalog import TOOLS
 from backend.services.agent.tool_types import ToolContext, ToolExecutionResult
@@ -38,15 +39,11 @@ def execute_tool(name: str, arguments: dict[str, Any], context: ToolContext) -> 
         return error_result("invalid tool arguments", details=_json_safe_validation_details(exc))
 
     settings = resolve_runtime_settings(context.db)
-    retrying = Retrying(
-        stop=stop_after_attempt(settings.agent_retry_max_attempts),
-        wait=wait_exponential(
-            multiplier=settings.agent_retry_initial_wait_seconds,
-            max=settings.agent_retry_max_wait_seconds,
-            exp_base=settings.agent_retry_backoff_multiplier,
-        ),
-        retry=retry_if_exception(lambda exc: not isinstance(exc, (PolicyViolation, ValueError))),
-        reraise=True,
+    retrying = build_tool_execution_retrying(
+        max_attempts=settings.agent_retry_max_attempts,
+        initial_wait_seconds=settings.agent_retry_initial_wait_seconds,
+        max_wait_seconds=settings.agent_retry_max_wait_seconds,
+        backoff_multiplier=settings.agent_retry_backoff_multiplier,
     )
 
     try:
@@ -62,6 +59,12 @@ def execute_tool(name: str, arguments: dict[str, Any], context: ToolContext) -> 
     except ValueError as exc:
         return error_result("tool execution failed", details=str(exc))
     except Exception as exc:  # pragma: no cover - guarded for runtime resilience
+        report_recoverable_error(
+            scope="tool_runtime.execute_tool",
+            error=exc,
+            context={"tool_name": name},
+            log=logger,
+        )
         logger.exception(
             "tool execution failed unexpectedly",
             extra={"tool_name": name, "error_type": type(exc).__name__},

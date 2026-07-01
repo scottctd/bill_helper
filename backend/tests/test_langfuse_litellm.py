@@ -10,7 +10,7 @@ from backend.services.agent.langfuse_litellm import (
     agent_run_litellm_metadata,
     ensure_langfuse_litellm_configured,
 )
-from backend.services.agent.model_client import LiteLLMModelClient
+from backend.services.agent.model_client_support.client import LiteLLMModelClient
 
 
 def test_agent_run_litellm_metadata_includes_optional_user_id():
@@ -79,7 +79,7 @@ def test_complete_passes_litellm_metadata_to_litellm(monkeypatch: pytest.MonkeyP
             usage={"input_tokens": 3, "output_tokens": 2},
         )
 
-    monkeypatch.setattr("backend.services.agent.model_client.litellm.completion", fake_completion)
+    monkeypatch.setattr("backend.services.agent.model_client_support.client.litellm.completion", fake_completion)
     meta = agent_run_litellm_metadata(
         run_id="run-1",
         thread_id="thread-1",

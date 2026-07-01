@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from backend.services.agent.model_client import LiteLLMModelClient
+from backend.services.agent.model_client_support.client import LiteLLMModelClient
 from backend.services.agent.runtime import ensure_agent_available
 
 
@@ -14,7 +14,7 @@ def test_model_client_passes_custom_base_url_and_api_key_to_litellm():
     )
 
     with patch(
-        "backend.services.agent.model_client.litellm.completion", fake_completion
+        "backend.services.agent.model_client_support.client.litellm.completion", fake_completion
     ):
         client = LiteLLMModelClient(
             model_name="openai/gpt-4",
@@ -42,7 +42,7 @@ def test_model_client_without_custom_config_uses_litellm_defaults():
     )
 
     with patch(
-        "backend.services.agent.model_client.litellm.completion", fake_completion
+        "backend.services.agent.model_client_support.client.litellm.completion", fake_completion
     ):
         client = LiteLLMModelClient(
             model_name="openai/gpt-4",
@@ -68,7 +68,7 @@ def test_model_client_strips_trailing_slash_from_base_url():
     )
 
     with patch(
-        "backend.services.agent.model_client.litellm.completion", fake_completion
+        "backend.services.agent.model_client_support.client.litellm.completion", fake_completion
     ):
         client = LiteLLMModelClient(
             model_name="openai/gpt-4",
@@ -94,7 +94,7 @@ def test_model_client_normalizes_empty_strings_to_none():
     )
 
     with patch(
-        "backend.services.agent.model_client.litellm.completion", fake_completion
+        "backend.services.agent.model_client_support.client.litellm.completion", fake_completion
     ):
         client = LiteLLMModelClient(
             model_name="openai/gpt-4",
@@ -165,11 +165,11 @@ def test_ensure_agent_available_validates_env_when_no_custom_config():
         )
         mock_validate.return_value = (False, ["OPENAI_API_KEY"], "openai/gpt-4")
 
-        from backend.services.agent.runtime import AgentRuntimeUnavailable
+        from backend.services.crud_policy import PolicyViolation
 
         try:
             ensure_agent_available(mock_session)
-            assert False, "Should have raised AgentRuntimeUnavailable"
-        except AgentRuntimeUnavailable as e:
-            assert "OPENAI_API_KEY" in str(e)
-            assert "custom base_url and api_key" in str(e)
+            assert False, "Should have raised PolicyViolation"
+        except PolicyViolation as error:
+            assert "OPENAI_API_KEY" in str(error)
+            assert "custom base_url and api_key" in str(error)

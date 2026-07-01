@@ -85,6 +85,7 @@
 - `models_files.py`: canonical per-user durable file registry ORM model.
 - `models_settings.py`: runtime settings ORM model and table mapping.
 - `contracts_groups.py`: shared group create/update contracts and the typed group-member target payload used by schemas, routers, services, and group-member apply flows.
+- `contracts_entries.py`: shared entry create/update commands plus typed entity/user refs used by services, agent apply, and agent proposal contracts.
 - `contracts_users.py`: shared user create/update contracts reused by schemas, routers, and services.
 - `contracts_settings.py`: shared runtime-settings write contract used by both schema and service layers.
 - `models_shared.py`: shared model defaults (`utc_now`, `uuid_str`) used by both model domains.
@@ -97,6 +98,7 @@
 - `schemas_settings.py`: runtime settings request/response schemas.
 - `auth/`: request-principal contracts, explicit dev-session header parsing, and FastAPI auth dependencies.
 - `cli/`: `bh` command entrypoint, auth/session/source command groups, output rendering, and HTTP client support for hosted and external agents.
+- `cli_reference/`: shared `bh` command specs, compact output schemas, and cheat-sheet renderers (imported by CLI formatters and agent prompts; replaces the former `cli/reference.py`).
 - `validation/`: neutral validation/normalization helpers plus shared contract field types used by schemas, services, and tool-input models.
 - `main.py`: FastAPI app creation, routing, CORS, health check.
 - `README.md`: thin backend-local navigation doc that points to canonical docs.
@@ -108,7 +110,7 @@
 - `auth.py`: login/logout/current-session endpoints.
 - `admin.py`: admin user/session management and impersonation endpoints.
 - `users.py`: visible-user reads plus self-service password change.
-- `entries.py`: entry CRUD, filtering (including `group_id`), and group-context reads.
+- `entries.py`: entry CRUD and tag-suggestion HTTP adapters; list/detail reads delegate to `entries_read.py`.
 - `entities.py`: entity list/create/update/delete endpoints for entry selectors/properties.
 - `tags.py`: tag list/create/update/delete endpoints for property/tag selectors.
 - `taxonomies.py`: taxonomy/term list and term create/rename endpoints.
@@ -125,13 +127,15 @@
 ### Backend Services (`/backend/services`)
 
 - `accounts.py`: account create/update/delete workflows for shared account/entity roots.
-- `entries.py`: typed entry create/update workflows, typed entity/user refs, tag handling, manual group assignment, and entry soft-delete helper.
-- `group_membership.py`: effective membership resolution for manual and rule groups, including overrides.
+- `entries.py`: typed entry create/update workflows, HTTP-to-command adapters, tag handling, manual group assignment, and entry soft-delete helper.
+- `entries_read.py`: entry list filters, queries, and read-model assembly (`list_entries_for_principal`, `get_entry_detail_for_principal`).
+- `group_membership.py`: effective membership resolution plus request-scoped `GroupMembershipContext` snapshots shared by entry and group reads.
 - `group_rules.py`: recursive rule evaluation and plain-language summaries for rule groups.
 - `groups.py`: group CRUD, membership validation, summaries, and rule-group persistence.
 - `finance_contracts.py`: service-owned account/entity/tag write commands shared across routers and agent apply flows.
 - `tags.py`: tag CRUD helpers, taxonomy cleanup, and random default color generation.
-- `entities.py`: entity normalization, account-backed guards, and preserve-label delete helpers.
+- `entities.py`: entity normalization, account-backed guards, usage queries, and `EntityRead` builders.
+- `currencies.py`: currency catalog reads from scoped entry aggregates.
 - `users.py`: user normalization, lookup, and current-user helpers.
 - `principals.py`: request-principal materialization from a persisted user row plus optional session row.
 - `passwords.py`: Argon2 hashing and reset-required password helpers.
@@ -142,7 +146,9 @@
 - `crud_policy.py`: shared CRUD validation/conflict policy primitives and standardized error-translation helpers.
 - `serializers.py`: ORM-to-schema mapping helpers.
 - `taxonomy.py`: shared taxonomy normalization, term assignment, and usage-count helpers.
-- `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional `agent_model_display_names`, the PDF page cap, plus derived vision-capable model lists for the composer.
+- `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional `agent_model_display_names`, and the PDF page cap.
+- `services/agent/runtime_settings_view.py`: builds the settings read view with agent-derived fields for `GET/PATCH /settings`.
+- `services/agent/runtime_settings_validation.py`: vision-capable model filtering and LiteLLM credential checks for settings reads.
 - `user_files.py`: canonical per-user upload path management, atomic writes/imports, hashing, and readable stored-filename helpers.
 - `import_workflow/`: backend-orchestrated import jobs (`jobs.py`, `preflight.py`, `scheduler.py`, `proposals.py`, `dedup.py`, `serializers.py`).
 - `agent/`: harness-first agent runtime, canonical transcript persistence, tool execution, prompt-size counting, serialization, prompt/model adapters, and review apply handlers.
@@ -150,34 +156,31 @@
   - `session_tools/`: session-scoped non-proposal tool handlers for add-only memory appends and thread rename operations.
   - `threads.py`: thread lookup and rename persistence helpers used by the router and tool runtime.
   - `protocol_helpers.py`: shared helper contracts for tool-call decoding and usage-shape normalization.
-  - `protocol.py`: compatibility facade re-exporting protocol helper APIs.
   - `error_policy.py`: shared recoverable-error policy/result primitives and contextual fallback logging.
   - `harness/`: product-native `AgentHarness` coordinator, contracts, transcript helpers, step executor, and event/repository protocols.
   - `production_runtime.py`: compose production harness with DB repository, model gateway, tools, stop signal, and SSE fan-out.
   - `production_repository.py`: SQLAlchemy `RunRepository` for canonical transcript, steps, tool calls, and harness events.
-  - `legacy_transcript_backfill.py` / `legacy_transcript_backfill_apply.py`: plan, validate, and apply the one-time full conversation port into the harness schema.
   - `production_events.py`: map harness events to client SSE payloads.
   - `model_gateway.py`: LiteLLM completion adapters used by the harness model gateway.
   - `api_projection.py`: derive API `turns` and thread-detail projections from canonical transcript rows plus per-run work records.
-  - `thread_context.py`: build per-turn `initial_transcript` from prior canonical transcript rows and prompt context.
+  - `prompt_assembly/`: per-turn model context pipeline (`thread_context.py`, `message_history_content.py`, `message_history_prefixes.py`, `user_context.py`, `prompts.py`); Jinja templates stay in the parent `agent/` directory.
   - `execution.py`: HTTP/background intake for user turns and harness run startup.
   - `attachments.py`: message-to-canonical-file linkage helpers for attachment rows.
   - `attachment_content.py`: public attachment-content seam plus vision capability checks.
-  - `docling_convert.py`: archived Docling standard-pipeline conversion and referenced markdown export for historical agent bundles
   - `agent_attachment_bundle.py`: dated upload bundle paths, vision page rendering, and bundle path helpers
   - `work_sessions.py`: external-agent session/source persistence plus synthetic CLI run ownership for proposal creation
-  - `agent_upload_bundle_relocate.py`: one-shot relocate of bundle dirs to created-at dates and readable folder names
-  - `attachment_content_assembly.py`: attachment display-name, data-url, and model-content assembly helpers.
-  - `message_history_content.py`: attachment-backed user-content shaping and entity-category prompt context helpers.
-  - `message_history_prefixes.py`: review-result prefix assembly for the current turn.
-  - `user_context.py`: account/user prompt-context normalization and truncation helpers.
+  - `attachment_content_assembly.py`: attachment display-name, data-url, and model-content assembly helpers (includes the pre-2026 Docling-era `parsed.md` read path for historical bundles).
   - `runtime.py`: public facade over harness execution plus stable test/benchmark monkeypatch seams.
-  - `stream_hub.py`: in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers.
+  - `stream_hub.py`: in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers; executor wired via `register_run_executor()` from `production_runtime.py`.
+  - `stream_sequences.py`: durable hub sequence + ephemeral buffer state, fan-out drop policy, and reconnect dedupe helpers.
+  - `retry_policy.py`: shared tenacity retry builders for model client and tool runtime.
+  - `run_observers.py`: production `RunObserver` registrations and `fail_run_terminally` helper.
+  - `tools_for_model_request.py`: single gate (`expose_tools_for_model_request`) for per-request tool schema exposure.
+  - `change_registry.py` + `change_summaries.py`: one `ChangeTypeSpec` per `AgentChangeType`.
   - `entry_references.py`: shared entry-id alias, selector lookup, and public entry snapshot helpers.
   - `group_references.py`: shared group-id alias lookup plus public group summary/detail formatting for group tools and review payloads.
   - `proposals/`: proposal-family helpers split into `common.py`, `catalog.py`, `entries.py`, `groups.py`, the `group_memberships/` package (`common.py`, `validation.py`, `handlers.py`), family-owned normalization modules plus a small `normalization.py` registry, and `pending.py`.
   - `proposal_metadata.py`: canonical proposal domain/action/tool-name mapping shared by list/history/review surfaces.
-  - `tool_runtime.py`: thin public seam for tool contracts and execution entrypoints.
   - `tool_runtime_support/`: grouped tool-runtime internals split into tool definitions, schema inlining, family registries, merged registry composition, and retry/error execution policy.
   - `benchmark_interface.py`: stable benchmark execution contract returning normalized predictions/trace data.
   - `change_contracts/`: proposal payload contracts split into `catalog.py`, `entries.py`, `groups.py`, shared normalization in `common.py`, and registry/patch helpers in `__init__.py` + `patches.py`.
@@ -209,25 +212,26 @@
 
 - `main.tsx`: React root and providers, including the auth provider.
 - `App.tsx`: top-level shell layout (sidebar + content) and route map.
-- `styles.css`: global styling including sidebar and app-shell classes.
+- `styles.css`: import barrel for the split global stylesheet modules under `styles/`.
+- `styles/`: `tokens.css`, `base.css`, `shell.css`, `sections.css`, `entries.css`, `groups.css`, `properties.css`, `settings.css`, `dashboard.css`, `overlays.css`, `agent.css`, `review.css`, and import-* sheets.
 - `test/`: frontend test setup, typed fixture factories, and shared query-client test renderer.
 
 #### Components (`/frontend/src/components`)
 
 - `Sidebar.tsx`: collapsible left-panel navigation with icon+label links and the active-principal switcher.
 - `MetricCard.tsx`: reusable metric container.
-- `LineChart.tsx`: legacy SVG daily expense chart helper (dashboard now uses Recharts).
 - `GroupEditorModal.tsx`: create/rename dialog for manual groups.
 - `GroupDetailModal.tsx`: wide group-detail modal for manual-group inspection and membership management.
 - `GroupMemberEditorModal.tsx`: add-member dialog for manual groups.
-- `TagMultiSelect.tsx`: Notion-style chip/dropdown multi-select for entry tags.
-- `DeleteConfirmDialog.tsx`: shared destructive confirmation dialog for account, entity, and tag deletes.
+- `TagMultiSelect.tsx`: Notion-style chip/dropdown multi-select for entry tags (uses `ui/floating-select/` core).
+- `SingleSelect.tsx` / `CreatableSingleSelect.tsx`: searchable and creatable single-select controls sharing the floating-select core.
+- `DeleteConfirmDialog.tsx`: shared destructive confirmation dialog built on `ui/modal-shell.tsx`.
 - `EntryEditorModal.tsx`: shared popup for entry create/edit, including manual-group assignment.
 - `MarkdownBlockEditor.tsx`: BlockNote wrapper for markdown + pasted images.
 - `agent/AgentRunBlock.tsx`: extracted run activity/summary renderer used by `AgentPanel`.
 - `agent/activity.ts`: extracted run/activity derivation helpers for agent timeline state.
 - `agent/review/model.ts`: review-item summaries, proposal-domain grouping, and shared change-type labels.
-- `agent/panel/*`: agent panel presentation layer (`AgentThreadList`, `AgentThreadPanel`, `AgentTimeline`, `AgentComposer`, `AgentThreadUsageBar`, `AgentAttachmentPreviewDialog`) plus the coordinator hooks (`useAgentPanelController`, `useAgentPanelQueries`, `useAgentThreadActions`, `useAgentComposerRuntime`), composer-runtime support hooks (`useAgentComposerStreamState`, `useAgentComposerActions`), panel-local hooks (`useResizablePanel`, `useStickToBottom`, `useAgentDraftAttachments`), and type/format helpers.
+- `agent/panel/*`: agent panel presentation layer (`AgentThreadList`, `AgentThreadPanel`, `AgentTimeline`, `AgentComposer`, `AgentThreadUsageBar`, `AgentAttachmentPreviewDialog`) plus the coordinator hooks (`useAgentPanelController`, `useAgentPanelQueries`, `useAgentThreadActions`, `useAgentComposerRuntime`), composer-runtime support hooks (`useAgentComposerStreamState`, `useAgentComposerActions`), the module stream store (`agentStreamSession.ts`), pure SSE reducer (`streamReducer.ts`), stream effect runner (`runAgentStreamEffects.ts`), grouped timeline view-model types (`agentTimelineModel.ts`), panel-local hooks (`useResizablePanel`, `useStickToBottom`, `useAgentDraftAttachments`), and type/format helpers.
 - `agent/review/*`: thread-review modal shell plus split modal presentation modules (`ReviewModalHeader`, `ReviewModalControls`), the read-only review controller (`useAgentThreadReviewController.ts`), and diff record-shaping packages (`diff/core.ts`, `domains.ts`) consumed by shared field builders.
 - `review/*`: shared proposal review shell (`ReviewPanel.tsx`), unified read-only detail card (`ReviewItemCard.tsx`, `ReviewSummary.tsx`, `ReviewContextList.tsx`, `ReviewOutcomeList.tsx`, `ReviewFieldList.tsx`, `proposalSummary.ts`, `proposalContext.ts`, `proposalOutcome.ts`, `proposalFields.ts`), detail card header (`ReviewCardHeader.tsx`, `cardMetadata.ts`), hierarchical TOC (`ReviewToc.tsx`, `tocTree.ts`, `entryTocFields.ts`), styling/grouping helpers (`helpers.ts`), and mappers for import (`mapImportProposal.ts`) and agent thread items (`mapThreadReviewItem.ts`).
 
@@ -238,11 +242,12 @@
 - `AdminPage.tsx`: admin-only user/session management workspace.
 - `WorkspacePage.tsx`: legacy current-user workspace IDE shell retained without an active app route.
 - `SettingsPage.tsx`: thin runtime-settings page shell that composes the `features/settings` controller and section modules.
-- `EntriesPage.tsx`: list/filter/delete entries and open popup create/edit editor.
-- `EntryDetailPage.tsx`: show entry detail, group memberships, and popup editing.
-- `GroupsPage.tsx`: manual group workspace with a table-first browser and detail modal for group editing.
-- `GroupsPage.test.tsx`: page-level integration test for table-first group browsing and detail-modal opening.
-- `GroupsPage.tsx`: unified manual and rule group workspace at `/groups` (`/filters` redirects here).
+- `EntriesPage.tsx`: thin page orchestrator that composes the entries feature model and table.
+- `EntryDetailPage.tsx`: thin page orchestrator for entry detail and popup editing.
+- `GroupsPage.tsx`: thin page orchestrator that composes the groups feature model and browser table.
+- `DashboardPage.tsx`: thin page orchestrator that composes dashboard period controls and tab panels.
+- `AdminPage.tsx`: thin admin page orchestrator for user CRUD, session revoke, and impersonation.
+- `AdminPage.test.tsx`: page-level integration tests for admin user CRUD, session revoke, and login-as adoption.
 - `AccountsPage.tsx`: thin page orchestrator that composes accounts feature modules.
 - `PropertiesPage.tsx`: thin page orchestrator that composes properties feature modules.
 - `AccountsPage.test.tsx`: page-level integration tests for account create, snapshot, and delete flows.
@@ -264,8 +269,25 @@
   - `SnapshotHistoryTable.tsx`: snapshot history table shown in the account edit modal history column.
   - `AccountDialogs.tsx`: create/edit account dialog UI.
   - `helpers.ts`, `types.ts`: normalization helpers and local state contracts.
+- `entries/`
+  - `useEntriesPageModel.ts`: entries list queries, filters, editor mutations, and infinite-scroll wiring.
+  - `useEntryDetailPageModel.ts`: entry detail queries and update mutation for the detail route.
+  - `EntriesTable.tsx`: entries table, load-more footer, and row presentation helpers.
+  - `EntriesFilterToolbar.tsx`, `entriesFilters.ts`, `entriesDisplayHelpers.ts`: filter toolbar, URL sync, and display helpers.
+- `groups/`
+  - `useGroupsPageModel.ts`: group browser queries, detail modal state, and membership/entry-editor mutations.
+  - `GroupsBrowserTable.tsx`: searchable groups table with detail open actions.
+  - `GroupsTableToolbar.tsx`, `GroupRuleEditorSection.tsx`: toolbar and embedded rule editor UI.
+- `dashboard/`
+  - `useDashboardPageModel.ts`: dashboard queries, period selection, derived chart/KPI state, and batch cache seeding.
+  - `DashboardFinanceChrome.tsx`: summary hero, trend chart, and period toolbar shell.
+  - `DashboardPeriodControls.tsx`, `DashboardPanels.tsx`, `DashboardBreakdownsPanel.tsx`, `helpers.ts`: dashboard panels and chart helpers.
+- `admin/`
+  - `useAdminPageModel.ts`: admin user/session queries, drafts, and CRUD/revoke/impersonation mutations.
+  - `AdminUsersSection.tsx`, `AdminSessionsSection.tsx`: user management and session revoke UI sections.
 - `properties/`
   - `usePropertiesPageModel.ts`: top-level properties coordinator composing query/state/mutation hooks.
+  - `usePropertiesTagMutations.ts`, `usePropertiesEntryCategoryMutations.ts`, `usePropertiesEntityTaxonomyMutations.ts`: focused mutation and action hooks.
   - `usePropertiesQueries.ts`: users/entities/tags/currencies/taxonomy queries + derived option/label state.
   - `usePropertiesSectionState.ts`: section routing/search/create-panel state.
   - `usePropertiesFormState.ts`: section form/editing state.
@@ -285,10 +307,14 @@
 
 #### Frontend Lib (`/frontend/src/lib`)
 
-- `types.ts`: shared TS API/data types.
+- `../openapi.json`: committed OpenAPI snapshot dumped from the backend (`scripts/dump_openapi.py`).
+- `api-types.gen.ts`: generated TypeScript schemas (`npm run gen:api` / `openapi-typescript`).
+- `types/`: domain modules that alias generated schemas; hand-written types only for frontend-local view models.
+- `types.ts`: compatibility barrel re-exporting domain type modules.
 - `api.ts`: fetch wrappers and API request functions, including shared bearer-token injection plus admin/auth helpers.
 - `api/import.ts`: import preflight, job lifecycle, and aggregated proposal review helpers.
-- `format.ts`: money formatting and date helpers.
+- `collections.ts`: helpers such as `listOrEmpty` for optional generated list fields.
+- `format.ts`: money formatting, date helpers, entry kind labels, and group date-range labels.
 - `queryKeys.ts`: centralized TanStack Query key factory for all domains.
 - `queryInvalidation.ts`: shared cache invalidation rules after mutations/review actions, including group-driven entry/group refresh.
 
@@ -312,9 +338,10 @@
 - `/scripts/seed_demo.py`: local seed dataset generation.
 - `/scripts/download_bank_statements.py`: headed Chrome bank-export downloader with manual login plus local JSON recipes under `/scripts/bank_download/recipes/` (gitignored except `template.example.json`; see `/scripts/bank_download/README.md`).
 - `/scripts/bootstrap_admin.py`: create or reset an admin password-backed login and upgrade the database to head when needed.
-- `/scripts/migrate_agent_upload_bundle_paths.py`: migrate Docling bundle dirs to ``uploads/<created-at-date>/<readable-bundle>/raw.<ext>`` and rewrite readable sibling assets (optional admin one-shot).
 - `/scripts/setup_shared_env.sh`: copies `.env` (or `.env.example`) to `~/.config/bill-helper/.env` for cross-worktree secret sharing.
 - `/scripts/check_docs_sync.py`: docs consistency checks (migration refs + stale term detection + index links).
+- `/scripts/dump_openapi.py`: dump the FastAPI OpenAPI schema to `frontend/openapi.json`.
+- `/scripts/check_api_types_sync.py`: verify `frontend/openapi.json` and `frontend/src/lib/api-types.gen.ts` match the live backend schema.
 - `/.data` (runtime, legacy): per-worktree SQLite DB override location (ignored in git). Default data location is `~/.local/share/bill_helper/`.
 
 ## Benchmark (`/benchmark`)

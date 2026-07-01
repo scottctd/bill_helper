@@ -21,30 +21,6 @@ from .patches import (
 )
 
 
-CHANGE_PAYLOAD_MODELS: dict[AgentChangeType, type[BaseModel]] = {
-    AgentChangeType.CREATE_TAG: catalog_contracts.CreateTagPayload,
-    AgentChangeType.UPDATE_TAG: catalog_contracts.UpdateTagPayload,
-    AgentChangeType.DELETE_TAG: catalog_contracts.DeleteTagPayload,
-    AgentChangeType.CREATE_ENTITY: catalog_contracts.CreateEntityPayload,
-    AgentChangeType.UPDATE_ENTITY: catalog_contracts.UpdateEntityPayload,
-    AgentChangeType.DELETE_ENTITY: catalog_contracts.DeleteEntityPayload,
-    AgentChangeType.CREATE_ACCOUNT: catalog_contracts.CreateAccountPayload,
-    AgentChangeType.UPDATE_ACCOUNT: catalog_contracts.UpdateAccountPayload,
-    AgentChangeType.DELETE_ACCOUNT: catalog_contracts.DeleteAccountPayload,
-    AgentChangeType.CREATE_SNAPSHOT: catalog_contracts.SnapshotCreatePayload,
-    AgentChangeType.DELETE_SNAPSHOT: catalog_contracts.SnapshotDeletePayload,
-    AgentChangeType.CREATE_ENTRY: entry_contracts.CreateEntryPayload,
-    AgentChangeType.UPDATE_ENTRY: entry_contracts.UpdateEntryPayload,
-    AgentChangeType.DELETE_ENTRY: entry_contracts.DeleteEntryPayload,
-    AgentChangeType.CREATE_GROUP: group_contracts.CreateGroupPayload,
-    AgentChangeType.UPDATE_GROUP: group_contracts.UpdateGroupPayload,
-    AgentChangeType.DELETE_GROUP: group_contracts.DeleteGroupPayload,
-    AgentChangeType.CREATE_GROUP_MEMBER: group_contracts.CreateGroupMemberPayload,
-    AgentChangeType.DELETE_GROUP_MEMBER: group_contracts.DeleteGroupMemberPayload,
-}
-CHANGE_PAYLOAD_MODEL_TYPES = tuple(CHANGE_PAYLOAD_MODELS.values())
-
-
 type ChangePayloadModel = (
     catalog_contracts.CreateTagPayload
     | catalog_contracts.UpdateTagPayload
@@ -68,8 +44,18 @@ type ChangePayloadModel = (
 )
 
 
+def _payload_models() -> dict[AgentChangeType, type[BaseModel]]:
+    from backend.services.agent.change_registry import change_payload_models
+
+    return change_payload_models()
+
+
+def _payload_model_types() -> tuple[type[BaseModel], ...]:
+    return tuple(_payload_models().values())
+
+
 def validate_change_payload(change_type: AgentChangeType, payload: dict[str, Any]) -> BaseModel:
-    model_type = CHANGE_PAYLOAD_MODELS.get(change_type)
+    model_type = _payload_models().get(change_type)
     if model_type is None:  # pragma: no cover - enum guard
         raise ValueError(f"unsupported proposal change type: {change_type.value}")
     return model_type.model_validate(payload)
@@ -80,9 +66,17 @@ def parse_change_payload(
     payload: Mapping[str, Any],
 ) -> ChangePayloadModel:
     parsed = validate_change_payload(change_type, dict(payload))
-    if not isinstance(parsed, CHANGE_PAYLOAD_MODEL_TYPES):  # pragma: no cover - enum/model map guard
+    if not isinstance(parsed, _payload_model_types()):  # pragma: no cover - enum/model map guard
         raise ValueError(f"unsupported proposal change type: {change_type.value}")
     return cast(ChangePayloadModel, parsed)
+
+
+def __getattr__(name: str) -> object:
+    if name == "CHANGE_PAYLOAD_MODELS":
+        return _payload_models()
+    if name == "CHANGE_PAYLOAD_MODEL_TYPES":
+        return _payload_model_types()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [

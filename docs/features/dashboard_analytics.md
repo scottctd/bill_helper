@@ -116,7 +116,7 @@ Agents can read dashboard analytics without re-aggregating entries manually:
 - `bh dashboard finance get` wraps `GET /dashboard` and `GET /dashboard/batch` with section filters.
 - `bh dashboard agent get` wraps `GET /agent/dashboard` with range/model/surface filters.
 
-Use `--format json --sections categories` when the agent needs the category → destination → entry tree. See `backend/cli/reference.py` and `bh dashboard finance get --help` for the full section list.
+Use `--format json --sections categories` when the agent needs the category → destination → entry tree. See `backend/cli_reference/specs.py` and `bh dashboard finance get --help` for the full section list.
 
 ## Operational Notes
 

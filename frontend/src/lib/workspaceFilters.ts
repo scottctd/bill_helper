@@ -13,7 +13,8 @@ export function stringOptionsAsTags(options: string[]): Tag[] {
   return options.map((name, index) => ({
     id: -1 - index,
     name,
-    color: null
+    color: null,
+    entry_count: 0
   }));
 }
 

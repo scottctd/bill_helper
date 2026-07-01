@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `common`.
-# - Inputs: callers that import `backend/services/agent/change_contracts/common.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `common`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Validated change payload contracts for `common` proposals.
+# - Inputs: Callers import `backend/services/agent/change_contracts/common` and invoke `normalize_object_json_string`, `normalize_optional_reference_id`, `normalize_optional_proposal_id`, `parse_patch_path`.
+# - Outputs: Exports `normalize_object_json_string`, `normalize_optional_reference_id`, `normalize_optional_proposal_id`, `parse_patch_path`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from typing import Any

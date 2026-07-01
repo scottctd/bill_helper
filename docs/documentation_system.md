@@ -74,10 +74,15 @@ If documents conflict, update the primary source first and trim stale secondary 
 Run:
 
 ```bash
+uv run python scripts/check_llm_design.py
+uv run python scripts/check_cli_parity.py
+uv run python scripts/check_sse_parity.py
+uv run python scripts/check_frontend_discipline.py
+uv run python scripts/check_api_types_sync.py
 uv run python scripts/check_docs_sync.py
 ```
 
-After changing `backend/services/agent/system_prompt.j2`, `backend/services/agent/external_agent_prompt.j2`, `backend/services/agent/prompt_includes/`, or `backend/cli/reference.py`, regenerate the committed hosted prompt snapshot (so docs stay aligned with the live hosted prompt):
+After changing `backend/services/agent/system_prompt.j2`, `backend/services/agent/external_agent_prompt.j2`, `backend/services/agent/prompt_includes/`, or `backend/cli_reference/`, regenerate the committed hosted prompt snapshot (so docs stay aligned with the live hosted prompt):
 
 ```bash
 uv run python scripts/render_agent_system_prompt_snapshot.py

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -12,10 +11,6 @@ import backend.models_finance  # noqa: F401
 import backend.models_settings  # noqa: F401
 from backend.config import get_settings
 from backend.db_meta import Base
-from backend.models_files import UserFile
-from backend.services.agent.agent_upload_bundle_relocate import (
-    relocate_agent_upload_bundle_primary,
-)
 from backend.services.user_files import (
     SOURCE_TYPE_AGENT_ATTACHMENT,
     STORAGE_AREA_UPLOAD,
@@ -142,71 +137,4 @@ def test_create_user_file_for_existing_canonical_bundle_primary(tmp_path, monkey
         assert resolve_user_file_path(row, data_dir=tmp_path / "data") == primary
     finally:
         db.close()
-        get_settings.cache_clear()
-
-
-def test_relocate_agent_upload_bundle_primary_moves_to_readable_raw_layout(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setenv("BILL_HELPER_DATA_DIR", str(tmp_path / "data"))
-    get_settings.cache_clear()
-
-    db_path = tmp_path / "user-files.sqlite"
-    engine = create_engine(f"sqlite:///{db_path}", future=True)
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, future=True)
-    db = session_factory()
-    try:
-        user = create_user_with_unique_name(
-            db,
-            raw_name="relocate-user",
-            password="relocate-user-password",
-        )
-        data_dir = tmp_path / "data"
-        owner = user_file_owner_root(user_id=user.id, data_dir=data_dir)
-        bundle = owner / "uploads" / "2026-03-22" / "abcdabcdabcd"
-        bundle.mkdir(parents=True)
-        (bundle / "stmt.pdf").write_bytes(b"%PDF-1.4")
-        (bundle / "statement-fig.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-        (bundle / "parsed.md").write_text("# md\n\n![](statement-fig.png)\n", encoding="utf-8")
-        user_file = create_user_file_for_existing_canonical_path(
-            db,
-            owner_user_id=user.id,
-            storage_area=STORAGE_AREA_UPLOAD,
-            source_type=SOURCE_TYPE_AGENT_ATTACHMENT,
-            stored_relative_path="uploads/2026-03-22/abcdabcdabcd/stmt.pdf",
-            original_filename="Statement March.pdf",
-            display_name=None,
-            mime_type="application/pdf",
-            data_dir=data_dir,
-        )
-        user_file.created_at = datetime(2025, 11, 5, 15, 0, 0, tzinfo=UTC)
-        db.commit()
-
-        status = relocate_agent_upload_bundle_primary(
-            db,
-            user_file=user_file,
-            timezone_name="UTC",
-            data_dir=data_dir,
-            dry_run=False,
-        )
-        assert status.startswith("relocated:")
-    finally:
-        db.close()
-
-    db2 = session_factory()
-    try:
-        row = db2.get(UserFile, user_file.id)
-        assert row is not None
-        assert row.stored_relative_path == "uploads/2025-11-05/Statement March/raw.pdf"
-        new_primary = resolve_user_file_path(row, data_dir=data_dir)
-        assert new_primary.is_file()
-        assert new_primary.name == "raw.pdf"
-        parsed = new_primary.parent / "parsed.md"
-        assert parsed.is_file()
-        assert "figure-1.png" in parsed.read_text(encoding="utf-8")
-        assert (new_primary.parent / "figure-1.png").is_file()
-        assert not bundle.exists()
-    finally:
-        db2.close()
         get_settings.cache_clear()

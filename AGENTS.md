@@ -62,6 +62,10 @@ These rules apply to any coding agent working in this repository.
 - `uv run python -m py_compile ...` on touched Python modules
 - `OPENROUTER_API_KEY=test uv run pytest backend/tests -q`
 - `uv run python scripts/check_llm_design.py`
+- `uv run python scripts/check_cli_parity.py`
+- `uv run python scripts/check_sse_parity.py`
+- `uv run python scripts/check_frontend_discipline.py`
+- `uv run python scripts/check_api_types_sync.py`
 - `uv run python scripts/check_docs_sync.py`
 
 ## Documentation
@@ -82,7 +86,7 @@ These rules apply to any coding agent working in this repository.
 - API contract changes: update the relevant `/docs/api/*.md` files and keep `/docs/api.md` current when the route-family map changes.
 - Data model or migration changes: update `/docs/data_model.md`, `/docs/backend_index.md`, the relevant `/backend/docs/*.md` files, and `/docs/repository_structure.md` when file maps or migration lists changed.
 - Backend behavior changes: update the relevant `/backend/docs/*.md` files and any affected `/docs/features/*.md`.
-- Agent system prompt templates (`backend/services/agent/system_prompt.j2`, `backend/services/agent/external_agent_prompt.j2`, `backend/services/agent/prompt_includes/`) or `bh` reference (`backend/cli/reference.py`) changes: regenerate `docs/features/system_prompt_example.md` with `uv run python scripts/render_agent_system_prompt_snapshot.py` (generated snapshot; do not edit by hand).
+- Agent system prompt templates (`backend/services/agent/system_prompt.j2`, `backend/services/agent/external_agent_prompt.j2`, `backend/services/agent/prompt_includes/`) or `bh` reference (`backend/cli_reference/`) changes: regenerate `docs/features/system_prompt_example.md` with `uv run python scripts/render_agent_system_prompt_snapshot.py` (generated snapshot; do not edit by hand).
 - Frontend behavior changes: update the relevant `/frontend/docs/*.md` files and any affected `/docs/features/*.md`.
 - Cross-cutting workflow or tooling changes: update `/README.md`, `/docs/development.md`, and `/docs/documentation_system.md`.
 - Major architectural decisions: add or update an ADR under `/docs/adr/`.

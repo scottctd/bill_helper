@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `context_tokens`.
-# - Inputs: callers that import `backend/services/agent/context_tokens.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `context_tokens`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `context_tokens`.
+# - Inputs: Callers import `backend/services/agent/context_tokens` and invoke `count_context_tokens_result`, `count_context_tokens`.
+# - Outputs: Exports `count_context_tokens_result`, `count_context_tokens`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from copy import deepcopy

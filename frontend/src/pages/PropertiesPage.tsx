@@ -9,6 +9,7 @@ import { WorkspaceSection } from "../components/layout/WorkspaceSection";
 import { PropertiesSectionContent } from "../features/properties/PropertiesSectionContent";
 import { PropertiesSectionNavigation } from "../features/properties/PropertiesSectionNavigation";
 import { usePropertiesPageModel } from "../features/properties/usePropertiesPageModel";
+import { getApiErrorMessage } from "../lib/api/core";
 
 export function PropertiesPage() {
   const model = usePropertiesPageModel();
@@ -16,7 +17,7 @@ export function PropertiesPage() {
   return (
     <div className="page stack-lg">
       <WorkspaceSection>
-        {model.queries.taxonomiesQuery.isError ? <p className="error">{(model.queries.taxonomiesQuery.error as Error).message}</p> : null}
+        {model.queries.taxonomiesQuery.isError ? <p className="error">{getApiErrorMessage(model.queries.taxonomiesQuery.error)}</p> : null}
 
         <div className="properties-layout">
           <PropertiesSectionNavigation

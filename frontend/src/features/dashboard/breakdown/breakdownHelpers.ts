@@ -7,6 +7,7 @@
  */
 
 import type { DashboardCategoryChildSummary, DashboardCategorySummary } from "../../../lib/types";
+import { listOrEmpty } from "../../../lib/collections";
 
 export type CategorySort = "amount_desc" | "amount_asc" | "alpha" | "share_desc";
 
@@ -23,7 +24,7 @@ export function sortCategorySummaries(categories: DashboardCategorySummary[]): D
 }
 
 export function categoryChildRows(category: DashboardCategorySummary): DashboardCategoryChildSummary[] {
-  return [...category.children].sort((left, right) => {
+  return [...listOrEmpty(category.children)].sort((left, right) => {
     const diff = right.total_minor - left.total_minor;
     if (diff !== 0) return diff;
     return left.name.localeCompare(right.name);

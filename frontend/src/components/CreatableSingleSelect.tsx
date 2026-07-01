@@ -5,13 +5,16 @@
  * - Outputs: React components and UI helpers exported by `CreatableSingleSelect`.
  * - Side effects: React rendering and user event wiring.
  */
-import { KeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { KeyboardEvent, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-import { useFloatingMenuPosition } from "../hooks/useFloatingMenuPosition";
-import { useFloatingMenuPortal } from "./FloatingMenuPortal";
-import { SelectMenuSurface } from "./SelectMenuSurface";
+import { FloatingSelectMenu } from "./ui/floating-select/FloatingSelectMenu";
+import {
+  onFloatingSelectActionKeyDown,
+  onFloatingSelectEscapeKeyDown,
+  onFloatingSelectPointerDown
+} from "./ui/floating-select/floatingSelectActions";
+import { useFloatingSelectMenu } from "./ui/floating-select/useFloatingSelectMenu";
 
 interface CreatableSingleSelectProps {
   options: string[];
@@ -58,15 +61,12 @@ export function CreatableSingleSelect({
   onCreateOption,
   createLabelPrefix = "Create"
 }: CreatableSingleSelectProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const controlRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const portalNode = useFloatingMenuPortal();
-  const [isOpen, setIsOpen] = useState(false);
   const [createdOptions, setCreatedOptions] = useState<string[]>([]);
-  const { menuRef, menuStyle } = useFloatingMenuPosition({
+  const { rootRef, menuRef, menuStyle, portalNode, isOpen, setIsOpen, openMenu } = useFloatingSelectMenu({
     anchorRef: controlRef,
-    open: isOpen
+    disabled
   });
 
   const normalizedValue = normalizeValue(value);
@@ -91,27 +91,12 @@ export function CreatableSingleSelect({
     return trimmed;
   }, [createdOptions, value]);
 
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current) {
-        return;
-      }
-      if (rootRef.current.contains(event.target as Node) || menuRef.current?.contains(event.target as Node)) {
-        return;
-      }
-      setIsOpen(false);
-    };
-
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [menuRef]);
-
   function focusInput() {
     if (disabled) {
       return;
     }
     inputRef.current?.focus();
-    setIsOpen(true);
+    openMenu();
   }
 
   function selectValue(nextValue: string, markAsCreated = false) {
@@ -122,26 +107,6 @@ export function CreatableSingleSelect({
     onChange(nextValue, { source: markAsCreated ? "create" : "select" });
     setIsOpen(false);
     requestAnimationFrame(() => inputRef.current?.blur());
-  }
-
-  function onOptionPointerDown(event: ReactPointerEvent<HTMLButtonElement>, action: () => void) {
-    if (disabled || event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    action();
-  }
-
-  function onActionKeyDown(event: KeyboardEvent<HTMLButtonElement>, action: () => void) {
-    if (disabled) {
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      event.stopPropagation();
-      action();
-    }
   }
 
   function onInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -165,14 +130,11 @@ export function CreatableSingleSelect({
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setIsOpen(true);
+      openMenu();
       return;
     }
 
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setIsOpen(false);
-    }
+    onFloatingSelectEscapeKeyDown(event, () => setIsOpen(false));
   }
 
   return (
@@ -188,9 +150,9 @@ export function CreatableSingleSelect({
           value={value}
           onChange={(event) => {
             onChange(event.target.value, { source: "input" });
-            setIsOpen(true);
+            openMenu();
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={openMenu}
           onKeyDown={onInputKeyDown}
         />
         <button
@@ -214,42 +176,45 @@ export function CreatableSingleSelect({
         </button>
       </div>
 
-      {isOpen && typeof document !== "undefined"
-        ? createPortal(
-            <SelectMenuSurface
-              className="creatable-select-menu"
-              menuRef={menuRef}
-              menuStyle={menuStyle}
+      <FloatingSelectMenu
+        open={isOpen}
+        portalNode={portalNode}
+        menuRef={menuRef}
+        menuStyle={menuStyle}
+        className="creatable-select-menu"
+      >
+        {filteredOptions.map((option) => {
+          const isSelected = normalizeValue(option) === normalizedValue;
+          return (
+            <button
+              key={normalizeValue(option)}
+              type="button"
+              className={`creatable-select-option ${isSelected ? "is-selected" : ""}`}
+              onPointerDown={(event) => onFloatingSelectPointerDown(event, disabled, () => selectValue(option))}
+              onKeyDown={(event) => onFloatingSelectActionKeyDown(event, disabled, () => selectValue(option))}
             >
-              {filteredOptions.map((option) => {
-                const isSelected = normalizeValue(option) === normalizedValue;
-                return (
-                  <button
-                    key={normalizeValue(option)}
-                    type="button"
-                    className={`creatable-select-option ${isSelected ? "is-selected" : ""}`}
-                    onPointerDown={(event) => onOptionPointerDown(event, () => selectValue(option))}
-                    onKeyDown={(event) => onActionKeyDown(event, () => selectValue(option))}
-                  >
-                    {option}
-                  </button>
-                );
-              })}
-              {creatableValue ? (
-                <button
-                  type="button"
-                  className="creatable-select-option"
-                  onPointerDown={(event) => onOptionPointerDown(event, () => selectValue(creatableValue, true))}
-                  onKeyDown={(event) => onActionKeyDown(event, () => selectValue(creatableValue, true))}
-                >
-                  {createLabelPrefix} "{creatableValue}"
-                </button>
-              ) : null}
-              {filteredOptions.length === 0 && !creatableValue ? <p className="tag-multiselect-empty">No matching options.</p> : null}
-            </SelectMenuSurface>,
-            portalNode ?? document.body
-          )
-        : null}
+              {option}
+            </button>
+          );
+        })}
+        {creatableValue ? (
+          <button
+            type="button"
+            className="creatable-select-option"
+            onPointerDown={(event) =>
+              onFloatingSelectPointerDown(event, disabled, () => selectValue(creatableValue, true))
+            }
+            onKeyDown={(event) =>
+              onFloatingSelectActionKeyDown(event, disabled, () => selectValue(creatableValue, true))
+            }
+          >
+            {createLabelPrefix} "{creatableValue}"
+          </button>
+        ) : null}
+        {filteredOptions.length === 0 && !creatableValue ? (
+          <p className="tag-multiselect-empty">No matching options.</p>
+        ) : null}
+      </FloatingSelectMenu>
     </div>
   );
 }

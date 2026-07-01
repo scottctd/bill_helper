@@ -5,10 +5,11 @@
  * - Outputs: React components and UI helpers exported by `AgentTimeline`.
  * - Side effects: React rendering and user event wiring.
  */
-import { Fragment, memo, type Ref } from "react";
+import { Fragment, memo } from "react";
 import { ArrowDown, File, FileImage, FileText } from "lucide-react";
 
 import type { AgentRun, AgentRunStep, AgentToolCall, AgentTurn, AgentTurnAttachment } from "../../../lib/types";
+import { listOrEmpty } from "../../../lib/collections";
 import { cn } from "../../../lib/utils";
 import { AssistantMessageRunWork } from "../AssistantMessageRunWork";
 import { runErrorText, type RunActivityItem } from "../activity";
@@ -26,41 +27,15 @@ import { AgentMessageHeader } from "./AgentMessageHeader";
 import { openAttachmentInNewTab } from "./attachmentBrowserOpen";
 import { resolveRunStreamBuffer } from "./helpers";
 import { agentStreamSession } from "./agentStreamSession";
+import type { AgentTimelineProps } from "./agentTimelineModel";
+
+export type { AgentTimelineModel, AgentTimelineProps } from "./agentTimelineModel";
+
 import type { PendingAssistantMessage, PendingUserMessage } from "./types";
 
 type AssistantBubbleAttachment =
   | AgentTurnAttachment
   | { id: string; kind: "image" | "pdf"; url: string; name: string };
-
-export interface AgentTimelineProps {
-  selectedThreadId: string;
-  isLoading: boolean;
-  errorMessage: string | null;
-  initiatedByExternalAgent: boolean;
-  turns: AgentTurn[] | undefined;
-  timelineScrollRef: Ref<HTMLDivElement>;
-  runsById: Map<string, AgentRun>;
-  pendingAssistantRuns: AgentRun[];
-  pendingUserMessage: PendingUserMessage | null;
-  pendingAssistantMessage: PendingAssistantMessage | null;
-  shouldShowOptimisticAssistantBubble: boolean;
-  pendingRunAttachedToOptimisticMessage: AgentRun | null;
-  activeStreamRunId: string | null;
-  activeStreamReasoningText: string;
-  activeStreamText: string;
-  streamedReasoningTextByRunId: Record<string, string>;
-  streamedTextByRunId: Record<string, string>;
-  optimisticStepsByRunId: Record<string, AgentRunStep[]>;
-  optimisticToolCallsByRunId: Record<string, AgentToolCall[]>;
-  liveActivityLedgerByRunId: Record<string, RunActivityItem[]>;
-  activeOptimisticSteps: AgentRunStep[];
-  activeOptimisticToolCalls: AgentToolCall[];
-  detachFromBottom: () => void;
-  onHydrateToolCall: (runId: string, toolCallId: string) => void;
-  hydratingToolCallIds: ReadonlySet<string>;
-  isAtBottom: boolean;
-  scrollToBottom: () => void;
-}
 
 function resolveReasoningSegmentStartedAt(runId: string | null | undefined): number | undefined {
   if (!runId) {
@@ -69,36 +44,35 @@ function resolveReasoningSegmentStartedAt(runId: string | null | undefined): num
   return agentStreamSession.reasoningSegmentStartedAtByRunId[runId];
 }
 
-function AgentTimelineComponent(props: AgentTimelineProps) {
+function AgentTimelineComponent({ model }: AgentTimelineProps) {
   const {
     selectedThreadId,
     isLoading,
     errorMessage,
     initiatedByExternalAgent,
     turns,
-    timelineScrollRef,
     runsById,
     pendingAssistantRuns,
     pendingUserMessage,
     pendingAssistantMessage,
     shouldShowOptimisticAssistantBubble,
     pendingRunAttachedToOptimisticMessage,
-    activeStreamRunId,
-    activeStreamReasoningText,
-    activeStreamText,
-    streamedReasoningTextByRunId = {},
-    streamedTextByRunId = {},
-    optimisticStepsByRunId = {},
-    optimisticToolCallsByRunId = {},
-    liveActivityLedgerByRunId = {},
-    activeOptimisticSteps = [],
-    activeOptimisticToolCalls = [],
-    detachFromBottom,
-    onHydrateToolCall,
-    hydratingToolCallIds,
-    isAtBottom,
-    scrollToBottom
-  } = props;
+    stream: {
+      activeStreamRunId,
+      activeStreamReasoningText,
+      activeStreamText,
+      streamedReasoningTextByRunId = {},
+      streamedTextByRunId = {},
+      optimisticStepsByRunId = {},
+      optimisticToolCallsByRunId = {},
+      liveActivityLedgerByRunId = {},
+      activeOptimisticSteps = [],
+      activeOptimisticToolCalls = [],
+      hydratingToolCallIds
+    },
+    scroll: { timelineScrollRef, detachFromBottom, isAtBottom, scrollToBottom },
+    onHydrateToolCall
+  } = model;
 
   function isImageMimeType(mimeType: string): boolean {
     return mimeType.toLowerCase().startsWith("image/");
@@ -111,9 +85,9 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
   function hasRenderableRunCard(run: AgentRun, optimisticSteps: AgentRunStep[] = []): boolean {
     return (
       Boolean(runErrorText(run)) ||
-      run.steps.length > 0 ||
-      run.tool_calls.length > 0 ||
-      run.change_items.length > 0 ||
+      listOrEmpty(run.steps).length > 0 ||
+      listOrEmpty(run.tool_calls).length > 0 ||
+      listOrEmpty(run.change_items).length > 0 ||
       optimisticSteps.length > 0
     );
   }
@@ -328,7 +302,7 @@ function AgentTimelineComponent(props: AgentTimelineProps) {
                       createdAt: turn.user_message.created_at,
                       text: turn.user_message.content_markdown,
                       emptyText: "(no text)",
-                      attachments: turn.user_message.attachments
+                      attachments: listOrEmpty(turn.user_message.attachments)
                     })}
                   </article>
 

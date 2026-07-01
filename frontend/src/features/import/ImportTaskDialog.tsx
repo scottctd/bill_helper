@@ -8,7 +8,8 @@
 
 import { useMemo } from "react";
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../components/ui/dialog";
+import { DialogDescription, DialogHeader, DialogTitle } from "../../components/ui/dialog";
+import { ModalShell } from "../../components/ui/modal-shell";
 import { buildThreadUsageTotals } from "../agent/activity";
 import { AgentComposer } from "../agent/panel/AgentComposer";
 import { AgentThreadUsageBar } from "../agent/panel/AgentThreadUsageBar";
@@ -16,6 +17,7 @@ import { AgentTimeline } from "../agent/panel/AgentTimeline";
 import type { ImportTask } from "../../lib/types";
 import { importTaskStatusLabel } from "./importHelpers";
 import { useImportTaskTimeline } from "./useImportTaskTimeline";
+import { getApiErrorMessage } from "../../lib/api/core";
 
 export interface ImportTaskConversationTarget {
   thread_id: string;
@@ -51,8 +53,11 @@ export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogP
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="import-task-dialog-content">
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      contentClassName="import-task-dialog-content"
+      header={
         <DialogHeader className="import-task-dialog-header">
           <div className="import-task-dialog-header-main">
             <DialogTitle>{task.source_label}</DialogTitle>
@@ -60,41 +65,48 @@ export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogP
           </div>
           <AgentThreadUsageBar selectedThreadId={threadId} totals={threadUsageTotals} />
         </DialogHeader>
-        <div className="import-task-dialog-body">
-          <section className="agent-thread-timeline import-task-dialog-timeline">
-            <AgentTimeline
-              selectedThreadId={threadId}
-              isLoading={dialog.threadQuery.isLoading}
-              errorMessage={dialog.threadQuery.isError ? (dialog.threadQuery.error as Error).message : null}
-              initiatedByExternalAgent={dialog.threadQuery.data?.thread.initiated_by_external_agent ?? false}
-              turns={dialog.threadQuery.data?.turns}
-              timelineScrollRef={timeline.timelineScrollRef}
-              runsById={dialog.runsById}
-              pendingAssistantRuns={dialog.pendingAssistantRuns}
-              pendingUserMessage={timeline.pendingUserMessage}
-              pendingAssistantMessage={timeline.pendingAssistantMessage}
-              shouldShowOptimisticAssistantBubble={timeline.shouldShowOptimisticAssistantBubble}
-              pendingRunAttachedToOptimisticMessage={timeline.pendingRunAttachedToOptimisticMessage}
-              activeStreamRunId={timeline.activeStreamRunId}
-              activeStreamReasoningText={timeline.activeStreamReasoningText}
-              activeStreamText={timeline.activeStreamText}
-              streamedReasoningTextByRunId={timeline.streamedReasoningTextByRunId}
-              streamedTextByRunId={timeline.streamedTextByRunId}
-              optimisticStepsByRunId={timeline.optimisticStepsByRunId}
-              optimisticToolCallsByRunId={timeline.optimisticToolCallsByRunId}
-              liveActivityLedgerByRunId={timeline.liveActivityLedgerByRunId}
-              activeOptimisticSteps={timeline.activeOptimisticSteps}
-              activeOptimisticToolCalls={timeline.activeOptimisticToolCalls}
-              hydratingToolCallIds={timeline.hydratingToolCallIds}
-              onHydrateToolCall={timeline.onHydrateToolCall}
-              isAtBottom={timeline.isAtBottom}
-              detachFromBottom={timeline.detachFromBottom}
-              scrollToBottom={timeline.scrollToBottom}
-            />
-            <AgentComposer {...composer} />
-          </section>
-        </div>
-      </DialogContent>
-    </Dialog>
+      }
+    >
+      <div className="import-task-dialog-body">
+        <section className="agent-thread-timeline import-task-dialog-timeline">
+          <AgentTimeline
+            model={{
+              selectedThreadId: threadId,
+              isLoading: dialog.threadQuery.isLoading,
+              errorMessage: dialog.threadQuery.isError ? getApiErrorMessage(dialog.threadQuery.error) : null,
+              initiatedByExternalAgent: dialog.threadQuery.data?.thread.initiated_by_external_agent ?? false,
+              turns: dialog.threadQuery.data?.turns,
+              runsById: dialog.runsById,
+              pendingAssistantRuns: dialog.pendingAssistantRuns,
+              pendingUserMessage: timeline.pendingUserMessage,
+              pendingAssistantMessage: timeline.pendingAssistantMessage,
+              shouldShowOptimisticAssistantBubble: timeline.shouldShowOptimisticAssistantBubble,
+              pendingRunAttachedToOptimisticMessage: timeline.pendingRunAttachedToOptimisticMessage,
+              stream: {
+                activeStreamRunId: timeline.activeStreamRunId,
+                activeStreamReasoningText: timeline.activeStreamReasoningText,
+                activeStreamText: timeline.activeStreamText,
+                streamedReasoningTextByRunId: timeline.streamedReasoningTextByRunId,
+                streamedTextByRunId: timeline.streamedTextByRunId,
+                optimisticStepsByRunId: timeline.optimisticStepsByRunId,
+                optimisticToolCallsByRunId: timeline.optimisticToolCallsByRunId,
+                liveActivityLedgerByRunId: timeline.liveActivityLedgerByRunId,
+                activeOptimisticSteps: timeline.activeOptimisticSteps,
+                activeOptimisticToolCalls: timeline.activeOptimisticToolCalls,
+                hydratingToolCallIds: timeline.hydratingToolCallIds
+              },
+              scroll: {
+                timelineScrollRef: timeline.timelineScrollRef,
+                detachFromBottom: timeline.detachFromBottom,
+                isAtBottom: timeline.isAtBottom,
+                scrollToBottom: timeline.scrollToBottom
+              },
+              onHydrateToolCall: timeline.onHydrateToolCall
+            }}
+          />
+          <AgentComposer {...composer} />
+        </section>
+      </div>
+    </ModalShell>
   );
 }

@@ -22,7 +22,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from backend.services.agent.prompts import external_agent_prompt
+from backend.services.agent.prompt_assembly.prompts import external_agent_prompt
 from backend.cli.dashboard_commands import add_dashboard_parser
 from backend.cli.category_commands import add_entry_categories_parser
 from backend.cli.session_commands import add_sessions_parser

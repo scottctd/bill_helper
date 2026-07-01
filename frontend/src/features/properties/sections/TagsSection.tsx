@@ -15,14 +15,8 @@ import type { Tag } from "../../../lib/types";
 import { DeleteConfirmDialog } from "../../../components/DeleteConfirmDialog";
 import { CreatableSingleSelect } from "../../../components/CreatableSingleSelect";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../../../components/ui/dialog";
+import { DialogFooter } from "../../../components/ui/dialog";
+import { ModalShell } from "../../../components/ui/modal-shell";
 import { FormField } from "../../../components/ui/form-field";
 import { Input } from "../../../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
@@ -207,19 +201,17 @@ export function TagsSection(props: TagsSectionProps) {
         )
       ) : null}
 
-      <Dialog
+      <ModalShell
         open={createPanelOpen}
         onOpenChange={(open) => {
           if (!open) {
             onCloseCreatePanel();
           }
         }}
+        size="md"
+        title="Create Tag"
+        description="Add a tag with optional taxonomy type and color token."
       >
-        <DialogContent className="max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Create Tag</DialogTitle>
-            <DialogDescription>Add a tag with optional taxonomy type and color token.</DialogDescription>
-            </DialogHeader>
           <form className="grid gap-4" onSubmit={onCreateTagSubmit}>
             <FormField label="Name">
               <Input placeholder="e.g. groceries" value={newTagName} onChange={(event) => onNewTagNameChange(event.target.value)} />
@@ -253,22 +245,19 @@ export function TagsSection(props: TagsSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
-      <Dialog
+      <ModalShell
         open={editingTagId !== null}
         onOpenChange={(open) => {
           if (!open) {
             onCancelEditTag();
           }
         }}
+        size="md"
+        title="Edit Tag"
+        description="Update tag naming, type, and display color."
       >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Edit Tag</DialogTitle>
-            <DialogDescription>Update tag naming, type, and display color.</DialogDescription>
-          </DialogHeader>
           <form
             className="grid gap-4"
             onSubmit={(event) => {
@@ -315,8 +304,7 @@ export function TagsSection(props: TagsSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
       <DeleteConfirmDialog
         open={deletingTag !== null}

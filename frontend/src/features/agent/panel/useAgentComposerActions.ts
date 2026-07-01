@@ -5,68 +5,54 @@
  * - Outputs: hooks and state helpers exported by `useAgentComposerActions`.
  * - Side effects: client-side state coordination and query wiring.
  */
-import { type Dispatch, type FormEvent, type SetStateAction, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { getAgentThread, streamAgentMessage } from "../../../lib/api";
 import { invalidateAgentThreadData } from "../../../lib/queryInvalidation";
 import { queryKeys } from "../../../lib/queryKeys";
-import type { AgentApprovalPolicy, AgentStreamEvent, AgentThreadDetail } from "../../../lib/types";
 import { sortRunsByCreatedAt } from "../activity";
 import { agentStreamAbortControllers } from "./agentStreamSession";
-import { type DraftAttachment, type PendingAssistantMessage, type PendingUserMessage, type ReadyDraftAttachment } from "./types";
+import type { ComposerIO, ComposerRunControl, ComposerThreadCacheOps } from "./composerRuntimeTypes";
+import { type DraftAttachment, type PendingUserMessage } from "./types";
+import { getApiErrorMessage } from "../../../lib/api/core";
 
 interface UseAgentComposerActionsArgs {
-  activeRunId: string | null;
-  activeStreamRunId: string | null;
-  addOptimisticRunningThreadId: (threadId: string) => void;
-  approvalPolicy: AgentApprovalPolicy;
-  clearOptimisticThreadTitle: (threadId: string) => void;
-  draftAttachments: DraftAttachment[];
-  draftMessage: string;
-  ensureThreadId: () => Promise<string>;
-  handleAgentStreamEvent: (threadId: string, event: AgentStreamEvent) => void;
-  interruptRun: (payload: { runId: string; threadId: string }) => Promise<void>;
-  removeOptimisticRunningThreadId: (threadId: string) => void;
-  resetOptimisticRunState: (threadId?: string) => void;
-  resolveDraftAttachmentsForSend: (attachments: DraftAttachment[]) => Promise<ReadyDraftAttachment[]>;
-  selectedComposerModel: string;
-  selectedThreadId: string;
-  setActionError: (message: string | null) => void;
-  setDraftAttachments: Dispatch<SetStateAction<DraftAttachment[]>>;
-  setDraftMessage: (message: string) => void;
-  setPendingAssistantMessage: (threadId: string, message: PendingAssistantMessage | null) => void;
-  setPendingUserMessage: (threadId: string, message: PendingUserMessage | null) => void;
-  setThreadStreamHealthy: (threadId: string, isHealthy: boolean) => void;
-  snapToBottom: () => void;
-  threadDetail: AgentThreadDetail | undefined;
+  composerIO: ComposerIO;
+  threadCacheOps: ComposerThreadCacheOps;
+  runControl: ComposerRunControl;
 }
 
-export function useAgentComposerActions({
-  activeRunId,
-  activeStreamRunId,
-  addOptimisticRunningThreadId,
-  approvalPolicy,
-  clearOptimisticThreadTitle,
-  draftAttachments,
-  draftMessage,
-  ensureThreadId,
-  handleAgentStreamEvent,
-  interruptRun,
-  removeOptimisticRunningThreadId,
-  resetOptimisticRunState,
-  resolveDraftAttachmentsForSend,
-  selectedComposerModel,
-  selectedThreadId,
-  setActionError,
-  setDraftAttachments,
-  setDraftMessage,
-  setPendingAssistantMessage,
-  setPendingUserMessage,
-  setThreadStreamHealthy,
-  snapToBottom,
-  threadDetail
-}: UseAgentComposerActionsArgs) {
+export function useAgentComposerActions({ composerIO, threadCacheOps, runControl }: UseAgentComposerActionsArgs) {
+  const {
+    approvalPolicy,
+    draftAttachments,
+    draftMessage,
+    ensureThreadId,
+    handleAgentStreamEvent,
+    resolveDraftAttachmentsForSend,
+    selectedComposerModel,
+    setActionError,
+    setDraftAttachments,
+    setDraftMessage,
+    setPendingAssistantMessage,
+    setPendingUserMessage,
+    snapToBottom
+  } = composerIO;
+  const {
+    addOptimisticRunningThreadId,
+    clearOptimisticThreadTitle,
+    removeOptimisticRunningThreadId,
+    setThreadStreamHealthy
+  } = threadCacheOps;
+  const {
+    activeRunId,
+    activeStreamRunId,
+    interruptRun,
+    resetOptimisticRunState,
+    selectedThreadId,
+    threadDetail
+  } = runControl;
   const queryClient = useQueryClient();
   const [sendingThreadIds, setSendingThreadIds] = useState<string[]>([]);
 
@@ -144,7 +130,7 @@ export function useAgentComposerActions({
         }
         setActionError(null);
       } else {
-        setActionError((error as Error).message);
+        setActionError(getApiErrorMessage(error));
       }
     } finally {
       if (threadId) {
@@ -201,7 +187,7 @@ export function useAgentComposerActions({
     try {
       await interruptRun({ runId: runIdToInterrupt, threadId: selectedThreadId });
     } catch (error) {
-      setActionError((error as Error).message);
+      setActionError(getApiErrorMessage(error));
     }
   }
 

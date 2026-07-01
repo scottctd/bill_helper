@@ -156,11 +156,11 @@ Weighted composite: entries (60%), entities (25%), tags (15%). Entry score combi
 
 The runner reuses production agent code through a stable benchmark-facing service contract:
 - Benchmark contract: `backend/services/agent/benchmark_interface.py` (`run_benchmark_case`)
-- Same tool schemas and execution (`backend/services/agent/tools.py`)
-- Same message construction (`backend/services/agent/message_history.py`)
-- Same system prompt (`backend/services/agent/prompts.py`)
-- Model client via LiteLLM (`backend/services/agent/model_client.py`)
-- Same run-step state machine via adapterized orchestrator (`backend/services/agent/run_orchestrator.py`)
+- Same tool schemas and execution (`backend/services/agent/tool_runtime_support/`)
+- Same message construction (`backend/services/agent/prompt_assembly/`)
+- Same system prompt (`backend/services/agent/prompt_assembly/prompts.py`)
+- Model client via LiteLLM (`backend/services/agent/model_client_support/client.py`)
+- Same run-step state machine via the harness (`backend/services/agent/harness/`)
 - Same tool-call/usage helper semantics (`backend/services/agent/protocol_helpers.py`)
 
 The only change is the model name, injected via `RuntimeSettings` override in the isolated temp DB.

@@ -1,13 +1,14 @@
 # CALLING SPEC:
 # - Purpose: translate HTTP requests and responses for `dashboard` routes.
-# - Inputs: callers that import `backend/routers/dashboard.py` and pass module-defined arguments or framework events.
-# - Outputs: router callables and request/response adapters for `dashboard`.
-# - Side effects: FastAPI routing and HTTP error translation.
+# - Inputs: authenticated principal, validated dashboard month query params, and DB session.
+# - Outputs: dashboard read payloads mapped from finance dashboard services.
+# - Side effects: HTTP routing only; read endpoints do not commit.
 from __future__ import annotations
 
 from datetime import date
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from backend.auth.contracts import RequestPrincipal
@@ -17,26 +18,29 @@ from backend.schemas_finance import DashboardBatchRead, DashboardRead, Dashboard
 from backend.services.finance_dashboard import (
     build_dashboard_read,
     build_dashboard_timeline_read,
-    month_window,
+    parse_dashboard_month,
 )
 from backend.services.finance_dashboard_batch import build_dashboard_batch_read
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
+def _dashboard_month_query(
+    month: Annotated[
+        str,
+        Query(default_factory=lambda: date.today().strftime("%Y-%m"), pattern=r"^\d{4}-\d{2}$"),
+    ],
+) -> str:
+    return parse_dashboard_month(month)
+
+
 @router.get("", response_model=DashboardRead)
 def get_dashboard(
-    month: str = Query(default_factory=lambda: date.today().strftime("%Y-%m"), pattern=r"^\d{4}-\d{2}$"),
+    month: Annotated[str, Depends(_dashboard_month_query)],
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> DashboardRead:
-    try:
-        month_window(month)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail="month must be in YYYY-MM format") from exc
-    payload = build_dashboard_read(db, month=month, principal=principal)
-    db.commit()
-    return payload
+    return build_dashboard_read(db, month=month, principal=principal)
 
 
 @router.get("/timeline", response_model=DashboardTimelineRead)
@@ -44,9 +48,7 @@ def get_dashboard_timeline(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> DashboardTimelineRead:
-    payload = build_dashboard_timeline_read(db, principal=principal)
-    db.commit()
-    return payload
+    return build_dashboard_timeline_read(db, principal=principal)
 
 
 @router.get("/batch", response_model=DashboardBatchRead)
@@ -55,9 +57,4 @@ def get_dashboard_batch(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> DashboardBatchRead:
-    try:
-        payload = build_dashboard_batch_read(db, months=months, principal=principal)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    db.commit()
-    return payload
+    return build_dashboard_batch_read(db, months=months, principal=principal)

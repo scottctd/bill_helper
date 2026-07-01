@@ -60,7 +60,7 @@ type DashboardSpendingPanelProps = {
   spendingByDestination: DashboardBreakdownItem[];
   dailyChartData: Array<Record<string, unknown>>;
   yearlyQueriesLoading: boolean;
-  yearlyQueryError?: Error;
+  yearlyQueryError?: string | null;
   yearlyOverviewData: Array<Record<string, unknown>>;
   yearlyAverageExpenseMonthMinor: number;
   yearlyMedianExpenseMonthMinor: number;
@@ -160,7 +160,7 @@ export function DashboardSpendingPanel({
                 <p className="rounded-sm border border-border/70 bg-muted/30 px-3 py-2 text-copy-14">
                   <span className="block text-xs text-muted-foreground">Projected total</span>
                   <strong>
-                    {data.projection.projected_total_minor === null
+                    {data.projection.projected_total_minor == null
                       ? "Not a current month"
                       : formatMinor(data.projection.projected_total_minor, data.currency_code)}
                   </strong>
@@ -168,7 +168,7 @@ export function DashboardSpendingPanel({
                 <p className="rounded-sm border border-border/70 bg-muted/30 px-3 py-2 text-copy-14">
                   <span className="block text-xs text-muted-foreground">Projected remaining</span>
                   <strong>
-                    {data.projection.projected_remaining_minor === null
+                    {data.projection.projected_remaining_minor == null
                       ? "-"
                       : formatMinor(data.projection.projected_remaining_minor, data.currency_code)}
                   </strong>
@@ -202,7 +202,7 @@ export function DashboardSpendingPanel({
               {yearlyQueriesLoading ? (
                 <p className="muted">Loading yearly monthly trend...</p>
               ) : yearlyQueryError ? (
-                <p className="error">Failed to load yearly monthly trend: {yearlyQueryError.message}</p>
+                <p className="error">Failed to load yearly monthly trend: {yearlyQueryError}</p>
               ) : (
                 <DashboardChartContainer>
                   {({ width, height }) => (

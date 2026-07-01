@@ -15,7 +15,7 @@ type DashboardBreakdownPanelProps = {
   currencyCode: string;
   expenseTotalMinor: number;
   yearlyQueriesLoading?: boolean;
-  yearlyQueryError?: Error;
+  yearlyQueryError?: string | null;
 };
 
 export function DashboardBreakdownPanel({
@@ -31,7 +31,7 @@ export function DashboardBreakdownPanel({
       {yearlyQueriesLoading ? (
         <p className="muted text-sm">Loading yearly breakdown tree...</p>
       ) : yearlyQueryError ? (
-        <p className="error">Failed to load yearly breakdown tree: {yearlyQueryError.message}</p>
+        <p className="error">Failed to load yearly breakdown tree: {yearlyQueryError}</p>
       ) : (
         <BreakdownTreeCard
           categories={categories}

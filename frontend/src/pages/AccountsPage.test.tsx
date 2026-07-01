@@ -56,6 +56,7 @@ const runtimeSettingsFixture: RuntimeSettings = {
   agent_max_pdf_pages: 10,
   agent_base_url: null,
   agent_api_key_configured: false,
+  vision_capable_agent_models: [],
   overrides: {
     user_memory: null,
     default_currency_code: null,

@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `runtime_settings`.
-# - Inputs: callers that import `backend/services/runtime_settings.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `runtime_settings`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: load and merge runtime settings from env defaults and per-user DB overrides.
+# - Inputs: SQLAlchemy session; optional owner user id for scoped overrides.
+# - Outputs: RuntimeSettings dataclass with agent model, credentials, retry policy, and memory items.
+# - Side effects: DB reads only; agent-aware derived fields come from the agent validation module.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,15 +12,8 @@ from sqlalchemy.orm import Session
 
 from backend.config import DEFAULT_AGENT_MODEL, get_settings
 from backend.models_settings import RuntimeSettings as RuntimeSettingsRow
-from backend.services.agent.attachment_content import model_supports_vision
-from backend.services.agent.model_client import validate_litellm_environment
-from backend.services.runtime_settings_contracts import (
-    RuntimeSettingsOverridesView,
-    RuntimeSettingsPatch,
-    RuntimeSettingsView,
-)
+from backend.services.runtime_settings_contracts import RuntimeSettingsPatch
 from backend.validation.runtime_settings import (
-    build_effective_agent_model_display_names,
     finalize_agent_model_display_names_for_storage,
     parse_agent_models_or_none,
     parse_agent_model_display_names_or_none,
@@ -330,98 +323,4 @@ def resolve_runtime_settings(db: Session) -> ResolvedRuntimeSettings:
         agent_max_pdf_pages=agent_max_pdf_pages,
         agent_base_url=agent_base_url,
         agent_api_key=agent_api_key,
-    )
-
-
-def build_runtime_settings_view(
-    db: Session,
-) -> RuntimeSettingsView:
-    override = get_runtime_settings_override(db)
-    resolved = resolve_runtime_settings(db)
-    has_provider_credentials, _, _ = validate_litellm_environment(
-        model_name=resolved.agent_model
-    )
-
-    effective_display_names = build_effective_agent_model_display_names(
-        available_agent_models=resolved.available_agent_models,
-        stored_text=override.agent_model_display_names if override else None,
-    )
-    return RuntimeSettingsView(
-        user_memory=resolved.user_memory,
-        default_currency_code=resolved.default_currency_code,
-        dashboard_currency_code=resolved.dashboard_currency_code,
-        agent_model=resolved.agent_model,
-        entry_tagging_model=resolved.entry_tagging_model,
-        available_agent_models=resolved.available_agent_models,
-        agent_model_display_names=effective_display_names,
-        vision_capable_agent_models=[
-            model_name for model_name in resolved.available_agent_models if model_supports_vision(model_name)
-        ],
-        agent_max_steps=resolved.agent_max_steps,
-        agent_bulk_max_concurrent_threads=resolved.agent_bulk_max_concurrent_threads,
-        agent_retry_max_attempts=resolved.agent_retry_max_attempts,
-        agent_retry_initial_wait_seconds=resolved.agent_retry_initial_wait_seconds,
-        agent_retry_max_wait_seconds=resolved.agent_retry_max_wait_seconds,
-        agent_retry_backoff_multiplier=resolved.agent_retry_backoff_multiplier,
-        agent_max_image_size_bytes=resolved.agent_max_image_size_bytes,
-        agent_max_images_per_message=resolved.agent_max_images_per_message,
-        agent_max_pdf_pages=resolved.agent_max_pdf_pages,
-        agent_base_url=resolved.agent_base_url,
-        agent_api_key_configured=bool(resolved.agent_api_key) or has_provider_credentials,
-        overrides=RuntimeSettingsOverridesView(
-            user_memory=parse_user_memory_or_none(override.user_memory)
-            if override
-            else None,
-            default_currency_code=normalize_currency_code_or_none(
-                override.default_currency_code
-            )
-            if override
-            else None,
-            dashboard_currency_code=normalize_currency_code_or_none(
-                override.dashboard_currency_code
-            )
-            if override
-            else None,
-            agent_model=normalize_text_or_none(override.agent_model)
-            if override
-            else None,
-            entry_tagging_model=normalize_text_or_none(override.entry_tagging_model)
-            if override
-            else None,
-            available_agent_models=parse_agent_models_or_none(override.available_agent_models)
-            if override
-            else None,
-            agent_model_display_names=parse_agent_model_display_names_or_none(override.agent_model_display_names)
-            if override
-            else None,
-            agent_max_steps=override.agent_max_steps if override else None,
-            agent_bulk_max_concurrent_threads=override.agent_bulk_max_concurrent_threads
-            if override
-            else None,
-            agent_retry_max_attempts=override.agent_retry_max_attempts
-            if override
-            else None,
-            agent_retry_initial_wait_seconds=override.agent_retry_initial_wait_seconds
-            if override
-            else None,
-            agent_retry_max_wait_seconds=override.agent_retry_max_wait_seconds
-            if override
-            else None,
-            agent_retry_backoff_multiplier=override.agent_retry_backoff_multiplier
-            if override
-            else None,
-            agent_max_image_size_bytes=override.agent_max_image_size_bytes
-            if override
-            else None,
-            agent_max_images_per_message=override.agent_max_images_per_message
-            if override
-            else None,
-            agent_max_pdf_pages=override.agent_max_pdf_pages
-            if override
-            else None,
-            agent_base_url=normalize_text_or_none(override.agent_base_url)
-            if override
-            else None,
-            agent_api_key_configured=bool(override and override.agent_api_key),
-        ),
     )

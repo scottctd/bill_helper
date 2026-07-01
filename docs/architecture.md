@@ -87,24 +87,24 @@ Contract notes:
 ## Agent Internal Boundaries (Harness-First)
 
 - `harness/`: product-native coordinator (`AgentHarness`), contracts, transcript helpers, step executor, and `EventSink` / `RunRepository` protocols
-- `production_runtime.py`: compose production harness with DB repository, model gateway, tools, stop signal, and SSE fan-out
-- `production_repository.py`: SQLAlchemy `RunRepository` that persists canonical transcript rows, steps, tool calls, and harness events
-- `production_events.py`: map harness events to client SSE payloads
+- `production_runtime.py`: composition root — wires DB repository (`TerminalObservingRunRepository`), model gateway, tools, stop signal, SSE fan-out via `stream_hub.register_run_executor()`, and `RunObserver` hooks from `run_observers.py`
+- `production_repository.py`: SQLAlchemy `RunRepository` persistence only (transcript, steps, tool calls, harness events)
+- `run_observers.py`: production `RunObserver` registrations (YOLO auto-approve, import scheduler wake, run_finished SSE on interrupt/worker failure) plus `fail_run_terminally`
+- `production_events.py`: map harness events to client SSE payloads; tool display enrichment via `DbEventSink` (not the harness)
 - `model_gateway.py`: LiteLLM completion adapters (streaming emits `ModelDeltaEvent` into the harness event sink)
-- `thread_context.py`: build per-turn `initial_transcript` from prior canonical transcript rows and prompt context
-- `api_projection.py`: derive API `turns` and thread-detail read models from transcript rows plus per-run `steps` / `events` / `tool_calls`
+- `prompt_assembly/`: per-turn model context pipeline (`__init__.py` entry points, `prompts.py`, `thread_context.py`, `message_history_content.py`, `message_history_prefixes.py`, `user_context.py`); Jinja templates remain in the parent `agent/` directory
+- `cli_reference/`: shared `bh` command specs and cheat-sheet renderers (replaces former `backend/cli/reference.py`)
+- `api_projection.py`: derive API `turns` and thread-detail read models from transcript rows plus per-run work records
 - `execution.py`: HTTP/background intake for user turns and harness run startup
 - `runtime.py`: public facade over harness execution plus stable model-call monkeypatch seams (`call_model`, `call_model_stream`, `calculate_context_tokens`)
 - `stream_hub.py`: in-process single-worker SSE hub with reconnect replay over persisted harness events and ephemeral `model_delta` buffers
-- `message_history_content.py`: attachment-backed user-content shaping and entity-category prompt context
-- `message_history_prefixes.py`: review-result prefix assembly for the current turn
+- `stream_sequences.py`: hub sequence numbers, ephemeral buffer bookkeeping, fan-out drop policy, reconnect dedupe
+- `tools_for_model_request.py`: single gate (`expose_tools_for_model_request`) for per-request tool schema exposure
+- `change_registry.py` + `change_summaries.py`: one `ChangeTypeSpec` per `AgentChangeType`; all proposal/review surfaces derive from the registry
 - `attachment_content.py`: public attachment-content seam plus vision capability checks
-- `docling_convert.py` / `agent_attachment_bundle.py`: Docling-based agent attachment parsing and bundle layout
-- `attachment_content_assembly.py`: attachment part assembly helpers
-- `user_context.py`: current-user/account context normalization and truncation for prompt assembly
-- `model_client.py`: thin public seam for the LiteLLM client contract
+- `agent_attachment_bundle.py`: dated agent upload bundle layout, PDF page rendering, and dedupe helpers
+- `attachment_content_assembly.py`: attachment part assembly helpers (includes pre-2026 Docling-era `parsed.md` read path for historical bundles)
 - `model_client_support/`: grouped environment, streaming, usage-normalization, and retrying client internals
-- `tool_runtime.py`: thin public seam for tool contracts and execution entrypoints
 - `tool_runtime_support/`: grouped tool metadata, schema-building, family registries, and retry/error policy
 - `apply/`: change-type apply package for review-time resource application
 - `reviews/`: approval/rejection transitions, dependency checks, override normalization, and audit writes
@@ -122,6 +122,7 @@ Agent state:
 - selected-thread detail query
 - message send + approve/reject mutations
 - optimistic user/assistant message placeholders while runs are in-flight
+- pure SSE reducer in `streamReducer.ts` with module store in `agentStreamSession.ts` (`useSyncExternalStore`)
 - panel-level UI split:
   - render shell: `frontend/src/features/agent/AgentPanel.tsx`
   - controller/presentation modules: `frontend/src/features/agent/panel/*`

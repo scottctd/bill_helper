@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
+import { listOrEmpty } from "../../lib/collections";
 import { queryKeys } from "../../lib/queryKeys";
 import type { AgentThreadDetail } from "../../lib/types";
 import { buildRun, buildTurn } from "../../test/factories/agent";
@@ -24,13 +25,13 @@ function buildThreadDetail(): AgentThreadDetail {
       id: "thread-1",
       title: "Test",
       created_at: "2026-02-15T10:00:00Z",
-      updated_at: "2026-02-15T10:00:00Z"
+      updated_at: "2026-02-15T10:00:00Z",
+      initiated_by_external_agent: false
     },
     turns: [turn],
     runs: [run],
     configured_model_name: "gpt-test",
-    current_context_tokens: 10,
-    initiated_by_external_agent: false
+    current_context_tokens: 10
   };
 }
 
@@ -67,11 +68,11 @@ describe("patchAgentThreadCacheFromStreamEvent", () => {
     });
 
     const detail = queryClient.getQueryData<AgentThreadDetail>(queryKeys.agent.thread(threadId));
-    expect(detail?.runs[0].tool_calls).toHaveLength(1);
-    expect(detail?.runs[0].tool_calls[0].tool_name).toBe("run_bh");
-    expect(detail?.runs[0].tool_calls[0].display_label).toBe("bh tags list");
-    expect(detail?.runs[0].tool_calls[0].display_detail).toBe("bh tags list");
-    expect(detail?.runs[0].tool_calls[0].status).toBe("ok");
+    expect(listOrEmpty(detail?.runs[0]?.tool_calls)).toHaveLength(1);
+    expect(listOrEmpty(detail?.runs[0]?.tool_calls)[0]?.tool_name).toBe("run_bh");
+    expect(listOrEmpty(detail?.runs[0]?.tool_calls)[0]?.display_label).toBe("bh tags list");
+    expect(listOrEmpty(detail?.runs[0]?.tool_calls)[0]?.display_detail).toBe("bh tags list");
+    expect(listOrEmpty(detail?.runs[0]?.tool_calls)[0]?.status).toBe("ok");
     expect(detail?.runs[0].status).toBe("completed");
     expect(detail?.runs[0].final_assistant_reply).toBe("All set.");
     expect(detail?.turns[0].assistant_message?.content_markdown).toBe("All set.");
@@ -92,8 +93,8 @@ describe("patchAgentThreadCacheFromStreamEvent", () => {
     });
 
     const detail = queryClient.getQueryData<AgentThreadDetail>(queryKeys.agent.thread(threadId));
-    expect(detail?.runs[0].steps).toHaveLength(1);
-    expect(detail?.runs[0].steps[0]).toMatchObject({
+    expect(listOrEmpty(detail?.runs[0]?.steps)).toHaveLength(1);
+    expect(listOrEmpty(detail?.runs[0]?.steps)[0]).toMatchObject({
       id: "assistant-msg-1",
       reasoning_text: "Checking accounts before listing entries."
     });

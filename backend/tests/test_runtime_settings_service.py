@@ -5,10 +5,10 @@ from unittest.mock import patch
 from backend.config import get_settings
 from backend.database import get_session_maker
 from backend.models_settings import RuntimeSettings
+from backend.services.agent.runtime_settings_view import build_runtime_settings_view
 from backend.services.runtime_settings import (
     DEFAULT_AVAILABLE_AGENT_MODELS,
     append_user_memory_items,
-    build_runtime_settings_view,
     resolve_runtime_settings,
     update_runtime_settings_override,
 )
@@ -108,7 +108,7 @@ def test_build_runtime_settings_read_reports_provider_credentials_without_custom
     db = make_session()
     try:
         with patch(
-            "backend.services.runtime_settings.validate_litellm_environment",
+            "backend.services.agent.runtime_settings_validation.validate_litellm_environment",
             return_value=(True, [], get_settings().agent_model),
         ):
             payload = build_runtime_settings_view(db)

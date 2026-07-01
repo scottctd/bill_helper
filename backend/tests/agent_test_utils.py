@@ -96,7 +96,6 @@ def patch_model(monkeypatch, handler: Any) -> None:
         lambda messages, _db, **kwargs: wrapped_stream(messages, **kwargs),
     )
     for target in (
-        "backend.services.agent.model_client.LiteLLMModelClient",
         "backend.services.agent.model_client_support.client.LiteLLMModelClient",
     ):
         monkeypatch.setattr(f"{target}.complete", lambda self, messages, **kwargs: wrapped(messages, **kwargs))

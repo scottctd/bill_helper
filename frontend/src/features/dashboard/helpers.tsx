@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { formatMinor } from "../../lib/format";
+import { listOrEmpty, nullishToNull } from "../../lib/collections";
 import type {
   Dashboard,
   DashboardBreakdownItem,
@@ -272,18 +273,18 @@ function mergeToBreakdownItems(items: DashboardToBreakdownItem[]): DashboardToBr
         label: item.label,
         total_minor: item.total_minor,
         share: item.share,
-        entries: [...item.entries]
+        entries: [...listOrEmpty(item.entries)]
       });
       continue;
     }
     existing.total_minor += item.total_minor;
-    existing.entries.push(...item.entries);
+    existing.entries = [...listOrEmpty(existing.entries), ...listOrEmpty(item.entries)];
   }
 
   return [...byLabel.values()]
     .map((item) => ({
       ...item,
-      entries: [...item.entries].sort((left, right) => {
+      entries: [...listOrEmpty(item.entries)].sort((left, right) => {
         if (right.amount_minor !== left.amount_minor) {
           return right.amount_minor - left.amount_minor;
         }
@@ -327,7 +328,7 @@ export function buildYearlyCategoryTotals(
       entry.total_minor += category.total_minor;
       entry.entry_count += category.entry_count;
 
-      for (const child of category.children) {
+      for (const child of listOrEmpty(category.children)) {
         let childEntry = entry.children.get(child.path);
         if (!childEntry) {
           childEntry = { name: child.name, path: child.path, total_minor: 0, entry_count: 0, to_breakdown: [] };
@@ -335,10 +336,10 @@ export function buildYearlyCategoryTotals(
         }
         childEntry.total_minor += child.total_minor;
         childEntry.entry_count += child.entry_count;
-        childEntry.to_breakdown = mergeToBreakdownItems([...childEntry.to_breakdown, ...child.to_breakdown]);
+        childEntry.to_breakdown = mergeToBreakdownItems([...childEntry.to_breakdown, ...listOrEmpty(child.to_breakdown)]);
       }
 
-      entry.to_breakdown = mergeToBreakdownItems([...entry.to_breakdown, ...category.to_breakdown]);
+      entry.to_breakdown = mergeToBreakdownItems([...entry.to_breakdown, ...listOrEmpty(category.to_breakdown)]);
     }
   }
 
@@ -410,7 +411,7 @@ export function buildYearlyGroupTotals(
     {
       group_id: string;
       name: string;
-      source: string;
+      source: DashboardGroupSummary["source"];
       color: string | null;
       total_minor: number;
       entry_count: number;
@@ -426,7 +427,7 @@ export function buildYearlyGroupTotals(
           group_id: group.group_id,
           name: group.name,
           source: group.source,
-          color: group.color,
+          color: nullishToNull(group.color),
           total_minor: group.total_minor,
           entry_count: group.entry_count
         });

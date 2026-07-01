@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `runtime_settings_contracts`.
-# - Inputs: callers that import `backend/services/runtime_settings_contracts.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `runtime_settings_contracts`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `runtime_settings_contracts`.
+# - Inputs: Callers import `backend/services/runtime_settings_contracts` and invoke `RuntimeSettingsOverridesView`, `RuntimeSettingsView`, `RuntimeSettingsPatch`.
+# - Outputs: Exports `RuntimeSettingsOverridesView`, `RuntimeSettingsView`, `RuntimeSettingsPatch`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from dataclasses import dataclass

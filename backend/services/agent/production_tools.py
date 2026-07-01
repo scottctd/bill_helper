@@ -11,7 +11,7 @@ from typing import Any
 from backend.enums_agent import AgentApprovalPolicy
 from backend.services.agent.harness.contracts import ToolRequest
 from backend.services.agent.harness.tools import ToolExecutionContext, ToolExecutionResult
-from backend.services.agent.tool_runtime import execute_tool
+from backend.services.agent.tool_runtime_support.execution import execute_tool
 from backend.services.agent.tool_types import ToolContext, ToolExecutionStatus
 
 

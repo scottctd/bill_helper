@@ -41,7 +41,7 @@ def test_settings_endpoint_returns_effective_defaults(client):
 
 def test_settings_endpoint_reports_vision_capable_available_models(client, monkeypatch):
     monkeypatch.setattr(
-        "backend.services.runtime_settings.model_supports_vision",
+        "backend.services.agent.runtime_settings_validation.model_supports_vision",
         lambda model_name: model_name.endswith("vision"),
     )
 
@@ -209,7 +209,7 @@ def test_settings_endpoint_reports_openrouter_env_provider_config(client, monkey
 
     try:
         with patch(
-            "backend.services.runtime_settings.validate_litellm_environment",
+            "backend.services.agent.runtime_settings_validation.validate_litellm_environment",
             return_value=(True, [], get_settings().agent_model),
         ):
             response = client.get("/api/v1/settings")

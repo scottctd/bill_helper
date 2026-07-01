@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: provide the `schemas_finance` module.
-# - Inputs: callers that import `backend/schemas_finance.py` and pass module-defined arguments or framework events.
-# - Outputs: module exports from `schemas_finance`.
-# - Side effects: module-local behavior only.
+# - Purpose: HTTP request/response pydantic models for ledger, groups, and dashboard reads.
+# - Inputs: FastAPI route bodies and ORM rows mapped into read models.
+# - Outputs: validated schemas; HTTP entry writes use `entry_*_command_from_http` adapters.
+# - Side effects: none.
 from __future__ import annotations
 
 from datetime import date, datetime

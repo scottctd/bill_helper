@@ -3,12 +3,12 @@
  * - Purpose: shared proposal review panel shell (header, controls, sidebar, card slots).
  * - Inputs: layout slot nodes and optional Dialog wrapper props.
  * - Outputs: full-height review UI shell reused by agent and import flows.
- * - Side effects: Dialog open state when not embedded; no footer slot.
+ * - Side effects: Dialog open state when not embedded; renders through ModalShell when modal.
  */
 
 import type { CSSProperties, ReactNode } from "react";
 
-import { Dialog, DialogContent } from "../../components/ui/dialog";
+import { ModalShell } from "../../components/ui/modal-shell";
 import { useResizablePanel } from "../../hooks/useResizablePanel";
 import { cn } from "../../lib/utils";
 
@@ -92,15 +92,13 @@ export function ReviewPanel({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          "agent-review-modal-content h-[96vh] w-[96vw] max-w-none overflow-hidden bg-card p-0 sm:w-[94vw] md:w-[92vw] lg:h-[94vh] lg:w-[88vw] xl:w-[78rem]",
-          dialogContentClassName
-        )}
-      >
-        {reviewShell}
-      </DialogContent>
-    </Dialog>
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      size="fullscreen"
+      contentClassName={dialogContentClassName}
+    >
+      {reviewShell}
+    </ModalShell>
   );
 }

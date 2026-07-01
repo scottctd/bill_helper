@@ -6,6 +6,7 @@
  * - Side effects: none.
  */
 import type { AgentRun } from "../../../lib/types";
+import { listOrEmpty } from "../../../lib/collections";
 import type { AgentStreamSessionState } from "./agentStreamSession";
 
 export function findRunningRunForThread(runs: AgentRun[]): AgentRun | null {
@@ -49,7 +50,10 @@ export function resolveReconnectSequenceIndex(
   run: AgentRun,
   session: AgentStreamSessionState
 ): number {
-  const persistedMax = run.last_event_sequence_index ?? 0;
+  const persistedMax = listOrEmpty(run.events).reduce(
+    (max, event) => Math.max(max, event.sequence_index ?? 0),
+    0
+  );
   const sessionMax = session.lastSequenceIndexByRunId[run.id] ?? 0;
   return Math.max(persistedMax, sessionMax);
 }

@@ -8,8 +8,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from backend.auth.contracts import RequestPrincipal
 from backend.auth.dependencies import get_current_principal
@@ -24,14 +23,13 @@ from backend.schemas_finance import (
     SnapshotRead,
 )
 from backend.services.access_scope import (
-    account_owner_filter,
     get_account_for_principal_or_404,
 )
 from backend.services.accounts import (
     build_account_read,
-    build_account_reads,
     create_account as create_account_service,
     delete_account_and_entity_root,
+    list_accounts_for_principal,
     update_account as update_account_service,
 )
 from backend.services.account_snapshots import (
@@ -67,16 +65,7 @@ def list_accounts(
     db: Session = Depends(get_db),
     principal: RequestPrincipal = Depends(get_current_principal),
 ) -> list[AccountRead]:
-    accounts = list(
-        db.scalars(
-            select(Account)
-            .join(Entity, Entity.id == Account.id)
-            .where(account_owner_filter(principal))
-            .options(selectinload(Account.entity))
-            .order_by(Entity.name.asc(), Account.created_at.asc())
-        )
-    )
-    return build_account_reads(db, accounts)
+    return list_accounts_for_principal(db, principal=principal)
 
 
 @router.patch("/{account_id}", response_model=AccountRead)

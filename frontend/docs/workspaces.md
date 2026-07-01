@@ -17,7 +17,8 @@
 
 ### `frontend/src/pages/EntriesPage.tsx`
 
-- lists, filters, edits, and deletes entries
+- page is a thin orchestrator; domain state lives in `frontend/src/features/entries/useEntriesPageModel.ts`
+- table rendering lives in `frontend/src/features/entries/EntriesTable.tsx`
 - route shell uses one primary workspace section without a redundant route title above the card
 - filter toolbar is a deliberate two-row layout in `frontend/src/features/entries/EntriesFilterToolbar.tsx`:
   - row 1: `From date` / `To date`, compact `From entity` / `To entity`, and searchable `Category`
@@ -48,12 +49,14 @@
 
 ### `frontend/src/pages/EntryDetailPage.tsx`
 
+- page is a thin orchestrator; domain state lives in `frontend/src/features/entries/useEntryDetailPageModel.ts`
 - shows entry detail, direct-group context, and the direct-group graph when the entry is assigned
 - uses `direct_group` and `group_path` from `GET /entries/{entry_id}` instead of rendering raw link rows
 - popup editing includes the same direct-group and split-role controls as the entries page modal
 - routes structural edits into the groups workspace via a dedicated `Open groups workspace` action
 - editing uses the shared popup editor and the same runtime-settings defaults as create flow
-- custom entity, tag, category, and group menus share a dialog-owned floating layer so their option lists remain scrollable inside modal scroll-lock; searchable single-select menus keep a fixed search field above independently scrollable results, entry-category menus use a viewport-clamped 320px minimum width for readable paths, and lifecycle remains a basic non-searchable single select
+- custom entity, tag, category, and group menus share a dialog-owned floating layer via `components/ui/floating-select/` so their option lists remain scrollable inside modal scroll-lock; searchable single-select menus keep a fixed search field above independently scrollable results, entry-category menus use a viewport-clamped 320px minimum width for readable paths, and lifecycle remains a basic non-searchable single select
+- all feature dialogs render through `components/ui/modal-shell.tsx` (size variants: sm/md/lg/wide/xl/fullscreen); proposal review modals use the fullscreen variant via `review/ReviewPanel.tsx`
 - entry-category management stores and displays descriptions for both parent and sub-categories; descriptions are searchable and editable from the same create/edit dialogs
 - detail cards show `Missing entity` badges when preserved `from` or `to` labels no longer have linked entity records
 - the entries table promotes `Category` and `Lifecycle` to first-class columns; category pills show only the leaf/sub-category while retaining the full path as a tooltip, entry detail shows the full `parent/sub_category` path, and lifecycle labels use lowercase `fixed`, `day-to-day`, and `one-time`
@@ -78,6 +81,8 @@
 
 ### `frontend/src/pages/GroupsPage.tsx`
 
+- page is a thin orchestrator; domain state lives in `frontend/src/features/groups/useGroupsPageModel.ts`
+- browser table UI lives in `frontend/src/features/groups/GroupsBrowserTable.tsx`
 - dedicated first-class group workspace at `/groups`
 - `/filters` redirects to `/groups`
 - route shell uses the shared page header plus one primary workspace section
@@ -137,6 +142,8 @@
 
 ### `frontend/src/pages/AdminPage.tsx`
 
+- page is a thin orchestrator; domain state lives in `frontend/src/features/admin/useAdminPageModel.ts`
+- user and session sections live in `frontend/src/features/admin/AdminUsersSection.tsx` and `AdminSessionsSection.tsx`
 - admin-only workspace for user and session management
 - supports create, rename, role changes, password reset, delete, and `Log in as`
 - session table can revoke bearer tokens without deleting the owning user
@@ -145,6 +152,8 @@
 
 ### `frontend/src/pages/DashboardPage.tsx`
 
+- page is a thin orchestrator; domain state lives in `frontend/src/features/dashboard/useDashboardPageModel.ts`
+- finance chrome (hero, trend, period toolbar) lives in `frontend/src/features/dashboard/DashboardFinanceChrome.tsx`
 - tabbed analytics surface with `Spending`, `Breakdown`, `Income`, and `Agent`; tab buttons have no secondary description line under the row
 - persistent finance chrome above the tabs (hidden on `Agent`): unified Income / Expense / Net summary hero plus the `Income vs Expense Trend` chart
 - route shell uses the shared page header, a shared control surface, and the summary hero instead of separate top-line KPI stat blocks

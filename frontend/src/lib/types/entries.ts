@@ -2,73 +2,15 @@
  * CALLING SPEC:
  * - Purpose: define entry and tag-suggestion contracts for the frontend.
  * - Inputs: frontend modules that list, edit, and classify ledger entries.
- * - Outputs: entry-domain interfaces and request payload types.
+ * - Outputs: entry-domain type aliases from generated OpenAPI types.
  * - Side effects: type declarations only.
  */
 
-import type { EntryTag } from "./catalogs";
-import type { EntryKind, EntryLifecycle, GroupSource } from "./core";
+import type { ApiSchemas } from "./schemas";
 
-export interface EntryGroupRef {
-  id: string;
-  name: string;
-  source: GroupSource;
-  color: string | null;
-}
-
-export interface Entry {
-  id: string;
-  kind: EntryKind;
-  occurred_at: string;
-  name: string;
-  amount_minor: number;
-  currency_code: string;
-  from_entity_id: string | null;
-  to_entity_id: string | null;
-  owner_user_id: string;
-  from_entity: string | null;
-  from_entity_missing: boolean;
-  to_entity: string | null;
-  to_entity_missing: boolean;
-  owner: string | null;
-  markdown_body: string | null;
-  lifecycle: EntryLifecycle | null;
-  category: string | null;
-  created_at: string;
-  updated_at: string;
-  tags: EntryTag[];
-  groups: EntryGroupRef[];
-}
-
-export interface EntryDetail extends Entry {}
-
-export interface EntryListResponse {
-  items: Entry[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface EntryTagSuggestionRequest {
-  entry_id?: string | null;
-  kind: EntryKind;
-  occurred_at: string;
-  currency_code: string;
-  amount_minor?: number | null;
-  name?: string | null;
-  from_entity_id?: string | null;
-  from_entity?: string | null;
-  to_entity_id?: string | null;
-  to_entity?: string | null;
-  owner_user_id?: string | null;
-  markdown_body?: string | null;
-  current_tags: string[];
-  current_category?: string | null;
-  current_lifecycle?: EntryLifecycle | null;
-}
-
-export interface EntryTagSuggestionResponse {
-  suggested_tags: string[];
-  suggested_category: string | null;
-  suggested_lifecycle: EntryLifecycle | null;
-}
+export type EntryGroupRef = ApiSchemas["GroupRefRead"];
+export type Entry = ApiSchemas["EntryRead"];
+export type EntryDetail = ApiSchemas["EntryDetailRead"];
+export type EntryListResponse = ApiSchemas["EntryListResponse"];
+export type EntryTagSuggestionRequest = ApiSchemas["EntryTagSuggestionRequest"];
+export type EntryTagSuggestionResponse = ApiSchemas["EntryTagSuggestionResponse"];

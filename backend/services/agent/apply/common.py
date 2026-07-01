@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `common`.
-# - Inputs: callers that import `backend/services/agent/apply/common.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `common`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Apply approved agent change payloads for the `common` domain.
+# - Inputs: Callers import `backend/services/agent/apply/common` and invoke `AppliedResource`, `find_unique_entry_by_id`, `find_change_item_by_id`, `resolve_existing_group_id`.
+# - Outputs: Exports `AppliedResource`, `find_unique_entry_by_id`, `find_change_item_by_id`, `resolve_existing_group_id`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,11 +11,12 @@ from typing import Callable
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from pydantic import BaseModel
+
 from backend.auth.contracts import RequestPrincipal
 from backend.enums_agent import AgentChangeType
 from backend.models_agent import AgentChangeItem
 from backend.models_finance import Entry, Group
-from backend.services.agent.change_contracts import ChangePayloadModel
 from backend.services.agent.change_contracts.entries import EntryReferencePayload
 from backend.services.agent.change_contracts.groups import (
     GroupMemberEntryTargetPayload,
@@ -39,7 +40,7 @@ class AppliedResource:
     resource_id: str
 
 
-ChangeApplyHandler = Callable[[Session, ChangePayloadModel, RequestPrincipal], AppliedResource]
+ChangeApplyHandler = Callable[[Session, BaseModel, RequestPrincipal], AppliedResource]
 
 
 def find_unique_entry_by_id(

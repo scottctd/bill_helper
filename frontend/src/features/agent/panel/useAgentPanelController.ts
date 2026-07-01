@@ -12,6 +12,8 @@ import { displayThreadName } from "./format";
 import { useAgentComposerRuntime } from "./useAgentComposerRuntime";
 import { useAgentPanelQueries } from "./useAgentPanelQueries";
 import { useAgentThreadActions } from "./useAgentThreadActions";
+import { getApiErrorMessage } from "../../../lib/api/core";
+import type { AgentTimelineModel } from "./agentTimelineModel";
 
 interface UseAgentPanelControllerArgs {
   isOpen: boolean;
@@ -141,34 +143,38 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
       toggleThreadPanel
     },
     timeline: {
-      activeOptimisticSteps: runtime.timeline.activeOptimisticSteps,
-      activeOptimisticToolCalls: runtime.timeline.activeOptimisticToolCalls,
-      activeStreamRunId: runtime.timeline.activeStreamRunId,
-      activeStreamReasoningText: runtime.timeline.activeStreamReasoningText,
-      activeStreamText: runtime.timeline.activeStreamText,
-      detachFromBottom: runtime.timeline.detachFromBottom,
-      errorMessage: data.threadQuery.isError ? (data.threadQuery.error as Error).message : null,
-      hydratingToolCallIds: runtime.timeline.hydratingToolCallIds,
-      isAtBottom: runtime.timeline.isAtBottom,
-      isLoading: data.threadQuery.isLoading,
-      initiatedByExternalAgent: data.initiatedByExternalAgent,
-      liveActivityLedgerByRunId: runtime.timeline.liveActivityLedgerByRunId,
-      turns: data.visibleTurns,
-      onHydrateToolCall: runtime.timeline.onHydrateToolCall,
-      optimisticStepsByRunId: runtime.timeline.optimisticStepsByRunId,
-      optimisticToolCallsByRunId: runtime.timeline.optimisticToolCallsByRunId,
-      pendingAssistantMessage: runtime.timeline.pendingAssistantMessage,
-      pendingAssistantRuns: data.pendingAssistantRuns,
-      pendingRunAttachedToOptimisticMessage: runtime.timeline.pendingRunAttachedToOptimisticMessage,
-      pendingUserMessage: runtime.timeline.pendingUserMessage,
-      runsById: data.runsById,
-      scrollToBottom: runtime.timeline.scrollToBottom,
       selectedThreadId,
+      isLoading: data.threadQuery.isLoading,
+      errorMessage: data.threadQuery.isError ? getApiErrorMessage(data.threadQuery.error) : null,
+      initiatedByExternalAgent: data.initiatedByExternalAgent,
+      turns: data.visibleTurns,
+      runsById: data.runsById,
+      pendingAssistantRuns: data.pendingAssistantRuns,
+      pendingUserMessage: runtime.timeline.pendingUserMessage,
+      pendingAssistantMessage: runtime.timeline.pendingAssistantMessage,
       shouldShowOptimisticAssistantBubble: runtime.timeline.shouldShowOptimisticAssistantBubble,
-      streamedReasoningTextByRunId: runtime.timeline.streamedReasoningTextByRunId,
-      streamedTextByRunId: runtime.timeline.streamedTextByRunId,
-      timelineScrollRef: runtime.timeline.timelineScrollRef
-    },
+      pendingRunAttachedToOptimisticMessage: runtime.timeline.pendingRunAttachedToOptimisticMessage,
+      stream: {
+        activeStreamRunId: runtime.timeline.activeStreamRunId,
+        activeStreamReasoningText: runtime.timeline.activeStreamReasoningText,
+        activeStreamText: runtime.timeline.activeStreamText,
+        streamedReasoningTextByRunId: runtime.timeline.streamedReasoningTextByRunId,
+        streamedTextByRunId: runtime.timeline.streamedTextByRunId,
+        optimisticStepsByRunId: runtime.timeline.optimisticStepsByRunId,
+        optimisticToolCallsByRunId: runtime.timeline.optimisticToolCallsByRunId,
+        liveActivityLedgerByRunId: runtime.timeline.liveActivityLedgerByRunId,
+        activeOptimisticSteps: runtime.timeline.activeOptimisticSteps,
+        activeOptimisticToolCalls: runtime.timeline.activeOptimisticToolCalls,
+        hydratingToolCallIds: runtime.timeline.hydratingToolCallIds
+      },
+      scroll: {
+        timelineScrollRef: runtime.timeline.timelineScrollRef,
+        detachFromBottom: runtime.timeline.detachFromBottom,
+        isAtBottom: runtime.timeline.isAtBottom,
+        scrollToBottom: runtime.timeline.scrollToBottom
+      },
+      onHydrateToolCall: runtime.timeline.onHydrateToolCall
+    } satisfies AgentTimelineModel,
     composer: {
       ...runtime.composer
     },
@@ -180,7 +186,7 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
           : []),
         ...runningThreadIds
       ],
-      errorMessage: data.threadsQuery.isError ? (data.threadsQuery.error as Error).message : null,
+      errorMessage: data.threadsQuery.isError ? getApiErrorMessage(data.threadsQuery.error) : null,
       handleResizeMouseDown,
       isLoading: data.threadsQuery.isLoading,
       isOpen: isThreadPanelOpen,
@@ -220,7 +226,7 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
     deleteDialog: {
       confirmLabel: "Delete thread",
       description: "This removes the full message and run history for this thread.",
-      errorMessage: actions.deleteThreadMutation.isError ? (actions.deleteThreadMutation.error as Error).message : null,
+      errorMessage: actions.deleteThreadMutation.isError ? getApiErrorMessage(actions.deleteThreadMutation.error) : null,
       isPending: actions.deleteThreadMutation.isPending,
       onConfirm() {
         if (!pendingDeleteThread) {

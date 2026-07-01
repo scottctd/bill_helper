@@ -12,7 +12,6 @@ from backend.auth.contracts import RequestPrincipal
 from backend.auth.dependencies import get_current_principal
 from backend.database import get_db
 from backend.schemas_auth import AuthLoginRequest, AuthLoginResponse, AuthSessionRead, AuthUserRead
-from backend.services.crud_policy import PolicyViolation
 from backend.services.sessions import create_session, revoke_current_session
 from backend.services.users import authenticate_user
 
@@ -38,14 +37,11 @@ def login(
     payload: AuthLoginRequest,
     db: Session = Depends(get_db),
 ) -> AuthLoginResponse:
-    try:
-        user, _ = authenticate_user(
-            db,
-            username=payload.username,
-            password=payload.password,
-        )
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    user, _ = authenticate_user(
+        db,
+        username=payload.username,
+        password=payload.password,
+    )
 
     token, session_row = create_session(db, user=user)
     db.commit()

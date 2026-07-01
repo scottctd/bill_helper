@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `common`.
-# - Inputs: callers that import `backend/services/agent/proposals/group_memberships/common.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `common`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Build and validate agent proposal payloads for `common`.
+# - Inputs: Callers import `backend/services/agent/proposals/group_memberships/common` and invoke `canonical_entry_ref_payload`, `canonical_group_member_target_payload`, `resolved_group_member_target_preview`, `group_member_signature`.
+# - Outputs: Exports `canonical_entry_ref_payload`, `canonical_group_member_target_payload`, `resolved_group_member_target_preview`, `group_member_signature`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

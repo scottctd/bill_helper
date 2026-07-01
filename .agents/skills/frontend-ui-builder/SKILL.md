@@ -44,7 +44,11 @@ Do not use this skill for backend-only work or tiny copy-only changes that do no
   - `frontend/src/styles/tokens.css`
   - `frontend/src/styles/base.css`
   - `frontend/src/styles/shell.css`
-  - `frontend/src/styles/workspaces.css`
+  - `frontend/src/styles/sections.css`
+  - `frontend/src/styles/entries.css`
+  - `frontend/src/styles/groups.css`
+  - `frontend/src/styles/properties.css`
+  - `frontend/src/styles/settings.css`
   - `frontend/src/styles/dashboard.css`
   - `frontend/src/styles/overlays.css`
   - `frontend/src/styles/agent.css`

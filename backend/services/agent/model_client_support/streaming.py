@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `streaming`.
-# - Inputs: callers that import `backend/services/agent/model_client_support/streaming.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `streaming`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Model client support utilities for `streaming`.
+# - Inputs: Callers import `backend/services/agent/model_client_support/streaming` and invoke `is_transient_ssl_bad_record_mac_error`, `append_stream_content`, `finalize_stream_content`, `merge_streamed_tool_call_fragment`.
+# - Outputs: Exports `is_transient_ssl_bad_record_mac_error`, `append_stream_content`, `finalize_stream_content`, `merge_streamed_tool_call_fragment`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

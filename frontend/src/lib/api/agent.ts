@@ -6,7 +6,6 @@
  * - Side effects: HTTP requests, SSE stream consumption, and auth-token cleanup on unauthorized stream responses.
  */
 
-import { clearStoredAuthToken, getStoredAuthToken } from "../../features/auth/storage";
 import type {
   AgentDraftAttachment,
   AgentDashboard,
@@ -20,7 +19,7 @@ import type {
   AgentThreadSummary,
   AgentToolCall
 } from "../types";
-import { API_BASE_URL, ApiError, extractErrorMessage, request } from "./core";
+import { API_BASE_URL, buildApiHeaders, createApiErrorFromResponse, getAuthTokenOrThrow, request, throwApiErrorFromFetchResponse } from "./core";
 
 function parseSseEventBlock(rawBlock: string): { eventType: string; data: string } | null {
   let eventType = "message";
@@ -240,10 +239,7 @@ export async function streamAgentMessage(payload: {
   signal?: AbortSignal;
   onEvent: (event: AgentStreamEvent) => void;
 }): Promise<void> {
-  const token = getStoredAuthToken();
-  if (!token) {
-    throw new Error("Log in before calling the API.");
-  }
+  getAuthTokenOrThrow();
   const response = await fetch(`${API_BASE_URL}/api/v1/agent/threads/${payload.threadId}/messages/stream`, {
     method: "POST",
     body: buildAgentMessageFormData(
@@ -255,18 +251,14 @@ export async function streamAgentMessage(payload: {
       payload.approvalPolicy ?? "default"
     ),
     signal: payload.signal,
-    headers: {
-      Accept: "text/event-stream",
-      Authorization: `Bearer ${token}`
-    }
+    headers: buildApiHeaders({
+      headers: {
+        Accept: "text/event-stream"
+      }
+    })
   });
   if (!response.ok) {
-    const body = await response.text();
-    const message = extractErrorMessage(body, response.status);
-    if (response.status === 401) {
-      clearStoredAuthToken();
-    }
-    throw new ApiError(message, response.status);
+    await throwApiErrorFromFetchResponse(response);
   }
   if (!response.body) {
     throw new Error("Streaming response body is unavailable.");
@@ -281,29 +273,22 @@ export async function streamAgentRun(payload: {
   signal?: AbortSignal;
   onEvent: (event: AgentStreamEvent) => void;
 }): Promise<void> {
-  const token = getStoredAuthToken();
-  if (!token) {
-    throw new Error("Log in before calling the API.");
-  }
+  getAuthTokenOrThrow();
   const afterSequence = payload.afterSequence ?? 0;
   const response = await fetch(
     `${API_BASE_URL}/api/v1/agent/runs/${payload.runId}/stream?after_sequence=${afterSequence}`,
     {
       method: "GET",
       signal: payload.signal,
-      headers: {
-        Accept: "text/event-stream",
-        Authorization: `Bearer ${token}`
-      }
+      headers: buildApiHeaders({
+        headers: {
+          Accept: "text/event-stream"
+        }
+      })
     }
   );
   if (!response.ok) {
-    const body = await response.text();
-    const message = extractErrorMessage(body, response.status);
-    if (response.status === 401) {
-      clearStoredAuthToken();
-    }
-    throw new ApiError(message, response.status);
+    await throwApiErrorFromFetchResponse(response);
   }
 
   await consumeAgentSseResponse(response, payload.onEvent);
@@ -316,10 +301,7 @@ export async function uploadAgentDraftAttachment(payload: {
   onServerProcessingStart?: () => void;
   signal?: AbortSignal;
 }): Promise<AgentDraftAttachment> {
-  const token = getStoredAuthToken();
-  if (!token) {
-    throw new Error("Log in before calling the API.");
-  }
+  const token = getAuthTokenOrThrow();
 
   return await new Promise<AgentDraftAttachment>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -367,11 +349,7 @@ export async function uploadAgentDraftAttachment(payload: {
       cleanupAbortListener();
       const responseText = typeof xhr.responseText === "string" ? xhr.responseText : "";
       if (xhr.status < 200 || xhr.status >= 300) {
-        const message = extractErrorMessage(responseText, xhr.status);
-        if (xhr.status === 401) {
-          clearStoredAuthToken();
-        }
-        reject(new ApiError(message, xhr.status));
+        reject(createApiErrorFromResponse(responseText, xhr.status));
         return;
       }
       try {

@@ -6,14 +6,7 @@
  * - Side effects: React rendering and user event wiring.
  */
 import { Button } from "../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../../components/ui/dialog";
+import { ModalShell } from "../../components/ui/modal-shell";
 
 interface DiscardChangesDialogProps {
   open: boolean;
@@ -23,21 +16,22 @@ interface DiscardChangesDialogProps {
 
 export function DiscardChangesDialog({ open, onOpenChange, onConfirm }: DiscardChangesDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Discard unsaved changes?</DialogTitle>
-          <DialogDescription>Your current filter-group edits will be lost if you continue.</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
+    <ModalShell
+      open={open}
+      onOpenChange={onOpenChange}
+      size="sm"
+      title="Discard unsaved changes?"
+      description="Your current filter-group edits will be lost if you continue."
+      footer={
+        <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Keep editing
           </Button>
           <Button type="button" variant="destructive" onClick={onConfirm}>
             Discard changes
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    />
   );
 }

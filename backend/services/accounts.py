@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `accounts`.
-# - Inputs: callers that import `backend/services/accounts.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `accounts`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: account create/update/delete workflows and account read-model assembly.
+# - Inputs: account rows, principal scope, and service-owned write commands.
+# - Outputs: account CRUD helpers, balance reads, and list/read builders.
+# - Side effects: database persistence, validation, and read queries.
 from __future__ import annotations
 
 from datetime import date
@@ -29,6 +29,21 @@ from backend.services.entities import (
 )
 from backend.services.finance_contracts import AccountCreateCommand, AccountPatch
 from backend.validation.finance_names import normalize_entity_name
+
+
+def list_accounts_for_principal(db: Session, *, principal: RequestPrincipal) -> list[AccountRead]:
+    from backend.services.access_scope import account_owner_filter
+
+    accounts = list(
+        db.scalars(
+            select(Account)
+            .join(Entity, Entity.id == Account.id)
+            .where(account_owner_filter(principal))
+            .options(selectinload(Account.entity))
+            .order_by(Entity.name.asc(), Account.created_at.asc())
+        )
+    )
+    return build_account_reads(db, accounts)
 
 
 def build_account_read(

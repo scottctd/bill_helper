@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `tags`.
-# - Inputs: callers that import `backend/services/tags.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `tags`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `tags`.
+# - Inputs: Callers import `backend/services/tags` and invoke `normalize_tag_color`, `generate_random_tag_color`, `resolve_tag_color`, `find_tag_by_name`.
+# - Outputs: Exports `normalize_tag_color`, `generate_random_tag_color`, `resolve_tag_color`, `find_tag_by_name`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 import colorsys

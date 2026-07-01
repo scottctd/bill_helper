@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `definitions`.
-# - Inputs: callers that import `backend/services/agent/tool_runtime_support/definitions.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `definitions`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `definitions`.
+# - Inputs: Callers import `backend/services/agent/tool_runtime_support/definitions` and invoke `AgentToolDefinition`.
+# - Outputs: Exports `AgentToolDefinition`.
+# - Side effects: Pure validation and schema definitions; no persistence.
 from __future__ import annotations
 
 from dataclasses import dataclass

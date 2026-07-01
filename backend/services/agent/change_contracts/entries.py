@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `entries`.
-# - Inputs: callers that import `backend/services/agent/change_contracts/entries.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `entries`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: agent entry change-contract payloads for update/delete/reference proposals.
+# - Inputs: proposal JSON validated by the change-contract registry and CLI parsers.
+# - Outputs: payload models; `UpdateEntryPayload.to_update_command()` for apply.
+# - Side effects: none; re-exports `CreateEntryPayload` from `contracts_agent_entries`.
 from __future__ import annotations
 
 from datetime import date as DateValue
@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from backend.enums_finance import EntryKind, EntryLifecycle
 from backend.contracts_agent_entries import BatchImportEntriesPayload, CreateEntryPayload
+from backend.contracts_entries import EntityRefPatch, EntryUpdateCommand
 from backend.services.agent.change_contracts.common import (
     normalize_optional_proposal_id,
     normalize_optional_reference_id,
@@ -55,6 +56,34 @@ class UpdateEntryPayload(ChangePayloadModel):
         if normalized is None:
             raise ValueError("entry_id is required")
         return normalized
+
+    def to_update_command(self) -> EntryUpdateCommand:
+        patch = self.patch
+        fields_set = set(patch.model_fields_set)
+        command_payload: dict[str, object] = {}
+        if "kind" in fields_set:
+            command_payload["kind"] = patch.kind
+        if "date" in fields_set:
+            command_payload["occurred_at"] = patch.date
+        if "name" in fields_set:
+            command_payload["name"] = patch.name
+        if "amount_minor" in fields_set:
+            command_payload["amount_minor"] = patch.amount_minor
+        if "currency_code" in fields_set:
+            command_payload["currency_code"] = patch.currency_code
+        if "markdown_notes" in fields_set:
+            command_payload["markdown_body"] = patch.markdown_notes
+        if "tags" in fields_set:
+            command_payload["tags"] = patch.tags
+        if "category" in fields_set:
+            command_payload["category"] = patch.category
+        if "lifecycle" in fields_set:
+            command_payload["lifecycle"] = patch.lifecycle
+        if "from_entity" in fields_set:
+            command_payload["from_ref"] = EntityRefPatch(name=patch.from_entity)
+        if "to_entity" in fields_set:
+            command_payload["to_ref"] = EntityRefPatch(name=patch.to_entity)
+        return EntryUpdateCommand.model_validate(command_payload)
 
 
 class DeleteEntryPayload(ChangePayloadModel):

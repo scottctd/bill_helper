@@ -10,6 +10,7 @@ import { SettingsGeneralSection } from "../features/settings/SettingsGeneralSect
 import { ResetSettingsDialog } from "../features/settings/ResetSettingsDialog";
 import { SettingsToolbar } from "../features/settings/SettingsToolbar";
 import { useSettingsPageModel } from "../features/settings/useSettingsPageModel";
+import { getApiErrorMessage } from "../lib/api/core";
 
 export function SettingsPage() {
   const model = useSettingsPageModel();
@@ -19,7 +20,7 @@ export function SettingsPage() {
   }
 
   if (model.queries.settingsQuery.isError && !model.formState) {
-    return <p className="error">Failed to load settings: {(model.queries.settingsQuery.error as Error).message}</p>;
+    return <p className="error">Failed to load settings: {getApiErrorMessage(model.queries.settingsQuery.error)}</p>;
   }
 
   if (!model.formState || !model.queries.settingsQuery.data) {

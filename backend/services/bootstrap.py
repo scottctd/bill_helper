@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `bootstrap`.
-# - Inputs: callers that import `backend/services/bootstrap.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `bootstrap`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `bootstrap`.
+# - Inputs: Callers import `backend/services/bootstrap` and invoke `should_seed_demo_data`, `should_stamp_existing_schema`, `stamp_alembic_head_for_database_url`, `stamp_alembic_head_for_sqlite_path`.
+# - Outputs: Exports `should_seed_demo_data`, `should_stamp_existing_schema`, `stamp_alembic_head_for_database_url`, `stamp_alembic_head_for_sqlite_path`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from collections.abc import Callable

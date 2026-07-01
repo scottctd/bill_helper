@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `catalog`.
-# - Inputs: callers that import `backend/services/agent/apply/catalog.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `catalog`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Apply approved agent change payloads for the `catalog` domain.
+# - Inputs: Callers import `backend/services/agent/apply/catalog` and invoke `apply_create_tag`, `apply_update_tag`, `apply_delete_tag`, `apply_create_entity`.
+# - Outputs: Exports `apply_create_tag`, `apply_update_tag`, `apply_delete_tag`, `apply_create_entity`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from sqlalchemy import select

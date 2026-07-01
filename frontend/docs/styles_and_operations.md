@@ -34,7 +34,8 @@
 - `agent/panel/useAgentComposerRuntime.ts`
 - `agent/panel/useAgentComposerStreamState.ts`
 - `agent/panel/useAgentComposerActions.ts`
-- `components/ui/*` for shared primitives
+- `components/ui/modal-shell.tsx` (shared dialog shell with size variants)
+- `components/ui/floating-select/*` (shared floating-menu core for SingleSelect, CreatableSingleSelect, TagMultiSelect)
 
 ## Feature Modules
 
@@ -66,7 +67,11 @@
   - `frontend/src/styles/tokens.css`
   - `frontend/src/styles/base.css`
   - `frontend/src/styles/shell.css`
-  - `frontend/src/styles/workspaces.css`
+  - `frontend/src/styles/sections.css`
+  - `frontend/src/styles/entries.css`
+  - `frontend/src/styles/groups.css`
+  - `frontend/src/styles/properties.css`
+  - `frontend/src/styles/settings.css`
   - `frontend/src/styles/dashboard.css`
   - `frontend/src/styles/overlays.css`
   - `frontend/src/styles/agent.css`
@@ -82,7 +87,11 @@ Key ownership boundaries:
 - `tokens.css`: Geist color scales and semantic tokens (opaque values as RGB triples consumed via `rgb(var(--x))`), `gray-alpha-*` translucent hex, chart palette, Geist radii (6/12/16px), elevation shadows, the two-layer focus ring, and the page max-width
 - `base.css`: Tailwind layers, reset styles, global typography, scrollbars, and element defaults
 - `shell.css`: app shell, sidebar, content frame, page headers, top-level layout helpers, and the main route scroll container behavior that keeps page widths stable when some routes need vertical scrollbars and others do not while auto-hiding the route scrollbar thumb until active scrolling begins
-- `workspaces.css`: shared workspace sections, table/form patterns, settings, entries, properties, and groups
+- `sections.css`: shared workspace sections, table/form patterns, stat blocks, and empty states
+- `entries.css`: entries filter toolbar, table columns, amount markers, and load-more shell
+- `groups.css`: groups browser table, detail modal, member list, and rule-flow canvas
+- `properties.css`: properties hub layout, entry-category tables, tag color cells, and entity name truncation
+- `settings.css`: settings toolbar, tabs, and reset panel
 - `dashboard.css`: dashboard controls, horizontal period strip, comparison cards, and dashboard-only layout
 - `overlays.css`: entry editor, select/tag controls, tooltip, and notification surfaces
 - BlockNote-based markdown editor shells inherit the app card surface, so the full editor frame stays on one white panel instead of exposing the muted page canvas below the editable content

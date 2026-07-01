@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `common`.
-# - Inputs: callers that import `backend/services/agent/reviews/common.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `common`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Review workflow helpers for agent `common` operations.
+# - Inputs: Callers import `backend/services/agent/reviews/common` and invoke `utc_now`, `get_change_item_or_none`, `thread_id_for_change_item`, `combine_notes`.
+# - Outputs: Exports `utc_now`, `get_change_item_or_none`, `thread_id_for_change_item`, `combine_notes`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from datetime import datetime, timezone

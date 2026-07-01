@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `entries`.
-# - Inputs: callers that import `backend/services/agent/read_tools/entries.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `entries`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Read-only agent tool handlers for `entries` data.
+# - Inputs: Callers import `backend/services/agent/read_tools/entries` and invoke `list_entries`.
+# - Outputs: Exports `list_entries`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

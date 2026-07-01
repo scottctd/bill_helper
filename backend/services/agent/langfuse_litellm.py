@@ -12,6 +12,7 @@ from typing import Any
 
 import litellm
 
+from backend.services.agent.error_policy import report_recoverable_error
 from backend.config import ensure_env_file_variables_loaded
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,12 @@ def force_flush_langfuse_otel_best_effort() -> None:
                 if provider is not None and hasattr(provider, "force_flush"):
                     provider.force_flush(timeout_millis=5000)
                 return
-    except Exception:
+    except Exception as exc:
+        report_recoverable_error(
+            scope="langfuse_litellm.force_flush",
+            error=exc,
+            log=logger,
+        )
         logger.debug("Langfuse OTEL force_flush skipped", exc_info=True)
 
 

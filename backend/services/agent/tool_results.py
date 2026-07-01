@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `tool_results`.
-# - Inputs: callers that import `backend/services/agent/tool_results.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `tool_results`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `tool_results`.
+# - Inputs: Callers import `backend/services/agent/tool_results` and invoke `PreparedToolCall`, `tool_result_llm_message`, `format_lines`, `error_result`.
+# - Outputs: Exports `PreparedToolCall`, `tool_result_llm_message`, `format_lines`, `error_result`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from dataclasses import dataclass

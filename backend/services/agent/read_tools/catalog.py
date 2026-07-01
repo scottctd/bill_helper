@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `catalog`.
-# - Inputs: callers that import `backend/services/agent/read_tools/catalog.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `catalog`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Read-only agent tool handlers for `catalog` data.
+# - Inputs: Callers import `backend/services/agent/read_tools/catalog` and invoke `list_tags`, `list_accounts`, `list_entities`.
+# - Outputs: Exports `list_tags`, `list_accounts`, `list_entities`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from typing import Any

@@ -16,7 +16,7 @@ from backend.services.agent.harness.contracts import (
     TranscriptMessage,
     UserMessage,
 )
-from backend.services.agent.message_history_content import build_user_content
+from backend.services.agent.prompt_assembly.message_history_content import build_user_content
 
 
 def _content_part_from_dict(part: dict[str, object]):

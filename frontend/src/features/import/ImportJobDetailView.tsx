@@ -15,7 +15,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { cancelImportJob, getImportJob, listImportJobProposals, retryFailedImportTasks } from "../../lib/api";
-import { invalidateEntryReadModels } from "../../lib/queryInvalidation";
+import { invalidateImportReadModels } from "../../lib/queryInvalidation";
 import { queryKeys } from "../../lib/queryKeys";
 import type { ImportTask } from "../../lib/types";
 import { cn } from "../../lib/utils";
@@ -65,13 +65,11 @@ export function ImportJobDetailView({ jobId, onOpenTask }: ImportJobDetailProps)
   const proposalCount = proposalsQuery.data?.length ?? 0;
 
   const invalidateJobReadModels = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.import.job(jobId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.import.jobs });
-    queryClient.invalidateQueries({ queryKey: queryKeys.import.proposals(jobId) });
-    for (const task of job?.tasks ?? []) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agent.thread(task.thread_id) });
-    }
-    invalidateEntryReadModels(queryClient);
+    invalidateImportReadModels(queryClient, {
+      jobId,
+      threadIds: job?.tasks.map((task) => task.thread_id) ?? [],
+      invalidateEntries: true
+    });
   };
 
   const cancelMutation = useMutation({

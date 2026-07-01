@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `accounts`.
-# - Inputs: callers that import `backend/services/agent/read_tools/accounts.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `accounts`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Read-only agent tool handlers for `accounts` data.
+# - Inputs: Callers import `backend/services/agent/read_tools/accounts` and invoke `list_snapshots`, `get_reconciliation`.
+# - Outputs: Exports `list_snapshots`, `get_reconciliation`.
+# - Side effects: No persistence; pure helpers unless callers pass live sessions.
 from __future__ import annotations
 
 from datetime import date

@@ -1,0 +1,49 @@
+/**
+ * CALLING SPEC:
+ * - Purpose: Settings page toolbar, tabs, and reset panel styling
+ * - Inputs: imported by `frontend/src/styles.css` for the Settings route.
+ * - Outputs: `@layer components` rules scoped to settings UI.
+ * - Side effects: none; stylesheet only.
+ */
+
+@layer components {
+  .settings-tab-list {
+    @apply flex flex-wrap gap-2;
+  }
+  .settings-tab-button {
+    @apply rounded-sm;
+  }
+  .settings-tab-active {
+    @apply border-primary/20 bg-primary/10 text-foreground shadow-none;
+  }
+  .settings-reset-row {
+    @apply grid gap-3 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center;
+  }
+  .settings-reset-button {
+    @apply w-full shrink-0 whitespace-nowrap border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto;
+  }
+  .settings-toolbar {
+    @apply sticky top-0 z-20 grid gap-2 rounded-md border border-border bg-card/95 px-4 py-3 shadow-geist-sm supports-[backdrop-filter]:bg-card/95;
+  }
+  .settings-toolbar-row {
+    @apply flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between;
+  }
+  .settings-toolbar-leading {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4;
+  }
+  .settings-toolbar-heading {
+    @apply flex items-center;
+  }
+  .settings-toolbar-actions {
+    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between xl:justify-end;
+  }
+  .settings-toolbar-copy {
+    @apply grid gap-0.5;
+  }
+  .settings-toolbar-title {
+    @apply m-0 text-copy-14 font-medium text-foreground;
+  }
+  .settings-toolbar-text {
+    @apply m-0 text-copy-14 text-muted-foreground;
+  }
+}

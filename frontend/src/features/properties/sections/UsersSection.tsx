@@ -11,14 +11,8 @@ import { Plus } from "lucide-react";
 import type { User } from "../../../lib/types";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../../../components/ui/dialog";
+import { DialogFooter } from "../../../components/ui/dialog";
+import { ModalShell } from "../../../components/ui/modal-shell";
 import { FormField } from "../../../components/ui/form-field";
 import { Input } from "../../../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
@@ -130,19 +124,17 @@ export function UsersSection(props: UsersSectionProps) {
         )
       ) : null}
 
-      <Dialog
+      <ModalShell
         open={createPanelOpen}
         onOpenChange={(open) => {
           if (!open) {
             onCloseCreatePanel();
           }
         }}
+        size="sm"
+        title="Create User"
+        description="Add a new owner identity for account and entry assignment."
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create User</DialogTitle>
-            <DialogDescription>Add a new owner identity for account and entry assignment.</DialogDescription>
-          </DialogHeader>
           <form className="grid gap-4" onSubmit={onCreateUserSubmit}>
             <FormField label="Name">
               <Input placeholder="e.g. Alice" value={newUserName} onChange={(event) => onNewUserNameChange(event.target.value)} />
@@ -157,22 +149,19 @@ export function UsersSection(props: UsersSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
 
-      <Dialog
+      <ModalShell
         open={Boolean(editingUserId)}
         onOpenChange={(open) => {
           if (!open) {
             onCancelEditUser();
           }
         }}
+        size="sm"
+        title="Edit User"
+        description="Update the display name used in owner assignments."
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>Update the display name used in owner assignments.</DialogDescription>
-          </DialogHeader>
           <form
             className="grid gap-4"
             onSubmit={(event) => {
@@ -200,8 +189,7 @@ export function UsersSection(props: UsersSectionProps) {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+      </ModalShell>
     </div>
   );
 }

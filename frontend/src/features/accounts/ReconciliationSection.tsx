@@ -8,6 +8,7 @@
 import { StatBlock } from "../../components/layout/StatBlock";
 import { Badge } from "../../components/ui/badge";
 import type { Account, Reconciliation, ReconciliationInterval } from "../../lib/types";
+import { listOrEmpty } from "../../lib/collections";
 import { formatMinor } from "../../lib/format";
 
 interface ReconciliationSectionProps {
@@ -45,7 +46,9 @@ export function ReconciliationSection(props: ReconciliationSectionProps) {
     return <p className="error">{errorMessage}</p>;
   }
 
-  if (!reconciliation || reconciliation.intervals.length === 0) {
+  const intervals = listOrEmpty(reconciliation?.intervals);
+
+  if (!reconciliation || intervals.length === 0) {
     return (
       <div className="space-y-3">
         <p className="muted">
@@ -59,16 +62,16 @@ export function ReconciliationSection(props: ReconciliationSectionProps) {
     );
   }
 
-  const newestFirstIntervals = [...reconciliation.intervals].reverse();
-  const closedIntervals = reconciliation.intervals.filter((interval) => !interval.is_open);
-  const openInterval = reconciliation.intervals.find((interval) => interval.is_open) ?? null;
+  const newestFirstIntervals = [...intervals].reverse();
+  const closedIntervals = intervals.filter((interval) => !interval.is_open);
+  const openInterval = intervals.find((interval) => interval.is_open) ?? null;
   const reconciledCount = closedIntervals.filter((interval) => interval.delta_minor === 0).length;
   const mismatchedCount = closedIntervals.length - reconciledCount;
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
-        <StatBlock label="Intervals" value={reconciliation.intervals.length} />
+        <StatBlock label="Intervals" value={intervals.length} />
         <StatBlock label="Reconciled" value={reconciledCount} tone="success" />
         <StatBlock
           label="Current period"
@@ -122,7 +125,7 @@ export function ReconciliationSection(props: ReconciliationSectionProps) {
                   <div>
                     <dt className="text-label-12 font-medium text-muted-foreground">Bank</dt>
                     <dd className="mt-1 font-medium">
-                      {interval.bank_change_minor === null
+                      {interval.bank_change_minor == null
                         ? "Waiting for next snapshot"
                         : formatMinor(interval.bank_change_minor, reconciliation.currency_code)}
                     </dd>
@@ -132,7 +135,7 @@ export function ReconciliationSection(props: ReconciliationSectionProps) {
                       {interval.is_open ? "Status" : "Delta"}
                     </dt>
                     <dd className="mt-1 font-medium">
-                      {interval.delta_minor === null
+                      {interval.delta_minor == null
                         ? "No closing bank checkpoint yet"
                         : deltaLabel(interval.delta_minor, reconciliation.currency_code)}
                     </dd>

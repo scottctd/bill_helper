@@ -88,7 +88,7 @@ export function AgentPanel({ isOpen, embedded = false }: AgentPanelProps) {
 
         <div className="agent-panel-body agent-panel-body-page">
           <section className="agent-thread-timeline agent-thread-main">
-            <AgentTimeline {...controller.timeline} />
+            <AgentTimeline model={controller.timeline} />
 
             <AgentComposer {...controller.composer} />
           </section>

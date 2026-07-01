@@ -2,8 +2,7 @@
 # - Purpose: build multi-month dashboard read models in one service call.
 # - Inputs: SQLAlchemy session, ordered month keys, and request principal.
 # - Outputs: batch dashboard payload with one read model per requested month.
-# - Side effects: reads database state only.
-
+# - Side effects: reads database state only; raises PolicyViolation for invalid month inputs.
 from __future__ import annotations
 
 import re
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.auth.contracts import RequestPrincipal
 from backend.schemas_finance import DashboardBatchRead, DashboardRead
+from backend.services.crud_policy import PolicyViolation
 from backend.services.finance_dashboard import build_dashboard_read, month_window
 
 _MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
@@ -20,27 +20,29 @@ _MAX_BATCH_MONTHS = 24
 
 def normalize_dashboard_batch_months(months: list[str]) -> list[str]:
     if not months:
-        raise ValueError("months must include at least one YYYY-MM value")
+        raise PolicyViolation.unprocessable_content("months must include at least one YYYY-MM value")
     if len(months) > _MAX_BATCH_MONTHS:
-        raise ValueError(f"months must include at most {_MAX_BATCH_MONTHS} values")
+        raise PolicyViolation.unprocessable_content(
+            f"months must include at most {_MAX_BATCH_MONTHS} values"
+        )
 
     normalized: list[str] = []
     seen: set[str] = set()
     for month in months:
         candidate = month.strip()
         if not _MONTH_PATTERN.fullmatch(candidate):
-            raise ValueError("each month must be in YYYY-MM format")
+            raise PolicyViolation.unprocessable_content("each month must be in YYYY-MM format")
         try:
             month_window(candidate)
         except ValueError as exc:
-            raise ValueError("each month must be in YYYY-MM format") from exc
+            raise PolicyViolation.unprocessable_content("each month must be in YYYY-MM format") from exc
         if candidate in seen:
             continue
         seen.add(candidate)
         normalized.append(candidate)
 
     if not normalized:
-        raise ValueError("months must include at least one YYYY-MM value")
+        raise PolicyViolation.unprocessable_content("months must include at least one YYYY-MM value")
     return sorted(normalized)
 
 

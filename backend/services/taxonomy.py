@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `taxonomy`.
-# - Inputs: callers that import `backend/services/taxonomy.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `taxonomy`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Domain service logic for `taxonomy`.
+# - Inputs: Callers import `backend/services/taxonomy` and invoke `TaxonomySpec`, `normalize_taxonomy_key`, `normalize_required_taxonomy_key`, `normalize_term_name`.
+# - Outputs: Exports `TaxonomySpec`, `normalize_taxonomy_key`, `normalize_required_taxonomy_key`, `normalize_term_name`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from dataclasses import dataclass

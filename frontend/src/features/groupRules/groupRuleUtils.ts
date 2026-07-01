@@ -12,6 +12,7 @@ import type {
   GroupRuleGroup,
   GroupRuleNode
 } from "../../lib/types";
+import { listOrEmpty } from "../../lib/collections";
 
 const FALLBACK_TAG_NAME = "needs_review";
 
@@ -95,8 +96,8 @@ export function normalizeGroup(group: GroupRuleGroup, preferredTagName?: string)
     ...group,
     operator: group.operator === "OR" ? "OR" : "AND",
     children:
-      group.children.length > 0
-        ? group.children.map((child) => normalizeNode(child, preferredTagName))
+      listOrEmpty(group.children).length > 0
+        ? listOrEmpty(group.children).map((child) => normalizeNode(child, preferredTagName))
         : [createDefaultCondition("entry_kind", preferredTagName)]
   };
 }
@@ -131,7 +132,7 @@ export function normalizeNode(node: GroupRuleNode, preferredTagName?: string): G
 }
 
 export function containsNestedGroups(group: GroupRuleGroup): boolean {
-  return group.children.some((child) => child.type === "group");
+  return listOrEmpty(group.children).some((child) => child.type === "group");
 }
 
 export function createConditionForField(

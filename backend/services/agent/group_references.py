@@ -1,8 +1,8 @@
 # CALLING SPEC:
-# - Purpose: implement focused service logic for `group_references`.
-# - Inputs: callers that import `backend/services/agent/group_references.py` and pass module-defined arguments or framework events.
-# - Outputs: service functions, contracts, or helpers exported by `group_references`.
-# - Side effects: module-defined persistence, validation, or orchestration behavior.
+# - Purpose: Agent subsystem helpers for `group_references`.
+# - Inputs: Callers import `backend/services/agent/group_references` and invoke `GroupSummaryPublicRecord`, `GroupMemberPublicRecord`, `GroupDetailPublicRecord`, `GroupIdAmbiguityDetails`.
+# - Outputs: Exports `GroupSummaryPublicRecord`, `GroupMemberPublicRecord`, `GroupDetailPublicRecord`, `GroupIdAmbiguityDetails`.
+# - Side effects: May read or write SQLAlchemy sessions and commit domain mutations.
 from __future__ import annotations
 
 from datetime import date
