@@ -62,6 +62,31 @@ describe("activity helpers", () => {
     expect(timeline[1]).toMatchObject({ type: "tool_call", toolCallId: "tool-1" });
   });
 
+  it("preserves step emission order when timestamps would reorder items", () => {
+    const sharedTimestamp = "2026-02-15T10:00:00.000Z";
+    const timeline = buildRunTimelineFromProjections(
+      [
+        buildStep({
+          id: "step-1",
+          step_index: 1,
+          created_at: sharedTimestamp,
+          reasoning_text: "Reason first.",
+          progress_note: "Progress after tools."
+        })
+      ],
+      [
+        buildToolCall({
+          id: "tool-1",
+          step_id: "step-1",
+          started_at: sharedTimestamp,
+          completed_at: sharedTimestamp
+        })
+      ]
+    );
+
+    expect(timeline.map((item) => item.type)).toEqual(["reasoning_step", "tool_call", "progress_note"]);
+  });
+
   it("does not reconstruct activity from tool rows when step projections are missing", () => {
     const timeline = buildRunTimelineFromProjections(
       [],
@@ -298,6 +323,71 @@ describe("activity helpers", () => {
       arguments_json: { entity_name: "ACME" },
       result_content_json: { status: "ok", proposal_id: "proposal-1" },
       output_text: "OK\nproposal_id: proposal-1"
+    });
+  });
+
+  it("reconciles hydrated optimistic payloads into a stale live ledger for completed runs", () => {
+    const compactToolCall = buildToolCall({
+      id: "tool-compact",
+      run_id: "run-reopen",
+      tool_name: "run_bh",
+      display_label: "bh entities list",
+      has_full_payload: false,
+      arguments_json: null,
+      result_content_json: null,
+      output_text: null,
+      status: "ok"
+    });
+    const hydratedToolCall = buildToolCall({
+      id: "tool-compact",
+      run_id: "run-reopen",
+      tool_name: "run_bh",
+      display_label: "bh entities list",
+      has_full_payload: true,
+      arguments_json: { argv: ["entities", "list"] },
+      result_content_json: { status: "ok" },
+      output_text: "OK\nlisted entities",
+      status: "ok"
+    });
+    const run = buildRun({
+      id: "run-reopen",
+      status: "completed",
+      tool_calls: [compactToolCall]
+    });
+    const ledger = {
+      [run.id]: [
+        {
+          type: "tool_call" as const,
+          key: compactToolCall.id,
+          runId: run.id,
+          toolCallId: compactToolCall.id,
+          toolCall: compactToolCall,
+          createdAt: "2026-02-15T10:00:01.000Z"
+        }
+      ]
+    };
+
+    const beforeHydration = buildLiveRunActivityItems(
+      [run],
+      (runId) => ({ steps: [], toolCalls: [] }),
+      ledger
+    );
+    const afterHydration = buildLiveRunActivityItems(
+      [run],
+      (runId) => ({ steps: [], toolCalls: [hydratedToolCall] }),
+      ledger
+    );
+
+    expect(beforeHydration[0]?.type === "tool_call" ? beforeHydration[0].toolCall?.has_full_payload : null).toBe(
+      false
+    );
+    expect(afterHydration[0]).toMatchObject({
+      type: "tool_call",
+      toolCall: {
+        id: "tool-compact",
+        has_full_payload: true,
+        arguments_json: { argv: ["entities", "list"] }
+      }
     });
   });
 

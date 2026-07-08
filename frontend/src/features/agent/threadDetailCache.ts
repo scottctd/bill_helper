@@ -113,6 +113,23 @@ function patchRunInDetail(
   };
 }
 
+export function patchAgentThreadCachedToolCall(
+  queryClient: QueryClient,
+  threadId: string,
+  runId: string,
+  toolCall: AgentToolCall
+): void {
+  queryClient.setQueryData(queryKeys.agent.thread(threadId), (current: AgentThreadDetail | undefined) => {
+    if (!current) {
+      return current;
+    }
+    return patchRunInDetail(current, runId, (run) => ({
+      ...run,
+      tool_calls: mergeRunToolCalls(listOrEmpty(run.tool_calls), [toolCall])
+    }));
+  });
+}
+
 export function patchAgentThreadCachedRunUsage(
   queryClient: QueryClient,
   threadId: string,

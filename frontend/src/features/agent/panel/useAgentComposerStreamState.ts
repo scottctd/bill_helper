@@ -12,6 +12,7 @@ import { getAgentToolCall } from "../../../lib/api";
 import { listOrEmpty } from "../../../lib/collections";
 import type { AgentRun, AgentThreadDetail, AgentToolCall } from "../../../lib/types";
 import { mergeRunToolCalls, pendingRuns } from "../activity";
+import { patchAgentThreadCachedToolCall } from "../threadDetailCache";
 import {
   applyAgentStreamEventToStore,
   clearAgentStreamSessionRun,
@@ -33,6 +34,17 @@ interface UseAgentComposerStreamStateArgs {
   pendingAssistantMessage: PendingAssistantMessage | null;
   selectedThreadId: string;
   threadDetail: AgentThreadDetail | undefined;
+}
+
+function toolCallHasRenderablePayload(toolCall: AgentToolCall | undefined): boolean {
+  if (!toolCall?.has_full_payload) {
+    return false;
+  }
+  return (
+    toolCall.arguments_json != null ||
+    toolCall.result_content_json != null ||
+    Boolean(toolCall.output_text?.trim())
+  );
 }
 
 export function useAgentComposerStreamState({
@@ -99,11 +111,19 @@ export function useAgentComposerStreamState({
   const hydrateToolCallDetails = useCallback(
     async (threadId: string, runId: string, toolCallId: string, force = false) => {
       const persistedRun = threadRunsRef.current.find((run) => run.id === runId);
-      if (!force && listOrEmpty(persistedRun?.tool_calls).some((toolCall) => toolCall.id === toolCallId && toolCall.has_full_payload)) {
+      if (
+        !force &&
+        listOrEmpty(persistedRun?.tool_calls).some(
+          (toolCall) => toolCall.id === toolCallId && toolCallHasRenderablePayload(toolCall)
+        )
+      ) {
         return;
       }
       const optimisticToolCalls = optimisticToolCallsRef.current[runId] ?? [];
-      if (!force && optimisticToolCalls.some((toolCall) => toolCall.id === toolCallId && toolCall.has_full_payload)) {
+      if (
+        !force &&
+        optimisticToolCalls.some((toolCall) => toolCall.id === toolCallId && toolCallHasRenderablePayload(toolCall))
+      ) {
         return;
       }
       if (hydratingToolCallIdsRef.current.has(toolCallId)) {
@@ -124,20 +144,26 @@ export function useAgentComposerStreamState({
               next &&
               item.id === next.id &&
               item.status === next.status &&
-              item.has_full_payload === next.has_full_payload
+              toolCallHasRenderablePayload(item) === toolCallHasRenderablePayload(next)
             );
           });
         if (!unchanged) {
           setAgentStreamSessionOptimisticToolCalls(runId, nextToolCalls);
         }
+        patchAgentThreadCachedToolCall(queryClient, threadId, runId, toolCall);
         if (toolCall.tool_name === "rename_thread") {
           const renamedTitle = extractRenameThreadTitle(toolCall);
           if (renamedTitle) {
             applyThreadTitleToCaches(threadId, renamedTitle);
           }
         }
-      } catch {
-        // Ignore transient hydration errors; later expansions or final snapshots will retry/reconcile.
+      } catch (error) {
+        console.warn("Failed to hydrate agent tool call details.", {
+          threadId,
+          runId,
+          toolCallId,
+          error
+        });
       } finally {
         hydratingToolCallIdsRef.current.delete(toolCallId);
         setHydratingToolCallIds((current) => {
@@ -150,7 +176,7 @@ export function useAgentComposerStreamState({
         });
       }
     },
-    [applyThreadTitleToCaches]
+    [applyThreadTitleToCaches, queryClient]
   );
 
   const handleAgentStreamEvent = useCallback(
@@ -175,6 +201,15 @@ export function useAgentComposerStreamState({
     }
   }, []);
 
+  const handleHydrateToolCall = useCallback(
+    (runId: string, toolCallId: string) => {
+      if (selectedThreadId) {
+        void hydrateToolCallDetails(selectedThreadId, runId, toolCallId);
+      }
+    },
+    [hydrateToolCallDetails, selectedThreadId]
+  );
+
   return {
     activeOptimisticSteps: liveRunId ? session.optimisticStepsByRunId[liveRunId] ?? [] : [],
     activeOptimisticToolCalls: liveRunId ? session.optimisticToolCallsByRunId[liveRunId] ?? [] : [],
@@ -190,11 +225,7 @@ export function useAgentComposerStreamState({
       return run ? resolveReconnectSequenceIndex(run, snapshot) : snapshot.lastSequenceIndexByRunId[runId] ?? 0;
     },
     handleAgentStreamEvent,
-    handleHydrateToolCall: (runId: string, toolCallId: string) => {
-      if (selectedThreadId) {
-        void hydrateToolCallDetails(selectedThreadId, runId, toolCallId);
-      }
-    },
+    handleHydrateToolCall,
     hydratingToolCallIds,
     liveActivityLedgerByRunId: session.liveActivityLedgerByRunId,
     optimisticStepsByRunId: session.optimisticStepsByRunId,

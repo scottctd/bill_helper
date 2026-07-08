@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { agentStreamSession } from "./agentStreamSession";
-import { findRunningRunForThread, resolveLiveRunIdForThread, resolveReconnectSequenceIndex } from "./liveRun";
-import { buildRun, buildRunEvent } from "../../../test/factories/agent";
+import {
+  findRunningRunForThread,
+  isRunStreamActive,
+  resolveLiveRunIdForThread,
+  resolveReconnectSequenceIndex,
+  shouldShowRunChangeSummary
+} from "./liveRun";
+import { buildChangeItem, buildRun, buildRunEvent } from "../../../test/factories/agent";
 
 describe("liveRun helpers", () => {
   it("prefers mapped stream run id for a thread", () => {
@@ -47,5 +53,52 @@ describe("liveRun helpers", () => {
     };
 
     expect(resolveReconnectSequenceIndex(run, session)).toBe(7);
+  });
+
+  it("treats running runs and active stream buffers as live", () => {
+    const running = buildRun({ id: "run-running", status: "running" });
+    const completed = buildRun({ id: "run-completed", status: "completed" });
+
+    expect(isRunStreamActive(running)).toBe(true);
+    expect(
+      isRunStreamActive(completed, {
+        activeStreamRunId: "run-completed",
+        streamedTextByRunId: { "run-completed": "Still landing..." }
+      })
+    ).toBe(true);
+    expect(isRunStreamActive(completed)).toBe(false);
+  });
+
+  it("gates change summaries until streaming finishes and the assistant reply is visible", () => {
+    const running = buildRun({
+      id: "run-running",
+      status: "running",
+      change_items: [buildChangeItem({ id: "change-1" })]
+    });
+    const completed = buildRun({
+      id: "run-completed",
+      status: "completed",
+      final_assistant_reply: "Done.",
+      change_items: [buildChangeItem({ id: "change-1" })]
+    });
+
+    expect(
+      shouldShowRunChangeSummary(running, 1, {
+        isStreamActive: true,
+        hasVisibleAssistantMessage: false
+      })
+    ).toBe(false);
+    expect(
+      shouldShowRunChangeSummary(completed, 1, {
+        isStreamActive: false,
+        hasVisibleAssistantMessage: true
+      })
+    ).toBe(true);
+    expect(
+      shouldShowRunChangeSummary(completed, 1, {
+        isStreamActive: false,
+        hasVisibleAssistantMessage: false
+      })
+    ).toBe(true);
   });
 });

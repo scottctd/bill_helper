@@ -189,6 +189,8 @@ Endpoints:
 ## Thread Detail Behavior
 
 - `GET /api/v1/agent/threads/{thread_id}` returns `turns` projected by `api_projection.py` from each run's canonical transcript rows, plus `runs` with `steps[]`, harness `events[]`, and `tool_calls[]`
+- user transcript rows persist canonical model-facing `content` plus optional `display_content` for the typed user message; thread detail exposes `content_markdown` (display) and `raw_prompt_markdown` (full prompt when it differs); rows without `display_content` fall back to `content` for both API fields
+- thread list previews and Telegram fallbacks use display text, not review prefixes or other synthetic prompt scaffolding
 - `current_context_tokens` is a LiteLLM `token_counter` estimate over the canonical transcript that the next turn would send, plus the tool schemas for that request
 - message-send endpoints accept optional multipart `model_name`; when present it must match one of the resolved runtime `available_agent_models`
 - message-send endpoints accept optional multipart `approval_policy` (`default` or `yolo`); each run persists the chosen value and exposes it on `AgentRunRead`
@@ -232,6 +234,7 @@ Endpoints:
 - the hosted agent prompt does not expose external setup, session navigation, or source-management commands; `run_bh` enforces the same boundary and allows only current-session updates through `bh sessions update`
 - PDF and image attachments are written into per-upload bundle directories. Images keep the original bytes with no resizing. PDFs are stored as `raw.pdf` plus PyMuPDF `page-<n>.png` renders at scale 2 over the default 72 pt/in raster, one file per page, and are rejected before rendering when page count exceeds `agent_max_pdf_pages` (default `10`). Message assembly sends those images as `image_url` parts and does not run Docling or OCR. Plain-text attachments such as CSV are stored as `raw.<ext>` and assembled as inline `text` parts with the file body.
 - interruption sets `stop_requested=true` and the harness finishes the run as `interrupted`; later turns rebuild model context from prior canonical transcript rows across completed runs
+- model-gateway hydration re-attaches stored attachment parts for every user transcript row in the thread, not only the current run, so image/PDF/text file content stays in provider context on follow-up turns; user rows are aligned in run order (`turn_index`, `created_at`, then `sequence_index`) with transcript `UserMessage` entries, and count mismatches fall back to current-run-only hydration with a recoverable debug log
 - pending proposals remain inspectable in later turns while still `PENDING_REVIEW`
 - reviewed proposal context now includes reviewer override values when `payload_override` changed the approved payload, so later turns can see concrete edited values instead of only changed field names
 - run snapshots expose persisted `origin` and `final_assistant_reply`; optional read-time `surface` query params only affect reply formatting

@@ -66,6 +66,7 @@ If documents conflict, update the primary source first and trim stale secondary 
 
 - Use `tasks/*.md` for work in progress.
 - Move finished task docs that are worth keeping to `docs/completed_tasks/`.
+- `tasks/completed/` is retired; do not recreate it.
 - Name task files `YYYY_MM_DD-task_name.md`.
 - Do not treat task docs as the source of truth for current behavior after the work lands.
 

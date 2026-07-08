@@ -707,6 +707,30 @@
     word-break: break-word;
   }
 
+  .agent-user-raw-prompt {
+    @apply mt-2 border-t border-border/70 pt-2;
+  }
+
+  .agent-user-raw-prompt summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .agent-user-raw-prompt-summary {
+    @apply cursor-pointer text-label-12 text-muted-foreground;
+  }
+
+  .agent-user-raw-prompt-summary:hover {
+    @apply text-foreground/80;
+  }
+
+  .agent-user-raw-prompt-text {
+    @apply mt-1.5 max-h-48 overflow-auto rounded-sm border border-border bg-secondary/50 p-2 text-label-12 text-muted-foreground;
+    font-family: "Geist Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   .agent-entry-override {
     @apply grid gap-1.5 text-label-12;
   }

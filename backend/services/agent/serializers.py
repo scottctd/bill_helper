@@ -54,6 +54,22 @@ def content_markdown_from_transcript_row(row: Any) -> str:
     return ""
 
 
+def display_content_markdown_from_transcript_row(row: Any) -> str:
+    payload = dict(row.content_json or {})
+    display_content = payload.get("display_content")
+    if isinstance(display_content, str):
+        return display_content
+    return content_markdown_from_transcript_row(row)
+
+
+def raw_prompt_markdown_from_transcript_row(row: Any) -> str | None:
+    raw = content_markdown_from_transcript_row(row)
+    display = display_content_markdown_from_transcript_row(row)
+    if raw != display:
+        return raw
+    return None
+
+
 _MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 _MARKDOWN_HEADING_PATTERN = re.compile(r"^#{1,6}\s*", re.MULTILINE)
 _MARKDOWN_BLOCKQUOTE_PATTERN = re.compile(r"^\s*>\s?", re.MULTILINE)

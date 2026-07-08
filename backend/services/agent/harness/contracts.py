@@ -71,6 +71,7 @@ class UserMessage(BaseModel):
 
     role: Literal["user"] = "user"
     content: str | list[ContentPart]
+    display_content: str | None = None
 
 
 class ToolRequest(BaseModel):

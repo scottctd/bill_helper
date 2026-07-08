@@ -345,7 +345,6 @@ export function buildLiveRunActivityItems(
     }
     const mergedSteps = mergeRunSteps(listOrEmpty(run.steps), optSteps);
     const mergedRunItems = buildRunTimelineFromProjections(mergedSteps, mergedToolCalls);
-    mergedRunItems.sort((left, right) => byTimestamp(left.createdAt, right.createdAt));
     mergedRunItems.forEach((item) => {
       merged.push({
         ...item,
@@ -421,7 +420,6 @@ export function buildRunTimelineFromProjections(steps: AgentRunStep[], toolCalls
     });
   });
 
-  timeline.sort((left, right) => byTimestamp(left.createdAt, right.createdAt));
   return timeline;
 }
 
@@ -503,7 +501,6 @@ export function mergeRunActivityItems(
       });
     });
   });
-  merged.sort((left, right) => byTimestamp(left.createdAt, right.createdAt));
   return merged;
 }
 

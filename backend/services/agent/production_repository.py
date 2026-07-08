@@ -81,9 +81,14 @@ def _content_json_for_message(message: TranscriptMessage) -> dict[str, Any]:
     if isinstance(message, SystemMessage):
         return {"content": message.content}
     if isinstance(message, UserMessage):
+        payload: dict[str, Any]
         if isinstance(message.content, str):
-            return {"content": message.content}
-        return {"content": [part.model_dump() for part in message.content]}
+            payload = {"content": message.content}
+        else:
+            payload = {"content": [part.model_dump() for part in message.content]}
+        if message.display_content is not None:
+            payload["display_content"] = message.display_content
+        return payload
     if isinstance(message, AssistantMessage):
         payload: dict[str, Any] = {"content": message.content}
         if message.tool_requests:

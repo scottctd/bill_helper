@@ -86,6 +86,7 @@ class AgentTurnMessageRead(AgentSchema):
     id: str
     role: AgentTranscriptRole
     content_markdown: str
+    raw_prompt_markdown: str | None = None
     reasoning_text: str | None = None
     created_at: datetime
     attachments: list[AgentTranscriptAttachmentRead] = Field(default_factory=list)

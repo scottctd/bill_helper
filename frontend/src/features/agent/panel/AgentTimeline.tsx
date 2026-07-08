@@ -24,9 +24,11 @@ import { AgentMessageAttachmentRow } from "./AgentMessageAttachmentRow";
 import { AgentMessageAttachmentImage } from "./AgentMessageAttachmentImage";
 import { AgentMessageAttachmentPdf } from "./AgentMessageAttachmentPdf";
 import { AgentMessageHeader } from "./AgentMessageHeader";
+import { UserRawPromptDetails } from "./UserRawPromptDetails";
 import { openAttachmentInNewTab } from "./attachmentBrowserOpen";
 import { resolveRunStreamBuffer } from "./helpers";
 import { agentStreamSession } from "./agentStreamSession";
+import { isRunStreamActive } from "./liveRun";
 import type { AgentTimelineProps } from "./agentTimelineModel";
 
 export type { AgentTimelineModel, AgentTimelineProps } from "./agentTimelineModel";
@@ -186,6 +188,7 @@ function AgentTimelineComponent({ model }: AgentTimelineProps) {
   function renderUserBubble(options: {
     createdAt: string;
     text: string;
+    rawPromptMarkdown?: string | null;
     emptyText: string;
     attachments: AgentTurnAttachment[] | PendingUserMessage["attachments"];
   }) {
@@ -198,6 +201,9 @@ function AgentTimelineComponent({ model }: AgentTimelineProps) {
           ) : (
             <p className="muted">{options.emptyText}</p>
           )}
+          {options.rawPromptMarkdown ? (
+            <UserRawPromptDetails rawPromptMarkdown={options.rawPromptMarkdown} />
+          ) : null}
         </div>
         <AgentMessageHeader
           createdAt={options.createdAt}
@@ -294,6 +300,12 @@ function AgentTimelineComponent({ model }: AgentTimelineProps) {
                   : liveStreamText.length > 0
                     ? liveStreamText
                     : "";
+              const runStreamContext = {
+                activeStreamRunId,
+                streamedReasoningTextByRunId,
+                streamedTextByRunId
+              };
+              const isRunStreaming = run ? isRunStreamActive(run, runStreamContext) : false;
 
               return (
                 <Fragment key={turn.run_id}>
@@ -301,6 +313,7 @@ function AgentTimelineComponent({ model }: AgentTimelineProps) {
                     {renderUserBubble({
                       createdAt: turn.user_message.created_at,
                       text: turn.user_message.content_markdown,
+                      rawPromptMarkdown: turn.user_message.raw_prompt_markdown,
                       emptyText: "(no text)",
                       attachments: listOrEmpty(turn.user_message.attachments)
                     })}
@@ -346,6 +359,8 @@ function AgentTimelineComponent({ model }: AgentTimelineProps) {
                         mode="summary"
                         optimisticSteps={optimisticStepsByRunId[run.id] ?? []}
                         optimisticToolCalls={optimisticToolCallsByRunId[run.id] ?? []}
+                        isStreamActive={isRunStreaming}
+                        hasVisibleAssistantMessage={assistantDisplayMarkdown.trim().length > 0}
                       />
                     ) : null}
 

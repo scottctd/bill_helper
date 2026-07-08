@@ -63,6 +63,7 @@ Includes:
 
 - `thread`
 - `turns` (user/assistant message pairs projected from each run's canonical transcript rows)
+- turn `user_message.content_markdown` is the user-typed display text; when the model saw a longer composed prompt (for example review-result prefixes), `user_message.raw_prompt_markdown` carries the full raw text and is omitted when it matches the display text
 - per-turn attachments with `display_name`, `mime_type`, and `attachment_url`
 - `runs` (work records with `steps[]`, `events[]`, `tool_calls[]`, and `change_items[]`)
 - `configured_model_name`

@@ -3,9 +3,9 @@
  * - Purpose: render merged agent run work for one assistant turn — flat stream while running, collapsible separator when completed.
  * - Inputs: callers that import `frontend/src/features/agent/AssistantMessageRunWork.tsx`.
  * - Outputs: `AssistantMessageRunWork` React component.
- * - Side effects: local expand/collapse state; optional `onInspectActivity` on separator toggle.
+ * - Side effects: local expand/collapse state; optional `onInspectActivity` on separator toggle; subscribes to the module stream store for hydrated tool snapshots.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import type { AgentRun, AgentRunStep, AgentToolCall } from "../../lib/types";
@@ -14,9 +14,15 @@ import {
   buildAgentWorkSeparatorLabel,
   buildLiveRunActivityItems,
   mergeRunActivityItems,
+  mergeRunToolCalls,
   type RunActivityItem
 } from "./activity";
 import { AgentRunActivityRows } from "./AgentRunActivity";
+import {
+  getAgentStreamSessionRevision,
+  getAgentStreamSessionSnapshot,
+  subscribeAgentStreamSession
+} from "./panel/agentStreamSession";
 
 export interface AssistantMessageRunWorkProps {
   runs: AgentRun[];
@@ -44,17 +50,34 @@ export function AssistantMessageRunWork({
   hydratingToolCallIds
 }: AssistantMessageRunWorkProps) {
   const [expanded, setExpanded] = useState(false);
+  const streamRevision = useSyncExternalStore(
+    subscribeAgentStreamSession,
+    getAgentStreamSessionRevision,
+    getAgentStreamSessionRevision
+  );
 
   const mergedItems = useMemo(() => {
+    const session = getAgentStreamSessionSnapshot();
     const getOptimistic = (runId: string) => ({
-      steps: optimisticStepsByRunId[runId] ?? [],
-      toolCalls: optimisticToolCallsByRunId[runId] ?? []
+      steps: optimisticStepsByRunId[runId] ?? session.optimisticStepsByRunId[runId] ?? [],
+      toolCalls: mergeRunToolCalls(
+        optimisticToolCallsByRunId[runId] ?? [],
+        session.optimisticToolCallsByRunId[runId] ?? []
+      )
     });
-    if (isStreamingRun) {
+    const runsHaveLiveLedger = runs.some((run) => (liveActivityLedgerByRunId[run.id] ?? []).length > 0);
+    if (isStreamingRun || runsHaveLiveLedger) {
       return buildLiveRunActivityItems(runs, getOptimistic, liveActivityLedgerByRunId);
     }
     return mergeRunActivityItems(runs, getOptimistic);
-  }, [isStreamingRun, liveActivityLedgerByRunId, runs, optimisticStepsByRunId, optimisticToolCallsByRunId]);
+  }, [
+    isStreamingRun,
+    liveActivityLedgerByRunId,
+    runs,
+    optimisticStepsByRunId,
+    optimisticToolCallsByRunId,
+    streamRevision
+  ]);
 
   const hasStreamingReasoningText = streamingReasoningText.trim().length > 0;
   const anyRunning = runs.some((run) => run.status === "running");

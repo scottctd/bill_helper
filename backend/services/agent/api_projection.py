@@ -16,6 +16,8 @@ from backend.schemas_agent import (
 )
 from backend.services.agent.serializers import (
     content_markdown_from_transcript_row,
+    display_content_markdown_from_transcript_row,
+    raw_prompt_markdown_from_transcript_row,
     run_to_schema,
     thread_to_schema,
 )
@@ -64,10 +66,17 @@ def turn_message_to_schema(
 ) -> AgentTurnMessageRead:
     from backend.services.agent.serializers import transcript_attachment_to_schema
 
+    if row.role == AgentTranscriptRole.USER:
+        content_markdown = display_content_markdown_from_transcript_row(row)
+        raw_prompt_markdown = raw_prompt_markdown_from_transcript_row(row)
+    else:
+        content_markdown = content_markdown_from_transcript_row(row)
+        raw_prompt_markdown = None
     return AgentTurnMessageRead(
         id=row.id,
         role=row.role,
-        content_markdown=content_markdown_from_transcript_row(row),
+        content_markdown=content_markdown,
+        raw_prompt_markdown=raw_prompt_markdown,
         reasoning_text=row.reasoning_text,
         created_at=row.created_at,
         attachments=[
@@ -156,7 +165,7 @@ def last_turn_preview_from_thread(thread: AgentThread) -> str | None:
                 return text[:120]
         user_row = _turn_user_row(run)
         if user_row is not None:
-            text = content_markdown_from_transcript_row(user_row).strip()
+            text = display_content_markdown_from_transcript_row(user_row).strip()
             if text:
                 preview = text[:120]
     return preview

@@ -134,7 +134,9 @@ def build_user_message(
     review_prefix: str | None = None,
     content_parts: list[Any] | None = None,
 ) -> UserMessage:
-    text = (review_prefix or "") + (content_markdown or "")
+    typed_text = content_markdown or ""
+    text = (review_prefix or "") + typed_text
+    display_content = typed_text
     if content_parts:
         from backend.services.agent.harness.contracts import ImageUrlContentPart, TextContentPart
 
@@ -150,8 +152,8 @@ def build_user_message(
             from backend.services.agent.harness.contracts import TextContentPart
 
             parts = [TextContentPart(text=text)] + parts
-        return UserMessage(content=parts)
-    return UserMessage(content=text)
+        return UserMessage(content=parts, display_content=display_content)
+    return UserMessage(content=text, display_content=display_content)
 
 
 def build_new_turn_transcript(

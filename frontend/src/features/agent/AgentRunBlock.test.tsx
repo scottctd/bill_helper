@@ -19,6 +19,37 @@ describe("AgentRunBlock", () => {
     expect(screen.getByText("Use the thread header Review button to process proposals.")).toBeInTheDocument();
   });
 
+  it("hides the summary card while the run is still streaming", () => {
+    const run = buildRun({
+      id: "run-streaming-summary",
+      status: "running",
+      change_items: [buildChangeItem({ id: "change-1", status: "PENDING_REVIEW", change_type: "create_entry" })]
+    });
+
+    render(<AgentRunBlock run={run} mode="summary" isStreamActive />);
+
+    expect(screen.queryByText("1 proposed changes pending review")).not.toBeInTheDocument();
+  });
+
+  it("shows the summary card after the run finishes and the assistant message is visible", () => {
+    const run = buildRun({
+      id: "run-finished-summary",
+      status: "completed",
+      final_assistant_reply: "Done reviewing proposals.",
+      change_items: [buildChangeItem({ id: "change-1", status: "PENDING_REVIEW", change_type: "create_entry" })]
+    });
+
+    render(
+      <AgentRunBlock
+        run={run}
+        mode="summary"
+        hasVisibleAssistantMessage
+      />
+    );
+
+    expect(screen.getByText("1 proposed changes pending review")).toBeInTheDocument();
+  });
+
   it("renders interleaved activity timeline for progress notes", () => {
     const toolCall = buildToolCall({ id: "tool-1", step_id: "step-1", tool_name: "list_entries" });
     const run = buildRun({

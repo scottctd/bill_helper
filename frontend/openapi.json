@@ -2464,6 +2464,17 @@
             "title": "Id",
             "type": "string"
           },
+          "raw_prompt_markdown": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Prompt Markdown"
+          },
           "reasoning_text": {
             "anyOf": [
               {

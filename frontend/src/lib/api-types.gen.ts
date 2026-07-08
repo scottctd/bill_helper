@@ -2164,6 +2164,8 @@ export interface components {
             created_at: string;
             /** Id */
             id: string;
+            /** Raw Prompt Markdown */
+            raw_prompt_markdown?: string | null;
             /** Reasoning Text */
             reasoning_text?: string | null;
             role: components["schemas"]["AgentTranscriptRole"];

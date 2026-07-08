@@ -43,6 +43,25 @@ function renderableStreamingReasoningText(value: string, showPlaceholder: boolea
   return showPlaceholder ? STREAMING_REASONING_PLACEHOLDER : "";
 }
 
+function shouldShowStreamingReasoningRow(items: RunActivityItem[], streamingReasoningText: string): boolean {
+  const visible = renderableStreamingReasoningText(streamingReasoningText, false);
+  if (visible.length === 0 || visible === STREAMING_REASONING_PLACEHOLDER) {
+    return visible.length > 0;
+  }
+  const trimmed = visible.trim();
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item.type !== "reasoning_step") {
+      continue;
+    }
+    if (item.message.trim() === trimmed) {
+      return false;
+    }
+    break;
+  }
+  return true;
+}
+
 function InterleavedAssistantMarkdown({ message }: { message: string }) {
   if (message === STREAMING_REASONING_PLACEHOLDER) {
     return (
@@ -246,7 +265,7 @@ export function AgentRunActivityRows({
   defaultOpenReasoningSteps?: boolean;
 }) {
   const visibleStreamingReasoningText = renderableStreamingReasoningText(streamingReasoningText, false);
-  const hasStreamingReasoningText = visibleStreamingReasoningText.length > 0;
+  const hasStreamingReasoningText = shouldShowStreamingReasoningRow(items, streamingReasoningText);
   return (
     <div className="agent-run-activity-timeline">
       {items.map((item) => {

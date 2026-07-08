@@ -18,6 +18,7 @@ import {
   summarizeRunChangeTypes,
   type RunActivityItem
 } from "./activity";
+import { shouldShowRunChangeSummary } from "./panel/liveRun";
 import { AssistantMessageRunWork } from "./AssistantMessageRunWork";
 
 interface AgentRunBlockProps {
@@ -31,6 +32,8 @@ interface AgentRunBlockProps {
   streamingReasoningText?: string;
   streamingReasoningStartedAt?: number | null;
   liveActivityLedgerByRunId?: Record<string, RunActivityItem[]>;
+  isStreamActive?: boolean;
+  hasVisibleAssistantMessage?: boolean;
 }
 
 export function AgentRunBlock({
@@ -43,12 +46,17 @@ export function AgentRunBlock({
   optimisticToolCalls = [],
   streamingReasoningText = "",
   streamingReasoningStartedAt,
-  liveActivityLedgerByRunId = {}
+  liveActivityLedgerByRunId = {},
+  isStreamActive = false,
+  hasVisibleAssistantMessage = false
 }: AgentRunBlockProps) {
   const showActivity = mode !== "summary";
   const showSummary = mode !== "activity";
   const changeItems = listOrEmpty(run.change_items);
-  const hasSummaryChanges = showSummary && changeItems.length > 0;
+  const hasSummaryChanges = showSummary && shouldShowRunChangeSummary(run, changeItems.length, {
+    isStreamActive,
+    hasVisibleAssistantMessage
+  });
   const pendingCount = changeItems.filter((item) => item.status === "PENDING_REVIEW").length;
   const failedCount = changeItems.filter((item) => item.status === "APPLY_FAILED").length;
   const typeSummary = summarizeRunChangeTypes(changeItems);

@@ -1000,6 +1000,158 @@ def test_attachment_parts_stay_before_user_prompt_for_mixed_uploads(client, monk
     assert user_content[4].get("text") == "Compare both files."
 
 
+def test_followup_turn_rehydrates_prior_turn_attachments(client, monkeypatch):
+    captured_messages: list[list[dict]] = []
+
+    def capture_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "Acknowledged."}
+
+    patch_model(monkeypatch, capture_model)
+
+    thread = create_thread(client)
+    csv_body = "date,amount,description\n2026-01-01,-12.34,Coffee Shop\n"
+    first_run = send_message(
+        client,
+        thread["id"],
+        "Import these transactions.",
+        files=[("transactions.csv", csv_body.encode("utf-8"), "text/csv")],
+    )
+    assert first_run["status"] == "completed"
+
+    followup_run = send_message(
+        client,
+        thread["id"],
+        "What was the coffee shop amount?",
+    )
+    assert followup_run["status"] == "completed"
+    assert len(captured_messages) >= 2
+
+    followup_user_messages = [
+        message for message in captured_messages[-1] if message.get("role") == "user"
+    ]
+    assert len(followup_user_messages) == 2
+
+    first_turn_content = followup_user_messages[0].get("content")
+    assert isinstance(first_turn_content, list)
+    attachment_text = first_turn_content[0].get("text", "")
+    assert "transactions.csv" in attachment_text
+    assert "Coffee Shop" in attachment_text
+    assert first_turn_content[1].get("text") == "Import these transactions."
+    assert followup_user_messages[1].get("content") == "What was the coffee shop amount?"
+
+
+def test_hydration_count_mismatch_falls_back_to_current_run_attachments(client, monkeypatch):
+    from backend.services.agent.harness.contracts import UserMessage
+    from backend.services.agent.model_gateway_support.transcript_hydration import (
+        hydrate_transcript_user_attachments,
+    )
+    from backend.services.agent.prompt_assembly import build_new_turn_transcript
+
+    patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "Acknowledged."})
+
+    thread = create_thread(client)
+    first_run = send_message(client, thread["id"], "Just some context, no files.")
+    assert first_run["status"] == "completed"
+
+    csv_body = "date,amount,description\n2026-01-01,-12.34,Coffee Shop\n"
+    second_run = send_message(
+        client,
+        thread["id"],
+        "Import these transactions.",
+        files=[("transactions.csv", csv_body.encode("utf-8"), "text/csv")],
+    )
+    assert second_run["status"] == "completed"
+
+    with open_session() as db:
+        transcript = build_new_turn_transcript(
+            db,
+            thread_id=thread["id"],
+            user_content="unused",
+        )
+        # Drop the appended new-turn user message and inject an extra user
+        # message so thread-wide alignment sees a count mismatch and takes the
+        # current-run fallback path.
+        transcript = (
+            [transcript[0], UserMessage(content="synthetic extra user message")]
+            + transcript[1:-1]
+        )
+        hydrated = hydrate_transcript_user_attachments(
+            db,
+            run_id=second_run["id"],
+            transcript=transcript,
+            attachments_use_ocr=False,
+        )
+
+    user_messages = [message for message in hydrated if isinstance(message, UserMessage)]
+    assert len(user_messages) == 3
+    assert user_messages[0].content == "synthetic extra user message"
+    assert user_messages[1].content == "Just some context, no files."
+    current_turn_content = user_messages[2].content
+    assert isinstance(current_turn_content, list)
+    attachment_text = current_turn_content[0].text
+    assert "transactions.csv" in attachment_text
+    assert "Coffee Shop" in attachment_text
+    assert current_turn_content[1].text == "Import these transactions."
+
+
+def test_interrupted_followup_turn_rehydrates_prior_turn_attachments(client, monkeypatch):
+    entered_model = Event()
+    release_model = Event()
+    captured_messages: list[list[dict]] = []
+
+    def slow_model(_messages):
+        entered_model.set()
+        release_model.wait(timeout=1.0)
+        return {"role": "assistant", "content": "Done."}
+
+    patch_model(monkeypatch, slow_model)
+    thread = create_thread(client)
+    csv_body = "date,amount,description\n2026-01-01,-12.34,Coffee Shop\n"
+
+    first_response = client.post(
+        f"/api/v1/agent/threads/{thread['id']}/messages",
+        data={"content": "Import these transactions."},
+        files=[("files", ("transactions.csv", csv_body.encode("utf-8"), "text/csv"))],
+    )
+    first_response.raise_for_status()
+    first_run = first_response.json()
+    assert first_run["status"] == "running"
+    assert entered_model.wait(timeout=1.0)
+
+    interrupt_response = client.post(f"/api/v1/agent/runs/{first_run['id']}/interrupt")
+    interrupt_response.raise_for_status()
+    interrupted = interrupt_response.json()
+    assert interrupted["status"] == "interrupted"
+
+    release_model.set()
+    wait_for_run_completion(client, first_run["id"], timeout_seconds=2.0)
+
+    def followup_model(messages):
+        captured_messages.append(messages)
+        return {"role": "assistant", "content": "Acknowledged."}
+
+    patch_model(monkeypatch, followup_model)
+    followup_run = send_message(client, thread["id"], "What was the coffee shop amount?")
+    assert followup_run["status"] == "completed"
+    assert captured_messages
+
+    followup_user_messages = [
+        message for message in captured_messages[-1] if message.get("role") == "user"
+    ]
+    assert len(followup_user_messages) == 3
+    first_turn_content = followup_user_messages[0].get("content")
+    assert isinstance(first_turn_content, list)
+    attachment_text = first_turn_content[0].get("text", "")
+    assert "transactions.csv" in attachment_text
+    assert "Coffee Shop" in attachment_text
+    assert first_turn_content[1].get("text") == "Import these transactions."
+    assert "I interrupted the previous turn before it finished" in str(
+        followup_user_messages[1].get("content", "")
+    )
+    assert followup_user_messages[2].get("content") == "What was the coffee shop amount?"
+
+
 def test_system_prompt_includes_current_date_tag():
     from datetime import date
 
@@ -2778,6 +2930,47 @@ def test_reviewed_thread_proposals_are_injected_into_followup_turn(client, monke
     assert "bh tags create" in followup_content
     assert "review_action=reject" in followup_content
     assert "Use type recurring instead" in followup_content
+    assert "Try again" in followup_content
+
+    detail_response = client.get(f"/api/v1/agent/threads/{thread['id']}")
+    detail_response.raise_for_status()
+    detail = detail_response.json()
+    followup_turn = detail["turns"][-1]
+    assert followup_turn["user_message"]["content_markdown"] == "Try again"
+    assert followup_turn["user_message"]["raw_prompt_markdown"] is not None
+    assert "Review results from your previous proposals:" in followup_turn["user_message"]["raw_prompt_markdown"]
+    assert "Try again" in followup_turn["user_message"]["raw_prompt_markdown"]
+
+    first_turn = detail["turns"][0]
+    assert first_turn["user_message"]["content_markdown"] == "Create proposal context."
+    assert first_turn["user_message"].get("raw_prompt_markdown") in (None, "")
+
+
+def test_thread_detail_user_message_without_display_content_falls_back_to_raw_content(client, monkeypatch):
+    from sqlalchemy import select
+
+    from backend.enums_agent import AgentTranscriptRole
+    from backend.models_agent import AgentRun, AgentTranscriptMessage
+
+    patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "Done."})
+    thread = create_thread(client)
+    send_message(client, thread["id"], "Legacy typed text.")
+
+    with open_session() as db:
+        run = db.scalars(select(AgentRun).where(AgentRun.thread_id == thread["id"])).first()
+        user_row = db.scalars(
+            select(AgentTranscriptMessage).where(
+                AgentTranscriptMessage.run_id == run.id,
+                AgentTranscriptMessage.role == AgentTranscriptRole.USER,
+            )
+        ).first()
+        user_row.content_json = {"content": "Synthetic prefix\n\nLegacy typed text."}
+        db.commit()
+
+    detail = client.get(f"/api/v1/agent/threads/{thread['id']}").json()
+    user_message = detail["turns"][0]["user_message"]
+    assert user_message["content_markdown"] == "Synthetic prefix\n\nLegacy typed text."
+    assert user_message.get("raw_prompt_markdown") in (None, "")
 
 
 

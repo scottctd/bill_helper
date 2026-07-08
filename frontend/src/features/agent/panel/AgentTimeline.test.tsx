@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentTurn } from "../../../lib/types";
-import { buildRun, buildStep, buildToolCall, buildTurn } from "../../../test/factories/agent";
+import { buildChangeItem, buildRun, buildStep, buildToolCall, buildTurn } from "../../../test/factories/agent";
 import { AgentTimeline } from "./AgentTimeline";
 import type { AgentTimelineModel, AgentTimelineStreamModel } from "./agentTimelineModel";
 import type { PendingAssistantMessage } from "./types";
@@ -206,6 +206,47 @@ describe("AgentTimeline", () => {
 
     expectArticleClasses(screen.getByText("Bubble me."), ["agent-message", "agent-message-user"], ["agent-message-assistant"]);
     expect(screen.getByText("Bubble me.").closest(".agent-message-user-bubble")).not.toBeNull();
+  });
+
+  it("keeps raw prompt collapsed by default and reveals it on expand", async () => {
+    const user = userEvent.setup();
+    renderTimeline({
+      turns: [
+        buildTurnProjection({
+          user_message: {
+            ...buildTurn().user_message,
+            content_markdown: "Try again",
+            raw_prompt_markdown: "Review results from your previous proposals:\n\nTry again"
+          }
+        })
+      ]
+    });
+
+    expect(screen.getByText("Try again")).toBeInTheDocument();
+    const rawPromptSummary = screen.getByText("Raw prompt");
+    const rawPromptDetails = rawPromptSummary.closest("details") as HTMLDetailsElement;
+    expect(rawPromptDetails.open).toBe(false);
+    expect(screen.getByText(/Review results from your previous proposals:/)).not.toBeVisible();
+    await user.click(rawPromptSummary);
+    expect(rawPromptDetails.open).toBe(true);
+    expect(screen.getByText(/Review results from your previous proposals:/)).toBeVisible();
+  });
+
+  it("omits raw prompt disclosure when raw prompt matches display text", () => {
+    renderTimeline({
+      turns: [
+        buildTurnProjection({
+          user_message: {
+            ...buildTurn().user_message,
+            content_markdown: "Plain message",
+            raw_prompt_markdown: null
+          }
+        })
+      ]
+    });
+
+    expect(screen.getByText("Plain message")).toBeInTheDocument();
+    expect(screen.queryByText("Raw prompt")).not.toBeInTheDocument();
   });
 
   it("shows the optimistic assistant caret before the first stream projection arrives", () => {
@@ -714,5 +755,48 @@ describe("AgentTimeline", () => {
     });
 
     expect(screen.getByText("Resuming after refresh.")).toBeInTheDocument();
+  });
+
+  it("hides the proposed-changes summary card until the run stops streaming", () => {
+    const turn = buildTurnProjection({
+      run_id: "run-live-summary",
+      assistant_message: null
+    });
+    const run = buildRun({
+      id: "run-live-summary",
+      status: "running",
+      change_items: [buildChangeItem({ id: "change-1", status: "PENDING_REVIEW", change_type: "create_entry" })]
+    });
+
+    renderTimeline({
+      turns: [turn],
+      runsById: new Map([[run.id, run]]),
+      activeStreamRunId: run.id
+    });
+
+    expect(screen.queryByText("1 proposed changes pending review")).not.toBeInTheDocument();
+  });
+
+  it("shows the proposed-changes summary card after the assistant reply lands", () => {
+    const turn = buildTurnProjection({
+      run_id: "run-finished-summary",
+      assistant_message: {
+        ...buildTurn().assistant_message!,
+        content_markdown: "Here are the proposed changes."
+      }
+    });
+    const run = buildRun({
+      id: "run-finished-summary",
+      status: "completed",
+      final_assistant_reply: "Here are the proposed changes.",
+      change_items: [buildChangeItem({ id: "change-1", status: "PENDING_REVIEW", change_type: "create_entry" })]
+    });
+
+    renderTimeline({
+      turns: [turn],
+      runsById: new Map([[run.id, run]])
+    });
+
+    expect(screen.getByText("1 proposed changes pending review")).toBeInTheDocument();
   });
 });

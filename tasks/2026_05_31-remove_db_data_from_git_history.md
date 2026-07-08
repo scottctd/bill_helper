@@ -150,4 +150,4 @@ Document the chosen approach and the exact commands in this task before executio
 ## References
 
 - Mitigation commit: `1b4bfe5`
-- Completed related work: `tasks/completed/2026_03_15-system_prompt_refactor.md`
+- Completed related work: `docs/completed_tasks/2026_03_15-system_prompt_refactor.md`
