@@ -87,7 +87,7 @@
 
 ### 3.1 Backend Scope
 
-- **Core:** Accounts (CRUD, snapshots, reconciliation), entries (CRUD, filtering, group context), groups, filter groups, dashboard (KPIs, charts, timeline).
+- **Core:** Accounts (CRUD, snapshots, reconciliation), entries (CRUD, filtering, group context), unified groups, dashboard (KPIs, charts, timeline).
 - **Catalogs:** Entities, tags, users, taxonomies, currencies.
 - **Agent:** Threads, messages, runs, reviews, attachments, and hosted `bh` execution.
 - **Settings:** Runtime settings.
@@ -106,10 +106,9 @@
 
 - Home – agent workspace
 - Dashboard – analytics and charts
-- Filters – saved filter groups
-- Entries – list, filter, create, edit; entry detail with group graph
+- Entries – list, filter, create, edit; entry detail with group memberships
 - Entities – entity catalog
-- Groups – groups workspace
+- Groups – unified manual and rule groups workspace
 - Accounts – accounts workspace
 - Properties – users, entities, tags, taxonomy
 - Settings – runtime settings
@@ -118,7 +117,7 @@
 
 - Layout: sidebar, page headers, workspace sections.
 - **Table pattern:** Rightmost compact add button; double-click row to edit; consistent filter row layout across Entries, Accounts, Properties.
-- Shared editors for entries, tags, groups; group graph visualization; markdown notes.
+- Shared editors for entries, tags, and groups; markdown notes.
 - Agent: chat panel, thread list (running indicator per thread), timeline, composer, model dropdown, usage bar, attachments, review modal.
 - **Agent UX:** Assistant messages rendered as markdown. Tool calls collapsible. Run/tool blocks in assistant column. Thread-scoped composer (parallel threads supported). Stop targets selected thread only.
 - Principal session for auth; startup gate until principal selected.
@@ -165,7 +164,7 @@
 ### 7.1 Entries
 
 - Manual entry ledger with income/expense/transfer tracking.
-- Counterparty entities, tags, entry groups.
+- Counterparty entities, tags, and unified group memberships.
 - Entry kinds: EXPENSE, INCOME, TRANSFER.
 - Money in minor units per currency.
 - **Entry editor:** Modal-based create and edit (Notion-like); properties plus optional markdown body. Swap from/to control. Ranked fuzzy tag picker. Multi-select manual group assignment; rule groups appear as read-only badges.
@@ -201,9 +200,12 @@ The most recent snapshot produces one **open interval** from that snapshot to to
 ### 7.4 Groups
 
 - Unified groups with `manual` or `rule` source.
-- Manual groups store explicit entry membership rows.
-- Rule groups compute membership from a saved rule tree plus optional include/exclude override rows on individual entries.
-- Groups workspace lists and edits groups; rule groups embed the shared rule editor from `frontend/src/features/groupRules/`.
+- Manual groups store explicit entry membership rows; entries may belong to many manual groups.
+- Rule groups compute membership from a saved recursive include/exclude rule tree plus optional per-entry `include` / `exclude` overrides in `group_members`.
+- Rule fields support entry kind, tags, category, entities, amount/date predicates, internal-transfer flag, and nested AND/OR logic.
+- Groups workspace at `/groups` lists and edits both sources; rule groups embed the shared rule editor from `frontend/src/features/groupRules/`.
+- Dashboard auxiliary cross-cuts read saved rule groups from `dashboard.groups[]`; they may overlap and are not the primary expense partition.
+- `/filters` redirects to `/groups` for legacy deep links.
 
 ### 7.5 Taxonomy
 
@@ -212,31 +214,21 @@ The most recent snapshot produces one **open interval** from that snapshot to to
 - Default entity categories: merchant, account, financial_institution, government, utility_provider, employer, investment_entity, person, placeholder, organization.
 - Entry categories are seeded as a two-level taxonomy (housing, food_drink, transport, and related leaves). Tags remain auxiliary cross-cutting labels such as internal_transfer, e_transfer, cash_withdrawal, and needs_review.
 
-### 7.6 Filter Groups
-
-**What they are:** Reusable user-created filter definitions that classify entries for optional overlapping analytics.
-
-**Default groups:** None. The list stays empty until a user creates a custom group.
-
-**Rule model:** Each editable filter group has include and exclude conditions. Rules support entry kind, tag inclusion, tag exclusion, internal-transfer flag, and nested AND/OR logic.
-
-**Usage:** Entry categories form the non-overlapping dashboard partition. Lifecycle (`fixed`, `day_to_day`, `one_time`, or null) is a disjoint cross-cut with category-leaf defaults and per-entry overrides. Filter groups remain auxiliary and may overlap. Internal transfers and cash withdrawals retain their exclusion behavior.
-
-### 7.7 Dashboard
+### 7.6 Dashboard
 
 **Data rules:** Uses a single configurable dashboard currency; entries in other currencies are excluded from all calculations. Internal account-to-account transfers are excluded from KPIs, charts, and projections. Entries tagged `cash_withdrawal` are reported separately instead of counted as spending.
 
 **Tabs and behavior:**
-- **Overview:** Month/year toggle; KPI hero (expense, income, net) with expense minus one-time and cash withdrawn; total income vs expense trend; ranked category partition with sub-category detail; lifecycle and filter-group cross-cuts; category projection.
-- **Daily Expense:** Day-to-day daily bar chart with average/median spend metrics; yearly mode switches to monthly filter-group bars.
-- **Breakdowns:** Summary tag, destination, and source charts above a filter-group → tag → destination drill-down tree.
+- **Overview:** Month/year toggle; KPI hero (expense, income, net) with expense minus one-time and cash withdrawn; total income vs expense trend; ranked category partition with sub-category detail; lifecycle and rule-group cross-cuts; category projection.
+- **Daily Expense:** Day-to-day daily bar chart with average/median spend metrics; yearly mode switches to monthly expense bars.
+- **Breakdowns:** Summary tag, destination, and source charts above a category → sub-category → destination drill-down tree.
 - **Breakdown:** Category, sub-category, destination, and entry drill-down.
 
 **Navigation:** Scrollable timeline of months with visible expense or cash-withdrawal activity; no manual month picker. Yearly view assembled from repeated month-scoped reads.
 
-### 7.8 Catalogs
+### 7.7 Catalogs
 
-- Entities, tags, users, filter groups.
+- Entities, tags, users, and saved rule groups (via unified `/groups`).
 - Currencies catalog (read-only).
 
 ---

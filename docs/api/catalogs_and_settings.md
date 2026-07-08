@@ -97,7 +97,7 @@ Delete a user and all owned resources. Response: `204`
 
 Behavior:
 
-- cascades through owned accounts, entries, groups, entities, tags, taxonomies, filter groups, agent threads, and sessions
+- cascades through owned accounts, entries, groups, entities, tags, taxonomies, agent threads, and sessions
 
 ### `POST /admin/users/{user_id}/login-as`
 

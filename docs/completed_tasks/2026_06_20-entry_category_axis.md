@@ -12,8 +12,8 @@ Completed and archived on 2026-06-22.
 - Category leaves provide lifecycle defaults; entry values can override them.
 - Tags are auxiliary multi-select labels and may overlap.
 - Travel remains an auxiliary tag rather than a category.
-- Filter groups remain auxiliary cross-cuts and are not partition math.
-- The Entries toolbar filters by searchable category paths; filter-group deep links remain supported without occupying toolbar space.
+- Filter groups remain auxiliary cross-cuts and are not partition math. After `0049_unified_groups`, they are stored as `source=rule` groups in the unified `groups` table.
+- The Entries toolbar filters by searchable category paths; `group_id` deep links from the groups workspace open matching ledger rows without occupying toolbar space.
 
 ## Canonical schedule
 

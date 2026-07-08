@@ -9,7 +9,7 @@ This doc is the fast path for understanding dashboard category partitioning, lif
 - `GET /api/v1/agent/dashboard`
 - unified `/api/v1/groups` for saved rule groups (`source=rule`)
 - dashboard-specific backend aggregations
-- frontend dashboard tabs/charts and the rule-group workspace at `/filters`
+- frontend dashboard tabs/charts and the unified groups workspace at `/groups` (`/filters` redirects here)
 
 ## Data Boundary Rules
 

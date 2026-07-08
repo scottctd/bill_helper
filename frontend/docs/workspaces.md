@@ -10,7 +10,7 @@
   - `StatBlock` for dense metric summaries where a card grid would be too decorative
 - table workspaces use `workspace-table-body` on `WorkspaceSection` so toolbars sit flush to the card top and tables share the same inset padding
 - list workspaces share a compact filter toolbar pattern: text search plus one or more fine-grained controls (`TagMultiSelect` with `displayMode="compact"` for enum-like dimensions, or `NativeSelect` for small fixed sets); shared helpers live in `frontend/src/lib/workspaceFilters.ts`
-- the shared app scroll container reserves vertical scrollbar gutter space even when a page does not overflow, so route-level content edges stay aligned across pages like `Agent`, `Filters`, and `Entries`; the route scrollbar thumb stays visually hidden at rest and only appears during active page scrolling
+- the shared app scroll container reserves vertical scrollbar gutter space even when a page does not overflow, so route-level content edges stay aligned across pages like `Agent`, `Groups`, and `Entries`; the route scrollbar thumb stays visually hidden at rest and only appears during active page scrolling
 - settings remains the exception in structure because its sticky toolbar is still the primary page header pattern
 
 ## Entries
@@ -29,7 +29,7 @@
 - `Tag` and `Currency` filters use compact multi-select triggers (`displayMode="compact"`) so selected values stay on one line; chip selection happens inside the floating menu
 - tag and currency filtering still happens client-side on loaded rows only; the toolbar status line calls out active filters and offers `Clear filters`
 - the category selector includes top-level and full-path child categories plus `uncategorized`, syncs with the `category` URL search param, and filters server-side
-- `filter_group_id` deep links remain supported for the Filters workspace even though filter groups are no longer exposed in the entries toolbar
+- `group_id` deep links from the groups workspace open matching ledger rows in the entries list; the entries toolbar does not expose a separate group picker
 - entry rows are loaded incrementally in backend-sized pages; reaching the bottom of the table auto-loads the next slice and a fallback `Load more` button remains visible while more rows exist
 - date column is fixed-width and no-wrap
 - name cells show the primary name plus a compact `from -> to` secondary line
@@ -50,9 +50,8 @@
 ### `frontend/src/pages/EntryDetailPage.tsx`
 
 - page is a thin orchestrator; domain state lives in `frontend/src/features/entries/useEntryDetailPageModel.ts`
-- shows entry detail, direct-group context, and the direct-group graph when the entry is assigned
-- uses `direct_group` and `group_path` from `GET /entries/{entry_id}` instead of rendering raw link rows
-- popup editing includes the same direct-group and split-role controls as the entries page modal
+- shows entry detail and effective group memberships from `groups[]` on `GET /entries/{entry_id}`
+- manual groups are editable from the entry editor; rule groups appear as read-only badges
 - routes structural edits into the groups workspace via a dedicated `Open groups workspace` action
 - editing uses the shared popup editor and the same runtime-settings defaults as create flow
 - custom entity, tag, category, and group menus share a dialog-owned floating layer via `components/ui/floating-select/` so their option lists remain scrollable inside modal scroll-lock; searchable single-select menus keep a fixed search field above independently scrollable results, entry-category menus use a viewport-clamped 320px minimum width for readable paths, and lifecycle remains a basic non-searchable single select
@@ -163,14 +162,14 @@
 - yearly mode moves annual trend charts into the active dashboard view instead of hiding them only inside `Insights`
 - uses Recharts with measured containers so charts render only after non-zero dimensions are available
 - dashboard totals and charts exclude internal transfers when both endpoints resolve to account-backed entity roots
-- monthly expense partitioning is driven by the single-select entry-category taxonomy; lifecycle and saved filter groups are disjoint and overlapping cross-cuts respectively
+- monthly expense partitioning is driven by the single-select entry-category taxonomy; lifecycle and saved rule groups are disjoint and overlapping cross-cuts respectively
 - the canonical category tree separates internet from phone, fuel from parking, entertainment from software tools, and uses the auxiliary `travel` tag for travel context
 - year mode loads month-scoped dashboard reads through `GET /api/v1/dashboard/batch` for the selected and previous calendar years instead of fanning out per-month requests on initial page load
 - month view loads only the timeline, the selected month, and (when the Breakdowns tab is active) the previous month for month-over-month comparison; year mode is deferred until the user selects `Year`, with optional prefetch on hover/focus of the year toggle
 - initial dashboard paint uses a progressive skeleton shell (header, toolbar placeholders, stat/chart blocks) instead of a full-page loading gate; the sidebar prefetches the dashboard route chunk plus timeline/current-month queries on hover/focus
 - heavy tabs (`Agent`) are lazy-loaded on first activation
 - the monthly and yearly `Income vs Expense Trend` charts compare total income and expense; month view fixes the trend window to the last six months ending at the client's current calendar month
-- `Spending` shows the ranked category partition, lifecycle and filter-group cross-cuts, spending-by-destination bars, daily total expense, and category projection
+- `Spending` shows the ranked category partition, lifecycle and rule-group cross-cuts, spending-by-destination bars, daily total expense, and category projection
 - the current-month projection area uses category totals with projected growth
 - `Breakdown` shows the category → sub-category → destination drill-down tree; year mode aggregates the category tree across the selected year
 

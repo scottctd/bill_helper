@@ -76,10 +76,10 @@ Useful commands:
 - user deletion removes `{data_dir}/user_files/{user_id}`
 - non-stream sends run in a background thread; stream sends emit SSE from the request and resume in background on disconnect if needed
 - runtime settings are global to the app instance even though finance and agent resources are user-owned
-- filter-group reads return only user-created saved groups; no built-ins are provisioned
+- rule-group reads return only user-created saved groups; no built-ins are provisioned
 - taxonomy defaults (`entity_category`, `tag_type`, `entry_category`) are auto-provisioned per user when missing
 - `0047_entry_category_schedule` installs the canonical purpose-based category tree and deterministic legacy fallbacks; ambiguous production entries are refined separately with `scripts/apply_entry_category_backfill.py`
-- `0048_remove_builtin_filter_groups` removes persisted built-in filter groups while preserving user-created groups
+- `0048_remove_builtin_filter_groups` removed persisted built-in filter groups before `0049_unified_groups` merged legacy storage into unified `groups`
 
 ## Constraints And Known Limitations
 
@@ -90,4 +90,4 @@ Useful commands:
 - streaming uses SSE only; there is no websocket transport
 - no autonomous or scheduled agent runs
 - taxonomy assignments use string `subject_id` values without cross-table FK enforcement
-- group nesting depth is limited to one and edges are derived only
+- group nesting and graph edges were removed by `0049_unified_groups`; groups are flat lists of entries

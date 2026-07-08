@@ -2,7 +2,7 @@
 
 ## Domain Models
 
-- `backend/models_finance.py`: users, sessions, accounts, entities, tags, taxonomies, filter groups, entries, and groups
+- `backend/models_finance.py`: users, sessions, accounts, entities, tags, taxonomies, entries, and groups
 - `backend/models_agent.py`: agent threads/sessions, session sources, messages, attachments, runs, tool calls, change items, and review actions
 - `backend/models_settings.py`: runtime settings overrides
 - `backend/contracts_groups.py`: shared group write contracts
@@ -12,7 +12,7 @@
 Important ownership rules:
 
 - owned finance resources carry non-null `owner_user_id`
-- `users` own accounts, entries, groups, entities, tags, taxonomies, filter groups, agent threads, and sessions
+- `users` own accounts, entries, groups, entities, tags, taxonomies, agent threads, and sessions
 - deleting a user cascades through owned resources
 - account ids remain shared entity-root ids
 
@@ -32,7 +32,7 @@ Current behavior:
 
 ## Schemas
 
-- `backend/schemas_finance.py`: ledger, group, filter-group, dashboard, and visible-user contracts
+- `backend/schemas_finance.py`: ledger, group, dashboard, and visible-user contracts
 - `backend/schemas_agent.py`: thread, message, run, change-item, and review contracts
 - `backend/schemas_agent_sessions.py`: external-agent session and source contracts
 - `backend/schemas_settings.py`: runtime settings request/response contracts

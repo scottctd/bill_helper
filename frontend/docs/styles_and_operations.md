@@ -110,9 +110,9 @@ Key ownership boundaries:
 
 ## Operational Impact
 
-- frontend depends on entry group-context fields (`direct_group`, `group_path`) in entry read models
+- frontend depends on effective group memberships through `groups[]` on entry read models
 - entry editor assigns manual groups via multi-select; rule group membership is computed from rules plus include/exclude overrides
-- frontend depends on group CRUD and graph APIs:
+- frontend depends on unified group CRUD APIs:
   - `POST /groups`
   - `GET /groups`
   - `GET /groups/{group_id}`
