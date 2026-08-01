@@ -207,6 +207,7 @@ Current revisions:
 - `0047_entry_category_schedule`
 - `0048_remove_builtin_filter_groups`
 - `0049_unified_groups`
+- `0050_add_agent_model_reasoning_efforts`
 
 ## Seed Data
 

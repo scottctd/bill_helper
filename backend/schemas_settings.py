@@ -8,6 +8,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from backend.contracts_settings import RuntimeSettingsWriteFields
+from backend.validation.model_reasoning_efforts import ReasoningEffort
 
 
 class RuntimeSettingsOverridesRead(BaseModel):
@@ -20,6 +21,7 @@ class RuntimeSettingsOverridesRead(BaseModel):
     entry_tagging_model: str | None = None
     available_agent_models: list[str] | None = None
     agent_model_display_names: dict[str, str] | None = None
+    agent_model_reasoning_efforts: dict[str, ReasoningEffort] | None = None
     agent_max_steps: int | None = None
     agent_bulk_max_concurrent_threads: int | None = None
     agent_retry_max_attempts: int | None = None
@@ -43,6 +45,7 @@ class RuntimeSettingsRead(BaseModel):
     entry_tagging_model: str | None = None
     available_agent_models: list[str]
     agent_model_display_names: dict[str, str]
+    agent_model_reasoning_efforts: dict[str, ReasoningEffort]
     vision_capable_agent_models: list[str]
     agent_max_steps: int
     agent_bulk_max_concurrent_threads: int

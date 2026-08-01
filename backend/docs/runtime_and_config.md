@@ -68,6 +68,7 @@ Runtime override behavior:
 - agent-aware read projection (`vision_capable_agent_models`, `agent_api_key_configured`) lives in `backend/services/agent/runtime_settings_view.py` and `runtime_settings_validation.py`
 - `user_memory` is DB-backed only, normalized as an ordered `list[str]`, and injected into every agent system prompt as a markdown unordered list when set
 - `available_agent_models` is DB-backed only, normalized as an ordered `list[str]`, and always resolved to include the effective `agent_model`
+- `agent_model_reasoning_efforts` is a DB-backed model-id map; configured values are passed to LiteLLM as `reasoning_effort`, while omitted models keep the provider default
 - `vision_capable_agent_models` is derived from the effective `available_agent_models` list using the same vision-capability helper the agent runtime uses for attachment handling
 - `agent_max_pdf_pages` defaults to `10`, is persisted as an override, and rejects oversized PDFs before page rendering
 - `entry_tagging_model` is DB-backed only, may be blank, and must stay inside the effective `available_agent_models` list; blank disables inline entry tag suggestion
@@ -131,6 +132,8 @@ Supported persisted overrides include:
 - `agent_model`
 - `entry_tagging_model`
 - `available_agent_models`
+- `agent_model_display_names`
+- `agent_model_reasoning_efforts`
 - `vision_capable_agent_models` (derived read-only response field, not persisted)
 - run-limit and retry fields
 - attachment limits
@@ -142,6 +145,7 @@ Important constraints:
 
 - identity is not stored in runtime settings
 - `available_agent_models` is normalized to always include the effective `agent_model`
+- per-model reasoning efforts are limited to `none`, `low`, `medium`, `high`, `xhigh`, and `max`, and entries for removed models are pruned
 - `vision_capable_agent_models` is derived from the effective `available_agent_models` list using the same vision-capability helper the agent runtime uses for attachment handling
 - `entry_tagging_model` must be blank or included in the effective `available_agent_models`
 - `agent_base_url` only allows public `http` / `https` endpoints

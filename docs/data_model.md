@@ -111,6 +111,7 @@ Operational rules:
   - `available_agent_models` (nullable JSON-serialized ordered list of model identifiers)
   - `entry_tagging_model`
   - `agent_model_display_names` (nullable JSON-serialized object mapping model id → display label for UI)
+  - `agent_model_reasoning_efforts` (nullable JSON-serialized object mapping model id to an explicit reasoning effort)
   - `agent_max_steps`
 - `agent_bulk_max_concurrent_threads` (default import job worker pool size; UI label: import concurrent workers)
   - `agent_retry_max_attempts`
@@ -131,6 +132,7 @@ Purpose:
 - `user_memory` is an optional DB-only JSON-serialized list of strings used for persistent agent prompt context
 - `available_agent_models` is an optional DB-only JSON-serialized ordered list; the resolved API value always includes the effective `agent_model`
   - `agent_model_display_names` is an optional DB-only JSON object of UI labels; the API merges these with built-in labels for known default-catalog model ids and exposes only entries for models in the effective available list
+  - `agent_model_reasoning_efforts` is an optional DB-only JSON object; supported values are `none`, `low`, `medium`, `high`, `xhigh`, and `max`, removed-model entries are pruned, and omitted models use the provider default
 - `vision_capable_agent_models` is not persisted; it is derived at read time from the effective available model list
 - identity is not stored here
 

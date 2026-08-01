@@ -3089,6 +3089,10 @@ def test_requires_provider_credentials_for_send_message(client, monkeypatch):
     try:
         settings.agent_model = "openai/gpt-4.1-mini"
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setattr(
+            "backend.services.agent.model_client_support.environment.ensure_env_file_variables_loaded",
+            lambda: None,
+        )
         thread = create_thread(client)
         response = client.post(
             f"/api/v1/agent/threads/{thread['id']}/messages",

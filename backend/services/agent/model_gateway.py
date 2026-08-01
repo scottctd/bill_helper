@@ -32,6 +32,7 @@ from backend.services.agent.tools_for_model_request import (
     expose_tools_for_model_request,
 )
 from backend.services.runtime_settings import resolve_runtime_settings
+from backend.validation.model_reasoning_efforts import resolve_model_reasoning_effort
 from backend.validation.runtime_settings import normalize_text_or_none
 
 
@@ -61,6 +62,10 @@ class LiteLLMModelGateway:
             retry_backoff_multiplier=settings.agent_retry_backoff_multiplier,
             base_url=settings.agent_base_url,
             api_key=settings.agent_api_key,
+            reasoning_effort=resolve_model_reasoning_effort(
+                selected,
+                settings.agent_model_reasoning_efforts,
+            ),
         )
 
     def _normalize_decision_for_thread(

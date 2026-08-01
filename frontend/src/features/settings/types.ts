@@ -5,6 +5,8 @@
  * - Outputs: typed helpers, contracts, or exports from `types`.
  * - Side effects: module-local frontend behavior only.
  */
+import type { ReasoningEffort } from "../../lib/agent_models";
+
 export interface SettingsFormState {
   user_memory: string;
   default_currency_code: string;
@@ -13,6 +15,7 @@ export interface SettingsFormState {
   entry_tagging_model: string;
   available_agent_models: string;
   agent_model_display_names: Record<string, string>;
+  agent_model_reasoning_efforts: Record<string, ReasoningEffort>;
   agent_max_steps: string;
   agent_bulk_max_concurrent_threads: string;
   agent_max_images_per_message: string;

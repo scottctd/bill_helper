@@ -3396,6 +3396,10 @@ export interface components {
             agent_model_display_names?: {
                 [key: string]: string;
             } | null;
+            /** Agent Model Reasoning Efforts */
+            agent_model_reasoning_efforts?: {
+                [key: string]: "none" | "low" | "medium" | "high" | "xhigh" | "max";
+            } | null;
             /** Agent Retry Backoff Multiplier */
             agent_retry_backoff_multiplier?: number | null;
             /** Agent Retry Initial Wait Seconds */
@@ -3440,6 +3444,10 @@ export interface components {
             agent_model_display_names: {
                 [key: string]: string;
             };
+            /** Agent Model Reasoning Efforts */
+            agent_model_reasoning_efforts: {
+                [key: string]: "none" | "low" | "medium" | "high" | "xhigh" | "max";
+            };
             /** Agent Retry Backoff Multiplier */
             agent_retry_backoff_multiplier: number;
             /** Agent Retry Initial Wait Seconds */
@@ -3483,6 +3491,10 @@ export interface components {
             /** Agent Model Display Names */
             agent_model_display_names?: {
                 [key: string]: string;
+            } | null;
+            /** Agent Model Reasoning Efforts */
+            agent_model_reasoning_efforts?: {
+                [key: string]: "none" | "low" | "medium" | "high" | "xhigh" | "max";
             } | null;
             /** Agent Retry Backoff Multiplier */
             agent_retry_backoff_multiplier?: number | null;

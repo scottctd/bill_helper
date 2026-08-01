@@ -1590,3 +1590,20 @@ def test_migration_0045_refuses_populated_legacy_tables_after_backfill_removal(t
 
     with pytest.raises(Exception, match="legacy agent conversation rows exist"):
         command.upgrade(cfg, "0045_agent_harness_first_schema")
+
+
+def test_migration_0050_adds_agent_model_reasoning_efforts(tmp_path):
+    database_url = _sqlite_url(tmp_path, "migration_0050.sqlite")
+    cfg = _build_alembic_config(database_url)
+    command.upgrade(cfg, "0049_unified_groups")
+
+    engine = create_engine(database_url, future=True)
+    assert "agent_model_reasoning_efforts" not in {
+        column["name"] for column in inspect(engine).get_columns("runtime_settings")
+    }
+
+    command.upgrade(cfg, "0050_add_agent_model_reasoning_efforts")
+
+    assert "agent_model_reasoning_efforts" in {
+        column["name"] for column in inspect(engine).get_columns("runtime_settings")
+    }

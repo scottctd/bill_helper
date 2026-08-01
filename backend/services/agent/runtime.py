@@ -23,6 +23,7 @@ from backend.services.agent.production_runtime import (
 from backend.services.agent.tool_runtime_support.catalog import build_openai_tool_schemas
 from backend.services.crud_policy import PolicyViolation
 from backend.services.runtime_settings import resolve_runtime_settings
+from backend.validation.model_reasoning_efforts import resolve_model_reasoning_effort
 from backend.validation.runtime_settings import normalize_text_or_none
 
 
@@ -56,6 +57,10 @@ def _build_model_client(db: Session, *, model_name: str | None = None) -> LiteLL
         retry_backoff_multiplier=settings.agent_retry_backoff_multiplier,
         base_url=settings.agent_base_url,
         api_key=settings.agent_api_key,
+        reasoning_effort=resolve_model_reasoning_effort(
+            selected_model_name,
+            settings.agent_model_reasoning_efforts,
+        ),
     )
 
 

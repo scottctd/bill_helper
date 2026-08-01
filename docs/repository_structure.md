@@ -58,6 +58,7 @@
 - `versions/0047_entry_category_schedule.py`: installs the canonical entry-category schedule and remaps legacy assignments to safe fallback leaves.
 - `versions/0048_remove_builtin_filter_groups.py`: removes persisted built-in filter groups while retaining custom groups.
 - `versions/0049_unified_groups.py`: merges legacy `entry_groups` and `filter_groups` into unified `groups` and `group_members` with `manual` and `rule` sources.
+- `versions/0050_add_agent_model_reasoning_efforts.py`: adds the optional per-model reasoning-effort JSON map to runtime settings.
 - `versions/0037_add_agent_message_attachments_use_ocr.py`: adds persisted message-level OCR mode for attachment-bearing user turns.
 - `versions/0038_add_agent_model_display_names_to_runtime_settings.py`: adds optional JSON map of model id → UI label (`runtime_settings.agent_model_display_names`).
 - `versions/0039_add_agent_run_approval_policy.py`: adds `agent_runs.approval_policy` (`default` vs `yolo`) for optional post-run auto-approval.
@@ -146,7 +147,7 @@
 - `crud_policy.py`: shared CRUD validation/conflict policy primitives and standardized error-translation helpers.
 - `serializers.py`: ORM-to-schema mapping helpers.
 - `taxonomy.py`: shared taxonomy normalization, term assignment, and usage-count helpers.
-- `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional `agent_model_display_names`, and the PDF page cap.
+- `runtime_settings.py`: resolves effective runtime settings from persisted overrides + env defaults, including DB-backed ordered `user_memory`, `available_agent_models`, optional model display-name and reasoning-effort maps, and the PDF page cap.
 - `services/agent/runtime_settings_view.py`: builds the settings read view with agent-derived fields for `GET/PATCH /settings`.
 - `services/agent/runtime_settings_validation.py`: vision-capable model filtering and LiteLLM credential checks for settings reads.
 - `user_files.py`: canonical per-user upload path management, atomic writes/imports, hashing, and readable stored-filename helpers.
@@ -191,7 +192,7 @@
 - `agent_test_utils.py`: shared agent test harness helpers (model patching, thread/message flows, SSE parsing, PDF fixture builders).
 - `test_entries.py`: entry/group/delete behavior tests, including unified-group validation and principal scoping.
 - `test_finance.py`: reconciliation and dashboard aggregation tests.
-- `test_migrations_core.py`: migration regression coverage, including unified-group migration `0049_unified_groups`.
+- `test_migrations_core.py`: migration regression coverage, including unified-group migration `0049_unified_groups` and per-model reasoning settings migration `0050_add_agent_model_reasoning_efforts`.
 - `test_taxonomies.py`: taxonomy endpoints and tag/entity category assignment behavior tests.
 - `test_auth_boundaries.py`: app-level principal dependency boundary regression tests.
 - `test_agent_sessions.py`: external-agent session/source and CLI proposal ownership coverage.

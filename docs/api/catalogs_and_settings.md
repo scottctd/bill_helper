@@ -343,6 +343,7 @@ Response highlights:
 - `entry_tagging_model`
 - `available_agent_models`
 - `agent_model_display_names` (map of model id → short label for UI; only keys in the effective `available_agent_models` list are returned)
+- `agent_model_reasoning_efforts` (map of model id to an explicitly configured `none`, `low`, `medium`, `high`, `xhigh`, or `max` effort)
 - `vision_capable_agent_models`
 - `agent_bulk_max_concurrent_threads` (default Import tab worker pool size)
 - `agent_max_pdf_pages`
@@ -356,6 +357,7 @@ Behavior:
 - `user_memory` is DB-backed only and returned as an ordered list of strings
 - `available_agent_models` is DB-backed only and returned as an ordered list of model identifiers; the effective list always includes `agent_model`
 - `agent_model_display_names` merges built-in short labels for the default catalog model ids with any DB-backed overrides; stored labels win on key overlap; the API returns only entries whose keys match the effective available model list (case-insensitive match, canonical keys follow the available-model ordering)
+- `agent_model_reasoning_efforts` is DB-backed and pruned to the effective available model list; models absent from the map use their provider default
 - `vision_capable_agent_models` is a derived read-only subset of `available_agent_models` that the frontend can use to understand which models can receive image/PDF attachments
 - `agent_max_pdf_pages` caps PDF page rendering for hosted agent vision attachments
 - identity is not part of runtime settings anymore
@@ -378,6 +380,8 @@ Updatable fields include:
 - `agent_model`
 - `entry_tagging_model`
 - `available_agent_models`
+- `agent_model_display_names`
+- `agent_model_reasoning_efforts`
 - `agent_model_display_names`
 - `agent_max_steps`
 - `agent_bulk_max_concurrent_threads` (default Import tab worker pool size)

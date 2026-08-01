@@ -6381,6 +6381,28 @@
             ],
             "title": "Agent Model Display Names"
           },
+          "agent_model_reasoning_efforts": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ],
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Model Reasoning Efforts"
+          },
           "agent_retry_backoff_multiplier": {
             "anyOf": [
               {
@@ -6539,6 +6561,21 @@
             "title": "Agent Model Display Names",
             "type": "object"
           },
+          "agent_model_reasoning_efforts": {
+            "additionalProperties": {
+              "enum": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "type": "string"
+            },
+            "title": "Agent Model Reasoning Efforts",
+            "type": "object"
+          },
           "agent_retry_backoff_multiplier": {
             "title": "Agent Retry Backoff Multiplier",
             "type": "number"
@@ -6612,6 +6649,7 @@
           "agent_model",
           "available_agent_models",
           "agent_model_display_names",
+          "agent_model_reasoning_efforts",
           "vision_capable_agent_models",
           "agent_max_steps",
           "agent_bulk_max_concurrent_threads",
@@ -6744,6 +6782,28 @@
               }
             ],
             "title": "Agent Model Display Names"
+          },
+          "agent_model_reasoning_efforts": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ],
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Model Reasoning Efforts"
           },
           "agent_retry_backoff_multiplier": {
             "anyOf": [

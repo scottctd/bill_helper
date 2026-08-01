@@ -6,7 +6,11 @@
  * - Side effects: module-local frontend behavior only.
  */
 import type { RuntimeSettings, RuntimeSettingsUpdatePayload } from "../../lib/types";
-import { parseAgentModelLines, pruneAgentModelDisplayNames } from "../../lib/agent_models";
+import {
+  parseAgentModelLines,
+  pruneAgentModelDisplayNames,
+  pruneAgentModelReasoningEfforts,
+} from "../../lib/agent_models";
 import type { SettingsFormState } from "./types";
 
 export { parseAgentModelLines };
@@ -21,6 +25,7 @@ export const RESET_RUNTIME_SETTINGS_PAYLOAD: RuntimeSettingsUpdatePayload = {
   entry_tagging_model: null,
   available_agent_models: [],
   agent_model_display_names: null,
+  agent_model_reasoning_efforts: null,
   agent_max_steps: null,
   agent_bulk_max_concurrent_threads: null,
   agent_max_images_per_message: null,
@@ -106,6 +111,7 @@ export function buildSettingsFormState(data: RuntimeSettings): SettingsFormState
     entry_tagging_model: data.entry_tagging_model ?? "",
     available_agent_models: formatLines(data.available_agent_models ?? null),
     agent_model_display_names: { ...data.agent_model_display_names },
+    agent_model_reasoning_efforts: { ...data.agent_model_reasoning_efforts },
     agent_max_steps: String(data.agent_max_steps),
     agent_bulk_max_concurrent_threads: String(data.agent_bulk_max_concurrent_threads),
     agent_max_images_per_message: String(data.agent_max_images_per_message),
@@ -175,6 +181,10 @@ export function buildSettingsUpdatePayload(formState: SettingsFormState): Runtim
     : null;
   const nextAvailableAgentModels = parseAgentModelLines(formState.available_agent_models);
   const nextDisplayNames = pruneAgentModelDisplayNames(formState.agent_model_display_names, nextAvailableAgentModels);
+  const nextReasoningEfforts = pruneAgentModelReasoningEfforts(
+    formState.agent_model_reasoning_efforts,
+    nextAvailableAgentModels
+  );
   const nextEntryTaggingModel = formState.entry_tagging_model.trim();
   if (nextEntryTaggingModel && !nextAvailableAgentModels.includes(nextEntryTaggingModel)) {
     throw new Error("Default tagging model must be one of the available models.");
@@ -188,6 +198,7 @@ export function buildSettingsUpdatePayload(formState: SettingsFormState): Runtim
     entry_tagging_model: nextEntryTaggingModel || null,
     available_agent_models: nextAvailableAgentModels,
     agent_model_display_names: Object.keys(nextDisplayNames).length > 0 ? nextDisplayNames : null,
+    agent_model_reasoning_efforts: Object.keys(nextReasoningEfforts).length > 0 ? nextReasoningEfforts : null,
     agent_max_steps: nextAgentMaxSteps,
     agent_bulk_max_concurrent_threads: nextAgentBulkMaxConcurrentThreads,
     agent_max_images_per_message: nextAgentMaxImagesPerMessage,

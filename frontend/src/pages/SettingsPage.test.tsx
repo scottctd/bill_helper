@@ -32,6 +32,7 @@ const baseSettingsFixture: RuntimeSettings = {
     "bedrock/us.anthropic.claude-sonnet-4-6": "Claude Sonnet 4.6",
     "openrouter/qwen/qwen3.5-27b": "Qwen 3.5 27B",
   },
+  agent_model_reasoning_efforts: {},
   agent_max_steps: 20,
   agent_bulk_max_concurrent_threads: 4,
   agent_retry_max_attempts: 2,
@@ -52,6 +53,7 @@ const baseSettingsFixture: RuntimeSettings = {
     entry_tagging_model: null,
     available_agent_models: null,
     agent_model_display_names: null,
+    agent_model_reasoning_efforts: null,
     agent_max_steps: null,
     agent_bulk_max_concurrent_threads: null,
     agent_retry_max_attempts: null,
@@ -266,6 +268,32 @@ describe("SettingsPage", () => {
     expect(vi.mocked(updateRuntimeSettings).mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         user_memory: ["Prefers terse answers.", "Works in CAD."],
+      })
+    );
+  });
+
+  it("saves a reasoning effort for each configured model", async () => {
+    vi.mocked(listCurrencies).mockResolvedValue([{ code: "CAD", name: "Canadian Dollar", entry_count: 0, is_placeholder: false }]);
+    vi.mocked(getRuntimeSettings).mockResolvedValue(baseSettingsFixture);
+    vi.mocked(updateRuntimeSettings).mockResolvedValue(baseSettingsFixture);
+
+    renderWithQueryClient(<SettingsPage />);
+
+    await openAgentTab();
+    const effortSelect = await screen.findByRole("button", { name: "Reasoning effort, row 3" });
+    expect(effortSelect).toHaveTextContent("Provider default");
+    await userEvent.click(effortSelect);
+    await userEvent.click(await screen.findByRole("option", { name: "xhigh" }));
+    fireEvent.submit(document.getElementById("runtime-settings-form") as HTMLFormElement);
+
+    await waitFor(() => {
+      expect(updateRuntimeSettings).toHaveBeenCalled();
+    });
+    expect(vi.mocked(updateRuntimeSettings).mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        agent_model_reasoning_efforts: {
+          "openrouter/qwen/qwen3.5-27b": "xhigh",
+        },
       })
     );
   });

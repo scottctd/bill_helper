@@ -44,7 +44,9 @@
 - `backend/services/agent/tools_for_model_request.py`
   - single gate (`expose_tools_for_model_request`) for the tool schema list and `tool_choice` directive that both the live gateway and context-size token counter use (full catalog vs rename-only for untitled threads)
 - `backend/services/agent/model_client_support/`
-  - grouped model-client internals: `client.py` for the retrying LiteLLM adapter, `environment.py` for provider/env validation and prompt-cache support, `streaming.py` for streamed delta reconciliation, and `usage.py` for usage-shape normalization
+  - grouped model-client internals: `client.py` for the retrying LiteLLM adapter and provider request routing, `environment.py` for provider/env validation and prompt-cache support, `streaming.py` for streamed delta reconciliation, and `usage.py` for usage-shape normalization
+  - direct `openai/<model>` requests use LiteLLM's `openai/responses/<model>` bridge so OpenAI reasoning and function-tool calls run through `/v1/responses` while preserving the app's normalized completion and streaming contracts; other provider prefixes remain on their native LiteLLM routes
+  - runtime settings can assign `none`, `low`, `medium`, `high`, `xhigh`, or `max` reasoning effort per available model; the selected model's configured value is forwarded to LiteLLM, and an unset value leaves provider defaults intact
 - `backend/services/agent/langfuse_litellm.py`
   - optional [Langfuse](https://langfuse.com) observability via LiteLLM's `langfuse_otel` callback when `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are set (see [LiteLLM SDK integration](https://langfuse.com/integrations/frameworks/litellm-sdk)); run loop passes `trace_id` (run id), `session_id` (thread id), `trace_user_id` (owner; LiteLLM maps this to Langfuse user id), `generation_name`, and `tags` on each completion; **LiteLLM defaults OTLP to US cloud** — set `LANGFUSE_OTEL_HOST=https://cloud.langfuse.com` for EU; in [Langfuse v4](https://langfuse.com/changelog/2026-03-10-simplify-for-scale) look under **Observations** and filter by `trace_id` / run id
 - `backend/services/agent/tool_runtime_support/`

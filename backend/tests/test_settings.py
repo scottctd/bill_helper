@@ -157,6 +157,42 @@ def test_settings_agent_model_display_names_override_and_clear(client):
     assert clear_payload["overrides"]["agent_model_display_names"] is None
 
 
+def test_settings_agent_model_reasoning_efforts_override_prune_and_clear(client):
+    set_override = client.patch(
+        "/api/v1/settings",
+        json={
+            "available_agent_models": ["openai/gpt-5.6-luna", "google/gemini-2.5-pro"],
+            "agent_model_reasoning_efforts": {
+                "OPENAI/GPT-5.6-LUNA": "xhigh",
+                "google/gemini-2.5-pro": "none",
+                "removed/model": "low",
+            },
+        },
+    )
+    set_override.raise_for_status()
+    payload = set_override.json()
+    assert payload["agent_model_reasoning_efforts"] == {
+        "openai/gpt-5.6-luna": "xhigh",
+        "google/gemini-2.5-pro": "none",
+    }
+    assert payload["overrides"]["agent_model_reasoning_efforts"] == payload["agent_model_reasoning_efforts"]
+
+    invalid = client.patch(
+        "/api/v1/settings",
+        json={"agent_model_reasoning_efforts": {"openai/gpt-5.6-luna": "ultra"}},
+    )
+    assert invalid.status_code == 422
+
+    clear_override = client.patch(
+        "/api/v1/settings",
+        json={"agent_model_reasoning_efforts": None},
+    )
+    clear_override.raise_for_status()
+    clear_payload = clear_override.json()
+    assert clear_payload["agent_model_reasoning_efforts"] == {}
+    assert clear_payload["overrides"]["agent_model_reasoning_efforts"] is None
+
+
 def test_settings_bulk_concurrency_override_and_clear(client):
     from backend.config import get_settings
 

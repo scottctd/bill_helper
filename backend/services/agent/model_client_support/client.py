@@ -25,6 +25,7 @@ from backend.services.agent.langfuse_litellm import (
     langfuse_credentials_configured,
 )
 from backend.services.agent.retry_policy import build_model_client_retrying
+from backend.validation.model_reasoning_efforts import ReasoningEffort
 from .environment import normalize_host, normalize_secret, supports_prompt_caching
 from .messages import sanitize_messages_for_completion
 from .streaming import (
@@ -49,6 +50,16 @@ logger = logging.getLogger(__name__)
 
 class AgentModelError(RuntimeError):
     pass
+
+
+def _model_name_for_completion(model_name: str) -> str:
+    """Route direct OpenAI requests through LiteLLM's Responses API bridge."""
+    provider, separator, provider_model = model_name.partition("/")
+    if separator and provider.casefold() == "openai":
+        if provider_model.casefold().startswith("responses/"):
+            return model_name
+        return f"{provider}/responses/{provider_model}"
+    return model_name
 
 
 def _message_text(exc: Exception) -> str:
@@ -148,6 +159,7 @@ class LiteLLMModelClient:
         retry_backoff_multiplier: float,
         base_url: str | None = None,
         api_key: str | None = None,
+        reasoning_effort: ReasoningEffort | None = None,
     ) -> None:
         ensure_env_file_variables_loaded()
         ensure_langfuse_litellm_configured()
@@ -159,6 +171,7 @@ class LiteLLMModelClient:
         self._retry_backoff_multiplier = max(1.0, retry_backoff_multiplier)
         self._base_url = normalize_host(base_url)
         self._api_key = normalize_secret(api_key)
+        self._reasoning_effort = reasoning_effort
 
     def _base_request(
         self,
@@ -171,7 +184,7 @@ class LiteLLMModelClient:
     ) -> dict[str, Any]:
         effective_tools = self._tools if tools is None else tools
         request: dict[str, Any] = {
-            "model": self._model_name,
+            "model": _model_name_for_completion(self._model_name),
             "messages": sanitize_messages_for_completion(messages),
         }
         if effective_tools:
@@ -181,6 +194,8 @@ class LiteLLMModelClient:
             request["response_format"] = response_format
         if litellm_metadata:
             request["metadata"] = litellm_metadata
+        if self._reasoning_effort is not None:
+            request["reasoning_effort"] = self._reasoning_effort
         if supports_prompt_caching(self._model_name):
             injection_points = _cache_injection_points_for_messages(messages)
             if injection_points:

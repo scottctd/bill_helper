@@ -9,6 +9,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.validation.model_reasoning_efforts import (
+    ReasoningEffort,
+    normalize_agent_model_reasoning_efforts_payload_or_none,
+)
 from backend.validation.runtime_settings import (
     normalize_agent_model_display_names_payload_or_none,
     normalize_agent_model_items_or_none,
@@ -28,6 +32,7 @@ RuntimeSettingsWriteField = Literal[
     "entry_tagging_model",
     "available_agent_models",
     "agent_model_display_names",
+    "agent_model_reasoning_efforts",
     "agent_max_steps",
     "agent_bulk_max_concurrent_threads",
     "agent_retry_max_attempts",
@@ -52,6 +57,7 @@ class RuntimeSettingsWriteFields(BaseModel):
     entry_tagging_model: str | None = Field(default=None, max_length=255)
     available_agent_models: list[str] | None = None
     agent_model_display_names: dict[str, str] | None = None
+    agent_model_reasoning_efforts: dict[str, ReasoningEffort] | None = None
     agent_max_steps: int | None = Field(default=None, ge=1, le=500)
     agent_bulk_max_concurrent_threads: int | None = Field(default=None, ge=1, le=16)
     agent_retry_max_attempts: int | None = Field(default=None, ge=1, le=10)
@@ -97,6 +103,13 @@ class RuntimeSettingsWriteFields(BaseModel):
         if value is None:
             return None
         return normalize_agent_model_display_names_payload_or_none(value)
+
+    @field_validator("agent_model_reasoning_efforts", mode="before")
+    @classmethod
+    def normalize_optional_agent_model_reasoning_efforts(
+        cls, value: Any
+    ) -> dict[str, ReasoningEffort] | None:
+        return normalize_agent_model_reasoning_efforts_payload_or_none(value)
 
     @field_validator("default_currency_code", "dashboard_currency_code", mode="before")
     @classmethod

@@ -19,6 +19,7 @@ from backend.services.runtime_settings_contracts import (
     RuntimeSettingsOverridesView,
     RuntimeSettingsView,
 )
+from backend.validation.model_reasoning_efforts import parse_agent_model_reasoning_efforts_or_none
 from backend.validation.runtime_settings import (
     build_effective_agent_model_display_names,
     normalize_currency_code_or_none,
@@ -44,6 +45,7 @@ def build_runtime_settings_view(db: Session) -> RuntimeSettingsView:
         entry_tagging_model=resolved.entry_tagging_model,
         available_agent_models=resolved.available_agent_models,
         agent_model_display_names=effective_display_names,
+        agent_model_reasoning_efforts=resolved.agent_model_reasoning_efforts,
         vision_capable_agent_models=list_vision_capable_agent_models(
             resolved.available_agent_models
         ),
@@ -86,6 +88,11 @@ def build_runtime_settings_view(db: Session) -> RuntimeSettingsView:
             else None,
             agent_model_display_names=parse_agent_model_display_names_or_none(
                 override.agent_model_display_names
+            )
+            if override
+            else None,
+            agent_model_reasoning_efforts=parse_agent_model_reasoning_efforts_or_none(
+                override.agent_model_reasoning_efforts
             )
             if override
             else None,

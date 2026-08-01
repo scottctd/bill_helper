@@ -60,7 +60,7 @@ function MemoryAndModelsCard({ formState, onFormPatch }: SettingsFormPatchHandle
         <FormField
           label="Available models"
           htmlFor={SETTINGS_FIELD_IDS.availableModels}
-          hint="Add one row per model: LiteLLM model id and optional display label. Order is preserved; duplicate ids (ignoring case) are dropped when saving. Default model and tagging model below use these ids and labels."
+          hint="Configure model IDs, labels, and optional reasoning. Drag rows to set picker order; provider default leaves reasoning unset."
         >
           <AgentAvailableModelsEditor formState={formState} onFormPatch={onFormPatch} fieldId={SETTINGS_FIELD_IDS.availableModels} />
         </FormField>

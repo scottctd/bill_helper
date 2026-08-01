@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from backend.contracts_settings import RuntimeSettingsWriteField, RuntimeSettingsWriteFields
+from backend.validation.model_reasoning_efforts import ReasoningEffort
 
 RuntimeSettingsPatchField = RuntimeSettingsWriteField
 
@@ -24,6 +25,7 @@ class RuntimeSettingsOverridesView:
     entry_tagging_model: str | None = None
     available_agent_models: list[str] | None = None
     agent_model_display_names: dict[str, str] | None = None
+    agent_model_reasoning_efforts: dict[str, ReasoningEffort] | None = None
     agent_max_steps: int | None = None
     agent_bulk_max_concurrent_threads: int | None = None
     agent_retry_max_attempts: int | None = None
@@ -46,6 +48,7 @@ class RuntimeSettingsView:
     entry_tagging_model: str | None
     available_agent_models: list[str]
     agent_model_display_names: dict[str, str]
+    agent_model_reasoning_efforts: dict[str, ReasoningEffort]
     vision_capable_agent_models: list[str]
     agent_max_steps: int
     agent_bulk_max_concurrent_threads: int

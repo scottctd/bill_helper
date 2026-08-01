@@ -1,9 +1,9 @@
 /**
  * CALLING SPEC:
- * - Purpose: unified CRUD UI for agent model ids and optional display labels.
+ * - Purpose: unified CRUD UI for agent model ids, labels, and reasoning efforts.
  * - Inputs: settings form slice and patch handler from `SettingsAgentSection`.
- * - Outputs: table-style editor with add, remove, drag reorder, and two fields per row.
- * - Side effects: calls `onFormPatch` when the effective model list or labels change.
+ * - Outputs: table-style editor with add, remove, drag reorder, and three fields per row.
+ * - Side effects: calls `onFormPatch` when model ids, labels, or reasoning efforts change.
  */
 import {
   DndContext,
@@ -25,11 +25,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { SingleSelect } from "../../components/SingleSelect";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { cn } from "../../lib/utils";
 import {
   type AgentModelRow,
+  REASONING_EFFORTS,
+  type ReasoningEffort,
   buildAgentModelSettingsPatchFromRows,
   rowsFromAgentModelFormState,
 } from "../../lib/agent_models";
@@ -43,7 +46,14 @@ interface AgentAvailableModelsEditorProps {
 
 type EditorModelRow = AgentModelRow & { clientId: string };
 
-function createEditorRow(row: AgentModelRow = { modelId: "", displayName: "" }): EditorModelRow {
+const REASONING_EFFORT_OPTIONS = [
+  { value: "", label: "Provider default" },
+  ...REASONING_EFFORTS.map((effort) => ({ value: effort, label: effort })),
+];
+
+function createEditorRow(
+  row: AgentModelRow = { modelId: "", displayName: "", reasoningEffort: "" }
+): EditorModelRow {
   return { ...row, clientId: crypto.randomUUID() };
 }
 
@@ -52,7 +62,11 @@ function editorRowsFromFormState(formState: SettingsFormState): EditorModelRow[]
 }
 
 function stripClientIds(rows: EditorModelRow[]): AgentModelRow[] {
-  return rows.map(({ modelId, displayName }) => ({ modelId, displayName }));
+  return rows.map(({ modelId, displayName, reasoningEffort }) => ({
+    modelId,
+    displayName,
+    reasoningEffort,
+  }));
 }
 
 function patchesMatchFormState(
@@ -67,7 +81,8 @@ function patchesMatchFormState(
     patch.available_agent_models === formState.available_agent_models &&
     patch.agent_model === formState.agent_model &&
     patch.entry_tagging_model === formState.entry_tagging_model &&
-    JSON.stringify(patch.agent_model_display_names) === JSON.stringify(formState.agent_model_display_names)
+    JSON.stringify(patch.agent_model_display_names) === JSON.stringify(formState.agent_model_display_names) &&
+    JSON.stringify(patch.agent_model_reasoning_efforts) === JSON.stringify(formState.agent_model_reasoning_efforts)
   );
 }
 
@@ -83,14 +98,13 @@ interface ModelRowEditorProps {
   };
   onModelIdChange: (index: number, value: string) => void;
   onDisplayNameChange: (index: number, value: string) => void;
+  onReasoningEffortChange: (index: number, value: ReasoningEffort | "") => void;
   onRemove: (index: number) => void;
 }
 
 const MODEL_ROW_GRID_CLASS =
-  "grid items-center gap-1 sm:grid-cols-[1.75rem_minmax(0,1fr)_minmax(0,1fr)_1.75rem] sm:gap-x-1.5";
-const MODEL_ROW_PAD_CLASS = "px-2";
-const compactInputClass = "h-8 px-2 py-1 text-xs";
-const rowActionClass = "h-7 w-7 shrink-0";
+  "grid grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-start gap-2 px-3 py-2 sm:items-end";
+const rowActionClass = "mt-5 h-8 w-8 shrink-0 sm:mt-0";
 
 function ModelRowEditor({
   fieldId,
@@ -99,10 +113,11 @@ function ModelRowEditor({
   dragHandle,
   onModelIdChange,
   onDisplayNameChange,
+  onReasoningEffortChange,
   onRemove,
 }: ModelRowEditorProps) {
   return (
-    <div className={cn(MODEL_ROW_GRID_CLASS, "py-0.5", dragHandle?.isDragging && "rounded-sm bg-background/90")}>
+    <div className={cn(MODEL_ROW_GRID_CLASS, dragHandle?.isDragging && "rounded-md bg-muted/50 shadow-sm")}>
       {dragHandle ? (
         <Button
           ref={dragHandle.setActivatorNodeRef}
@@ -119,33 +134,45 @@ function ModelRowEditor({
       ) : (
         <span className={cn(rowActionClass, "inline-flex")} aria-hidden />
       )}
-      <div className="grid min-w-0 gap-0.5">
-        <label className="text-label-12 font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-id-${row.clientId}`}>
-          Model id
-        </label>
-        <Input
-          id={`${fieldId}-id-${row.clientId}`}
-          className={cn(compactInputClass, "font-mono")}
-          placeholder="provider/model-id"
-          autoComplete="off"
-          aria-label={`Model id, row ${index + 1}`}
-          value={row.modelId}
-          onChange={(event) => onModelIdChange(index, event.target.value)}
-        />
-      </div>
-      <div className="grid min-w-0 gap-0.5">
-        <label className="text-label-12 font-medium text-muted-foreground sm:hidden" htmlFor={`${fieldId}-label-${row.clientId}`}>
-          Display name
-        </label>
-        <Input
-          id={`${fieldId}-label-${row.clientId}`}
-          className={compactInputClass}
-          placeholder="Optional label"
-          autoComplete="off"
-          aria-label={`Display name, row ${index + 1}`}
-          value={row.displayName}
-          onChange={(event) => onDisplayNameChange(index, event.target.value)}
-        />
+      <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)_10.5rem]">
+        <div className="grid min-w-0 gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground sm:sr-only" htmlFor={`${fieldId}-id-${row.clientId}`}>
+            Model ID
+          </label>
+          <Input
+            id={`${fieldId}-id-${row.clientId}`}
+            className="font-mono text-sm"
+            placeholder="provider/model-id"
+            autoComplete="off"
+            aria-label={`Model id, row ${index + 1}`}
+            value={row.modelId}
+            onChange={(event) => onModelIdChange(index, event.target.value)}
+          />
+        </div>
+        <div className="grid min-w-0 gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground sm:sr-only" htmlFor={`${fieldId}-label-${row.clientId}`}>
+            Display name
+          </label>
+          <Input
+            id={`${fieldId}-label-${row.clientId}`}
+            placeholder="Optional label"
+            autoComplete="off"
+            aria-label={`Display name, row ${index + 1}`}
+            value={row.displayName}
+            onChange={(event) => onDisplayNameChange(index, event.target.value)}
+          />
+        </div>
+        <div className="grid min-w-0 gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground sm:sr-only">
+            Reasoning effort
+          </span>
+          <SingleSelect
+            options={REASONING_EFFORT_OPTIONS}
+            value={row.reasoningEffort}
+            onChange={(value) => onReasoningEffortChange(index, value as ReasoningEffort | "")}
+            ariaLabel={`Reasoning effort, row ${index + 1}`}
+          />
+        </div>
       </div>
       <Button
         type="button"
@@ -167,6 +194,7 @@ interface SortableModelRowProps {
   row: EditorModelRow;
   onModelIdChange: (index: number, value: string) => void;
   onDisplayNameChange: (index: number, value: string) => void;
+  onReasoningEffortChange: (index: number, value: ReasoningEffort | "") => void;
   onRemove: (index: number) => void;
 }
 
@@ -176,6 +204,7 @@ function SortableModelRow({
   row,
   onModelIdChange,
   onDisplayNameChange,
+  onReasoningEffortChange,
   onRemove,
 }: SortableModelRowProps) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -197,6 +226,7 @@ function SortableModelRow({
         dragHandle={{ attributes, listeners, setActivatorNodeRef, isDragging }}
         onModelIdChange={onModelIdChange}
         onDisplayNameChange={onDisplayNameChange}
+        onReasoningEffortChange={onReasoningEffortChange}
         onRemove={onRemove}
       />
     </div>
@@ -241,6 +271,7 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
   }, [
     formState.available_agent_models,
     formState.agent_model_display_names,
+    formState.agent_model_reasoning_efforts,
     formState.agent_model,
     formState.entry_tagging_model,
   ]);
@@ -278,6 +309,14 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
     commit(getRows().map((row, i) => (i === index ? { ...row, displayName: value } : row)));
   }
 
+  function handleReasoningEffortChange(index: number, value: ReasoningEffort | "") {
+    if (pendingRow !== null && index === committedRowCount) {
+      setPendingRow({ ...pendingRow, reasoningEffort: value });
+      return;
+    }
+    commit(getRows().map((row, i) => (i === index ? { ...row, reasoningEffort: value } : row)));
+  }
+
   function handleRemove(index: number) {
     if (pendingRow !== null && index === committedRowCount) {
       setPendingRow(null);
@@ -307,25 +346,20 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
       ) : null}
 
       {hasRows ? (
-        <div
-          className={cn(
-            "max-h-60 overflow-y-auto rounded-md border border-border/60 bg-muted/30 [scrollbar-gutter:stable]"
-          )}
-        >
+        <div className="rounded-md border border-border/70 bg-background">
           <div
-            className={cn(
-              MODEL_ROW_GRID_CLASS,
-              MODEL_ROW_PAD_CLASS,
-              "sticky top-0 z-10 hidden border-b border-border/50 bg-background py-1 text-label-12 font-medium text-muted-foreground sm:grid"
-            )}
+            className="hidden grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-2 border-b border-border/60 bg-muted/20 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid"
             aria-hidden
           >
             <span />
-            <span className="min-w-0 whitespace-nowrap">Model id</span>
-            <span className="min-w-0 whitespace-nowrap">Display name</span>
+            <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)_10.5rem] gap-2">
+              <span>Model ID</span>
+              <span>Display name</span>
+              <span>Reasoning effort</span>
+            </div>
             <span />
           </div>
-          <div className={cn(MODEL_ROW_PAD_CLASS, "divide-y divide-border/50 py-1")}>
+          <div className="divide-y divide-border/60">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={committedRows.map((row) => row.clientId)} strategy={verticalListSortingStrategy}>
                 {committedRows.map((row, index) => (
@@ -336,6 +370,7 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
                     row={row}
                     onModelIdChange={handleModelIdChange}
                     onDisplayNameChange={handleDisplayNameChange}
+                    onReasoningEffortChange={handleReasoningEffortChange}
                     onRemove={handleRemove}
                   />
                 ))}
@@ -348,6 +383,7 @@ export function AgentAvailableModelsEditor({ formState, onFormPatch, fieldId }: 
                 row={pendingRow}
                 onModelIdChange={handleModelIdChange}
                 onDisplayNameChange={handleDisplayNameChange}
+                onReasoningEffortChange={handleReasoningEffortChange}
                 onRemove={handleRemove}
               />
             ) : null}

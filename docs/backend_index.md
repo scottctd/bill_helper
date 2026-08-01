@@ -46,6 +46,7 @@ This file is the backend index. Use it to find the focused backend docs under `.
 - `0047_entry_category_schedule`
 - `0048_remove_builtin_filter_groups`
 - `0049_unified_groups`
+- `0050_add_agent_model_reasoning_efforts`
 
 ## Related Docs
 

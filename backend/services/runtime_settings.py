@@ -13,6 +13,11 @@ from sqlalchemy.orm import Session
 from backend.config import DEFAULT_AGENT_MODEL, get_settings
 from backend.models_settings import RuntimeSettings as RuntimeSettingsRow
 from backend.services.runtime_settings_contracts import RuntimeSettingsPatch
+from backend.validation.model_reasoning_efforts import (
+    ReasoningEffort,
+    finalize_agent_model_reasoning_efforts_for_storage,
+    parse_agent_model_reasoning_efforts_or_none,
+)
 from backend.validation.runtime_settings import (
     finalize_agent_model_display_names_for_storage,
     parse_agent_models_or_none,
@@ -48,6 +53,7 @@ class ResolvedRuntimeSettings:
     agent_model: str
     entry_tagging_model: str | None
     available_agent_models: list[str]
+    agent_model_reasoning_efforts: dict[str, ReasoningEffort]
     agent_max_steps: int
     agent_bulk_max_concurrent_threads: int
     agent_retry_max_attempts: int
@@ -104,6 +110,11 @@ def update_runtime_settings_override(
             patch_updates["agent_model_display_names"],
             available_agent_models=next_available_agent_models,
         )
+    if "agent_model_reasoning_efforts" in patch_updates:
+        patch_updates["agent_model_reasoning_efforts"] = finalize_agent_model_reasoning_efforts_for_storage(
+            patch_updates["agent_model_reasoning_efforts"],
+            available_agent_models=next_available_agent_models,
+        )
     for field_name, value in patch_updates.items():
         # Skip masked sentinel to prevent accidental overwrites of API key
         if field_name == "agent_api_key" and value == "***masked***":
@@ -117,6 +128,14 @@ def update_runtime_settings_override(
         existing_display = parse_agent_model_display_names_or_none(row.agent_model_display_names)
         row.agent_model_display_names = finalize_agent_model_display_names_for_storage(
             existing_display,
+            available_agent_models=next_available_agent_models,
+        )
+    if updates.includes("available_agent_models") and not updates.includes("agent_model_reasoning_efforts"):
+        existing_efforts = parse_agent_model_reasoning_efforts_or_none(
+            row.agent_model_reasoning_efforts
+        )
+        row.agent_model_reasoning_efforts = finalize_agent_model_reasoning_efforts_for_storage(
+            existing_efforts,
             available_agent_models=next_available_agent_models,
         )
     db.add(row)
@@ -222,6 +241,11 @@ def resolve_runtime_settings(db: Session) -> ResolvedRuntimeSettings:
         else None,
         agent_model=agent_model,
     )
+    agent_model_reasoning_efforts = (
+        parse_agent_model_reasoning_efforts_or_none(override.agent_model_reasoning_efforts)
+        if override is not None
+        else None
+    ) or {}
     entry_tagging_model = (
         normalize_text_or_none(override.entry_tagging_model)
         if override is not None
@@ -312,6 +336,7 @@ def resolve_runtime_settings(db: Session) -> ResolvedRuntimeSettings:
         agent_model=agent_model,
         entry_tagging_model=entry_tagging_model,
         available_agent_models=available_agent_models,
+        agent_model_reasoning_efforts=agent_model_reasoning_efforts,
         agent_max_steps=agent_max_steps,
         agent_bulk_max_concurrent_threads=agent_bulk_max_concurrent_threads,
         agent_retry_max_attempts=agent_retry_max_attempts,
