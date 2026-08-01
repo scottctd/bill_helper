@@ -171,6 +171,12 @@
     @apply h-full min-h-0 overflow-hidden;
   }
 
+  @media (min-width: 901px) {
+    .app-content:has(.import-page) {
+      @apply h-full min-h-0 overflow-hidden;
+    }
+  }
+
   .page {
     @apply min-w-0;
   }

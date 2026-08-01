@@ -177,13 +177,14 @@
 
 ### `frontend/src/pages/ImportPage.tsx`
 
-- dedicated multi-file import workspace at `/import` with job list, create flow, and job detail tabs
+- dedicated multi-file import workspace at `/import` as a full-height master-detail split: a persistent jobs rail on the left plus a main pane (create or selected job detail) on the right
+- on desktop widths the route shell locks page scroll (`.app-content:has(.import-page)`); the jobs rail and main pane own their internal scroll; below 900px the split stacks (main pane first) and the page scrolls normally
 - feature modules under `frontend/src/features/import/*`:
-  - `ImportWorkspace.tsx`: list/create/detail tab shell
-  - `ImportCreatePanel.tsx`: attachment upload, sha256 preflight re-import chooser, segmented Import/Skip per-file control, and job start form
-  - `ImportJobDetailView.tsx`: progress, task table with Conversation/Review actions, cancel/retry; the Review button reuses the shared `agent-panel-review-button` treatment and opens `ImportJobReviewModal.tsx`
+  - `ImportWorkspace.tsx`: split shell; the jobs rail header carries the `New import` action and the rail body scrolls dense selectable rows; `New import` returns the main pane to create
+  - `ImportCreatePanel.tsx`: dropzone fills the pane while empty and compacts after attach, file list with Import/Skip scrolls, launch footer (model/workers, instructions in a `<details>`, Start) stays pinned to the pane bottom
+  - `ImportJobDetailView.tsx`: pinned header with status/actions, progress, task table with Conversation actions (scrolls when long), cancel/retry; Review is the primary action when proposals are pending and opens `ImportJobReviewModal.tsx`
   - `ImportJobReviewModal.tsx`: renders the shared `ReviewPanel` shell (`frontend/src/features/review/*`) with a TOC of canonical proposals, read-only `ReviewItemCard` (summary/context/details/outcome sections), and batch + per-item approve/reject; aggregated proposals are mapped via `review/mapImportProposal.ts` with shared payload-based TOC subtitles, clickable `Source` metadata links that open the import-task conversation, and duplicate-merge warnings in `Context`
-  - `ImportTaskDialog.tsx`: fixed-height conversation dialog with header meta, an `AgentThreadUsageBar` cost/usage strip, internal timeline scroll, and the shared `AgentComposer` for follow-up messages (`useImportTaskTimeline.ts`)
+  - `ImportTaskDialog.tsx`: fixed-height conversation dialog (width `min(94vw, 64rem)`, message column widened past the default agent cap) with header meta, an `AgentThreadUsageBar` cost/usage strip, internal timeline scroll, and the shared `AgentComposer` for follow-up messages (`useImportTaskTimeline.ts`)
 - API client lives in `frontend/src/lib/api/import.ts` with types in `frontend/src/lib/types/import.ts`
 - default job concurrency comes from runtime setting `agent_bulk_max_concurrent_threads` (settings UI: import concurrent workers)
 - import task threads are hidden from the Agent thread list but stream through the standard agent run SSE endpoint

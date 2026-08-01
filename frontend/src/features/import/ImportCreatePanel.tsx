@@ -8,10 +8,12 @@
 
 import { useEffect, useMemo, useState, type DragEvent as ReactDragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, FileText, FileUp, History, RotateCcw, Settings2, SkipForward, Upload } from "lucide-react";
+import { FileUp, RotateCcw, SkipForward, Upload } from "lucide-react";
 
 import { WorkspaceSection } from "../../components/layout/WorkspaceSection";
 import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { NativeSelect } from "../../components/ui/native-select";
 import { Textarea } from "../../components/ui/textarea";
 import { useAgentDraftAttachments } from "../agent/panel/useAgentDraftAttachments";
 import { resolveAgentModelOptionLabel } from "../agent/panel/helpers";
@@ -48,7 +50,7 @@ interface ImportCreatePanelProps {
 }
 
 function priorImportLabel(prior: ImportPriorImport): string {
-  const applied = prior.applied_count === 1 ? "1 applied change" : `${prior.applied_count} applied changes`;
+  const applied = prior.applied_count === 1 ? "1 applied" : `${prior.applied_count} applied`;
   return `${importTaskStatusLabel(prior.task_status)} · ${applied}`;
 }
 
@@ -86,6 +88,7 @@ export function ImportCreatePanel({ onJobCreated, onOpenPriorImport }: ImportCre
   }, [runtimeQuery.data?.agent_bulk_max_concurrent_threads, selectedConcurrency]);
 
   const attachments = useAgentDraftAttachments({ setActionError });
+  const hasFiles = attachments.draftAttachments.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -133,8 +136,6 @@ export function ImportCreatePanel({ onJobCreated, onOpenPriorImport }: ImportCre
     () => Object.values(decisions).filter((item) => item.preflight?.previously_imported).length,
     [decisions]
   );
-  const readyCount = Object.keys(decisions).length;
-  const newCount = Math.max(readyCount - previouslyImportedCount, 0);
 
   const createMutation = useMutation({
     mutationFn: createImportJob,
@@ -204,234 +205,205 @@ export function ImportCreatePanel({ onJobCreated, onOpenPriorImport }: ImportCre
     (readyAttachmentIds.length > 0 && Object.keys(decisions).length === 0);
 
   return (
-    <WorkspaceSection
-      className="import-create-section"
-      title="New import"
-      description="Upload source files, choose what should run, then start parallel agent conversations."
-      contentClassName="import-create-section-body"
-    >
-      <div className="import-create-steps" aria-label="Import workflow">
-        <div className="import-create-step is-active">
-          <span className="import-create-step-index">1</span>
-          <span>Attach files</span>
+    <WorkspaceSection className="import-create-section" title="New import" contentClassName="import-create-section-body">
+      <div
+        className={cn(
+          "import-dropzone",
+          hasFiles && "is-compact",
+          attachments.isComposerDragActive && "is-active"
+        )}
+        onDragEnter={(event) => attachments.handlers.handleComposerDragEnter(event as unknown as ReactDragEvent<HTMLFormElement>)}
+        onDragOver={(event) => attachments.handlers.handleComposerDragOver(event as unknown as ReactDragEvent<HTMLFormElement>)}
+        onDragLeave={(event) => attachments.handlers.handleComposerDragLeave(event as unknown as ReactDragEvent<HTMLFormElement>)}
+        onDrop={(event) => attachments.handlers.handleComposerDrop(event as unknown as ReactDragEvent<HTMLFormElement>)}
+      >
+        <input
+          ref={attachments.fileInputRef}
+          type="file"
+          multiple
+          className="sr-only"
+          onChange={attachments.handlers.handleDraftFileSelection}
+        />
+        <FileUp className="import-dropzone-icon" aria-hidden="true" />
+        <div className="import-dropzone-copy">
+          <p className="import-dropzone-title">{hasFiles ? "Add more files" : "Drop source files"}</p>
+          {!hasFiles ? <p className="import-dropzone-subtitle">PDF, images, or CSV/text. One file per task.</p> : null}
         </div>
-        <div className={cn("import-create-step", readyCount > 0 && "is-active")}>
-          <span className="import-create-step-index">2</span>
-          <span>Resolve re-imports</span>
-        </div>
-        <div className={cn("import-create-step", selectedCount > 0 && "is-active")}>
-          <span className="import-create-step-index">3</span>
-          <span>Launch workers</span>
-        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={() => attachments.fileInputRef.current?.click()}>
+          Choose files
+        </Button>
       </div>
 
-      <div className="import-launch-grid">
-        <div className="import-source-column">
-          <div
-            className={cn("import-dropzone", attachments.isComposerDragActive && "is-active")}
-            onDragEnter={(event) => attachments.handlers.handleComposerDragEnter(event as unknown as ReactDragEvent<HTMLFormElement>)}
-            onDragOver={(event) => attachments.handlers.handleComposerDragOver(event as unknown as ReactDragEvent<HTMLFormElement>)}
-            onDragLeave={(event) => attachments.handlers.handleComposerDragLeave(event as unknown as ReactDragEvent<HTMLFormElement>)}
-            onDrop={(event) => attachments.handlers.handleComposerDrop(event as unknown as ReactDragEvent<HTMLFormElement>)}
-          >
-            <input
-              ref={attachments.fileInputRef}
-              type="file"
-              multiple
-              className="sr-only"
-              onChange={attachments.handlers.handleDraftFileSelection}
-            />
-            <span className="import-dropzone-icon-wrap">
-              <FileUp className="import-dropzone-icon" aria-hidden="true" />
+      {hasFiles ? (
+        <div className="import-file-chooser">
+          <div className="import-file-summary-bar">
+            <span className="muted text-sm">
+              {attachments.draftAttachments.length} file{attachments.draftAttachments.length === 1 ? "" : "s"}
+              {selectedCount > 0 ? ` · ${selectedCount} to import` : ""}
+              {previouslyImportedCount > 0 ? ` · ${previouslyImportedCount} seen before` : ""}
             </span>
-            <div className="import-dropzone-copy">
-              <p className="import-dropzone-title">Drop source files</p>
-              <p className="import-dropzone-subtitle">Each file becomes one queued task with its own replayable conversation.</p>
+            <div className="import-file-summary-actions">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setActionForAll("import")}>
+                <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                Import all
+              </Button>
+              {previouslyImportedCount > 0 ? (
+                <Button type="button" variant="ghost" size="sm" onClick={skipPreviouslyImported}>
+                  <SkipForward className="h-3.5 w-3.5" aria-hidden="true" />
+                  Skip previous
+                </Button>
+              ) : null}
+              <Button type="button" variant="ghost" size="sm" onClick={resetToSuggested}>
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                Reset
+              </Button>
             </div>
-            <Button type="button" variant="secondary" size="sm" onClick={() => attachments.fileInputRef.current?.click()}>
-              Choose files
-            </Button>
           </div>
 
-          {attachments.draftAttachments.length > 0 ? (
-            <div className="import-file-chooser">
-              <div className="import-file-summary-bar">
-                <span>
-                  {attachments.draftAttachments.length} file{attachments.draftAttachments.length === 1 ? "" : "s"} · {newCount} new ·{" "}
-                  {selectedCount} importing
-                  {previouslyImportedCount > 0 ? ` · ${previouslyImportedCount} previously imported` : ""}
-                </span>
-                <div className="import-file-summary-actions">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setActionForAll("import")}>
-                    <Upload className="h-3.5 w-3.5" />
-                    Import all
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={skipPreviouslyImported}>
-                    <SkipForward className="h-3.5 w-3.5" />
-                    Skip previous
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={resetToSuggested}>
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Reset
-                  </Button>
-                </div>
-              </div>
-
-              <ul className="import-file-list">
-                {attachments.draftAttachments.map((attachment) => {
-                  const uploadedId = attachment.uploadedAttachmentId;
-                  const decision = uploadedId ? decisions[uploadedId] : null;
-                  const isSkipped = decision?.action === "skip";
-                  const badge = decision?.preflight?.previously_imported ? "Imported before" : "New";
-                  const firstPrior = decision?.preflight?.prior_imports[0] ?? null;
-                  return (
-                    <li key={attachment.id} className={cn("import-file-row", isSkipped && "is-skipped")}>
-                      <div className="import-file-row-main">
-                        <div className="import-file-leading">
-                          <span className={cn("import-file-icon", decision?.preflight?.previously_imported && "is-history")}>
-                            {decision?.preflight?.previously_imported ? (
-                              <History className="h-4 w-4" aria-hidden="true" />
-                            ) : (
-                              <FileText className="h-4 w-4" aria-hidden="true" />
-                            )}
-                          </span>
-                          <div>
-                            <p className="import-file-name">{attachment.file.name}</p>
-                            <p className="import-file-meta muted text-sm">
-                              {formatBytes(attachment.file.size)}
-                              {decision?.preflight ? ` · ${badge}` : attachment.phase !== "ready" ? ` · ${attachment.phase}` : ""}
-                            </p>
-                            {firstPrior ? (
-                              <div className="import-file-prior">
-                                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                                <span>
-                                  {formatImportTimestamp(firstPrior.imported_at)} · {priorImportLabel(firstPrior)}
-                                </span>
-                                {onOpenPriorImport ? (
-                                  <Button
-                                    type="button"
-                                    variant="link"
-                                    size="sm"
-                                    onClick={() =>
-                                      onOpenPriorImport({
-                                        thread_id: firstPrior.thread_id,
-                                        source_label: `${attachment.file.name} previous run`
-                                      })
-                                    }
-                                  >
-                                    View previous run
-                                  </Button>
-                                ) : null}
-                              </div>
+          <ul className="import-file-list">
+            {attachments.draftAttachments.map((attachment) => {
+              const uploadedId = attachment.uploadedAttachmentId;
+              const decision = uploadedId ? decisions[uploadedId] : null;
+              const isSkipped = decision?.action === "skip";
+              const firstPrior = decision?.preflight?.prior_imports[0] ?? null;
+              return (
+                <li key={attachment.id} className={cn("import-file-row", isSkipped && "is-skipped")}>
+                  <div className="import-file-row-main">
+                    <div className="import-file-leading">
+                      <div className="import-file-copy">
+                        <p className="import-file-name">{attachment.file.name}</p>
+                        <p className="import-file-meta muted text-sm">
+                          {formatBytes(attachment.file.size)}
+                          {decision?.preflight?.previously_imported
+                            ? " · seen before"
+                            : attachment.phase !== "ready"
+                              ? ` · ${attachment.phase}`
+                              : ""}
+                        </p>
+                        {firstPrior ? (
+                          <p className="import-file-prior">
+                            <span>
+                              {formatImportTimestamp(firstPrior.imported_at)} · {priorImportLabel(firstPrior)}
+                            </span>
+                            {onOpenPriorImport ? (
+                              <>
+                                {" · "}
+                                <button
+                                  type="button"
+                                  className="import-file-prior-link"
+                                  onClick={() =>
+                                    onOpenPriorImport({
+                                      thread_id: firstPrior.thread_id,
+                                      source_label: `${attachment.file.name} previous run`
+                                    })
+                                  }
+                                >
+                                  Previous run
+                                </button>
+                              </>
                             ) : null}
-                          </div>
-                        </div>
-                        {decision ? (
-                          <div
-                            className="import-segmented-control"
-                            role="group"
-                            aria-label={`Import decision for ${attachment.file.name}`}
-                          >
-                            <button
-                              type="button"
-                              className={cn("import-segment", decision.action === "import" && "is-active")}
-                              onClick={() =>
-                                uploadedId &&
-                                setDecisions((current) => ({
-                                  ...current,
-                                  [uploadedId]: { ...decision, action: "import" }
-                                }))
-                              }
-                            >
-                              Import
-                            </button>
-                            <button
-                              type="button"
-                              className={cn("import-segment", decision.action === "skip" && "is-active")}
-                              onClick={() =>
-                                uploadedId &&
-                                setDecisions((current) => ({
-                                  ...current,
-                                  [uploadedId]: { ...decision, action: "skip" }
-                                }))
-                              }
-                            >
-                              Skip
-                            </button>
-                          </div>
+                          </p>
                         ) : null}
                       </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : null}
+                    </div>
+                    {decision ? (
+                      <div
+                        className="import-segmented-control"
+                        role="group"
+                        aria-label={`Import decision for ${attachment.file.name}`}
+                      >
+                        <button
+                          type="button"
+                          className={cn("import-segment", decision.action === "import" && "is-active")}
+                          onClick={() =>
+                            uploadedId &&
+                            setDecisions((current) => ({
+                              ...current,
+                              [uploadedId]: { ...decision, action: "import" }
+                            }))
+                          }
+                        >
+                          Import
+                        </button>
+                        <button
+                          type="button"
+                          className={cn("import-segment", decision.action === "skip" && "is-active")}
+                          onClick={() =>
+                            uploadedId &&
+                            setDecisions((current) => ({
+                              ...current,
+                              [uploadedId]: { ...decision, action: "skip" }
+                            }))
+                          }
+                        >
+                          Skip
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
+      ) : null}
 
-        <aside className="import-config-panel" aria-label="Import launch settings">
-          <div className="import-config-panel-header">
-            <Settings2 className="h-4 w-4" aria-hidden="true" />
-            <span>Launch settings</span>
-          </div>
-          <div className="import-config-fields">
-            <label className="import-field">
-              <span className="import-field-label">Agent model</span>
-              <select
-                className="import-model-select"
-                aria-label="Import agent model"
-                value={resolvedModel}
-                onChange={(event) => setSelectedModel(event.target.value)}
-                disabled={availableModels.length === 0}
-              >
-                {availableModels.length === 0 ? <option value="">Loading models…</option> : null}
-                {availableModels.map((modelName) => (
-                  <option key={modelName} value={modelName}>
-                    {resolveAgentModelOptionLabel(modelName, modelDisplayNames)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="import-field import-worker-field">
-              <span className="import-field-label">Workers</span>
-              <input
-                className="import-worker-input"
-                type="number"
-                min={1}
-                max={16}
-                value={selectedConcurrency ?? runtimeQuery.data?.agent_bulk_max_concurrent_threads ?? 4}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  setSelectedConcurrency(Number.isFinite(next) ? Math.min(Math.max(next, 1), 16) : 1);
-                }}
-                aria-label="Import worker count"
-              />
-            </label>
-          </div>
-
-          <label className="import-instructions-label">
-            Shared instructions
-            <Textarea
-              className="import-instructions-textarea"
-              value={instructions}
-              onChange={(event) => setInstructions(event.target.value)}
-              rows={5}
+      <div className="import-launch-footer" aria-label="Import launch settings">
+        <div className="import-config-fields">
+          <label className="import-field">
+            <span className="import-field-label">Model</span>
+            <NativeSelect
+              aria-label="Import agent model"
+              value={resolvedModel}
+              onChange={(event) => setSelectedModel(event.target.value)}
+              disabled={availableModels.length === 0}
+            >
+              {availableModels.length === 0 ? <option value="">Loading models…</option> : null}
+              {availableModels.map((modelName) => (
+                <option key={modelName} value={modelName}>
+                  {resolveAgentModelOptionLabel(modelName, modelDisplayNames)}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <label className="import-field import-worker-field">
+            <span className="import-field-label">Workers</span>
+            <Input
+              type="number"
+              min={1}
+              max={16}
+              value={selectedConcurrency ?? runtimeQuery.data?.agent_bulk_max_concurrent_threads ?? 4}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setSelectedConcurrency(Number.isFinite(next) ? Math.min(Math.max(next, 1), 16) : 1);
+              }}
+              aria-label="Import worker count"
             />
           </label>
+        </div>
 
-          {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+        <details className="import-instructions-details">
+          <summary>Instructions</summary>
+          <Textarea
+            className="import-instructions-textarea"
+            value={instructions}
+            onChange={(event) => setInstructions(event.target.value)}
+            rows={3}
+          />
+        </details>
 
-          <div className="import-create-actions">
-            <Button
-              type="button"
-              className="import-start-button"
-              onClick={() => void handleStartImport()}
-              disabled={createMutation.isPending || isPreflightPending || selectedCount === 0}
-            >
-              {createMutation.isPending ? "Starting…" : `Start import (${selectedCount} file${selectedCount === 1 ? "" : "s"})`}
-            </Button>
-          </div>
-        </aside>
+        {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+
+        <div className="import-create-actions">
+          <Button
+            type="button"
+            className="import-start-button"
+            onClick={() => void handleStartImport()}
+            disabled={createMutation.isPending || isPreflightPending || selectedCount === 0}
+          >
+            {createMutation.isPending ? "Starting…" : `Start import (${selectedCount})`}
+          </Button>
+        </div>
       </div>
     </WorkspaceSection>
   );

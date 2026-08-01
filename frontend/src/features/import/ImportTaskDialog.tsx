@@ -56,6 +56,7 @@ export function ImportTaskDialog({ task, open, onOpenChange }: ImportTaskDialogP
     <ModalShell
       open={open}
       onOpenChange={onOpenChange}
+      size="xl"
       contentClassName="import-task-dialog-content"
       header={
         <DialogHeader className="import-task-dialog-header">

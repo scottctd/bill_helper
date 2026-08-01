@@ -98,7 +98,7 @@ Key ownership boundaries:
 - custom select/tag menus render in a floating portal anchored by `hooks/useFloatingMenuPosition.ts`, so short cards, empty states, and other clipped containers do not truncate the menu body
 - `agent.css`: agent panel, thread rail, timeline, and composer styling
 - `review.css`: shared proposal review panel shell, TOC, structured diff card, and status styling (`agent-review-*` classes) reused by the Agent review modal and the Import job review
-- `import-shell.css` / `import-create.css` / `import-jobs.css` / `import-task-dialog.css` / `import-review.css`: Import tab page shell, create panel, job list/detail, task conversation popup, and job review dialog shell; all use the 4px spacing scale and Geist `--radius-sm`/`--radius-md` radii and semantic `--warning` tokens for re-import accents
+  - `import-shell.css` / `import-create.css` / `import-jobs.css` / `import-task-dialog.css` / `import-review.css`: Import master-detail shell, compact create panel, dense jobs rail/detail, task conversation popup, and job review dialog shell; 4px spacing scale and Geist `--radius-sm`/`--radius-md` radii
 
 ## Design System And Config
 

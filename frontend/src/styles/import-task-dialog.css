@@ -2,12 +2,19 @@
 .import-task-dialog-content {
   display: flex;
   flex-direction: column;
-  width: min(92vw, 56rem);
+  width: min(94vw, 64rem);
+  max-width: min(94vw, 64rem);
   height: min(92vh, 64rem);
   max-height: 92vh;
   overflow: hidden;
   padding: 0;
   gap: 0;
+}
+
+/* Let conversation bubbles use more of the wider dialog than the default 72ch cap */
+.import-task-dialog-content .agent-message-assistant,
+.import-task-dialog-content .agent-message-user {
+  max-width: min(100%, 46rem);
 }
 
 .import-task-dialog-header {

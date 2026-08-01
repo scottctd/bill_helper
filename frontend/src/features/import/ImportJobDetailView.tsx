@@ -89,7 +89,8 @@ export function ImportJobDetailView({ jobId, onOpenTask }: ImportJobDetailProps)
     if (!job) {
       return null;
     }
-    return `Started ${formatImportTimestamp(job.created_at)} · ${job.concurrency} workers · ${job.model_name}`;
+    const failed = job.failed_tasks > 0 ? ` · ${job.failed_tasks} failed` : "";
+    return `${formatImportTimestamp(job.created_at)} · ${job.completed_tasks}/${job.total_tasks} tasks${failed} · ${formatImportCost(job.aggregate_total_cost_usd)}`;
   }, [job]);
 
   if (!job) {
@@ -104,6 +105,7 @@ export function ImportJobDetailView({ jobId, onOpenTask }: ImportJobDetailProps)
     <>
       <WorkspaceSection
         className="import-job-detail-section"
+        contentClassName="import-job-detail-body"
         title={job.title ?? "Import job"}
         description={sectionDescription ?? undefined}
         actions={
@@ -118,7 +120,7 @@ export function ImportJobDetailView({ jobId, onOpenTask }: ImportJobDetailProps)
                 className={cn("agent-panel-review-button", "is-pending")}
                 onClick={openJobReview}
               >
-                <span>Review proposals</span>
+                <span>Review</span>
                 <Badge variant="outline" className="agent-panel-review-badge">
                   {proposalCount}
                 </Badge>
@@ -149,77 +151,70 @@ export function ImportJobDetailView({ jobId, onOpenTask }: ImportJobDetailProps)
           </div>
         }
       >
-        <div className="import-job-detail-body">
-          <div className="import-job-detail-progress-row">
-            <div className="import-job-detail-progress-copy">
-              <p className="import-job-detail-progress-label">Progress</p>
-              <p className="import-job-detail-progress-value">
-                {job.completed_tasks}/{job.total_tasks} tasks · {progressPercent}%
-              </p>
-            </div>
-            <p className="muted text-sm">
-              {formatImportCost(job.aggregate_total_cost_usd)} total
-              {job.failed_tasks > 0 ? ` · ${job.failed_tasks} failed` : ""}
-            </p>
-          </div>
+        <div className="import-job-detail-progress" aria-label={`Progress ${progressPercent}%`}>
           <div className="import-job-progress import-job-progress-large" aria-hidden="true">
             <div className="import-job-progress-bar" style={{ width: `${progressPercent}%` }} />
           </div>
-
-          <div className="table-shell">
-            <div className="table-shell-header">
-              <div>
-                <h3 className="table-shell-title">Tasks</h3>
-                <p className="table-shell-subtitle">Open the conversation or review proposals per source file.</p>
-              </div>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead className="import-task-actions-head">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {job.tasks.map((task) => {
-                  const isRunning = importTaskIsActive(task.status);
-                  return (
-                    <TableRow key={task.id}>
-                      <TableCell className="import-task-source-cell">
-                        <span className="import-task-source-label">{task.source_label}</span>
-                        {task.error_text ? <p className="import-task-error text-sm">{task.error_text}</p> : null}
-                      </TableCell>
-                      <TableCell>
-                        <span className="import-task-status-inline">
-                          {importTaskStatusLabel(task.status)}
-                          {isRunning ? <LoaderCircle className="import-task-spinner" aria-hidden="true" /> : null}
-                        </span>
-                      </TableCell>
-                      <TableCell>{formatImportCost(task.latest_run?.total_cost_usd)}</TableCell>
-                      <TableCell>
-                        <div className="table-actions">
-                          <Button type="button" variant="outline" size="sm" onClick={() => onOpenTask(task)}>
-                            <MessageSquareText className="h-4 w-4" aria-hidden="true" />
-                            Conversation
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {job.instructions ? (
-            <div className="import-instructions-panel">
-              <p className="import-instructions-panel-label">Instructions</p>
-              <p className="import-instructions-text">{job.instructions}</p>
-            </div>
-          ) : null}
+          <p className="import-job-detail-progress-meta muted text-sm">
+            {progressPercent}%
+            {job.model_name ? ` · ${job.model_name}` : ""}
+            {job.concurrency ? ` · ${job.concurrency} workers` : ""}
+          </p>
         </div>
+
+        <div className="table-shell">
+          <div className="table-shell-header">
+            <div>
+              <h3 className="table-shell-title">Tasks</h3>
+              <p className="table-shell-subtitle">Open a task conversation.</p>
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Source</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Cost</TableHead>
+                <TableHead className="import-task-actions-head">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {job.tasks.map((task) => {
+                const isRunning = importTaskIsActive(task.status);
+                return (
+                  <TableRow key={task.id}>
+                    <TableCell className="import-task-source-cell">
+                      <span className="import-task-source-label">{task.source_label}</span>
+                      {task.error_text ? <p className="import-task-error text-sm">{task.error_text}</p> : null}
+                    </TableCell>
+                    <TableCell>
+                      <span className="import-task-status-inline">
+                        {importTaskStatusLabel(task.status)}
+                        {isRunning ? <LoaderCircle className="import-task-spinner" aria-hidden="true" /> : null}
+                      </span>
+                    </TableCell>
+                    <TableCell>{formatImportCost(task.latest_run?.total_cost_usd)}</TableCell>
+                    <TableCell>
+                      <div className="table-actions">
+                        <Button type="button" variant="outline" size="sm" onClick={() => onOpenTask(task)}>
+                          <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+                          Conversation
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        {job.instructions ? (
+          <details className="import-instructions-details">
+            <summary>Instructions</summary>
+            <p className="import-instructions-text">{job.instructions}</p>
+          </details>
+        ) : null}
       </WorkspaceSection>
 
       <ImportJobReviewModal
