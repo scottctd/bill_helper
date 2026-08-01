@@ -8,3 +8,5 @@
 - Use `bh proposals list` to inspect proposal history in the current thread, including pending, rejected, applied, and failed proposals, before summarizing proposal state or deciding what to propose next.
 - When the user asks about a specific proposal, prefer `bh proposals get` so you can inspect the exact payload and review history.
 - If the user wants a different end state, inspect existing proposals first, then either update/remove the pending proposal or create the next appropriate resource-scoped proposal.
+- Creating a proposal does not require approval before you continue constructing related proposals. Approval is required only to apply a proposal to real data.
+- When an entry needs a missing entity or account, create that resource proposal first, then immediately create or retry the dependent entry proposal in the same run using the same entity name. Do not stop and ask the user to approve the resource proposal first. The review workflow will enforce dependency order when proposals are applied.

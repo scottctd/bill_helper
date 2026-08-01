@@ -81,7 +81,7 @@ def system_prompt(context: SystemPromptContext | None = None) -> str:
     )
     timezone_name, timezone_info = _resolve_prompt_timezone(prompt_context.current_timezone)
     date_text = (prompt_context.current_date or datetime.now(timezone_info).date()).isoformat()
-    return _system_prompt_template().render(
+    rendered = _system_prompt_template().render(
         response_surface=(prompt_context.response_surface or "app"),
         timezone_name=timezone_name,
         date_text=date_text,
@@ -90,6 +90,7 @@ def system_prompt(context: SystemPromptContext | None = None) -> str:
         user_memory_content=user_memory_content,
         entity_category_content=entity_category_content,
     )
+    return rendered.rstrip() + "\n"
 
 
 def external_agent_prompt() -> str:

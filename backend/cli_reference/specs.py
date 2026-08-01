@@ -69,6 +69,11 @@ HOSTED_ENTRIES_IMPORT_SPEC = CommandSpec(
         "Each entry may include: currency_code, tags, markdown_notes.",
         "Each entry becomes one pending review proposal.",
         (
+            "A matching pending create_entity or create_account proposal in the current thread satisfies "
+            "entry proposal validation. After proposing a missing entity or account, retry the import "
+            "immediately; do not wait for approval."
+        ),
+        (
             "Example: bh entries import --payload-json "
             '\'{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy",'
             '"amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}\''
@@ -565,5 +570,4 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
         ),
     ),
 )
-
 

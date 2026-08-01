@@ -257,6 +257,7 @@ Command specifications:
   - Each entry requires: kind, date, name, amount_minor, from_entity, to_entity.
   - Each entry may include: currency_code, tags, markdown_notes.
   - Each entry becomes one pending review proposal.
+  - A matching pending create_entity or create_account proposal in the current thread satisfies entry proposal validation. After proposing a missing entity or account, retry the import immediately; do not wait for approval.
   - Example: bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}'
 
 ### `bh entries update <entry_id>`
@@ -598,10 +599,11 @@ Proposal lifecycle is now session/thread-scoped through the CLI and review APIs:
 2. the agent optionally attaches sources and updates the session summary
 3. the agent runs a resource-scoped `bh ... create|update|remove|add-member|remove-member ...` command
 4. backend stores a pending `AgentChangeItem`
-5. `bh proposals list` and `bh proposals get` inspect session-local proposal history
-6. `bh proposals update` and `bh proposals remove` can change or drop pending proposals before review
-7. the human review UI drives approve, reject, and reopen
-8. approval applies the change through the existing backend apply handlers
+5. the agent continues constructing related proposals without waiting for approval; for example, after proposing a missing entity or account, it immediately retries dependent entry creation using the same entity name
+6. `bh proposals list` and `bh proposals get` inspect session-local proposal history
+7. `bh proposals update` and `bh proposals remove` can change or drop pending proposals before review
+8. the human review UI drives approve, reject, and reopen, with dependencies applied in the required order
+9. approval applies the change through the existing backend apply handlers
 
 ## API Surface Behind The CLI
 

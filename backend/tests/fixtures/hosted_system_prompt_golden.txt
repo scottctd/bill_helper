@@ -94,6 +94,7 @@ Command specifications:
   - Each entry requires: kind, date, name, amount_minor, from_entity, to_entity.
   - Each entry may include: currency_code, tags, markdown_notes.
   - Each entry becomes one pending review proposal.
+  - A matching pending create_entity or create_account proposal in the current thread satisfies entry proposal validation. After proposing a missing entity or account, retry the import immediately; do not wait for approval.
   - Example: bh entries import --payload-json '{"entries":[{"kind":"EXPENSE","date":"2026-03-15","name":"Farm Boy","amount_minor":1234,"from_entity":"Checking","to_entity":"Farm Boy"}]}'
 
 ### `bh entries update <entry_id>`
@@ -435,6 +436,8 @@ Common flows:
 - Use `bh proposals list` to inspect proposal history in the current thread, including pending, rejected, applied, and failed proposals, before summarizing proposal state or deciding what to propose next.
 - When the user asks about a specific proposal, prefer `bh proposals get` so you can inspect the exact payload and review history.
 - If the user wants a different end state, inspect existing proposals first, then either update/remove the pending proposal or create the next appropriate resource-scoped proposal.
+- Creating a proposal does not require approval before you continue constructing related proposals. Approval is required only to apply a proposal to real data.
+- When an entry needs a missing entity or account, create that resource proposal first, then immediately create or retry the dependent entry proposal in the same run using the same entity name. Do not stop and ask the user to approve the resource proposal first. The review workflow will enforce dependency order when proposals are applied.
 
 ## Domain Rules
 ### Entries
@@ -531,4 +534,3 @@ Primary checking
 Treat the following as persistent user-provided background and preferences.
 Follow it when it does not conflict with the rules above.
 - Prefers terse answers.
-

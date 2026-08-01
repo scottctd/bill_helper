@@ -159,6 +159,49 @@ def test_thread_proposal_routes_create_batch_entries(client, monkeypatch) -> Non
     assert payload["proposals"][1]["payload"]["name"] == "Coffee"
 
 
+def test_thread_proposal_routes_allow_batch_entries_depending_on_pending_entity(client, monkeypatch) -> None:
+    patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "ok"})
+    main_checking = client.post("/api/v1/entities", json={"name": "Main Checking"})
+    main_checking.raise_for_status()
+
+    thread = create_thread(client)
+    run = send_message(client, thread["id"], "Create dependent proposals in one run.")
+    run_headers = _run_headers(run["id"])
+
+    entity_response = client.post(
+        f"/api/v1/agent/threads/{thread['id']}/proposals",
+        headers=run_headers,
+        json={
+            "change_type": "create_entity",
+            "payload_json": {"name": "New Person", "category": "person"},
+        },
+    )
+    entity_response.raise_for_status()
+    assert entity_response.json()["status"] == "PENDING_REVIEW"
+
+    entries_response = client.post(
+        f"/api/v1/agent/threads/{thread['id']}/proposals/batch-entries",
+        headers=run_headers,
+        json={
+            "entries": [
+                {
+                    "kind": "EXPENSE",
+                    "date": "2026-07-15",
+                    "name": "Payment to New Person",
+                    "amount_minor": 5000,
+                    "from_entity": "Main Checking",
+                    "to_entity": "New Person",
+                }
+            ],
+        },
+    )
+
+    entries_response.raise_for_status()
+    proposal = entries_response.json()["proposals"][0]
+    assert proposal["status"] == "PENDING_REVIEW"
+    assert proposal["payload"]["to_entity"] == "New Person"
+
+
 def test_thread_proposal_routes_create_batch_entries_with_category(client, monkeypatch) -> None:
     patch_model(monkeypatch, lambda _messages: {"role": "assistant", "content": "ok"})
     _ensure_entities(client)

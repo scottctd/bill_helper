@@ -386,6 +386,7 @@ Entry create payload fields:
 Behavior:
 
 - validates every entry before creating any proposals; failures include the array index (`entries[2]: ...`)
+- accepts a matching pending `create_entity` or `create_account` proposal in the same thread as a valid entity reference, so dependent entry proposals can be created before the resource proposal is approved
 - creates one `PENDING_REVIEW` `create_entry` proposal per entry
 - uses the same run association rules as `POST /agent/threads/{thread_id}/proposals`
 
