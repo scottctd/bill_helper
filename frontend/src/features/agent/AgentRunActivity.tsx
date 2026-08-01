@@ -13,6 +13,7 @@ import {
   buildLiveRunTimelineFromToolCalls,
   buildRunTimelineFromProjections,
   isToolStatusTerminal,
+  reconcileLiveActivityLedgerToolCalls,
   toolStatusClass,
   toolStatusLabel,
   type RunActivityItem
@@ -340,7 +341,7 @@ export function PendingAssistantActivityBlock({
   const items = useMemo(
     () =>
       liveActivityItems.length > 0
-        ? liveActivityItems
+        ? reconcileLiveActivityLedgerToolCalls(liveActivityItems, toolCalls)
         : toolCalls.length > 0
           ? buildLiveRunTimelineFromToolCalls(toolCalls)
           : buildRunTimelineFromProjections(steps, toolCalls),
