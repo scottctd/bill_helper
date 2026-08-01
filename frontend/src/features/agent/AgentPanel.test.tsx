@@ -135,6 +135,11 @@ function uploadedAttachmentIdForFileName(name: string) {
   return `draft-${name}`;
 }
 
+async function selectAgentModel(modelName: string) {
+  await userEvent.click(screen.getByRole("button", { name: "Agent model" }));
+  await userEvent.click(screen.getByRole("option", { name: modelName }));
+}
+
 describe("AgentPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -203,6 +208,17 @@ describe("AgentPanel", () => {
       })
     );
     vi.mocked(api.streamAgentMessage).mockResolvedValue();
+  });
+
+  it("exposes a debug transcript copy action for the selected thread", async () => {
+    vi.mocked(api.listAgentThreads).mockResolvedValue([buildThreadSummary()]);
+    vi.mocked(api.getAgentThread).mockResolvedValue(
+      buildThreadDetail([buildRun({ id: "run-debug-1", thread_id: "thread-1" })])
+    );
+
+    renderWithQueryClient(<AgentPanel isOpen />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Copy debug" })).toBeEnabled());
   });
 
   it("opens the thread review modal from the header button", async () => {
@@ -428,7 +444,7 @@ describe("AgentPanel", () => {
     const { container } = renderWithQueryClient(<AgentPanel isOpen />);
 
     await screen.findByRole("button", { name: "Review thread" });
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Agent model" }), "openrouter/qwen/qwen3.5-27b");
+    await selectAgentModel("openrouter/qwen/qwen3.5-27b");
     const fileInput = container.querySelector('input[type="file"]');
     if (!(fileInput instanceof HTMLInputElement)) {
       throw new Error("Expected file input");
@@ -641,9 +657,10 @@ describe("AgentPanel", () => {
 
     renderWithQueryClient(<AgentPanel isOpen />);
 
-    const modelPicker = await screen.findByRole("combobox", { name: "Agent model" });
-    await waitFor(() => expect(modelPicker).toHaveValue("openai/gpt-4.1-mini"));
-    expect(within(modelPicker).getAllByRole("option").map((option) => option.textContent)).toEqual([
+    const modelPicker = await screen.findByRole("button", { name: "Agent model" });
+    await waitFor(() => expect(modelPicker).toHaveTextContent("openai/gpt-4.1-mini"));
+    await userEvent.click(modelPicker);
+    expect(within(screen.getByRole("listbox", { name: "Select option" })).getAllByRole("option").map((option) => option.textContent)).toEqual([
       "bedrock/us.anthropic.claude-sonnet-4-6",
       "openai/gpt-4.1-mini"
     ]);
@@ -665,11 +682,10 @@ describe("AgentPanel", () => {
 
     renderWithQueryClient(<AgentPanel isOpen />);
 
-    const modelPicker = await screen.findByRole("combobox", { name: "Agent model" });
+    const modelPicker = await screen.findByRole("button", { name: "Agent model" });
 
-    await waitFor(() => expect(modelPicker).toHaveValue(""));
+    await waitFor(() => expect(modelPicker).toHaveTextContent("Loading models…"));
     expect(modelPicker).toBeDisabled();
-    expect(screen.getByRole("option", { name: "Loading models…" })).toBeInTheDocument();
   });
 
   it("keeps the Bill Assistant title stable when the composer model picker changes", async () => {
@@ -688,14 +704,14 @@ describe("AgentPanel", () => {
 
     renderWithQueryClient(<AgentPanel isOpen />);
 
-    const modelPicker = await screen.findByRole("combobox", { name: "Agent model" });
-    await waitFor(() => expect(modelPicker).toHaveValue("openai/gpt-4.1-mini"));
+    const modelPicker = await screen.findByRole("button", { name: "Agent model" });
+    await waitFor(() => expect(modelPicker).toHaveTextContent("openai/gpt-4.1-mini"));
     expect(await screen.findByRole("heading", { name: "Bill Assistant" })).toBeInTheDocument();
 
-    await userEvent.selectOptions(modelPicker, "gpt-test");
+    await selectAgentModel("gpt-test");
 
     expect(screen.getByRole("heading", { name: "Bill Assistant" })).toBeInTheDocument();
-    expect(modelPicker).toHaveValue("gpt-test");
+    expect(modelPicker).toHaveTextContent("gpt-test");
   });
 
   it("uses the selected composer model for the next streamed send", async () => {
@@ -713,7 +729,7 @@ describe("AgentPanel", () => {
     renderWithQueryClient(<AgentPanel isOpen />);
 
     await screen.findByRole("button", { name: "Review thread" });
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Agent model" }), "openai/gpt-4.1-mini");
+    await selectAgentModel("openai/gpt-4.1-mini");
     await userEvent.type(screen.getByRole("textbox"), "Use the faster model next");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 

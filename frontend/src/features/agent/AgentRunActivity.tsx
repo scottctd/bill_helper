@@ -323,6 +323,7 @@ export function PendingAssistantActivityBlock({
   hydratingToolCallIds,
   streamingReasoningText = "",
   streamingReasoningStartedAt,
+  showStreamingPlaceholder = false,
   defaultOpenReasoningSteps = false
 }: {
   steps: AgentRunStep[];
@@ -333,6 +334,7 @@ export function PendingAssistantActivityBlock({
   hydratingToolCallIds?: ReadonlySet<string>;
   streamingReasoningText?: string;
   streamingReasoningStartedAt?: number | null;
+  showStreamingPlaceholder?: boolean;
   defaultOpenReasoningSteps?: boolean;
 }) {
   const items = useMemo(
@@ -345,10 +347,11 @@ export function PendingAssistantActivityBlock({
     [liveActivityItems, steps, toolCalls]
   );
   const hasStreamingReasoningText = streamingReasoningText.length > 0;
-  const showStreamingPlaceholder =
-    (steps.length > 0 || toolCalls.length > 0) && items.length === 0 && !hasStreamingReasoningText;
+  const shouldShowStreamingPlaceholder =
+    showStreamingPlaceholder ||
+    ((steps.length > 0 || toolCalls.length > 0) && items.length === 0 && !hasStreamingReasoningText);
 
-  if (items.length === 0 && !hasStreamingReasoningText && !showStreamingPlaceholder) {
+  if (items.length === 0 && !hasStreamingReasoningText && !shouldShowStreamingPlaceholder) {
     return null;
   }
 
@@ -360,6 +363,7 @@ export function PendingAssistantActivityBlock({
       hydratingToolCallIds={hydratingToolCallIds}
       streamingReasoningText={streamingReasoningText}
       streamingReasoningStartedAt={streamingReasoningStartedAt}
+      showStreamingPlaceholder={shouldShowStreamingPlaceholder}
       defaultOpenReasoningSteps={defaultOpenReasoningSteps}
     />
   );

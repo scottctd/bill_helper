@@ -5,7 +5,7 @@
  * - Outputs: hooks and state helpers exported by `useAgentPanelController`.
  * - Side effects: client-side state coordination and query wiring.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useResizablePanel } from "../../../hooks/useResizablePanel";
 import { displayThreadName } from "./format";
@@ -14,6 +14,7 @@ import { useAgentPanelQueries } from "./useAgentPanelQueries";
 import { useAgentThreadActions } from "./useAgentThreadActions";
 import { getApiErrorMessage } from "../../../lib/api/core";
 import type { AgentTimelineModel } from "./agentTimelineModel";
+import { buildAgentThreadDebugTranscript } from "./threadDebugTranscript";
 
 interface UseAgentPanelControllerArgs {
   isOpen: boolean;
@@ -127,6 +128,10 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
     ...actions.optimisticRunningThreadIds,
     ...(data.displayedThreads ?? []).filter((thread) => thread.has_running_run).map((thread) => thread.id)
   ]);
+  const threadDebugTranscript = useMemo(
+    () => buildAgentThreadDebugTranscript(data.threadQuery.data),
+    [data.threadQuery.data]
+  );
 
   return {
     header: {
@@ -139,6 +144,7 @@ export function useAgentPanelController({ isOpen }: UseAgentPanelControllerArgs)
       pendingReviewCount: data.pendingReviewCount,
       reviewProposalCount: data.reviewProposalCount,
       selectedThreadId,
+      threadDebugTranscript,
       threadUsageTotals: data.threadUsageTotals,
       toggleThreadPanel
     },

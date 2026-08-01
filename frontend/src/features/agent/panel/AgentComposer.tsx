@@ -10,6 +10,7 @@ import { CircleHelp, FileImage, FileText, LoaderCircle, Paperclip, SendHorizonta
 
 import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
+import { SingleSelect, type SingleSelectOption } from "../../../components/SingleSelect";
 import { Textarea } from "../../../components/ui/textarea";
 import { Tooltip } from "../../../components/ui/tooltip";
 import type { AgentApprovalPolicy } from "../../../lib/types";
@@ -39,8 +40,8 @@ interface AgentComposerProps {
   onDragLeave: (event: DragEvent<HTMLFormElement>) => void;
   onDrop: (event: DragEvent<HTMLFormElement>) => void;
   onMessageChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
-  onModelChange: (event: ChangeEvent<HTMLSelectElement>) => void;
-  onApprovalPolicyChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  onModelChange: (value: string) => void;
+  onApprovalPolicyChange: (value: string) => void;
   onComposerKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onComposerPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onFileSelection: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -81,6 +82,17 @@ export function AgentComposer(props: AgentComposerProps) {
   const showStopButton = isRunInFlight;
   const submitLabel = isSendingMessage ? "Sending..." : "Send";
   const composerPlaceholder = "Ask a question or ask the agent to propose entries/tags/entities...";
+  const modelOptions: SingleSelectOption[] =
+    availableModels.length === 0
+      ? [{ value: "", label: "Loading models…" }]
+      : availableModels.map((modelName) => ({
+          value: modelName,
+          label: resolveAgentModelOptionLabel(modelName, modelDisplayNames)
+        }));
+  const policyOptions: SingleSelectOption[] = [
+    { value: "default", label: "Default" },
+    { value: "yolo", label: "Yolo" }
+  ];
 
   function attachmentStatusLabel(attachment: DraftAttachment): string | null {
     if (attachment.phase === "uploading") {
@@ -209,34 +221,28 @@ export function AgentComposer(props: AgentComposerProps) {
           </div>
 
           <div className="agent-composer-primary-actions">
-            <select
-              className="agent-composer-model-select"
-              aria-label="Agent model"
-              value={availableModels.length === 0 ? "" : selectedModel}
-              onChange={onModelChange}
-              disabled={isModelPickerDisabled || availableModels.length === 0}
-            >
-              {availableModels.length === 0 ? <option value="">Loading models…</option> : null}
-              {availableModels.map((modelName) => (
-                <option key={modelName} value={modelName}>
-                  {resolveAgentModelOptionLabel(modelName, modelDisplayNames)}
-                </option>
-              ))}
-            </select>
+            <div className="agent-composer-select agent-composer-model-select">
+              <SingleSelect
+                options={modelOptions}
+                value={availableModels.length === 0 ? "" : selectedModel}
+                onChange={onModelChange}
+                ariaLabel="Agent model"
+                disabled={isModelPickerDisabled || availableModels.length === 0}
+              />
+            </div>
             <div className="agent-composer-policy-wrap">
-              <label className="agent-composer-policy">
+              <div className="agent-composer-policy">
                 <span className="agent-composer-policy-label">Policy</span>
-                <select
-                  className="agent-composer-policy-select"
-                  aria-label="Approval policy"
-                  value={approvalPolicy}
-                  onChange={onApprovalPolicyChange}
-                  disabled={isMutating || isSendingMessage || isInterruptPending}
-                >
-                  <option value="default">Default</option>
-                  <option value="yolo">Yolo</option>
-                </select>
-              </label>
+                <div className="agent-composer-select agent-composer-policy-select">
+                  <SingleSelect
+                    options={policyOptions}
+                    value={approvalPolicy}
+                    onChange={onApprovalPolicyChange}
+                    ariaLabel="Approval policy"
+                    disabled={isMutating || isSendingMessage || isInterruptPending}
+                  />
+                </div>
+              </div>
               <Tooltip content="Default: review proposals before they apply. Yolo: auto-apply this run’s proposals after it completes successfully.">
                 <button type="button" className="agent-composer-policy-help" aria-label="Approval policy help">
                   <CircleHelp className="h-3 w-3 text-muted-foreground/80" aria-hidden="true" />

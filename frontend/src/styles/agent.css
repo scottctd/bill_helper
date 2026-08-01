@@ -31,6 +31,10 @@
     @apply ml-auto inline-flex shrink-0 flex-wrap items-center gap-2;
   }
 
+  .agent-panel-debug-copy {
+    @apply border-border/80 bg-secondary text-foreground;
+  }
+
   .agent-panel-review-button {
     @apply gap-2 border-border/80 bg-secondary text-foreground shadow-none;
   }
@@ -823,15 +827,24 @@
     @apply ml-auto flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1.5;
   }
 
-  /* Shared native <select> chrome for model + policy (match height, type scale, border). */
-  .agent-composer-model-select,
-  .agent-composer-policy-select {
-    @apply h-8 rounded-sm border border-border/70 bg-transparent px-2 text-label-12 leading-none text-foreground shadow-none;
-    @apply focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)];
+  .agent-composer-select {
+    @apply min-w-0 shrink-0;
+  }
+
+  .agent-composer-select .single-select-control {
+    @apply h-8 rounded-sm border-border/70 bg-transparent px-2 py-1 text-label-12 leading-none shadow-none hover:bg-secondary/55;
+  }
+
+  .agent-composer-select .single-select-caret {
+    @apply h-3.5 w-3.5;
+  }
+
+  .agent-composer-select .single-select-value {
+    @apply min-w-0 truncate;
   }
 
   .agent-composer-model-select {
-    @apply min-w-[9.5rem] max-w-[14rem];
+    @apply w-[10rem] max-w-[14rem];
   }
 
   .agent-composer-policy-wrap {
@@ -847,7 +860,7 @@
   }
 
   .agent-composer-policy-select {
-    @apply min-w-[5.5rem] max-w-[7rem];
+    @apply w-[5.5rem] max-w-[7rem];
   }
 
   .agent-composer-policy-help {

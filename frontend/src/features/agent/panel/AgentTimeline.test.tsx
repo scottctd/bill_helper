@@ -249,15 +249,15 @@ describe("AgentTimeline", () => {
     expect(screen.queryByText("Raw prompt")).not.toBeInTheDocument();
   });
 
-  it("shows the optimistic assistant caret before the first stream projection arrives", () => {
+  it("shows Thinking before the first stream projection arrives", () => {
     const { container } = renderTimeline({
       pendingAssistantMessage: buildPendingAssistantMessage(),
       shouldShowOptimisticAssistantBubble: true
     });
 
-    expect(screen.getByText("▍")).toBeInTheDocument();
-    expect(container.querySelector(".agent-message-streaming-text")).not.toBeNull();
-    expectArticleClasses(screen.getByText("▍"), ["agent-message", "agent-message-assistant", "agent-message-streaming"], ["agent-message-user"]);
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    expect(container.querySelector(".agent-message-streaming-text")).toBeNull();
+    expectArticleClasses(screen.getByText("Thinking"), ["agent-message", "agent-message-assistant", "agent-message-streaming"], ["agent-message-user"]);
   });
 
   it("switches into the live activity bubble as soon as optimistic steps arrive", () => {

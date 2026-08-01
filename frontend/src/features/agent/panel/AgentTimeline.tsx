@@ -409,11 +409,7 @@ function AgentTimelineComponent({ model }: AgentTimelineProps) {
                     streamingReasoningText={activeStreamReasoningText}
                     streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
                   />
-                ) : activeLiveActivityItems.length > 0 ||
-                  activeOptimisticSteps.length > 0 ||
-                  activeOptimisticToolCalls.length > 0 ||
-                  activeStreamReasoningText.length > 0 ||
-                  activeStreamText.length > 0 ? (
+                ) : (
                   <PendingAssistantActivityBlock
                     steps={activeOptimisticSteps}
                     toolCalls={activeOptimisticToolCalls}
@@ -423,20 +419,17 @@ function AgentTimelineComponent({ model }: AgentTimelineProps) {
                     hydratingToolCallIds={hydratingToolCallIds}
                     streamingReasoningText={activeStreamReasoningText}
                     streamingReasoningStartedAt={resolveReasoningSegmentStartedAt(activeStreamRunId)}
+                    showStreamingPlaceholder={
+                      activeStreamReasoningText.length === 0 &&
+                      activeStreamText.length === 0 &&
+                      activeLiveActivityItems.length === 0 &&
+                      activeOptimisticSteps.length === 0 &&
+                      activeOptimisticToolCalls.length === 0
+                    }
                   />
-                ) : null}
+                )}
                 {activeStreamText.length > 0 ? (
                   <MarkdownRenderer markdown={activeStreamText} className="agent-markdown" />
-                ) : null}
-                {!activeStreamReasoningText.length &&
-                !activeStreamText.length &&
-                activeLiveActivityItems.length === 0 &&
-                activeOptimisticSteps.length === 0 &&
-                activeOptimisticToolCalls.length === 0 &&
-                !pendingRunAttachedToOptimisticMessage ? (
-                  <p className="agent-message-text agent-message-streaming-text">
-                    <span className="agent-message-caret">{"\u258d"}</span>
-                  </p>
                 ) : null}
                 <AgentMessageHeader
                   createdAt={pendingAssistantMessage.createdAt}

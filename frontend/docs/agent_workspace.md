@@ -8,7 +8,7 @@
 - acts as a render shell that wires the header, timeline, composer, thread rail, review modal, and delete confirmation together
 - stateful coordination now lives in `frontend/src/features/agent/panel/useAgentPanelController.ts`, which composes `useAgentPanelQueries.ts` for thread/runtime queries, `useAgentThreadActions.ts` for thread/review mutations plus cache helpers, and `useAgentComposerRuntime.ts` for composer/panel coordination; stream hydration/state lives in `useAgentComposerStreamState.ts`, send-stop orchestration lives in `useAgentComposerActions.ts`, and pure panel helpers live in `frontend/src/features/agent/panel/helpers.ts`
 - the header **New Thread** control clears selection into a client-only draft (no `POST /agent/threads`); the first outbound send calls `ensureThreadId()` in `useAgentComposerActions.ts`, which creates the server thread and selects it; `useAgentPanelQueries.ts` skips auto-selecting the newest/first listed thread while that draft is active so the rail does not snap back
-- page header uses the static title `Bill Assistant`; model selection stays in the composer dropdown instead of the title row
+- page header uses the static title `Bill Assistant`; the adjacent **Copy debug** action copies a readable transcript plus the raw thread detail JSON for troubleshooting, while model selection stays in the composer dropdown instead of the title row
 - visual styling now follows the same compact neutral workspace system as the rest of the app: the agent panel is no longer a full-screen bespoke surface with separate page chrome
 - the route-level border now comes from the same shared workspace shell used by the ledger pages; the agent panel renders borderless inside that shell
 - the main conversation column stays width-capped for readability and centered within the shared workspace panel
@@ -25,6 +25,7 @@ Supporting modules include:
 - `frontend/src/features/agent/panel/streamReducer.ts`
 - `frontend/src/features/agent/panel/runAgentStreamEffects.ts`
 - `frontend/src/features/agent/panel/agentTimelineModel.ts`
+- `frontend/src/features/agent/panel/threadDebugTranscript.ts`
 - `frontend/src/features/agent/panel/helpers.ts`
 - `frontend/src/features/agent/AgentRunBlock.tsx`
 - `frontend/src/features/agent/AgentRunActivity.tsx`
@@ -71,6 +72,7 @@ Supporting modules include:
 - live `reasoning_delta` / `text_delta` buffers stay in a same-tab session store while the SSE connection remains open, so thread switches and panel close/reopen within one browser session can resume incremental streaming without waiting for the next persisted `run_event`
 - after a full page refresh or when opening the app in another tab, `useAgentStreamReconnect.ts` detects server-side `running` runs and opens `GET /api/v1/agent/runs/{run_id}/stream?after_sequence=N`; the backend resumes from the durable prepared/committed step state, while ephemeral token deltas remain single-process only
 - while model reasoning is still streaming, the live `Thinking` row summary updates every ~750ms with elapsed seconds and an estimated token count (`Thinking for {seconds}s · {tokens} tokens`) from the in-flight buffer and `reasoningSegmentStartedAtByRunId`; the expanded body shows only the trailing 9 lines (`text-xs` / `leading-5`) with overflow hidden and a top fade so long hidden reasoning does not scroll inside the expanded row; completed/persisted reasoning segments still expand to the full markdown
+- a newly started run renders a synthetic `Thinking` activity row before the first reasoning, tool, or assistant-text event arrives, so models without reasoning traces never leave the conversation visually silent; the placeholder disappears as soon as real activity is available
 - completed turns collapse that activity behind a centered separator (work duration plus tool/update counts); clicking the separator expands the full timeline above it; the persisted assistant message body remains the primary visible reply when collapsed
 - the per-run proposed-changes summary card stays hidden while a run is still streaming (`running` status or any live SSE text/reasoning buffers for that run) and only appears after the run reaches a terminal state with the assistant reply visible; this keeps the linear activity-then-reply-then-summary order during live runs
 - persisted activity timelines keep step emission order (reasoning, tool calls, progress notes) instead of re-sorting by coarse timestamps, and the live activity ledger remains authoritative until the stream session resets so completed runs do not jump when projections replace the ledger

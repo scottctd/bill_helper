@@ -8,6 +8,7 @@
 import { PanelRight, PanelRightClose } from "lucide-react";
 
 import { DeleteConfirmDialog } from "../../components/DeleteConfirmDialog";
+import { CopyButton } from "../../components/ui/CopyButton";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { AgentComposer } from "./panel/AgentComposer";
@@ -37,6 +38,14 @@ export function AgentPanel({ isOpen, embedded = false }: AgentPanelProps) {
           <div className="agent-panel-header-top">
             <h2>Bill Assistant</h2>
             <div className="agent-panel-header-actions">
+              <CopyButton
+                text={controller.header.threadDebugTranscript}
+                label="Copy debug"
+                copiedLabel="Debug copied"
+                showLabel
+                variant="secondary"
+                className="agent-panel-debug-copy"
+              />
               <Button
                 type="button"
                 variant="secondary"

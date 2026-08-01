@@ -336,12 +336,11 @@ export function useAgentComposerRuntime({
     autoSizeComposerTextarea(event.target);
   }
 
-  function handleComposerModelChange(event: ChangeEvent<HTMLSelectElement>) {
-    setComposerModelOverride(event.target.value);
+  function handleComposerModelChange(value: string) {
+    setComposerModelOverride(value);
   }
 
-  function handleApprovalPolicyChange(event: ChangeEvent<HTMLSelectElement>) {
-    const value = event.target.value;
+  function handleApprovalPolicyChange(value: string) {
     if (value === "default" || value === "yolo") {
       setApprovalPolicy(value);
     }

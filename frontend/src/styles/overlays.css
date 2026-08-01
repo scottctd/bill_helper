@@ -258,7 +258,6 @@
 
   .select-menu-options {
     @apply min-h-0 flex-1 overflow-y-auto overscroll-contain p-1;
-    scrollbar-gutter: stable;
   }
 
   .floating-menu-portal-host {

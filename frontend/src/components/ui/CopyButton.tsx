@@ -16,16 +16,18 @@ interface CopyButtonProps extends Omit<ButtonProps, "children" | "onClick"> {
   text: string;
   label?: string;
   copiedLabel?: string;
+  showLabel?: boolean;
 }
 
 export function CopyButton({
   text,
   label = "Copy",
   copiedLabel = "Copied",
+  showLabel = false,
   className,
   type = "button",
   variant = "ghost",
-  size = "icon",
+  size,
   disabled,
   ...buttonProps
 }: CopyButtonProps) {
@@ -61,9 +63,11 @@ export function CopyButton({
     <Button
       type={type}
       variant={variant}
-      size={size}
+      size={size ?? (showLabel ? "sm" : "icon")}
       className={cn(
-        "h-7 w-7 shrink-0 rounded-md p-0 text-muted-foreground shadow-none hover:bg-secondary hover:text-foreground",
+        showLabel
+          ? "h-8 w-auto shrink-0 gap-1.5 rounded-sm px-2.5 text-muted-foreground shadow-none hover:bg-secondary hover:text-foreground"
+          : "h-7 w-7 shrink-0 rounded-md p-0 text-muted-foreground shadow-none hover:bg-secondary hover:text-foreground",
         className
       )}
       aria-label={activeLabel}
@@ -75,6 +79,7 @@ export function CopyButton({
       {...buttonProps}
     >
       {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+      {showLabel ? <span>{activeLabel}</span> : null}
     </Button>
   );
 }
